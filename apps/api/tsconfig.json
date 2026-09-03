@@ -1,17 +1,24 @@
 {
   "extends": "../../packages/config/tsconfig/base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "resolvePackageJsonExports": true,
+
+    "target": "ES2023",
+    "rootDir": ".",
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
+    "sourceMap": true,
 
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
 
     "declaration": true,
-    "removeComments": true
+    "removeComments": true,
+
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

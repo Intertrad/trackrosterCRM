@@ -9,6 +9,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "build": "turbo run build",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck",
     "prepare": "husky"
