@@ -8,7 +8,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "check": "pnpm lint && pnpm format:check"
+    "check": "pnpm lint && pnpm format:check",
+    "prepare": "husky"
   },
   "packageManager": "pnpm@11.24.0",
   "devEngines": {
@@ -18,11 +19,22 @@
       "onFail": "download"
     }
   },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,scss}": [
+      "prettier --write"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@next/eslint-plugin-next": "^16.3.4",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "turbo": "^2.10.12",
     "typescript": "^6.0.3",
