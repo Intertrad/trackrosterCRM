@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Next.js
+.next/
+out/
+
+# Builds
+dist/
+build/
+
+# Turbo
+.turbo/
+
+# Coverage
+coverage/
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
