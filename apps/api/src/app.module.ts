@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { TenantModule } from './tenants/tenant.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { OrganizationModule } from './organizations/organization.module.js';
+import { TeamModule } from './teams/team.module.js';
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { HealthModule } from './health/health.module.js';
     DatabaseModule,
     TenantModule,
     HealthModule,
+    OrganizationModule,
+    TeamModule,
   ],
 })
 export class AppModule {}
