@@ -8,12 +8,21 @@
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config=vitest.integration.config.ts",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
+    "db:seed": "tsx src/database/seeds/development.seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
+    "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-fastify": "^12.0.1",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
@@ -21,8 +30,10 @@
     "@nestjs/cli": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11"
   }
 }

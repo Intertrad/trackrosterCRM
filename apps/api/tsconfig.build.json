@@ -3,5 +3,14 @@
   "compilerOptions": {
     "rootDir": "./src"
   },
-  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "src/database/seeds/**/*.ts",
+    "vitest.integration.config.ts"
+  ]
 }

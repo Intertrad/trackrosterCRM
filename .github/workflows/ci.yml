@@ -16,6 +16,28 @@ jobs:
     name: Quality Checks
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
+      NODE_ENV: test
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+
+        env:
+          POSTGRES_DB: trackroster
+          POSTGRES_USER: trackroster
+          POSTGRES_PASSWORD: trackroster
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U trackroster -d trackroster"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -31,6 +53,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run database migrations
+        run: pnpm --filter api db:migrate
+
       - name: Lint
         run: pnpm lint
 
@@ -39,8 +64,12 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
-      - name: Test
+
+      - name: Unit tests
         run: pnpm test
+
+      - name: Database integration tests
+        run: pnpm --filter api test:integration
 
       - name: Build
         run: pnpm build
