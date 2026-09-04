@@ -1,4 +1,9 @@
+import { config } from 'dotenv';
 import { defineConfig } from 'vitest/config';
+
+config({
+  path: '../../.env',
+});
 
 export default defineConfig({
   resolve: {
@@ -8,7 +13,8 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.spec.ts'],
-    exclude: ['**/*.integration.spec.ts'],
+    include: ['**/*.integration.spec.ts'],
+    testTimeout: 10_000,
+    hookTimeout: 10_000,
   },
 });
