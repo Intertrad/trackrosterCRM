@@ -22,6 +22,13 @@
       "when": 1788519007702,
       "tag": "0002_nice_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788527855201,
+      "tag": "0003_real_blindfold",
+      "breakpoints": true
     }
   ]
 }
