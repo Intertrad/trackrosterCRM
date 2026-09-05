@@ -19,6 +19,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
       NODE_ENV: test
+      JWT_ACCESS_SECRET: trackroster-ci-access-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_SECRET: trackroster-ci-refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      JWT_REFRESH_TTL: 7d
 
     services:
       postgres:
