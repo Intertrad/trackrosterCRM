@@ -1,0 +1,38 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+
+import { AuthenticatedRequest } from '../auth/auth.types.js';
+import { AuthorizationService } from './authorization.service.js';
+
+@Injectable()
+export class ClientAdminGuard implements CanActivate {
+  constructor(
+    @Inject(AuthorizationService)
+    private readonly authorizationService: AuthorizationService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+
+    if (!request.auth) {
+      throw new UnauthorizedException('Authentication required');
+    }
+
+    const isClientAdmin = await this.authorizationService.isClientAdmin(
+      request.auth.tenantId,
+      request.auth.userId,
+    );
+
+    if (!isClientAdmin) {
+      throw new ForbiddenException('Client administrator access required');
+    }
+
+    return true;
+  }
+}

@@ -8,6 +8,8 @@ import { TeamModule } from './teams/team.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { UserModule } from './users/user.module.js';
 import { validateEnvironment } from './config/environment.validation.js';
+import { AuthorizationModule } from './authorization/authorization.module.js';
+import { UserManagementModule } from './user-management/user-management.module.js';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { validateEnvironment } from './config/environment.validation.js';
     TeamModule,
     AuthModule,
     UserModule,
+    AuthorizationModule,
+    UserManagementModule,
   ],
 })
 export class AppModule {}

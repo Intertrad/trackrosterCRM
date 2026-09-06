@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from '../../app.module.js';
 import { PasswordService } from '../../auth/password.service.js';
+import { UserAccessGrantRepository } from '../../authorization/user-access-grant.repository.js';
 import { OrganizationService } from '../../organizations/organization.service.js';
 import { TeamService } from '../../teams/team.service.js';
 import { TenantService } from '../../tenants/tenant.service.js';
@@ -18,6 +19,7 @@ async function seed(): Promise<void> {
     const teamService = app.get(TeamService);
     const passwordService = app.get(PasswordService);
     const userRepository = app.get(UserRepository);
+    const grantRepository = app.get(UserAccessGrantRepository);
 
     // ----------------------------------------------------------------
     // Tenant
@@ -100,6 +102,29 @@ async function seed(): Promise<void> {
       console.log(`Created development user: ${user.email}`);
     } else {
       console.log(`Development user already exists: ${user.email}`);
+    }
+
+    // ----------------------------------------------------------------
+    // Development client-admin access grant
+    // ----------------------------------------------------------------
+
+    const existingGrants = await grantRepository.findByUser(tenant.id, user.id);
+
+    const hasClientAdminGrant = existingGrants.some(
+      (grant) => grant.role === 'client_admin' && grant.scopeType === 'tenant',
+    );
+
+    if (!hasClientAdminGrant) {
+      await grantRepository.create({
+        tenantId: tenant.id,
+        userId: user.id,
+        role: 'client_admin',
+        scopeType: 'tenant',
+      });
+
+      console.log(`Created development client-admin grant: ${user.email}`);
+    } else {
+      console.log(`Development client-admin grant already exists: ${user.email}`);
     }
   } finally {
     await app.close();
