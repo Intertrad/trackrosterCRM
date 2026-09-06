@@ -29,6 +29,13 @@
       "when": 1788527855201,
       "tag": "0003_real_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788695860903,
+      "tag": "0004_blue_warlock",
+      "breakpoints": true
     }
   ]
 }
