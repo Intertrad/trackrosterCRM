@@ -36,6 +36,13 @@
       "when": 1788695860903,
       "tag": "0004_blue_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788730838157,
+      "tag": "0005_young_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

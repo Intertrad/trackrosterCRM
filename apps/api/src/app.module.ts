@@ -10,6 +10,7 @@ import { UserModule } from './users/user.module.js';
 import { validateEnvironment } from './config/environment.validation.js';
 import { AuthorizationModule } from './authorization/authorization.module.js';
 import { UserManagementModule } from './user-management/user-management.module.js';
+import { EstablishmentModule } from './establishments/establishment.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UserManagementModule } from './user-management/user-management.module.j
     UserModule,
     AuthorizationModule,
     UserManagementModule,
+    EstablishmentModule,
   ],
 })
 export class AppModule {}
