@@ -13,6 +13,7 @@ import { UserManagementModule } from './user-management/user-management.module.j
 import { EstablishmentModule } from './establishments/establishment.module.js';
 import { EstablishmentContactModule } from './establishment-contacts/establishment-contact.module.js';
 import { ImportPreviewModule } from './imports/import-preview.module.js';
+import { ImportExecutionModule } from './imports/import-execution.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ImportPreviewModule } from './imports/import-preview.module.js';
     EstablishmentModule,
     EstablishmentContactModule,
     ImportPreviewModule,
+    ImportExecutionModule,
   ],
 })
 export class AppModule {}

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { DatabaseExecutor } from '../database/database.types.js';
 
 import type {
   EstablishmentContact,
@@ -53,8 +54,11 @@ export class EstablishmentContactService {
     private readonly establishmentRepository: EstablishmentRepository,
   ) {}
 
-  async create(input: CreateEstablishmentContactInput): Promise<EstablishmentContact> {
-    await this.requireEstablishment(input.tenantId, input.establishmentId);
+  async create(
+    input: CreateEstablishmentContactInput,
+    executor?: DatabaseExecutor,
+  ): Promise<EstablishmentContact> {
+    await this.requireEstablishment(input.tenantId, input.establishmentId, executor);
 
     const name = normalizeOptionalContactText(input.name);
 
@@ -64,24 +68,31 @@ export class EstablishmentContactService {
 
     this.validateIdentity(name, email, phone);
 
+    const createInput = {
+      tenantId: input.tenantId,
+
+      establishmentId: input.establishmentId,
+
+      name,
+
+      jobTitle: normalizeOptionalContactText(input.jobTitle),
+
+      email,
+      phone,
+
+      isPrimary: input.isPrimary ?? false,
+
+      status: 'active' as const,
+
+      source: input.source ?? 'manual',
+    };
+
     try {
-      return await this.contactRepository.create({
-        tenantId: input.tenantId,
-        establishmentId: input.establishmentId,
+      if (executor) {
+        return await this.contactRepository.create(createInput, executor);
+      }
 
-        name,
-
-        jobTitle: normalizeOptionalContactText(input.jobTitle),
-
-        email,
-        phone,
-
-        isPrimary: input.isPrimary ?? false,
-
-        status: 'active',
-
-        source: input.source ?? 'manual',
-      });
+      return await this.contactRepository.create(createInput);
     } catch (error: unknown) {
       this.handleUniqueViolation(error);
 
@@ -180,8 +191,14 @@ export class EstablishmentContactService {
     }
   }
 
-  private async requireEstablishment(tenantId: string, establishmentId: string): Promise<void> {
-    const establishment = await this.establishmentRepository.findById(tenantId, establishmentId);
+  private async requireEstablishment(
+    tenantId: string,
+    establishmentId: string,
+    executor?: DatabaseExecutor,
+  ): Promise<void> {
+    const establishment = executor
+      ? await this.establishmentRepository.findById(tenantId, establishmentId, executor)
+      : await this.establishmentRepository.findById(tenantId, establishmentId);
 
     if (!establishment) {
       throw new NotFoundException('Establishment not found');

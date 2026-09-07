@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { DatabaseExecutor } from '../database/database.types.js';
 
 import type {
   Establishment,
@@ -46,7 +47,10 @@ export interface UpdateEstablishmentInput {
 export class EstablishmentService {
   constructor(private readonly establishmentRepository: EstablishmentRepository) {}
 
-  async create(input: CreateEstablishmentInput): Promise<Establishment> {
+  async create(
+    input: CreateEstablishmentInput,
+    executor?: DatabaseExecutor,
+  ): Promise<Establishment> {
     const name = input.name.trim();
 
     if (!name) {
@@ -57,23 +61,29 @@ export class EstablishmentService {
 
     this.validateCoordinates(input.latitude, input.longitude);
 
+    const createInput = {
+      tenantId: input.tenantId,
+      name,
+      normalizedName: normalizeEstablishmentName(name),
+      externalReference: this.normalizeOptionalText(input.externalReference),
+      addressLine1: this.normalizeOptionalText(input.addressLine1),
+      postalCode: this.normalizeOptionalText(input.postalCode),
+      city: this.normalizeOptionalText(input.city),
+      countryCode,
+      phone: this.normalizeOptionalText(input.phone),
+      website: this.normalizeOptionalText(input.website),
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      source: input.source ?? 'manual',
+      status: 'active' as const,
+    };
+
     try {
-      return await this.establishmentRepository.create({
-        tenantId: input.tenantId,
-        name,
-        normalizedName: normalizeEstablishmentName(name),
-        externalReference: this.normalizeOptionalText(input.externalReference),
-        addressLine1: this.normalizeOptionalText(input.addressLine1),
-        postalCode: this.normalizeOptionalText(input.postalCode),
-        city: this.normalizeOptionalText(input.city),
-        countryCode,
-        phone: this.normalizeOptionalText(input.phone),
-        website: this.normalizeOptionalText(input.website),
-        latitude: input.latitude ?? null,
-        longitude: input.longitude ?? null,
-        source: input.source ?? 'manual',
-        status: 'active',
-      });
+      if (executor) {
+        return await this.establishmentRepository.create(createInput, executor);
+      }
+
+      return await this.establishmentRepository.create(createInput);
     } catch (error: unknown) {
       if (this.isUniqueViolation(error)) {
         throw new ConflictException('Establishment external reference already exists');

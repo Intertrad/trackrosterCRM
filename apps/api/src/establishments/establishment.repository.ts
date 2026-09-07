@@ -1,8 +1,8 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DATABASE } from '../database/database.constants.js';
-import type { Database } from '../database/database.types.js';
+import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   establishments,
   type Establishment,
@@ -34,8 +34,11 @@ export class EstablishmentRepository {
     private readonly database: Database,
   ) {}
 
-  async create(input: NewEstablishment): Promise<Establishment> {
-    const [establishment] = await this.database.insert(establishments).values(input).returning();
+  async create(
+    input: NewEstablishment,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Establishment> {
+    const [establishment] = await executor.insert(establishments).values(input).returning();
 
     if (!establishment) {
       throw new Error('Failed to create establishment');
@@ -44,8 +47,12 @@ export class EstablishmentRepository {
     return establishment;
   }
 
-  async findById(tenantId: string, establishmentId: string): Promise<Establishment | null> {
-    const [establishment] = await this.database
+  async findById(
+    tenantId: string,
+    establishmentId: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Establishment | null> {
+    const [establishment] = await executor
       .select()
       .from(establishments)
       .where(and(eq(establishments.tenantId, tenantId), eq(establishments.id, establishmentId)))
@@ -77,5 +84,85 @@ export class EstablishmentRepository {
       .returning();
 
     return establishment ?? null;
+  }
+
+  async findByExternalReference(
+    tenantId: string,
+    source: Establishment['source'],
+    externalReference: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Establishment | null> {
+    const [establishment] = await executor
+      .select()
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, tenantId),
+          eq(establishments.source, source),
+          eq(establishments.externalReference, externalReference),
+        ),
+      )
+      .limit(1);
+
+    return establishment ?? null;
+  }
+
+  async findByIdentity(
+    tenantId: string,
+    normalizedName: string,
+    postalCode: string | null,
+    city: string | null,
+    countryCode: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Establishment | null> {
+    const normalizedPostalCode = this.normalizeLookupText(postalCode);
+
+    const normalizedCity = this.normalizeLookupText(city);
+
+    const [establishment] = await executor
+      .select()
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, tenantId),
+
+          eq(establishments.normalizedName, normalizedName),
+
+          eq(establishments.countryCode, countryCode),
+
+          sql`
+            lower(
+              btrim(
+                coalesce(
+                  ${establishments.postalCode},
+                  ''
+                )
+              )
+            )
+            =
+            ${normalizedPostalCode}
+          `,
+
+          sql`
+            lower(
+              btrim(
+                coalesce(
+                  ${establishments.city},
+                  ''
+                )
+              )
+            )
+            =
+            ${normalizedCity}
+          `,
+        ),
+      )
+      .limit(1);
+
+    return establishment ?? null;
+  }
+
+  private normalizeLookupText(value: string | null): string {
+    return value?.trim().toLowerCase() ?? '';
   }
 }
