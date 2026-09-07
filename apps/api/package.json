@@ -16,6 +16,7 @@
     "db:seed": "tsx src/database/seeds/development.seed.ts"
   },
   "dependencies": {
+    "@fastify/multipart": "^10.1.1",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",
@@ -24,6 +25,7 @@
     "argon2": "^0.45.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "csv-parse": "^7.0.2",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.23.0",

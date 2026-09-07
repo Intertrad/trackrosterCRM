@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { registerImportMultipart } from './imports/import-multipart.js';
 
 import { AppModule } from './app.module.js';
 
@@ -19,6 +20,7 @@ async function bootstrap(): Promise<void> {
 
   app.enableShutdownHooks();
 
+  await registerImportMultipart(app);
   const port = Number(process.env.PORT ?? 3001);
 
   await app.listen(port, '0.0.0.0');
