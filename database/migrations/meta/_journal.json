@@ -43,6 +43,13 @@
       "when": 1788730838157,
       "tag": "0005_young_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788767638387,
+      "tag": "0006_eager_krista_starr",
+      "breakpoints": true
     }
   ]
 }
