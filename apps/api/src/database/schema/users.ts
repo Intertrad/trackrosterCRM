@@ -1,6 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgEnum, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
+import {
+  check,
+  index,
+  pgEnum,
+  pgTable,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 
 export const userStatusEnum = pgEnum('user_status', ['active', 'suspended', 'disabled']);
@@ -44,6 +53,7 @@ export const users = pgTable(
       .notNull(),
   },
   (table) => [
+    unique('users_tenant_id_id_unique').on(table.tenantId, table.id),
     index('users_tenant_id_idx').on(table.tenantId),
 
     check('users_email_lowercase_check', sql`${table.email} = lower(${table.email})`),

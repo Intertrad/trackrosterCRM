@@ -7,4 +7,5 @@ export * from './users.js';
 export * from './establishments.js';
 export * from './establishment-contacts.js';
 export * from './campaigns.js';
+export * from './campaign-prospect-assignments.js';
 export * from './campaign-prospects.js';

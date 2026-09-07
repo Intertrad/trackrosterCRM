@@ -67,6 +67,12 @@ export const teams = pgTable(
       table.slug,
     ),
 
+    unique('teams_tenant_organization_id_id_unique').on(
+      table.tenantId,
+      table.organizationId,
+      table.id,
+    ),
+
     index('teams_tenant_id_idx').on(table.tenantId),
 
     index('teams_tenant_organization_id_idx').on(table.tenantId, table.organizationId),

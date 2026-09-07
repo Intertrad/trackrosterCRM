@@ -1,0 +1,714 @@
+import { randomUUID } from 'node:crypto';
+
+import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import { and, eq, isNull } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { AppModule } from '../src/app.module.js';
+import type { AuthenticationTokens } from '../src/auth/auth.types.js';
+import { PasswordService } from '../src/auth/password.service.js';
+import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
+import { DATABASE } from '../src/database/database.constants.js';
+import type { Database } from '../src/database/database.types.js';
+import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
+import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
+import { campaigns } from '../src/database/schema/campaigns.js';
+import { establishments } from '../src/database/schema/establishments.js';
+import { organizations } from '../src/database/schema/organizations.js';
+import { teams } from '../src/database/schema/teams.js';
+import { tenants } from '../src/database/schema/tenants.js';
+import { users } from '../src/database/schema/users.js';
+import { TenantService } from '../src/tenants/tenant.service.js';
+import { UserRepository } from '../src/users/user.repository.js';
+
+describe('Campaign prospect assignment HTTP integration', () => {
+  let app: NestFastifyApplication | undefined;
+
+  let database: Database | undefined;
+
+  let tenantAId = '';
+  let tenantBId = '';
+
+  let organizationAId = '';
+
+  let teamAId = '';
+  let teamBId = '';
+
+  let campaignId = '';
+  let prospectId = '';
+
+  let prospectorAId = '';
+  let prospectorBId = '';
+
+  let adminAccessToken = '';
+  let regularAccessToken = '';
+
+  const adminPassword = 'AssignmentAdmin123!';
+
+  const regularPassword = 'AssignmentRegular123!';
+
+  function getApp(): NestFastifyApplication {
+    if (!app) {
+      throw new Error('Application has not been initialized');
+    }
+
+    return app;
+  }
+
+  function getDatabase(): Database {
+    if (!database) {
+      throw new Error('Database has not been initialized');
+    }
+
+    return database;
+  }
+
+  async function login(email: string, password: string): Promise<AuthenticationTokens> {
+    const response = await getApp().inject({
+      method: 'POST',
+      url: '/auth/login',
+
+      payload: {
+        email,
+        password,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    return JSON.parse(response.payload) as AuthenticationTokens;
+  }
+
+  beforeAll(async () => {
+    const application = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
+      new FastifyAdapter(),
+      {
+        logger: false,
+        abortOnError: false,
+      },
+    );
+
+    application.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+
+    await application.init();
+
+    app = application;
+
+    database = application.get<Database>(DATABASE);
+
+    const tenantService = application.get(TenantService);
+
+    const userRepository = application.get(UserRepository);
+
+    const passwordService = application.get(PasswordService);
+
+    const grantRepository = application.get(UserAccessGrantRepository);
+
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+
+    const tenantA = await tenantService.create({
+      name: `Assignment Tenant A ${suffix}`,
+
+      slug: `assignment-a-${suffix}`,
+    });
+
+    const tenantB = await tenantService.create({
+      name: `Assignment Tenant B ${suffix}`,
+
+      slug: `assignment-b-${suffix}`,
+    });
+
+    tenantAId = tenantA.id;
+
+    tenantBId = tenantB.id;
+
+    const [organizationA] = await getDatabase()
+      .insert(organizations)
+      .values({
+        tenantId: tenantAId,
+
+        name: 'France Sales',
+
+        slug: `france-${suffix}`,
+
+        status: 'active',
+      })
+      .returning();
+
+    const [organizationB] = await getDatabase()
+      .insert(organizations)
+      .values({
+        tenantId: tenantBId,
+
+        name: 'Belgium Sales',
+
+        slug: `belgium-${suffix}`,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!organizationA || !organizationB) {
+      throw new Error('Failed to create organizations');
+    }
+
+    organizationAId = organizationA.id;
+
+    const [teamA] = await getDatabase()
+      .insert(teams)
+      .values({
+        tenantId: tenantAId,
+
+        organizationId: organizationA.id,
+
+        name: 'Paris Team',
+
+        slug: `paris-${suffix}`,
+
+        status: 'active',
+      })
+      .returning();
+
+    const [teamB] = await getDatabase()
+      .insert(teams)
+      .values({
+        tenantId: tenantBId,
+
+        organizationId: organizationB.id,
+
+        name: 'Brussels Team',
+
+        slug: `brussels-${suffix}`,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!teamA || !teamB) {
+      throw new Error('Failed to create teams');
+    }
+
+    teamAId = teamA.id;
+
+    teamBId = teamB.id;
+
+    const [campaign] = await getDatabase()
+      .insert(campaigns)
+      .values({
+        tenantId: tenantAId,
+
+        organizationId: organizationA.id,
+
+        name: 'Paris Prospecting',
+
+        status: 'active',
+      })
+      .returning();
+
+    const [establishment] = await getDatabase()
+      .insert(establishments)
+      .values({
+        tenantId: tenantAId,
+
+        name: 'Paris Restaurant',
+
+        normalizedName: 'paris restaurant',
+
+        city: 'Paris',
+
+        countryCode: 'FR',
+
+        source: 'manual',
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!campaign || !establishment) {
+      throw new Error('Failed to create campaign fixtures');
+    }
+
+    campaignId = campaign.id;
+
+    const [prospect] = await getDatabase()
+      .insert(campaignProspects)
+      .values({
+        tenantId: tenantAId,
+
+        campaignId: campaign.id,
+
+        establishmentId: establishment.id,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!prospect) {
+      throw new Error('Failed to create campaign prospect');
+    }
+
+    prospectId = prospect.id;
+
+    const adminEmail = `assignment-admin-${suffix}@trackroster.test`;
+
+    const regularEmail = `assignment-regular-${suffix}@trackroster.test`;
+
+    const prospectorAEmail = `prospector-a-${suffix}@trackroster.test`;
+
+    const prospectorBEmail = `prospector-b-${suffix}@trackroster.test`;
+
+    const admin = await userRepository.create({
+      tenantId: tenantAId,
+
+      email: adminEmail,
+
+      passwordHash: await passwordService.hash(adminPassword),
+
+      status: 'active',
+    });
+
+    await userRepository.create({
+      tenantId: tenantAId,
+
+      email: regularEmail,
+
+      passwordHash: await passwordService.hash(regularPassword),
+
+      status: 'active',
+    });
+
+    const prospectorA = await userRepository.create({
+      tenantId: tenantAId,
+
+      email: prospectorAEmail,
+
+      passwordHash: await passwordService.hash('ProspectorA123!'),
+
+      status: 'active',
+    });
+
+    const prospectorB = await userRepository.create({
+      tenantId: tenantAId,
+
+      email: prospectorBEmail,
+
+      passwordHash: await passwordService.hash('ProspectorB123!'),
+
+      status: 'active',
+    });
+
+    prospectorAId = prospectorA.id;
+
+    prospectorBId = prospectorB.id;
+
+    await grantRepository.create({
+      tenantId: tenantAId,
+
+      userId: admin.id,
+
+      role: 'client_admin',
+
+      scopeType: 'tenant',
+    });
+
+    await grantRepository.create({
+      tenantId: tenantAId,
+
+      userId: prospectorA.id,
+
+      role: 'prospector',
+
+      scopeType: 'team',
+
+      organizationId: organizationA.id,
+
+      teamId: teamA.id,
+    });
+
+    /*
+     * Prospector B intentionally has no
+     * team grant at first.
+     */
+
+    adminAccessToken = (await login(adminEmail, adminPassword)).accessToken;
+
+    regularAccessToken = (await login(regularEmail, regularPassword)).accessToken;
+  });
+
+  afterAll(async () => {
+    try {
+      if (database) {
+        for (const tenantId of [tenantAId, tenantBId]) {
+          if (!tenantId) {
+            continue;
+          }
+
+          await database
+            .delete(campaignProspectAssignments)
+            .where(eq(campaignProspectAssignments.tenantId, tenantId));
+
+          await database.delete(campaignProspects).where(eq(campaignProspects.tenantId, tenantId));
+
+          await database.delete(campaigns).where(eq(campaigns.tenantId, tenantId));
+
+          await database.delete(establishments).where(eq(establishments.tenantId, tenantId));
+
+          await database.delete(teams).where(eq(teams.tenantId, tenantId));
+
+          await database.delete(users).where(eq(users.tenantId, tenantId));
+
+          await database.delete(organizations).where(eq(organizations.tenantId, tenantId));
+
+          await database.delete(tenants).where(eq(tenants.id, tenantId));
+        }
+      }
+    } finally {
+      if (app) {
+        await app.close();
+      }
+    }
+  });
+
+  it('rejects assignment without authentication', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      payload: {
+        teamId: teamAId,
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('rejects assignment for a non-admin user', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${regularAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamAId,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('rejects team from another tenant', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamBId,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('rejects user without exact-team prospector grant', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamAId,
+
+        assignedUserId: prospectorBId,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('creates an assignment to an exact-team prospector', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamAId,
+
+        assignedUserId: prospectorAId,
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+
+    const body = JSON.parse(response.payload) as {
+      tenantId: string;
+      campaignId: string;
+      campaignProspectId: string;
+      organizationId: string;
+      teamId: string;
+      assignedUserId: string | null;
+      endedAt: string | null;
+    };
+
+    expect(body).toMatchObject({
+      tenantId: tenantAId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
+
+      organizationId: organizationAId,
+
+      teamId: teamAId,
+
+      assignedUserId: prospectorAId,
+
+      endedAt: null,
+    });
+  });
+
+  it('rejects a second active assignment', async () => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamAId,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+  });
+
+  it('returns the current assignment', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      assignedUserId: string;
+      endedAt: null;
+    };
+
+    expect(body.assignedUserId).toBe(prospectorAId);
+
+    expect(body.endedAt).toBeNull();
+  });
+
+  it('reassigns transactionally and preserves history', async () => {
+    const grantRepository = getApp().get(UserAccessGrantRepository);
+
+    await grantRepository.create({
+      tenantId: tenantAId,
+
+      userId: prospectorBId,
+
+      role: 'prospector',
+
+      scopeType: 'team',
+
+      organizationId: organizationAId,
+
+      teamId: teamAId,
+    });
+
+    const response = await getApp().inject({
+      method: 'PUT',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+
+      payload: {
+        teamId: teamAId,
+
+        assignedUserId: prospectorBId,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      assignedUserId: string | null;
+
+      endedAt: string | null;
+    };
+
+    expect(body.assignedUserId).toBe(prospectorBId);
+
+    expect(body.endedAt).toBeNull();
+
+    const history = await getDatabase()
+      .select()
+      .from(campaignProspectAssignments)
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantAId),
+          eq(campaignProspectAssignments.campaignProspectId, prospectId),
+        ),
+      );
+
+    expect(history).toHaveLength(2);
+
+    expect(history.filter((assignment) => assignment.endedAt === null)).toHaveLength(1);
+  });
+
+  it('returns complete assignment history', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment-history`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as Array<{
+      assignedUserId: string | null;
+
+      endedAt: string | null;
+    }>;
+
+    expect(body).toHaveLength(2);
+
+    expect(body.filter((assignment) => assignment.endedAt === null)).toHaveLength(1);
+  });
+
+  it('unassigns without deleting assignment history', async () => {
+    const response = await getApp().inject({
+      method: 'DELETE',
+
+      url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+      headers: {
+        authorization: `Bearer ${adminAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const current = await getDatabase()
+      .select()
+      .from(campaignProspectAssignments)
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantAId),
+          eq(campaignProspectAssignments.campaignProspectId, prospectId),
+          isNull(campaignProspectAssignments.endedAt),
+        ),
+      );
+
+    expect(current).toHaveLength(0);
+
+    const history = await getDatabase()
+      .select()
+      .from(campaignProspectAssignments)
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantAId),
+          eq(campaignProspectAssignments.campaignProspectId, prospectId),
+        ),
+      );
+
+    expect(history).toHaveLength(2);
+  });
+
+  it('allows only one concurrent active assignment', async () => {
+    /*
+     * Ensure the prospect starts unassigned.
+     */
+    await getDatabase()
+      .update(campaignProspectAssignments)
+      .set({
+        endedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantAId),
+          eq(campaignProspectAssignments.campaignProspectId, prospectId),
+          isNull(campaignProspectAssignments.endedAt),
+        ),
+      );
+
+    const request = () =>
+      getApp().inject({
+        method: 'POST',
+
+        url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
+
+        headers: {
+          authorization: `Bearer ${adminAccessToken}`,
+        },
+
+        payload: {
+          teamId: teamAId,
+
+          assignedUserId: prospectorAId,
+        },
+      });
+
+    const [first, second] = await Promise.all([request(), request()]);
+
+    const statusCodes = [first.statusCode, second.statusCode].sort();
+
+    expect(statusCodes).toEqual([201, 409]);
+
+    const current = await getDatabase()
+      .select()
+      .from(campaignProspectAssignments)
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantAId),
+          eq(campaignProspectAssignments.campaignProspectId, prospectId),
+          isNull(campaignProspectAssignments.endedAt),
+        ),
+      );
+
+    expect(current).toHaveLength(1);
+  });
+});

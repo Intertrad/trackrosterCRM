@@ -1,0 +1,29 @@
+import { Module } from '@nestjs/common';
+
+import { AuthModule } from '../auth/auth.module.js';
+import { AuthorizationModule } from '../authorization/authorization.module.js';
+import { CampaignModule } from '../campaigns/campaign.module.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { TeamModule } from '../teams/team.module.js';
+import { UserModule } from '../users/user.module.js';
+import { CampaignProspectAssignmentController } from './campaign-prospect-assignment.controller.js';
+import { CampaignProspectAssignmentRepository } from './campaign-prospect-assignment.repository.js';
+import { CampaignProspectAssignmentService } from './campaign-prospect-assignment.service.js';
+
+@Module({
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    AuthorizationModule,
+    CampaignModule,
+    TeamModule,
+    UserModule,
+  ],
+
+  controllers: [CampaignProspectAssignmentController],
+
+  providers: [CampaignProspectAssignmentRepository, CampaignProspectAssignmentService],
+
+  exports: [CampaignProspectAssignmentRepository, CampaignProspectAssignmentService],
+})
+export class AssignmentModule {}
