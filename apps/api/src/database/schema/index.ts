@@ -5,3 +5,4 @@ export * from './tenants.js';
 export * from './user-access-grants.js';
 export * from './users.js';
 export * from './establishments.js';
+export * from './establishment-contacts.js';

@@ -11,6 +11,7 @@ import { validateEnvironment } from './config/environment.validation.js';
 import { AuthorizationModule } from './authorization/authorization.module.js';
 import { UserManagementModule } from './user-management/user-management.module.js';
 import { EstablishmentModule } from './establishments/establishment.module.js';
+import { EstablishmentContactModule } from './establishment-contacts/establishment-contact.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EstablishmentModule } from './establishments/establishment.module.js';
     AuthorizationModule,
     UserManagementModule,
     EstablishmentModule,
+    EstablishmentContactModule,
   ],
 })
 export class AppModule {}
