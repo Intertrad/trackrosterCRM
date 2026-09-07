@@ -12,6 +12,7 @@ import { AuthorizationModule } from './authorization/authorization.module.js';
 import { UserManagementModule } from './user-management/user-management.module.js';
 import { EstablishmentModule } from './establishments/establishment.module.js';
 import { EstablishmentContactModule } from './establishment-contacts/establishment-contact.module.js';
+import { ImportPreviewModule } from './imports/import-preview.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { EstablishmentContactModule } from './establishment-contacts/establishme
     UserManagementModule,
     EstablishmentModule,
     EstablishmentContactModule,
+    ImportPreviewModule,
   ],
 })
 export class AppModule {}
