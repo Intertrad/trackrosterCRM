@@ -14,6 +14,7 @@ import { EstablishmentModule } from './establishments/establishment.module.js';
 import { EstablishmentContactModule } from './establishment-contacts/establishment-contact.module.js';
 import { ImportPreviewModule } from './imports/import-preview.module.js';
 import { ImportExecutionModule } from './imports/import-execution.module.js';
+import { CampaignModule } from './campaigns/campaign.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ImportExecutionModule } from './imports/import-execution.module.js';
     EstablishmentContactModule,
     ImportPreviewModule,
     ImportExecutionModule,
+    CampaignModule,
   ],
 })
 export class AppModule {}

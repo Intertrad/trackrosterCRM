@@ -1,0 +1,183 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+
+import type { Campaign, CampaignStatus } from '../database/schema/campaigns.js';
+import { OrganizationRepository } from '../organizations/organization.repository.js';
+import { CampaignRepository, type UpdateCampaign } from './campaign.repository.js';
+
+export interface CreateCampaignInput {
+  tenantId: string;
+  organizationId: string;
+
+  name: string;
+
+  description?: string | null;
+
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+}
+
+export interface UpdateCampaignInput {
+  name?: string;
+
+  description?: string | null;
+
+  status?: CampaignStatus;
+
+  startsAt?: Date | null;
+  endsAt?: Date | null;
+}
+
+@Injectable()
+export class CampaignService {
+  constructor(
+    private readonly campaignRepository: CampaignRepository,
+
+    private readonly organizationRepository: OrganizationRepository,
+  ) {}
+
+  async create(input: CreateCampaignInput): Promise<Campaign> {
+    const name = this.normalizeRequiredName(input.name);
+
+    await this.requireOrganization(input.tenantId, input.organizationId);
+
+    const startsAt = input.startsAt ?? null;
+
+    const endsAt = input.endsAt ?? null;
+
+    this.validateDateRange(startsAt, endsAt);
+
+    return this.campaignRepository.create({
+      tenantId: input.tenantId,
+
+      organizationId: input.organizationId,
+
+      name,
+
+      description: this.normalizeOptionalText(input.description),
+
+      status: 'draft',
+
+      startsAt,
+      endsAt,
+    });
+  }
+
+  async findById(tenantId: string, campaignId: string): Promise<Campaign> {
+    const campaign = await this.campaignRepository.findById(tenantId, campaignId);
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    return campaign;
+  }
+
+  async list(tenantId: string): Promise<Campaign[]> {
+    return this.campaignRepository.findByTenant(tenantId);
+  }
+
+  async update(
+    tenantId: string,
+    campaignId: string,
+    input: UpdateCampaignInput,
+  ): Promise<Campaign> {
+    const current = await this.findById(tenantId, campaignId);
+
+    const update: UpdateCampaign = {};
+
+    if (input.name !== undefined) {
+      update.name = this.normalizeRequiredName(input.name);
+    }
+
+    if (input.description !== undefined) {
+      update.description = this.normalizeOptionalText(input.description);
+    }
+
+    if (input.status !== undefined) {
+      this.validateStatusTransition(current.status, input.status);
+
+      update.status = input.status;
+    }
+
+    const startsAt = input.startsAt !== undefined ? input.startsAt : current.startsAt;
+
+    const endsAt = input.endsAt !== undefined ? input.endsAt : current.endsAt;
+
+    if (input.startsAt !== undefined || input.endsAt !== undefined) {
+      this.validateDateRange(startsAt, endsAt);
+
+      update.startsAt = startsAt;
+
+      update.endsAt = endsAt;
+    }
+
+    const campaign = await this.campaignRepository.update(tenantId, campaignId, update);
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign not found');
+    }
+
+    return campaign;
+  }
+
+  private async requireOrganization(tenantId: string, organizationId: string): Promise<void> {
+    const organization = await this.organizationRepository.findById(tenantId, organizationId);
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+  }
+
+  private normalizeRequiredName(value: string): string {
+    const normalized = value.trim();
+
+    if (!normalized) {
+      throw new BadRequestException('Campaign name is required');
+    }
+
+    return normalized;
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string | null {
+    if (value == null) {
+      return null;
+    }
+
+    const normalized = value.trim();
+
+    return normalized || null;
+  }
+
+  private validateDateRange(startsAt: Date | null, endsAt: Date | null): void {
+    if (startsAt && endsAt && endsAt.getTime() < startsAt.getTime()) {
+      throw new BadRequestException('Campaign end date cannot be before start date');
+    }
+  }
+
+  private validateStatusTransition(
+    currentStatus: CampaignStatus,
+    nextStatus: CampaignStatus,
+  ): void {
+    if (currentStatus === nextStatus) {
+      return;
+    }
+
+    const transitions: Record<CampaignStatus, readonly CampaignStatus[]> = {
+      draft: ['active', 'archived'],
+
+      active: ['paused', 'completed', 'archived'],
+
+      paused: ['active', 'completed', 'archived'],
+
+      completed: ['archived'],
+
+      archived: [],
+    };
+
+    if (!transitions[currentStatus].includes(nextStatus)) {
+      throw new BadRequestException(
+        `Campaign cannot transition from ${currentStatus} to ${nextStatus}`,
+      );
+    }
+  }
+}

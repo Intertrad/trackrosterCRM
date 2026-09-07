@@ -6,3 +6,5 @@ export * from './user-access-grants.js';
 export * from './users.js';
 export * from './establishments.js';
 export * from './establishment-contacts.js';
+export * from './campaigns.js';
+export * from './campaign-prospects.js';
