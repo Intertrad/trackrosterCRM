@@ -48,6 +48,11 @@ export const campaignProspects = pgTable(
      * reservation tables.
      */
     unique('campaign_prospects_tenant_id_id_unique').on(table.tenantId, table.id),
+    unique('campaign_prospects_tenant_campaign_id_id_unique').on(
+      table.tenantId,
+      table.campaignId,
+      table.id,
+    ),
 
     /*
      * The campaign must belong to the

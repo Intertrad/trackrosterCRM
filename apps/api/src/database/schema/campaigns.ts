@@ -76,6 +76,11 @@ export const campaigns = pgTable(
      * foreign keys to campaigns.
      */
     unique('campaigns_tenant_id_id_unique').on(table.tenantId, table.id),
+    unique('campaigns_tenant_id_organization_id_unique').on(
+      table.tenantId,
+      table.id,
+      table.organizationId,
+    ),
 
     /*
      * The organization must belong to the
