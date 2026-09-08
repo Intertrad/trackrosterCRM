@@ -5,6 +5,8 @@ export interface ProspectReservation {
   campaignId: string;
   campaignProspectId: string;
 
+  establishmentId: string;
+
   assignmentId: string;
   teamId: string;
   userId: string;

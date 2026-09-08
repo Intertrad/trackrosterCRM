@@ -57,6 +57,22 @@ export class CampaignProspectRepository {
       .orderBy(asc(campaignProspects.createdAt));
   }
 
+  async findByEstablishment(
+    tenantId: string,
+    establishmentId: string,
+  ): Promise<CampaignProspect[]> {
+    return this.database
+      .select()
+      .from(campaignProspects)
+      .where(
+        and(
+          eq(campaignProspects.tenantId, tenantId),
+          eq(campaignProspects.establishmentId, establishmentId),
+        ),
+      )
+      .orderBy(asc(campaignProspects.createdAt));
+  }
+
   async findByCampaignAndEstablishment(
     tenantId: string,
     campaignId: string,

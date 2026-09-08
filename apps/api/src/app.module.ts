@@ -18,6 +18,7 @@ import { CampaignModule } from './campaigns/campaign.module.js';
 import { AssignmentModule } from './assignments/assignment.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { ReservationModule } from './reservations/reservation.module.js';
+import { CollisionModule } from './collisions/collision.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ReservationModule } from './reservations/reservation.module.js';
     AssignmentModule,
     RedisModule,
     ReservationModule,
+    CollisionModule,
   ],
 })
 export class AppModule {}
