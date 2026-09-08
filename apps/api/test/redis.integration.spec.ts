@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateEnvironment } from './environment.validation';
+import { validateEnvironment } from '../../api/src/config/environment.validation';
 
 describe('validateEnvironment', () => {
   const validConfig: Record<string, unknown> = {
@@ -29,6 +29,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         JWT_ACCESS_SECRET: '',
       }),
     ).toThrow('JWT_ACCESS_SECRET');
@@ -38,6 +39,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         JWT_REFRESH_SECRET: 'short',
       }),
     ).toThrow('JWT_REFRESH_SECRET');
@@ -47,6 +49,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         JWT_ACCESS_TTL: 'fifteen-minutes',
       }),
     ).toThrow('JWT_ACCESS_TTL');
@@ -56,6 +59,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         DATABASE_URL: '',
       }),
     ).toThrow('DATABASE_URL');
@@ -65,6 +69,7 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         REDIS_URL: '',
       }),
     ).toThrow('REDIS_URL');
@@ -74,15 +79,17 @@ describe('validateEnvironment', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         REDIS_URL: 'not-a-url',
       }),
     ).toThrow('REDIS_URL');
   });
 
-  it('rejects Redis URLs using unsupported protocols', () => {
+  it('rejects a Redis URL using an unsupported protocol', () => {
     expect(() =>
       validateEnvironment({
         ...validConfig,
+
         REDIS_URL: 'http://127.0.0.1:6379',
       }),
     ).toThrow('REDIS_URL');

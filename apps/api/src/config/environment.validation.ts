@@ -30,8 +30,26 @@ function validateJwtTtl(config: Record<string, unknown>, key: string): void {
   }
 }
 
+function validateRedisUrl(config: Record<string, unknown>): void {
+  const redisUrl = requireString(config, 'REDIS_URL');
+
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(redisUrl);
+  } catch {
+    throw new Error('Environment variable REDIS_URL must be a valid Redis URL');
+  }
+
+  if (parsedUrl.protocol !== 'redis:' && parsedUrl.protocol !== 'rediss:') {
+    throw new Error('Environment variable REDIS_URL must use redis:// or rediss://');
+  }
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
+
+  validateRedisUrl(config);
 
   validateJwtSecret(config, 'JWT_ACCESS_SECRET');
 
