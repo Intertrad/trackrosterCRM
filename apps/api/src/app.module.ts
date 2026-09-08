@@ -16,6 +16,8 @@ import { ImportPreviewModule } from './imports/import-preview.module.js';
 import { ImportExecutionModule } from './imports/import-execution.module.js';
 import { CampaignModule } from './campaigns/campaign.module.js';
 import { AssignmentModule } from './assignments/assignment.module.js';
+import { RedisModule } from './redis/redis.module.js';
+import { ReservationModule } from './reservations/reservation.module.js';
 
 @Module({
   imports: [
@@ -40,6 +42,8 @@ import { AssignmentModule } from './assignments/assignment.module.js';
     ImportExecutionModule,
     CampaignModule,
     AssignmentModule,
+    RedisModule,
+    ReservationModule,
   ],
 })
 export class AppModule {}

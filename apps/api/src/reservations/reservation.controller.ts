@@ -1,0 +1,79 @@
+import { Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+
+import { AuthGuard } from '../auth/auth.guard.js';
+import { CurrentAuth } from '../auth/current-auth.decorator.js';
+import { ReservationService } from './reservation.service.js';
+
+interface AuthContext {
+  userId: string;
+  tenantId: string;
+}
+
+@Controller('campaigns/:campaignId/prospects/:prospectId/reservation')
+@UseGuards(AuthGuard)
+export class ReservationController {
+  constructor(private readonly reservationService: ReservationService) {}
+
+  @Post()
+  acquire(
+    @CurrentAuth()
+    auth: AuthContext,
+
+    @Param('campaignId', new ParseUUIDPipe())
+    campaignId: string,
+
+    @Param('prospectId', new ParseUUIDPipe())
+    prospectId: string,
+  ) {
+    return this.reservationService.acquire({
+      tenantId: auth.tenantId,
+
+      userId: auth.userId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
+    });
+  }
+
+  @Get()
+  getCurrent(
+    @CurrentAuth()
+    auth: AuthContext,
+
+    @Param('campaignId', new ParseUUIDPipe())
+    campaignId: string,
+
+    @Param('prospectId', new ParseUUIDPipe())
+    prospectId: string,
+  ) {
+    return this.reservationService.getCurrent(auth.tenantId, campaignId, prospectId);
+  }
+
+  @Delete(':reservationId')
+  release(
+    @CurrentAuth()
+    auth: AuthContext,
+
+    @Param('campaignId', new ParseUUIDPipe())
+    campaignId: string,
+
+    @Param('prospectId', new ParseUUIDPipe())
+    prospectId: string,
+
+    @Param('reservationId', new ParseUUIDPipe())
+    reservationId: string,
+  ) {
+    return this.reservationService.release({
+      tenantId: auth.tenantId,
+
+      userId: auth.userId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
+
+      reservationId,
+    });
+  }
+}
