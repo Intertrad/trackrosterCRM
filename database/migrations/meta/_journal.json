@@ -71,6 +71,13 @@
       "when": 1788865468090,
       "tag": "0009_windy_human_fly",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788876939754,
+      "tag": "0010_legal_junta",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import { campaigns } from '../src/database/schema/campaigns.js';
 import { establishments } from '../src/database/schema/establishments.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { prospectActivities } from '../src/database/schema/prospect-activities.js';
+import { prospectFollowUps } from '../src/database/schema/prospect-follow-ups.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
@@ -46,6 +47,7 @@ describe('Reservation HTTP integration', () => {
 
   let secondCampaignId = '';
   let secondProspectId = '';
+  let secondAssignmentId = '';
 
   let prospectorAId = '';
   let prospectorBId = '';
@@ -98,6 +100,7 @@ describe('Reservation HTTP integration', () => {
   function secondReservationUrl(): string {
     return `/campaigns/${secondCampaignId}` + `/prospects/${secondProspectId}` + '/reservation';
   }
+
   function collisionDecisionUrl(): string {
     return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/collision-decision';
   }
@@ -161,6 +164,14 @@ describe('Reservation HTTP integration', () => {
     }
 
     await getDatabase().delete(prospectActivities).where(eq(prospectActivities.tenantId, tenantId));
+  }
+
+  async function clearFollowUps(): Promise<void> {
+    if (!database || !tenantId) {
+      return;
+    }
+
+    await getDatabase().delete(prospectFollowUps).where(eq(prospectFollowUps.tenantId, tenantId));
   }
 
   beforeAll(async () => {
@@ -278,7 +289,8 @@ describe('Reservation HTTP integration', () => {
       .returning();
 
     /*
-     * Canonical establishment shared by both campaigns.
+     * Canonical establishment shared
+     * by both campaigns.
      */
     const [establishment] = await getDatabase()
       .insert(establishments)
@@ -304,6 +316,7 @@ describe('Reservation HTTP integration', () => {
     }
 
     campaignId = campaign.id;
+
     establishmentId = establishment.id;
 
     /*
@@ -331,7 +344,8 @@ describe('Reservation HTTP integration', () => {
     /*
      * Team-only assignment intentionally.
      *
-     * Both prospectors are eligible to compete.
+     * Both prospectors are eligible
+     * to compete.
      */
     const [assignment] = await getDatabase()
       .insert(campaignProspectAssignments)
@@ -379,8 +393,8 @@ describe('Reservation HTTP integration', () => {
     secondCampaignId = secondCampaign.id;
 
     /*
-     * Second campaign prospect deliberately points
-     * to the SAME canonical establishment.
+     * Second campaign prospect deliberately
+     * points to the SAME canonical establishment.
      */
     const [secondProspect] = await getDatabase()
       .insert(campaignProspects)
@@ -402,7 +416,8 @@ describe('Reservation HTTP integration', () => {
     secondProspectId = secondProspect.id;
 
     /*
-     * Team-only assignment for the second campaign too.
+     * Team-only assignment for
+     * the second campaign too.
      */
     const [secondAssignment] = await getDatabase()
       .insert(campaignProspectAssignments)
@@ -424,6 +439,8 @@ describe('Reservation HTTP integration', () => {
     if (!secondAssignment) {
       throw new Error('Failed to create second assignment');
     }
+
+    secondAssignmentId = secondAssignment.id;
 
     /*
      * Two prospectors on the same team.
@@ -479,6 +496,8 @@ describe('Reservation HTTP integration', () => {
     prospectorBToken = (await login(prospectorBEmail)).accessToken;
 
     await clearReservation();
+    await clearActivityHistory();
+    await clearFollowUps();
   });
 
   afterAll(async () => {
@@ -486,6 +505,12 @@ describe('Reservation HTTP integration', () => {
       await clearReservation();
 
       if (database && tenantId) {
+        /*
+         * Child records must be deleted before
+         * the rows they reference.
+         */
+        await database.delete(prospectFollowUps).where(eq(prospectFollowUps.tenantId, tenantId));
+
         await database.delete(prospectActivities).where(eq(prospectActivities.tenantId, tenantId));
 
         await database
@@ -1079,8 +1104,12 @@ describe('Reservation HTTP integration', () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it('returns allow when the canonical establishment is not reserved', async () => {
+  it('warns when the canonical establishment has another active assignment', async () => {
     await clearReservation();
+
+    await clearActivityHistory();
+
+    await clearFollowUps();
 
     const response = await getApp().inject({
       method: 'GET',
@@ -1096,24 +1125,303 @@ describe('Reservation HTTP integration', () => {
 
     const body = JSON.parse(response.payload) as {
       decision: string;
+
       reasonCode: string;
+
       establishmentId: string;
-      conflict: unknown;
+
+      conflict: Record<string, unknown>;
     };
 
     expect(body).toEqual({
-      decision: 'allow',
+      decision: 'warn',
 
-      reasonCode: 'NO_COLLISION',
+      reasonCode: 'ACTIVE_ASSIGNMENT',
 
       establishmentId,
 
-      conflict: null,
+      conflict: {
+        assignedAt: expect.any(String),
+      },
     });
+
+    /*
+     * Prospector-facing response must not
+     * expose internal ownership details.
+     */
+    expect(body.conflict).not.toHaveProperty('assignmentId');
+
+    expect(body.conflict).not.toHaveProperty('assignedUserId');
+
+    expect(body.conflict).not.toHaveProperty('userId');
+
+    expect(body.conflict).not.toHaveProperty('teamId');
+
+    expect(body.conflict).not.toHaveProperty('organizationId');
+
+    expect(body.conflict).not.toHaveProperty('campaignId');
+
+    expect(body.conflict).not.toHaveProperty('campaignProspectId');
+  });
+
+  /*
+   * TR-016:
+   * A pending follow-up on another campaign
+   * must become an authoritative planned-action
+   * collision for the canonical establishment.
+   */
+  it('blocks collision decision and direct reservation when another campaign has a pending follow-up', async () => {
+    await clearReservation();
+
+    await clearActivityHistory();
+
+    await clearFollowUps();
+
+    const [followUp] = await getDatabase()
+      .insert(prospectFollowUps)
+      .values({
+        tenantId,
+
+        campaignId: secondCampaignId,
+
+        campaignProspectId: secondProspectId,
+
+        establishmentId,
+
+        assignmentId: secondAssignmentId,
+
+        assignedUserId: prospectorBId,
+
+        createdBy: prospectorBId,
+
+        dueAt: new Date('2026-09-10T10:00:00.000Z'),
+
+        status: 'pending',
+      })
+      .returning();
+
+    if (!followUp) {
+      throw new Error('Failed to create planned-action fixture');
+    }
+
+    try {
+      /*
+       * Step 1:
+       * Advisory endpoint must report
+       * PLANNED_ACTION.
+       */
+      const collisionResponse = await getApp().inject({
+        method: 'GET',
+
+        url: collisionDecisionUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(collisionResponse.statusCode).toBe(200);
+
+      const collisionDecision = JSON.parse(collisionResponse.payload) as {
+        decision: string;
+
+        reasonCode: string;
+
+        establishmentId: string;
+
+        conflict: Record<string, unknown>;
+      };
+
+      expect(collisionDecision).toEqual({
+        decision: 'block',
+
+        reasonCode: 'PLANNED_ACTION',
+
+        establishmentId,
+
+        conflict: {
+          dueAt: expect.any(String),
+        },
+      });
+
+      /*
+       * Public response exposes only the
+       * timing information necessary for the
+       * prospector.
+       */
+      expect(collisionDecision.conflict).not.toHaveProperty('followUpId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('assignedUserId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('userId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('teamId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('organizationId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('campaignId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('campaignProspectId');
+
+      expect(collisionDecision.conflict).not.toHaveProperty('assignmentId');
+
+      /*
+       * Step 2:
+       * Calling POST /reservation directly
+       * must not bypass collision protection.
+       */
+      const reservationResponse = await getApp().inject({
+        method: 'POST',
+
+        url: reservationUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(reservationResponse.statusCode).toBe(409);
+
+      expect(JSON.parse(reservationResponse.payload)).toMatchObject({
+        statusCode: 409,
+
+        message: 'Establishment has a planned action',
+      });
+
+      /*
+       * Redis acquisition must not have happened.
+       */
+      const currentReservation = await getReservationRepository().findCurrent(
+        tenantId,
+        campaignId,
+        prospectId,
+      );
+
+      expect(currentReservation).toBeNull();
+
+      const canonicalReservation = await getReservationRepository().findCurrentByEstablishment(
+        tenantId,
+        establishmentId,
+      );
+
+      expect(canonicalReservation).toBeNull();
+    } finally {
+      await clearReservation();
+
+      await clearFollowUps();
+    }
+  });
+
+  /*
+   * TR-016:
+   * A prospector must still be able to execute
+   * their own exact scheduled follow-up.
+   */
+  it('allows the caller to work their own pending follow-up on the exact prospect', async () => {
+    await clearReservation();
+
+    await clearActivityHistory();
+
+    await clearFollowUps();
+
+    await getDatabase()
+      .insert(prospectFollowUps)
+      .values({
+        tenantId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+
+        establishmentId,
+
+        assignmentId,
+
+        assignedUserId: prospectorAId,
+
+        createdBy: prospectorAId,
+
+        dueAt: new Date('2026-09-10T11:00:00.000Z'),
+
+        status: 'pending',
+      });
+
+    try {
+      /*
+       * The caller's own follow-up must not
+       * become PLANNED_ACTION.
+       *
+       * Campaign B still has another active
+       * assignment, therefore WARN is expected.
+       */
+      const collisionResponse = await getApp().inject({
+        method: 'GET',
+
+        url: collisionDecisionUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(collisionResponse.statusCode).toBe(200);
+
+      const collisionDecision = JSON.parse(collisionResponse.payload) as {
+        decision: string;
+
+        reasonCode: string;
+      };
+
+      expect(collisionDecision.reasonCode).not.toBe('PLANNED_ACTION');
+
+      expect(collisionDecision).toMatchObject({
+        decision: 'warn',
+
+        reasonCode: 'ACTIVE_ASSIGNMENT',
+      });
+
+      /*
+       * ACTIVE_ASSIGNMENT is advisory only,
+       * so acquisition must still succeed.
+       */
+      const reservationResponse = await getApp().inject({
+        method: 'POST',
+
+        url: reservationUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(reservationResponse.statusCode).toBe(201);
+
+      const reservation = JSON.parse(reservationResponse.payload) as {
+        userId: string;
+
+        campaignProspectId: string;
+
+        establishmentId: string;
+      };
+
+      expect(reservation).toMatchObject({
+        userId: prospectorAId,
+
+        campaignProspectId: prospectId,
+
+        establishmentId,
+      });
+    } finally {
+      await clearReservation();
+
+      await clearFollowUps();
+    }
   });
 
   it('returns block when another campaign reserves the same canonical establishment', async () => {
     await clearReservation();
+
+    await clearFollowUps();
 
     const acquired = await getApp().inject({
       method: 'POST',
@@ -1156,30 +1464,39 @@ describe('Reservation HTTP integration', () => {
     expect(body.establishmentId).toBe(establishmentId);
 
     /*
-     * The prospector-facing API exposes only
-     * information needed to understand the block.
+     * Prospector-facing API exposes only
+     * information needed to understand
+     * the temporary reservation block.
      */
     expect(body.conflict).toHaveProperty('expiresAt');
 
     expect(body.conflict).not.toHaveProperty('userId');
 
+    expect(body.conflict).not.toHaveProperty('assignedUserId');
+
     expect(body.conflict).not.toHaveProperty('teamId');
+
+    expect(body.conflict).not.toHaveProperty('organizationId');
 
     expect(body.conflict).not.toHaveProperty('assignmentId');
 
     expect(body.conflict).not.toHaveProperty('campaignId');
 
+    expect(body.conflict).not.toHaveProperty('campaignProspectId');
+
     expect(body.conflict).not.toHaveProperty('reservationId');
   });
 
   /*
-   * TR-017:
-   * A prospector cannot create contact history without
-   * owning an active reservation.
+   * Immutable contact history requires
+   * active reservation ownership.
    */
   it('rejects activity recording without an active reservation', async () => {
     await clearReservation();
+
     await clearActivityHistory();
+
+    await clearFollowUps();
 
     const response = await getApp().inject({
       method: 'POST',
@@ -1199,6 +1516,7 @@ describe('Reservation HTTP integration', () => {
 
     expect(JSON.parse(response.payload)).toMatchObject({
       statusCode: 409,
+
       message: 'Active reservation required',
     });
 
@@ -1211,17 +1529,21 @@ describe('Reservation HTTP integration', () => {
   });
 
   /*
-   * TR-017:
-   * End-to-end recent-contact protection across campaigns.
+   * End-to-end recent-contact protection
+   * across campaign contexts.
    */
   it('blocks a second campaign after recent contact with the same canonical establishment', async () => {
     await clearReservation();
+
     await clearActivityHistory();
+
+    await clearFollowUps();
 
     try {
       /*
        * Step 1:
-       * Prospector A reserves Campaign A / Prospect A.
+       * Prospector A reserves
+       * Campaign A / Prospect A.
        */
       const reservationResponse = await getApp().inject({
         method: 'POST',
@@ -1237,14 +1559,19 @@ describe('Reservation HTTP integration', () => {
 
       const reservation = JSON.parse(reservationResponse.payload) as {
         reservationId: string;
+
         establishmentId: string;
+
         assignmentId: string;
+
         userId: string;
       };
 
       expect(reservation).toMatchObject({
         establishmentId,
+
         assignmentId,
+
         userId: prospectorAId,
       });
 
@@ -1252,9 +1579,9 @@ describe('Reservation HTTP integration', () => {
        * Step 2:
        * Prospector A records a real contact.
        *
-       * The client sends only the activity type.
-       * Reservation/user/assignment/establishment
-       * context is derived by the backend.
+       * Reservation/user/assignment/
+       * establishment context is derived
+       * server-side.
        */
       const activityResponse = await getApp().inject({
         method: 'POST',
@@ -1274,30 +1601,46 @@ describe('Reservation HTTP integration', () => {
 
       const activity = JSON.parse(activityResponse.payload) as {
         id: string;
+
         tenantId: string;
+
         campaignId: string;
+
         campaignProspectId: string;
+
         establishmentId: string;
+
         assignmentId: string;
+
         userId: string;
+
         reservationId: string;
+
         type: string;
       };
 
       expect(activity).toMatchObject({
         tenantId,
+
         campaignId,
+
         campaignProspectId: prospectId,
+
         establishmentId,
+
         assignmentId,
+
         userId: prospectorAId,
+
         reservationId: reservation.reservationId,
+
         type: 'call',
       });
 
       /*
        * Step 3:
-       * Release the temporary Redis reservation.
+       * Release the temporary
+       * Redis reservation.
        */
       const releaseResponse = await getApp().inject({
         method: 'DELETE',
@@ -1313,8 +1656,8 @@ describe('Reservation HTTP integration', () => {
 
       /*
        * Step 4:
-       * The immutable activity remains in PostgreSQL
-       * after the Redis reservation is released.
+       * Immutable activity remains in
+       * PostgreSQL after reservation release.
        */
       const [storedActivity] = await getDatabase()
         .select()
@@ -1326,23 +1669,31 @@ describe('Reservation HTTP integration', () => {
 
       expect(storedActivity).toMatchObject({
         id: activity.id,
+
         tenantId,
+
         campaignId,
+
         campaignProspectId: prospectId,
+
         establishmentId,
+
         assignmentId,
+
         userId: prospectorAId,
+
         reservationId: reservation.reservationId,
+
         type: 'call',
       });
 
       /*
        * Step 5:
-       * Prospector B directly attempts reservation
-       * in Campaign B without calling collision-decision.
+       * Prospector B attempts direct reservation
+       * in Campaign B without calling
+       * collision-decision first.
        *
-       * The same canonical establishment must still
-       * be protected by the cooling-off rule.
+       * RECENT_CONTACT must remain authoritative.
        */
       const blockedReservationResponse = await getApp().inject({
         method: 'POST',
@@ -1358,12 +1709,13 @@ describe('Reservation HTTP integration', () => {
 
       expect(JSON.parse(blockedReservationResponse.payload)).toMatchObject({
         statusCode: 409,
+
         message: 'Establishment is in cooling-off period',
       });
 
       /*
        * Step 6:
-       * The advisory collision endpoint must reach
+       * Advisory endpoint must reach
        * the same RECENT_CONTACT decision.
        */
       const collisionResponse = await getApp().inject({
@@ -1380,35 +1732,51 @@ describe('Reservation HTTP integration', () => {
 
       const collisionDecision = JSON.parse(collisionResponse.payload) as {
         decision: string;
+
         reasonCode: string;
+
         establishmentId: string;
+
         conflict: Record<string, unknown>;
       };
 
       expect(collisionDecision).toEqual({
         decision: 'block',
+
         reasonCode: 'RECENT_CONTACT',
+
         establishmentId,
+
         conflict: {
           expiresAt: expect.any(String),
         },
       });
 
       /*
-       * Prospector-facing collision responses must not
-       * leak internal ownership or activity metadata.
+       * Public collision response must not leak
+       * activity or ownership metadata.
        */
       expect(collisionDecision.conflict).not.toHaveProperty('userId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('teamId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('campaignId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('campaignProspectId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('assignmentId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('activityId');
+
       expect(collisionDecision.conflict).not.toHaveProperty('activityType');
+
       expect(collisionDecision.conflict).not.toHaveProperty('occurredAt');
     } finally {
       await clearReservation();
+
       await clearActivityHistory();
+
+      await clearFollowUps();
     }
   });
 });

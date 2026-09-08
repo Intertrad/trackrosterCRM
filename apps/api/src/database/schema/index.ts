@@ -10,3 +10,4 @@ export * from './campaigns.js';
 export * from './campaign-prospect-assignments.js';
 export * from './campaign-prospects.js';
 export * from './prospect-activities.js';
+export * from './prospect-follow-ups.js';

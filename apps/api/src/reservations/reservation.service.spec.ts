@@ -5,6 +5,7 @@ import { AuthorizationService } from '../authorization/authorization.service.js'
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
+import { ProspectFollowUpRepository } from '../follow-ups/prospect-follow-up.repository.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationRepository } from './reservation.repository.js';
@@ -44,6 +45,10 @@ describe('ReservationService', () => {
 
   let coolingOffService: {
     evaluate: ReturnType<typeof vi.fn>;
+  };
+
+  let followUpRepository: {
+    findConflictingPendingByEstablishment: ReturnType<typeof vi.fn>;
   };
 
   let service: ReservationService;
@@ -147,15 +152,28 @@ describe('ReservationService', () => {
       }),
     };
 
+    followUpRepository = {
+      findConflictingPendingByEstablishment: vi.fn().mockResolvedValue(null),
+    };
+
     service = new ReservationService(
       reservationRepository as unknown as ReservationRepository,
+
       assignmentRepository as unknown as CampaignProspectAssignmentRepository,
+
       campaignRepository as unknown as CampaignRepository,
+
       campaignProspectRepository as unknown as CampaignProspectRepository,
+
       teamRepository as unknown as TeamRepository,
+
       userRepository as unknown as UserRepository,
+
       authorizationService as unknown as AuthorizationService,
+
       coolingOffService as unknown as CoolingOffService,
+
+      followUpRepository as unknown as ProspectFollowUpRepository,
     );
   });
 
@@ -209,6 +227,14 @@ describe('ReservationService', () => {
       establishmentId,
     );
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
+
     expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
 
     expect(reservationRepository.acquire).toHaveBeenCalledWith(
@@ -244,6 +270,14 @@ describe('ReservationService', () => {
       assignmentId,
       establishmentId,
     });
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
   });
 
   it('rejects another user when the assignment has an individual owner', async () => {
@@ -266,6 +300,8 @@ describe('ReservationService', () => {
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
 
     expect(reservationRepository.acquire).not.toHaveBeenCalled();
@@ -286,6 +322,8 @@ describe('ReservationService', () => {
     ).rejects.toThrow('User is not a prospector for the assigned team');
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
 
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
@@ -309,6 +347,8 @@ describe('ReservationService', () => {
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
@@ -331,6 +371,8 @@ describe('ReservationService', () => {
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
@@ -352,13 +394,19 @@ describe('ReservationService', () => {
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
-  it('returns the caller existing exact reservation without applying cooling-off again', async () => {
+  it('returns the caller existing exact reservation without applying collision rules again', async () => {
     mockEligibleContext();
 
     reservationRepository.findCurrentByEstablishment.mockResolvedValue(existingReservation);
+
+    followUpRepository.findConflictingPendingByEstablishment.mockResolvedValue({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
 
     coolingOffService.evaluate.mockResolvedValue({
       active: true,
@@ -374,6 +422,12 @@ describe('ReservationService', () => {
         campaignProspectId: prospectId,
       }),
     ).resolves.toEqual(existingReservation);
+
+    /*
+     * Existing exact reservation is an idempotent
+     * continuation of the same work session.
+     */
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
 
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
 
@@ -397,6 +451,94 @@ describe('ReservationService', () => {
       }),
     ).rejects.toThrow('Campaign prospect is currently reserved');
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+
+    expect(reservationRepository.acquire).not.toHaveBeenCalled();
+  });
+
+  it('blocks acquisition when another pending follow-up exists for the canonical establishment', async () => {
+    mockEligibleContext();
+
+    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+
+    followUpRepository.findConflictingPendingByEstablishment.mockResolvedValue({
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+
+      tenantId,
+
+      campaignId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+
+      campaignProspectId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+      establishmentId,
+
+      assignmentId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+
+      assignedUserId: otherUserId,
+
+      createdBy: otherUserId,
+
+      dueAt: new Date('2026-09-10T10:00:00.000Z'),
+
+      status: 'pending',
+
+      completedAt: null,
+
+      cancelledAt: null,
+
+      createdAt: new Date('2026-09-08T10:00:00.000Z'),
+
+      updatedAt: new Date('2026-09-08T10:00:00.000Z'),
+    });
+
+    await expect(
+      service.acquire({
+        tenantId,
+        userId,
+        campaignId,
+        campaignProspectId: prospectId,
+      }),
+    ).rejects.toThrow('Establishment has a planned action');
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
+
+    /*
+     * PLANNED_ACTION outranks cooling-off.
+     */
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+
+    /*
+     * Redis must not be touched when policy blocks.
+     */
+    expect(reservationRepository.acquire).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when planned-action lookup fails during reservation acquisition', async () => {
+    mockEligibleContext();
+
+    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+
+    followUpRepository.findConflictingPendingByEstablishment.mockRejectedValue(
+      new Error('Database unavailable'),
+    );
+
+    await expect(
+      service.acquire({
+        tenantId,
+        userId,
+        campaignId,
+        campaignProspectId: prospectId,
+      }),
+    ).rejects.toThrow('Reservation service is unavailable');
+
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
 
     expect(reservationRepository.acquire).not.toHaveBeenCalled();
@@ -409,19 +551,31 @@ describe('ReservationService', () => {
 
     coolingOffService.evaluate.mockResolvedValue({
       active: true,
+
       activity: {
         id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+
         tenantId,
+
         campaignId,
+
         campaignProspectId: prospectId,
+
         establishmentId,
+
         assignmentId,
+
         userId,
+
         reservationId,
+
         type: 'call',
+
         occurredAt: new Date('2026-09-08T10:00:00.000Z'),
+
         createdAt: new Date('2026-09-08T10:00:00.000Z'),
       },
+
       expiresAt: new Date('2026-09-09T10:00:00.000Z'),
     });
 
@@ -433,6 +587,17 @@ describe('ReservationService', () => {
         campaignProspectId: prospectId,
       }),
     ).rejects.toThrow('Establishment is in cooling-off period');
+
+    /*
+     * Planned-action lookup happens first.
+     */
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
 
     expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
 
@@ -457,6 +622,14 @@ describe('ReservationService', () => {
 
     expect(result).toBe(existingReservation);
 
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
+
     expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
   });
 
@@ -480,6 +653,10 @@ describe('ReservationService', () => {
         campaignProspectId: prospectId,
       }),
     ).rejects.toThrow('Campaign prospect is currently reserved');
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalled();
+
+    expect(coolingOffService.evaluate).toHaveBeenCalled();
   });
 
   it('fails closed when canonical reservation lookup fails', async () => {
@@ -497,6 +674,8 @@ describe('ReservationService', () => {
         campaignProspectId: prospectId,
       }),
     ).rejects.toThrow('Reservation service is unavailable');
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
 
     expect(coolingOffService.evaluate).not.toHaveBeenCalled();
 
@@ -518,6 +697,14 @@ describe('ReservationService', () => {
         campaignProspectId: prospectId,
       }),
     ).rejects.toThrow('Database unavailable');
+
+    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      campaignId,
+      prospectId,
+      userId,
+    );
 
     expect(reservationRepository.acquire).not.toHaveBeenCalled();
   });

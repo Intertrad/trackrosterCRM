@@ -12,12 +12,13 @@ import { CampaignProspectAssignmentRepository } from '../assignments/campaign-pr
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
+import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
+import { ProspectFollowUpRepository } from '../follow-ups/prospect-follow-up.repository.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationRepository } from './reservation.repository.js';
 import type { ProspectReservation } from './reservation.types.js';
-import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 
 const RESERVATION_TTL_SECONDS = 20 * 60;
 
@@ -28,6 +29,7 @@ export interface AcquireReservationInput {
   campaignId: string;
   campaignProspectId: string;
 }
+
 export interface ReservationEligibilityContext {
   assignment: CampaignProspectAssignment;
   establishmentId: string;
@@ -53,18 +55,21 @@ export class ReservationService {
     private readonly userRepository: UserRepository,
 
     private readonly authorizationService: AuthorizationService,
+
     private readonly coolingOffService: CoolingOffService,
+
+    private readonly followUpRepository: ProspectFollowUpRepository,
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
 
     /*
+     * Priority 1:
      * Check the canonical reservation first.
      *
-     * This preserves idempotency if the caller
-     * already owns this exact reservation, even
-     * when they have recorded recent activity.
+     * This preserves idempotency when the caller
+     * already owns this exact reservation.
      */
     let currentCanonical: ProspectReservation | null;
 
@@ -86,6 +91,13 @@ export class ReservationService {
 
       const isSameAssignment = currentCanonical.assignmentId === assignment.id;
 
+      /*
+       * Idempotent retry:
+       *
+       * the same worker may continue using the same
+       * reservation even if activity or a follow-up
+       * has since been created.
+       */
       if (isExactTarget && isSameOwner && isSameAssignment) {
         return currentCanonical;
       }
@@ -94,10 +106,48 @@ export class ReservationService {
     }
 
     /*
-     * There is no active canonical reservation.
+     * Priority 2:
+     * PLANNED_ACTION
      *
-     * Now check permanent activity history before
-     * allowing a new work session.
+     * No canonical reservation exists, therefore
+     * check whether another pending follow-up owns
+     * the next planned interaction with this
+     * establishment.
+     *
+     * The repository ignores only the caller's own
+     * pending follow-up on this exact prospect.
+     */
+    let conflictingFollowUp;
+
+    try {
+      conflictingFollowUp = await this.followUpRepository.findConflictingPendingByEstablishment(
+        input.tenantId,
+        establishmentId,
+        input.campaignId,
+        input.campaignProspectId,
+        input.userId,
+      );
+    } catch {
+      /*
+       * Collision protection fails closed.
+       *
+       * If PostgreSQL cannot determine whether a
+       * planned action exists, do not allow the
+       * reservation to continue.
+       */
+      throw new ServiceUnavailableException('Reservation service is unavailable');
+    }
+
+    if (conflictingFollowUp) {
+      throw new ConflictException('Establishment has a planned action');
+    }
+
+    /*
+     * Priority 3:
+     * RECENT_CONTACT
+     *
+     * No active reservation or conflicting planned
+     * action exists, so evaluate cooling-off.
      */
     const coolingOff = await this.coolingOffService.evaluate(input.tenantId, establishmentId);
 
@@ -131,6 +181,14 @@ export class ReservationService {
       expiresAt: expiresAt.toISOString(),
     };
 
+    /*
+     * Priority 4:
+     * Atomic Redis reservation acquisition.
+     *
+     * PostgreSQL policy checks happen before this,
+     * while Redis remains authoritative for
+     * simultaneous reservation ownership.
+     */
     try {
       const acquired = await this.reservationRepository.acquire(
         reservation,
@@ -143,11 +201,11 @@ export class ReservationService {
 
       /*
        * Another request may have acquired the
-       * canonical lock between our pre-check and
-       * the atomic Redis acquisition.
+       * canonical Redis lock between our pre-check
+       * and this atomic acquisition.
        *
-       * Re-check the exact target so same-user
-       * concurrent retries remain idempotent.
+       * Re-check the exact target so concurrent
+       * same-user retries remain idempotent.
        */
       const current = await this.reservationRepository.findCurrent(
         input.tenantId,
@@ -205,7 +263,7 @@ export class ReservationService {
 
     /*
      * Manager override is intentionally
-     * deferred to a later ticket.
+     * deferred to TR-022.
      */
     if (current.userId !== input.userId) {
       throw new ForbiddenException('Reservation belongs to another user');
@@ -253,7 +311,7 @@ export class ReservationService {
 
     /*
      * Assignment may exist during draft/paused,
-     * but actual prospecting requires ACTIVE.
+     * but prospecting requires an active campaign.
      */
     if (campaign.status !== 'active') {
       throw new ConflictException('Campaign is not active');
@@ -304,19 +362,15 @@ export class ReservationService {
     }
 
     /*
-     * If ownership is individual, only that
-     * assigned user may acquire the reservation.
+     * Individual ownership remains authoritative.
      */
     if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
       throw new ForbiddenException('Campaign prospect is assigned to another user');
     }
 
     /*
-     * Even individually assigned users must
-     * still have their current team grant.
-     *
-     * This prevents a revoked prospector from
-     * continuing to work using an old assignment.
+     * Even an individually assigned user must still
+     * hold the exact team-level prospector grant.
      */
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
@@ -334,6 +388,7 @@ export class ReservationService {
 
     return {
       assignment,
+
       establishmentId: prospect.establishmentId,
     };
   }

@@ -6,6 +6,7 @@ import { CollisionDecisionService } from './collision-decision.service.js';
 
 interface AuthContext {
   userId: string;
+
   tenantId: string;
 }
 
@@ -27,10 +28,54 @@ export class CollisionDecisionController {
   ) {
     const result = await this.collisionDecisionService.evaluate({
       tenantId: auth.tenantId,
+
       userId: auth.userId,
+
       campaignId,
+
       campaignProspectId: prospectId,
     });
+
+    let conflict:
+      | {
+          expiresAt: string;
+        }
+      | {
+          dueAt: string;
+        }
+      | {
+          assignedAt: string;
+        }
+      | null = null;
+
+    if (result.conflict) {
+      /*
+       * ACTIVE_RESERVATION / RECENT_CONTACT
+       */
+      if ('expiresAt' in result.conflict) {
+        conflict = {
+          expiresAt: result.conflict.expiresAt,
+        };
+      }
+
+      /*
+       * PLANNED_ACTION
+       */
+      else if ('dueAt' in result.conflict) {
+        conflict = {
+          dueAt: result.conflict.dueAt,
+        };
+      }
+
+      /*
+       * ACTIVE_ASSIGNMENT
+       */
+      else {
+        conflict = {
+          assignedAt: result.conflict.assignedAt,
+        };
+      }
+    }
 
     return {
       decision: result.decision,
@@ -39,11 +84,7 @@ export class CollisionDecisionController {
 
       establishmentId: result.establishmentId,
 
-      conflict: result.conflict
-        ? {
-            expiresAt: result.conflict.expiresAt,
-          }
-        : null,
+      conflict,
     };
   }
 }
