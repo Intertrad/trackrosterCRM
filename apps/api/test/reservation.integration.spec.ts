@@ -37,9 +37,14 @@ describe('Reservation HTTP integration', () => {
   let tenantId = '';
   let organizationId = '';
   let teamId = '';
+  let establishmentId = '';
+
   let campaignId = '';
   let prospectId = '';
   let assignmentId = '';
+
+  let secondCampaignId = '';
+  let secondProspectId = '';
 
   let prospectorAId = '';
   let prospectorBId = '';
@@ -85,6 +90,13 @@ describe('Reservation HTTP integration', () => {
     return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/reservation';
   }
 
+  function secondReservationUrl(): string {
+    return `/campaigns/${secondCampaignId}` + `/prospects/${secondProspectId}` + '/reservation';
+  }
+  function collisionDecisionUrl(): string {
+    return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/collision-decision';
+  }
+
   async function login(email: string): Promise<AuthenticationTokens> {
     const response = await getApp().inject({
       method: 'POST',
@@ -103,13 +115,33 @@ describe('Reservation HTTP integration', () => {
   }
 
   async function clearReservation(): Promise<void> {
-    if (!redisService || !tenantId || !campaignId || !prospectId) {
+    if (
+      !redisService ||
+      !tenantId ||
+      !campaignId ||
+      !prospectId ||
+      !secondCampaignId ||
+      !secondProspectId ||
+      !establishmentId
+    ) {
       return;
     }
 
-    const key = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
+    const firstReservationKey = getReservationRepository().buildKey(
+      tenantId,
+      campaignId,
+      prospectId,
+    );
 
-    await getRedis().getClient().del(key);
+    const secondReservationKey = getReservationRepository().buildKey(
+      tenantId,
+      secondCampaignId,
+      secondProspectId,
+    );
+
+    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
+
+    await getRedis().getClient().del([firstReservationKey, secondReservationKey, collisionKey]);
   }
 
   beforeAll(async () => {
@@ -153,6 +185,9 @@ describe('Reservation HTTP integration', () => {
 
     const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
+    /*
+     * Tenant
+     */
     const tenant = await tenantService.create({
       name: `Reservation Tenant ${suffix}`,
 
@@ -161,6 +196,9 @@ describe('Reservation HTTP integration', () => {
 
     tenantId = tenant.id;
 
+    /*
+     * Organization
+     */
     const [organization] = await getDatabase()
       .insert(organizations)
       .values({
@@ -180,6 +218,9 @@ describe('Reservation HTTP integration', () => {
 
     organizationId = organization.id;
 
+    /*
+     * Team
+     */
     const [team] = await getDatabase()
       .insert(teams)
       .values({
@@ -201,6 +242,9 @@ describe('Reservation HTTP integration', () => {
 
     teamId = team.id;
 
+    /*
+     * First campaign
+     */
     const [campaign] = await getDatabase()
       .insert(campaigns)
       .values({
@@ -214,6 +258,9 @@ describe('Reservation HTTP integration', () => {
       })
       .returning();
 
+    /*
+     * Canonical establishment shared by both campaigns.
+     */
     const [establishment] = await getDatabase()
       .insert(establishments)
       .values({
@@ -238,7 +285,11 @@ describe('Reservation HTTP integration', () => {
     }
 
     campaignId = campaign.id;
+    establishmentId = establishment.id;
 
+    /*
+     * First campaign prospect.
+     */
     const [prospect] = await getDatabase()
       .insert(campaignProspects)
       .values({
@@ -246,7 +297,7 @@ describe('Reservation HTTP integration', () => {
 
         campaignId,
 
-        establishmentId: establishment.id,
+        establishmentId,
 
         status: 'active',
       })
@@ -261,8 +312,7 @@ describe('Reservation HTTP integration', () => {
     /*
      * Team-only assignment intentionally.
      *
-     * Both prospectors will therefore be
-     * eligible to compete for the reservation.
+     * Both prospectors are eligible to compete.
      */
     const [assignment] = await getDatabase()
       .insert(campaignProspectAssignments)
@@ -287,6 +337,78 @@ describe('Reservation HTTP integration', () => {
 
     assignmentId = assignment.id;
 
+    /*
+     * Second campaign.
+     */
+    const [secondCampaign] = await getDatabase()
+      .insert(campaigns)
+      .values({
+        tenantId,
+
+        organizationId,
+
+        name: 'Second Paris Campaign',
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!secondCampaign) {
+      throw new Error('Failed to create second campaign');
+    }
+
+    secondCampaignId = secondCampaign.id;
+
+    /*
+     * Second campaign prospect deliberately points
+     * to the SAME canonical establishment.
+     */
+    const [secondProspect] = await getDatabase()
+      .insert(campaignProspects)
+      .values({
+        tenantId,
+
+        campaignId: secondCampaignId,
+
+        establishmentId,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!secondProspect) {
+      throw new Error('Failed to create second campaign prospect');
+    }
+
+    secondProspectId = secondProspect.id;
+
+    /*
+     * Team-only assignment for the second campaign too.
+     */
+    const [secondAssignment] = await getDatabase()
+      .insert(campaignProspectAssignments)
+      .values({
+        tenantId,
+
+        campaignId: secondCampaignId,
+
+        campaignProspectId: secondProspectId,
+
+        organizationId,
+
+        teamId,
+
+        assignedUserId: null,
+      })
+      .returning();
+
+    if (!secondAssignment) {
+      throw new Error('Failed to create second assignment');
+    }
+
+    /*
+     * Two prospectors on the same team.
+     */
     const prospectorAEmail = `reservation-a-${suffix}@trackroster.test`;
 
     const prospectorBEmail = `reservation-b-${suffix}@trackroster.test`;
@@ -404,6 +526,8 @@ describe('Reservation HTTP integration', () => {
 
       assignmentId: string;
 
+      establishmentId: string;
+
       expiresAt: string;
     };
 
@@ -411,14 +535,22 @@ describe('Reservation HTTP integration', () => {
 
     expect(body.assignmentId).toBe(assignmentId);
 
-    const ttl = await getReservationRepository().ttl(tenantId, campaignId, prospectId);
+    expect(body.establishmentId).toBe(establishmentId);
+
+    const reservationTtl = await getReservationRepository().ttl(tenantId, campaignId, prospectId);
+
+    const collisionTtl = await getReservationRepository().collisionTtl(tenantId, establishmentId);
 
     /*
      * Allow a few seconds for test execution.
      */
-    expect(ttl).toBeGreaterThan(1190);
+    expect(reservationTtl).toBeGreaterThan(1190);
 
-    expect(ttl).toBeLessThanOrEqual(1200);
+    expect(reservationTtl).toBeLessThanOrEqual(1200);
+
+    expect(collisionTtl).toBeGreaterThan(1190);
+
+    expect(collisionTtl).toBeLessThanOrEqual(1200);
   });
 
   it('returns the same reservation for an idempotent retry', async () => {
@@ -459,7 +591,7 @@ describe('Reservation HTTP integration', () => {
     expect(secondBody.reservationId).toBe(firstBody.reservationId);
   });
 
-  it('allows exactly one of two concurrent prospectors to reserve', async () => {
+  it('allows exactly one of two concurrent prospectors to reserve the same campaign prospect', async () => {
     await clearReservation();
 
     const reserve = (token: string) =>
@@ -541,6 +673,8 @@ describe('Reservation HTTP integration', () => {
       },
     });
 
+    expect(acquired.statusCode).toBe(201);
+
     const body = JSON.parse(acquired.payload) as {
       reservationId: string;
     };
@@ -562,7 +696,7 @@ describe('Reservation HTTP integration', () => {
     expect(current?.reservationId).toBe(body.reservationId);
   });
 
-  it('releases the reservation for its owner', async () => {
+  it('releases the reservation and canonical collision lock for its owner', async () => {
     await clearReservation();
 
     const acquired = await getApp().inject({
@@ -574,6 +708,8 @@ describe('Reservation HTTP integration', () => {
         authorization: `Bearer ${prospectorAToken}`,
       },
     });
+
+    expect(acquired.statusCode).toBe(201);
 
     const body = JSON.parse(acquired.payload) as {
       reservationId: string;
@@ -594,6 +730,13 @@ describe('Reservation HTTP integration', () => {
     const current = await getReservationRepository().findCurrent(tenantId, campaignId, prospectId);
 
     expect(current).toBeNull();
+
+    const collision = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(collision).toBeNull();
   });
 
   it('becomes reservable again after Redis TTL expiry', async () => {
@@ -611,19 +754,32 @@ describe('Reservation HTTP integration', () => {
 
     expect(first.statusCode).toBe(201);
 
-    const key = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
+    const reservationKey = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
+
+    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
 
     /*
-     * Shorten TTL for the integration test.
-     * Production TTL remains 20 minutes.
+     * Shorten both TTLs for this integration test.
+     * Production remains 20 minutes.
      */
-    await getRedis().getClient().expire(key, 1);
+    await Promise.all([
+      getRedis().getClient().expire(reservationKey, 1),
+
+      getRedis().getClient().expire(collisionKey, 1),
+    ]);
 
     await new Promise((resolve) => setTimeout(resolve, 1_200));
 
     const expired = await getReservationRepository().findCurrent(tenantId, campaignId, prospectId);
 
     expect(expired).toBeNull();
+
+    const expiredCollision = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(expiredCollision).toBeNull();
 
     const second = await getApp().inject({
       method: 'POST',
@@ -651,13 +807,21 @@ describe('Reservation HTTP integration', () => {
       },
     });
 
+    expect(first.statusCode).toBe(201);
+
     const firstBody = JSON.parse(first.payload) as {
       reservationId: string;
     };
 
-    const key = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
+    const reservationKey = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
 
-    await getRedis().getClient().expire(key, 1);
+    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
+
+    await Promise.all([
+      getRedis().getClient().expire(reservationKey, 1),
+
+      getRedis().getClient().expire(collisionKey, 1),
+    ]);
 
     await new Promise((resolve) => setTimeout(resolve, 1_200));
 
@@ -694,5 +858,296 @@ describe('Reservation HTTP integration', () => {
     const current = await getReservationRepository().findCurrent(tenantId, campaignId, prospectId);
 
     expect(current?.reservationId).toBe(secondBody.reservationId);
+
+    const collision = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(collision?.reservationId).toBe(secondBody.reservationId);
+  });
+
+  /*
+   * TR-016:
+   * Sequential cross-campaign collision.
+   */
+  it('blocks another campaign from reserving the same canonical establishment', async () => {
+    await clearReservation();
+
+    const first = await getApp().inject({
+      method: 'POST',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(first.statusCode).toBe(201);
+
+    const second = await getApp().inject({
+      method: 'POST',
+
+      url: secondReservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorBToken}`,
+      },
+    });
+
+    expect(second.statusCode).toBe(409);
+
+    const secondReservation = await getReservationRepository().findCurrent(
+      tenantId,
+      secondCampaignId,
+      secondProspectId,
+    );
+
+    expect(secondReservation).toBeNull();
+
+    const canonicalReservation = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(canonicalReservation?.campaignId).toBe(campaignId);
+
+    expect(canonicalReservation?.campaignProspectId).toBe(prospectId);
+  });
+
+  /*
+   * TR-016:
+   * Concurrent cross-campaign collision.
+   */
+  it('allows exactly one concurrent reservation across campaigns for the same establishment', async () => {
+    await clearReservation();
+
+    const firstRequest = getApp().inject({
+      method: 'POST',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    const secondRequest = getApp().inject({
+      method: 'POST',
+
+      url: secondReservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorBToken}`,
+      },
+    });
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    const statusCodes = [first.statusCode, second.statusCode].sort((left, right) => left - right);
+
+    expect(statusCodes).toEqual([201, 409]);
+
+    const firstReservation = await getReservationRepository().findCurrent(
+      tenantId,
+      campaignId,
+      prospectId,
+    );
+
+    const secondReservation = await getReservationRepository().findCurrent(
+      tenantId,
+      secondCampaignId,
+      secondProspectId,
+    );
+
+    const activeReservations = [firstReservation, secondReservation].filter(
+      (reservation) => reservation !== null,
+    );
+
+    expect(activeReservations).toHaveLength(1);
+
+    const collision = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(collision).not.toBeNull();
+
+    expect(activeReservations[0]?.reservationId).toBe(collision?.reservationId);
+
+    expect([prospectId, secondProspectId]).toContain(activeReservations[0]?.campaignProspectId);
+  });
+
+  /*
+   * TR-016:
+   * Releasing one campaign frees the canonical
+   * establishment for another campaign.
+   */
+  it('allows another campaign to reserve after the first reservation is released', async () => {
+    await clearReservation();
+
+    const first = await getApp().inject({
+      method: 'POST',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(first.statusCode).toBe(201);
+
+    const firstBody = JSON.parse(first.payload) as {
+      reservationId: string;
+    };
+
+    const released = await getApp().inject({
+      method: 'DELETE',
+
+      url: `${reservationUrl()}/${firstBody.reservationId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(released.statusCode).toBe(200);
+
+    const collisionAfterRelease = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(collisionAfterRelease).toBeNull();
+
+    const second = await getApp().inject({
+      method: 'POST',
+
+      url: secondReservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorBToken}`,
+      },
+    });
+
+    expect(second.statusCode).toBe(201);
+
+    const currentCollision = await getReservationRepository().findCurrentByEstablishment(
+      tenantId,
+      establishmentId,
+    );
+
+    expect(currentCollision?.campaignId).toBe(secondCampaignId);
+
+    expect(currentCollision?.campaignProspectId).toBe(secondProspectId);
+
+    expect(currentCollision?.userId).toBe(prospectorBId);
+  });
+
+  it('rejects collision decision without authentication', async () => {
+    await clearReservation();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: collisionDecisionUrl(),
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('returns allow when the canonical establishment is not reserved', async () => {
+    await clearReservation();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: collisionDecisionUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      decision: string;
+      reasonCode: string;
+      establishmentId: string;
+      conflict: unknown;
+    };
+
+    expect(body).toEqual({
+      decision: 'allow',
+
+      reasonCode: 'NO_COLLISION',
+
+      establishmentId,
+
+      conflict: null,
+    });
+  });
+
+  it('returns block when another campaign reserves the same canonical establishment', async () => {
+    await clearReservation();
+
+    const acquired = await getApp().inject({
+      method: 'POST',
+
+      url: secondReservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorBToken}`,
+      },
+    });
+
+    expect(acquired.statusCode).toBe(201);
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: collisionDecisionUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      decision: string;
+
+      reasonCode: string;
+
+      establishmentId: string;
+
+      conflict: Record<string, unknown>;
+    };
+
+    expect(body.decision).toBe('block');
+
+    expect(body.reasonCode).toBe('ACTIVE_RESERVATION');
+
+    expect(body.establishmentId).toBe(establishmentId);
+
+    /*
+     * The prospector-facing API exposes only
+     * information needed to understand the block.
+     */
+    expect(body.conflict).toHaveProperty('expiresAt');
+
+    expect(body.conflict).not.toHaveProperty('userId');
+
+    expect(body.conflict).not.toHaveProperty('teamId');
+
+    expect(body.conflict).not.toHaveProperty('assignmentId');
+
+    expect(body.conflict).not.toHaveProperty('campaignId');
+
+    expect(body.conflict).not.toHaveProperty('reservationId');
   });
 });

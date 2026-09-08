@@ -27,6 +27,10 @@ export interface AcquireReservationInput {
   campaignId: string;
   campaignProspectId: string;
 }
+export interface ReservationEligibilityContext {
+  assignment: CampaignProspectAssignment;
+  establishmentId: string;
+}
 
 export interface ReleaseReservationInput extends AcquireReservationInput {
   reservationId: string;
@@ -51,7 +55,7 @@ export class ReservationService {
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
-    const assignment = await this.requireReservationEligibility(input);
+    const { assignment, establishmentId } = await this.requireReservationEligibility(input);
 
     const now = new Date();
 
@@ -59,6 +63,7 @@ export class ReservationService {
 
     const reservation: ProspectReservation = {
       reservationId: randomUUID(),
+      establishmentId,
 
       tenantId: input.tenantId,
 
@@ -162,6 +167,7 @@ export class ReservationService {
         input.tenantId,
         input.campaignId,
         input.campaignProspectId,
+        current.establishmentId,
         input.reservationId,
       );
 
@@ -183,9 +189,9 @@ export class ReservationService {
     };
   }
 
-  private async requireReservationEligibility(
+  async requireReservationEligibility(
     input: AcquireReservationInput,
-  ): Promise<CampaignProspectAssignment> {
+  ): Promise<ReservationEligibilityContext> {
     const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
 
     if (!campaign) {
@@ -273,7 +279,10 @@ export class ReservationService {
       throw new ForbiddenException('User is not a prospector for the assigned team');
     }
 
-    return assignment;
+    return {
+      assignment,
+      establishmentId: prospect.establishmentId,
+    };
   }
 
   private async requireCampaignProspect(
