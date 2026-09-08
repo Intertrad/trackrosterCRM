@@ -9,3 +9,4 @@ export * from './establishment-contacts.js';
 export * from './campaigns.js';
 export * from './campaign-prospect-assignments.js';
 export * from './campaign-prospects.js';
+export * from './prospect-activities.js';

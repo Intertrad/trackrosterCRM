@@ -44,14 +44,34 @@ export const campaignProspects = pgTable(
 
   (table) => [
     /*
-     * Needed by future assignment and
-     * reservation tables.
+     * Useful for tenant-safe references.
      */
     unique('campaign_prospects_tenant_id_id_unique').on(table.tenantId, table.id),
+
+    /*
+     * Campaign + prospect identity.
+     *
+     * Used by assignment relationships.
+     */
     unique('campaign_prospects_tenant_campaign_id_id_unique').on(
       table.tenantId,
       table.campaignId,
       table.id,
+    ),
+
+    /*
+     * TR-017:
+     *
+     * Allows prospect activity rows to prove
+     * that campaign + campaign prospect +
+     * canonical establishment all represent
+     * the same campaign membership.
+     */
+    unique('campaign_prospects_activity_reference_unique').on(
+      table.tenantId,
+      table.campaignId,
+      table.id,
+      table.establishmentId,
     ),
 
     /*
@@ -83,12 +103,10 @@ export const campaignProspects = pgTable(
       .onUpdate('cascade'),
 
     /*
-     * One canonical establishment can
-     * only participate once in a given
-     * campaign.
+     * One canonical establishment can only
+     * participate once in a given campaign.
      *
-     * It may still participate in other
-     * campaigns.
+     * It may still participate in other campaigns.
      */
     unique('campaign_prospects_tenant_campaign_establishment_unique').on(
       table.tenantId,

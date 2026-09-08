@@ -46,6 +46,16 @@ function validateRedisUrl(config: Record<string, unknown>): void {
   }
 }
 
+function validatePositiveInteger(config: Record<string, unknown>, key: string): void {
+  const rawValue = requireString(config, key);
+
+  const value = Number(rawValue);
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Environment variable ${key} must be a positive integer`);
+  }
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
 
@@ -58,6 +68,8 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateJwtTtl(config, 'JWT_ACCESS_TTL');
 
   validateJwtTtl(config, 'JWT_REFRESH_TTL');
+
+  validatePositiveInteger(config, 'PROSPECT_COOLING_OFF_MINUTES');
 
   return config;
 }

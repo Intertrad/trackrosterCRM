@@ -15,6 +15,7 @@ describe('validateEnvironment', () => {
     JWT_REFRESH_SECRET: 'test-refresh-secret-that-is-at-least-32-characters-long',
 
     JWT_REFRESH_TTL: '7d',
+    PROSPECT_COOLING_OFF_MINUTES: '1440',
   };
 
   it('accepts valid authentication configuration', () => {

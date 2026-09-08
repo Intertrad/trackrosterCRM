@@ -19,6 +19,7 @@ import { AssignmentModule } from './assignments/assignment.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { ReservationModule } from './reservations/reservation.module.js';
 import { CollisionModule } from './collisions/collision.module.js';
+import { ActivityModule } from './activities/activity.module.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { CollisionModule } from './collisions/collision.module.js';
     RedisModule,
     ReservationModule,
     CollisionModule,
+    ActivityModule,
   ],
 })
 export class AppModule {}

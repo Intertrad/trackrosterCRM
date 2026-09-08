@@ -17,6 +17,7 @@ import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationRepository } from './reservation.repository.js';
 import type { ProspectReservation } from './reservation.types.js';
+import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 
 const RESERVATION_TTL_SECONDS = 20 * 60;
 
@@ -52,10 +53,57 @@ export class ReservationService {
     private readonly userRepository: UserRepository,
 
     private readonly authorizationService: AuthorizationService,
+    private readonly coolingOffService: CoolingOffService,
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
+
+    /*
+     * Check the canonical reservation first.
+     *
+     * This preserves idempotency if the caller
+     * already owns this exact reservation, even
+     * when they have recorded recent activity.
+     */
+    let currentCanonical: ProspectReservation | null;
+
+    try {
+      currentCanonical = await this.reservationRepository.findCurrentByEstablishment(
+        input.tenantId,
+        establishmentId,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Reservation service is unavailable');
+    }
+
+    if (currentCanonical) {
+      const isExactTarget =
+        currentCanonical.campaignId === input.campaignId &&
+        currentCanonical.campaignProspectId === input.campaignProspectId;
+
+      const isSameOwner = currentCanonical.userId === input.userId;
+
+      const isSameAssignment = currentCanonical.assignmentId === assignment.id;
+
+      if (isExactTarget && isSameOwner && isSameAssignment) {
+        return currentCanonical;
+      }
+
+      throw new ConflictException('Campaign prospect is currently reserved');
+    }
+
+    /*
+     * There is no active canonical reservation.
+     *
+     * Now check permanent activity history before
+     * allowing a new work session.
+     */
+    const coolingOff = await this.coolingOffService.evaluate(input.tenantId, establishmentId);
+
+    if (coolingOff.active) {
+      throw new ConflictException('Establishment is in cooling-off period');
+    }
 
     const now = new Date();
 
@@ -63,6 +111,7 @@ export class ReservationService {
 
     const reservation: ProspectReservation = {
       reservationId: randomUUID(),
+
       establishmentId,
 
       tenantId: input.tenantId,
@@ -93,8 +142,12 @@ export class ReservationService {
       }
 
       /*
-       * POST is idempotent for the same
-       * user + assignment.
+       * Another request may have acquired the
+       * canonical lock between our pre-check and
+       * the atomic Redis acquisition.
+       *
+       * Re-check the exact target so same-user
+       * concurrent retries remain idempotent.
        */
       const current = await this.reservationRepository.findCurrent(
         input.tenantId,

@@ -4,6 +4,7 @@ import { validateEnvironment } from './environment.validation';
 
 describe('validateEnvironment', () => {
   const validConfig: Record<string, unknown> = {
+    PROSPECT_COOLING_OFF_MINUTES: '1440',
     DATABASE_URL: 'postgresql://trackroster:trackroster@127.0.0.1:5433/trackroster',
 
     REDIS_URL: 'redis://127.0.0.1:6379',
@@ -86,5 +87,69 @@ describe('validateEnvironment', () => {
         REDIS_URL: 'http://127.0.0.1:6379',
       }),
     ).toThrow('REDIS_URL');
+  });
+
+  it('rejects a missing cooling-off duration', () => {
+    const config = {
+      ...validConfig,
+    };
+
+    delete config.PROSPECT_COOLING_OFF_MINUTES;
+
+    expect(() => validateEnvironment(config)).toThrow(
+      'Environment variable PROSPECT_COOLING_OFF_MINUTES is required',
+    );
+  });
+
+  it('rejects a non-positive cooling-off duration', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+
+        PROSPECT_COOLING_OFF_MINUTES: '0',
+      }),
+    ).toThrow('Environment variable PROSPECT_COOLING_OFF_MINUTES must be a positive integer');
+  });
+
+  it('rejects a non-integer cooling-off duration', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+
+        PROSPECT_COOLING_OFF_MINUTES: '10.5',
+      }),
+    ).toThrow('Environment variable PROSPECT_COOLING_OFF_MINUTES must be a positive integer');
+  });
+
+  it('rejects a missing cooling-off duration', () => {
+    const config: Record<string, unknown> = {
+      ...validConfig,
+    };
+
+    delete config.PROSPECT_COOLING_OFF_MINUTES;
+
+    expect(() => validateEnvironment(config)).toThrow(
+      'Environment variable PROSPECT_COOLING_OFF_MINUTES is required',
+    );
+  });
+
+  it('rejects a non-positive cooling-off duration', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+
+        PROSPECT_COOLING_OFF_MINUTES: '0',
+      }),
+    ).toThrow('Environment variable PROSPECT_COOLING_OFF_MINUTES must be a positive integer');
+  });
+
+  it('rejects a non-integer cooling-off duration', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+
+        PROSPECT_COOLING_OFF_MINUTES: '10.5',
+      }),
+    ).toThrow('Environment variable PROSPECT_COOLING_OFF_MINUTES must be a positive integer');
   });
 });
