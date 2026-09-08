@@ -17,6 +17,7 @@ import { campaignProspects } from '../src/database/schema/campaign-prospects.js'
 import { campaigns } from '../src/database/schema/campaigns.js';
 import { establishments } from '../src/database/schema/establishments.js';
 import { organizations } from '../src/database/schema/organizations.js';
+import { prospectActivities } from '../src/database/schema/prospect-activities.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
@@ -90,11 +91,21 @@ describe('Reservation HTTP integration', () => {
     return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/reservation';
   }
 
+  function activityUrl(): string {
+    return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/activities';
+  }
+
   function secondReservationUrl(): string {
     return `/campaigns/${secondCampaignId}` + `/prospects/${secondProspectId}` + '/reservation';
   }
   function collisionDecisionUrl(): string {
     return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/collision-decision';
+  }
+
+  function secondCollisionDecisionUrl(): string {
+    return (
+      `/campaigns/${secondCampaignId}` + `/prospects/${secondProspectId}` + '/collision-decision'
+    );
   }
 
   async function login(email: string): Promise<AuthenticationTokens> {
@@ -142,6 +153,14 @@ describe('Reservation HTTP integration', () => {
     const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
 
     await getRedis().getClient().del([firstReservationKey, secondReservationKey, collisionKey]);
+  }
+
+  async function clearActivityHistory(): Promise<void> {
+    if (!database || !tenantId) {
+      return;
+    }
+
+    await getDatabase().delete(prospectActivities).where(eq(prospectActivities.tenantId, tenantId));
   }
 
   beforeAll(async () => {
@@ -467,6 +486,8 @@ describe('Reservation HTTP integration', () => {
       await clearReservation();
 
       if (database && tenantId) {
+        await database.delete(prospectActivities).where(eq(prospectActivities.tenantId, tenantId));
+
         await database
           .delete(campaignProspectAssignments)
           .where(eq(campaignProspectAssignments.tenantId, tenantId));
@@ -1149,5 +1170,245 @@ describe('Reservation HTTP integration', () => {
     expect(body.conflict).not.toHaveProperty('campaignId');
 
     expect(body.conflict).not.toHaveProperty('reservationId');
+  });
+
+  /*
+   * TR-017:
+   * A prospector cannot create contact history without
+   * owning an active reservation.
+   */
+  it('rejects activity recording without an active reservation', async () => {
+    await clearReservation();
+    await clearActivityHistory();
+
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: activityUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+
+      payload: {
+        type: 'call',
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 409,
+      message: 'Active reservation required',
+    });
+
+    const storedActivities = await getDatabase()
+      .select()
+      .from(prospectActivities)
+      .where(eq(prospectActivities.tenantId, tenantId));
+
+    expect(storedActivities).toHaveLength(0);
+  });
+
+  /*
+   * TR-017:
+   * End-to-end recent-contact protection across campaigns.
+   */
+  it('blocks a second campaign after recent contact with the same canonical establishment', async () => {
+    await clearReservation();
+    await clearActivityHistory();
+
+    try {
+      /*
+       * Step 1:
+       * Prospector A reserves Campaign A / Prospect A.
+       */
+      const reservationResponse = await getApp().inject({
+        method: 'POST',
+
+        url: reservationUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(reservationResponse.statusCode).toBe(201);
+
+      const reservation = JSON.parse(reservationResponse.payload) as {
+        reservationId: string;
+        establishmentId: string;
+        assignmentId: string;
+        userId: string;
+      };
+
+      expect(reservation).toMatchObject({
+        establishmentId,
+        assignmentId,
+        userId: prospectorAId,
+      });
+
+      /*
+       * Step 2:
+       * Prospector A records a real contact.
+       *
+       * The client sends only the activity type.
+       * Reservation/user/assignment/establishment
+       * context is derived by the backend.
+       */
+      const activityResponse = await getApp().inject({
+        method: 'POST',
+
+        url: activityUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+
+        payload: {
+          type: 'call',
+        },
+      });
+
+      expect(activityResponse.statusCode).toBe(201);
+
+      const activity = JSON.parse(activityResponse.payload) as {
+        id: string;
+        tenantId: string;
+        campaignId: string;
+        campaignProspectId: string;
+        establishmentId: string;
+        assignmentId: string;
+        userId: string;
+        reservationId: string;
+        type: string;
+      };
+
+      expect(activity).toMatchObject({
+        tenantId,
+        campaignId,
+        campaignProspectId: prospectId,
+        establishmentId,
+        assignmentId,
+        userId: prospectorAId,
+        reservationId: reservation.reservationId,
+        type: 'call',
+      });
+
+      /*
+       * Step 3:
+       * Release the temporary Redis reservation.
+       */
+      const releaseResponse = await getApp().inject({
+        method: 'DELETE',
+
+        url: `${reservationUrl()}/${reservation.reservationId}`,
+
+        headers: {
+          authorization: `Bearer ${prospectorAToken}`,
+        },
+      });
+
+      expect(releaseResponse.statusCode).toBe(200);
+
+      /*
+       * Step 4:
+       * The immutable activity remains in PostgreSQL
+       * after the Redis reservation is released.
+       */
+      const [storedActivity] = await getDatabase()
+        .select()
+        .from(prospectActivities)
+        .where(eq(prospectActivities.id, activity.id))
+        .limit(1);
+
+      expect(storedActivity).toBeDefined();
+
+      expect(storedActivity).toMatchObject({
+        id: activity.id,
+        tenantId,
+        campaignId,
+        campaignProspectId: prospectId,
+        establishmentId,
+        assignmentId,
+        userId: prospectorAId,
+        reservationId: reservation.reservationId,
+        type: 'call',
+      });
+
+      /*
+       * Step 5:
+       * Prospector B directly attempts reservation
+       * in Campaign B without calling collision-decision.
+       *
+       * The same canonical establishment must still
+       * be protected by the cooling-off rule.
+       */
+      const blockedReservationResponse = await getApp().inject({
+        method: 'POST',
+
+        url: secondReservationUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorBToken}`,
+        },
+      });
+
+      expect(blockedReservationResponse.statusCode).toBe(409);
+
+      expect(JSON.parse(blockedReservationResponse.payload)).toMatchObject({
+        statusCode: 409,
+        message: 'Establishment is in cooling-off period',
+      });
+
+      /*
+       * Step 6:
+       * The advisory collision endpoint must reach
+       * the same RECENT_CONTACT decision.
+       */
+      const collisionResponse = await getApp().inject({
+        method: 'GET',
+
+        url: secondCollisionDecisionUrl(),
+
+        headers: {
+          authorization: `Bearer ${prospectorBToken}`,
+        },
+      });
+
+      expect(collisionResponse.statusCode).toBe(200);
+
+      const collisionDecision = JSON.parse(collisionResponse.payload) as {
+        decision: string;
+        reasonCode: string;
+        establishmentId: string;
+        conflict: Record<string, unknown>;
+      };
+
+      expect(collisionDecision).toEqual({
+        decision: 'block',
+        reasonCode: 'RECENT_CONTACT',
+        establishmentId,
+        conflict: {
+          expiresAt: expect.any(String),
+        },
+      });
+
+      /*
+       * Prospector-facing collision responses must not
+       * leak internal ownership or activity metadata.
+       */
+      expect(collisionDecision.conflict).not.toHaveProperty('userId');
+      expect(collisionDecision.conflict).not.toHaveProperty('teamId');
+      expect(collisionDecision.conflict).not.toHaveProperty('campaignId');
+      expect(collisionDecision.conflict).not.toHaveProperty('campaignProspectId');
+      expect(collisionDecision.conflict).not.toHaveProperty('assignmentId');
+      expect(collisionDecision.conflict).not.toHaveProperty('activityId');
+      expect(collisionDecision.conflict).not.toHaveProperty('activityType');
+      expect(collisionDecision.conflict).not.toHaveProperty('occurredAt');
+    } finally {
+      await clearReservation();
+      await clearActivityHistory();
+    }
   });
 });

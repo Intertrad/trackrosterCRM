@@ -24,6 +24,7 @@ jobs:
       JWT_ACCESS_TTL: 15m
       JWT_REFRESH_SECRET: trackroster-ci-refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       JWT_REFRESH_TTL: 7d
+      PROSPECT_COOLING_OFF_MINUTES: '1440'
 
     services:
       postgres:

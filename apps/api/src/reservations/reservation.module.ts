@@ -10,6 +10,7 @@ import { UserModule } from '../users/user.module.js';
 import { ReservationController } from './reservation.controller.js';
 import { ReservationRepository } from './reservation.repository.js';
 import { ReservationService } from './reservation.service.js';
+import { CoolingOffModule } from '../cooling-off/cooling-off.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ReservationService } from './reservation.service.js';
     TeamModule,
     UserModule,
     AuthorizationModule,
+    CoolingOffModule,
   ],
 
   controllers: [ReservationController],

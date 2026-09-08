@@ -1,9 +1,13 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
+import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 import type { ProspectReservation } from '../reservations/reservation.types.js';
-import type { CollisionConflict, CollisionDecisionResult } from './collision.types.js';
+import type {
+  ActiveReservationCollisionConflict,
+  CollisionDecisionResult,
+} from './collision.types.js';
 
 export interface EvaluateCollisionInput {
   tenantId: string;
@@ -19,23 +23,13 @@ export class CollisionDecisionService {
     private readonly reservationRepository: ReservationRepository,
 
     private readonly reservationService: ReservationService,
+
+    private readonly coolingOffService: CoolingOffService,
   ) {}
 
   async evaluate(input: EvaluateCollisionInput): Promise<CollisionDecisionResult> {
     /*
      * Eligibility remains the first gate.
-     *
-     * This verifies:
-     * - campaign is active
-     * - campaign prospect is active
-     * - current assignment exists
-     * - assigned team is active
-     * - caller is active
-     * - caller has exact-team prospector access
-     * - individual ownership is respected
-     *
-     * It also gives us the canonical
-     * establishment ID.
      */
     const { establishmentId } = await this.reservationService.requireReservationEligibility({
       tenantId: input.tenantId,
@@ -56,70 +50,91 @@ export class CollisionDecisionService {
       );
     } catch {
       /*
-       * Collision verification is safety-critical.
-       *
-       * Redis failure must never silently
-       * become ALLOW.
+       * Active-reservation protection is
+       * safety-critical and fails closed.
        */
       throw new ServiceUnavailableException('Collision service is unavailable');
     }
 
-    if (!reservation) {
-      return {
-        decision: 'allow',
+    if (reservation) {
+      const isExactTarget =
+        reservation.campaignId === input.campaignId &&
+        reservation.campaignProspectId === input.campaignProspectId;
 
-        reasonCode: 'NO_COLLISION',
+      /*
+       * The caller may continue working while
+       * holding their own reservation for this
+       * exact prospect.
+       *
+       * We deliberately return before checking
+       * cooling-off because activities recorded
+       * during this active work session should
+       * not block the same worker.
+       */
+      if (isExactTarget && reservation.userId === input.userId) {
+        return {
+          decision: 'allow',
+
+          reasonCode: 'NO_COLLISION',
+
+          establishmentId,
+
+          conflict: null,
+        };
+      }
+
+      return {
+        decision: 'block',
+
+        reasonCode: 'ACTIVE_RESERVATION',
 
         establishmentId,
 
-        conflict: null,
+        conflict: this.toReservationConflict(reservation),
       };
     }
 
-    const isExactTarget =
-      reservation.campaignId === input.campaignId &&
-      reservation.campaignProspectId === input.campaignProspectId;
-
     /*
-     * The authenticated user's existing
-     * reservation for this exact workflow
-     * context is not a collision.
+     * No one is actively working the
+     * establishment, so now evaluate the
+     * historical cooling-off rule.
      */
-    if (isExactTarget && reservation.userId === input.userId) {
-      return {
-        decision: 'allow',
+    const coolingOff = await this.coolingOffService.evaluate(input.tenantId, establishmentId);
 
-        reasonCode: 'NO_COLLISION',
+    if (coolingOff.active && coolingOff.activity && coolingOff.expiresAt) {
+      return {
+        decision: 'block',
+
+        reasonCode: 'RECENT_CONTACT',
 
         establishmentId,
 
-        conflict: null,
+        conflict: {
+          activityId: coolingOff.activity.id,
+
+          activityType: coolingOff.activity.type,
+
+          occurredAt: coolingOff.activity.occurredAt.toISOString(),
+
+          expiresAt: coolingOff.expiresAt.toISOString(),
+        },
       };
     }
 
-    /*
-     * Everything else means the canonical
-     * establishment is currently being worked.
-     *
-     * This includes:
-     *
-     * - another user on the same campaign prospect
-     * - another campaign prospect
-     * - another campaign context owned by the
-     *   same user
-     */
     return {
-      decision: 'block',
+      decision: 'allow',
 
-      reasonCode: 'ACTIVE_RESERVATION',
+      reasonCode: 'NO_COLLISION',
 
       establishmentId,
 
-      conflict: this.toConflict(reservation),
+      conflict: null,
     };
   }
 
-  private toConflict(reservation: ProspectReservation): CollisionConflict {
+  private toReservationConflict(
+    reservation: ProspectReservation,
+  ): ActiveReservationCollisionConflict {
     return {
       reservationId: reservation.reservationId,
 

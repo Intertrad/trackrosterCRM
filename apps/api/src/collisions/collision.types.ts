@@ -1,8 +1,10 @@
+import type { ProspectActivityType } from '../database/schema/prospect-activities.js';
+
 export type CollisionDecision = 'allow' | 'block' | 'warn' | 'require_override';
 
-export type CollisionReasonCode = 'NO_COLLISION' | 'ACTIVE_RESERVATION';
+export type CollisionReasonCode = 'NO_COLLISION' | 'ACTIVE_RESERVATION' | 'RECENT_CONTACT';
 
-export interface CollisionConflict {
+export interface ActiveReservationCollisionConflict {
   reservationId: string;
 
   campaignId: string;
@@ -15,6 +17,18 @@ export interface CollisionConflict {
   acquiredAt: string;
   expiresAt: string;
 }
+
+export interface RecentContactCollisionConflict {
+  activityId: string;
+
+  activityType: ProspectActivityType;
+
+  occurredAt: string;
+
+  expiresAt: string;
+}
+
+export type CollisionConflict = ActiveReservationCollisionConflict | RecentContactCollisionConflict;
 
 export interface CollisionDecisionResult {
   decision: CollisionDecision;

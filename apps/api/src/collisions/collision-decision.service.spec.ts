@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 import { CollisionDecisionService } from './collision-decision.service.js';
@@ -11,6 +12,10 @@ describe('CollisionDecisionService', () => {
 
   let reservationService: {
     requireReservationEligibility: ReturnType<typeof vi.fn>;
+  };
+
+  let coolingOffService: {
+    evaluate: ReturnType<typeof vi.fn>;
   };
 
   let service: CollisionDecisionService;
@@ -68,13 +73,26 @@ describe('CollisionDecisionService', () => {
       }),
     };
 
+    coolingOffService = {
+      evaluate: vi.fn().mockResolvedValue({
+        active: false,
+
+        activity: null,
+
+        expiresAt: null,
+      }),
+    };
+
     service = new CollisionDecisionService(
       reservationRepository as unknown as ReservationRepository,
+
       reservationService as unknown as ReservationService,
+
+      coolingOffService as unknown as CoolingOffService,
     );
   });
 
-  it('allows when the canonical establishment has no active reservation', async () => {
+  it('allows when the canonical establishment has no active reservation and no recent contact', async () => {
     reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
 
     await expect(
@@ -101,6 +119,8 @@ describe('CollisionDecisionService', () => {
       tenantId,
       establishmentId,
     );
+
+    expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
   });
 
   it('allows the caller own reservation on the exact target campaign prospect', async () => {
@@ -133,6 +153,8 @@ describe('CollisionDecisionService', () => {
 
       conflict: null,
     });
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
   it('blocks when another user reserves the exact target campaign prospect', async () => {
@@ -171,6 +193,8 @@ describe('CollisionDecisionService', () => {
         userId: otherUserId,
       },
     });
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
   it('blocks when another campaign prospect for the same establishment is reserved', async () => {
@@ -211,6 +235,8 @@ describe('CollisionDecisionService', () => {
         expiresAt: reservation.expiresAt,
       },
     });
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
   it('blocks another campaign context even when the caller owns the existing reservation', async () => {
@@ -233,6 +259,124 @@ describe('CollisionDecisionService', () => {
     expect(result.decision).toBe('block');
 
     expect(result.reasonCode).toBe('ACTIVE_RESERVATION');
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('blocks when the canonical establishment was contacted recently', async () => {
+    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+
+    coolingOffService.evaluate.mockResolvedValue({
+      active: true,
+
+      activity: {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+
+        tenantId,
+
+        campaignId: campaignBId,
+
+        campaignProspectId: prospectBId,
+
+        establishmentId,
+
+        assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+        userId: otherUserId,
+
+        reservationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+
+        type: 'call',
+
+        occurredAt: new Date('2026-09-08T10:00:00.000Z'),
+
+        createdAt: new Date('2026-09-08T10:00:00.000Z'),
+      },
+
+      expiresAt: new Date('2026-09-09T10:00:00.000Z'),
+    });
+
+    const result = await service.evaluate({
+      tenantId,
+
+      userId,
+
+      campaignId: campaignAId,
+
+      campaignProspectId: prospectAId,
+    });
+
+    expect(result).toEqual({
+      decision: 'block',
+
+      reasonCode: 'RECENT_CONTACT',
+
+      establishmentId,
+
+      conflict: {
+        activityId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+
+        activityType: 'call',
+
+        occurredAt: '2026-09-08T10:00:00.000Z',
+
+        expiresAt: '2026-09-09T10:00:00.000Z',
+      },
+    });
+  });
+
+  it('allows when cooling-off exists but has expired', async () => {
+    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+
+    coolingOffService.evaluate.mockResolvedValue({
+      active: false,
+
+      activity: {
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+
+        tenantId,
+
+        campaignId: campaignBId,
+
+        campaignProspectId: prospectBId,
+
+        establishmentId,
+
+        assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+        userId: otherUserId,
+
+        reservationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+
+        type: 'email',
+
+        occurredAt: new Date('2026-09-07T10:00:00.000Z'),
+
+        createdAt: new Date('2026-09-07T10:00:00.000Z'),
+      },
+
+      expiresAt: new Date('2026-09-08T10:00:00.000Z'),
+    });
+
+    await expect(
+      service.evaluate({
+        tenantId,
+
+        userId,
+
+        campaignId: campaignAId,
+
+        campaignProspectId: prospectAId,
+      }),
+    ).resolves.toEqual({
+      decision: 'allow',
+
+      reasonCode: 'NO_COLLISION',
+
+      establishmentId,
+
+      conflict: null,
+    });
   });
 
   it('fails before collision lookup when the caller is not eligible for the target', async () => {
@@ -253,6 +397,8 @@ describe('CollisionDecisionService', () => {
     ).rejects.toThrow('User is not eligible');
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
   it('propagates campaign prospect eligibility failures before collision lookup', async () => {
@@ -273,6 +419,8 @@ describe('CollisionDecisionService', () => {
     ).rejects.toThrow('Campaign prospect not found');
 
     expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
   });
 
   it('fails closed when the canonical Redis collision lookup fails', async () => {
@@ -291,5 +439,25 @@ describe('CollisionDecisionService', () => {
         campaignProspectId: prospectAId,
       }),
     ).rejects.toThrow('Collision service is unavailable');
+
+    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('propagates cooling-off infrastructure failure after reservation check is clear', async () => {
+    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+
+    coolingOffService.evaluate.mockRejectedValue(new Error('Cooling-off service is unavailable'));
+
+    await expect(
+      service.evaluate({
+        tenantId,
+
+        userId,
+
+        campaignId: campaignAId,
+
+        campaignProspectId: prospectAId,
+      }),
+    ).rejects.toThrow('Cooling-off service is unavailable');
   });
 });
