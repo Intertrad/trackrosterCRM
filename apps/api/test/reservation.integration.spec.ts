@@ -96,6 +96,9 @@ describe('Reservation HTTP integration', () => {
   function activityUrl(): string {
     return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/activities';
   }
+  function timelineUrl(): string {
+    return `/campaigns/${campaignId}` + `/prospects/${prospectId}` + '/timeline';
+  }
 
   function secondReservationUrl(): string {
     return `/campaigns/${secondCampaignId}` + `/prospects/${secondProspectId}` + '/reservation';
@@ -1915,5 +1918,381 @@ describe('Reservation HTTP integration', () => {
 
       await clearFollowUps();
     }
+  });
+
+  it('rejects timeline reads without authentication', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: timelineUrl(),
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('returns immutable prospect activities newest first without leaking internal metadata', async () => {
+    await clearActivityHistory();
+
+    const oldestActivityId = randomUUID();
+    const middleActivityId = randomUUID();
+    const newestActivityId = randomUUID();
+
+    await getDatabase()
+      .insert(prospectActivities)
+      .values([
+        {
+          id: oldestActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorAId,
+
+          reservationId: randomUUID(),
+
+          type: 'call',
+
+          occurredAt: new Date('2026-09-09T08:00:00.000Z'),
+
+          createdAt: new Date('2026-09-09T08:00:01.000Z'),
+        },
+
+        {
+          id: middleActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorAId,
+
+          reservationId: randomUUID(),
+
+          type: 'email',
+
+          occurredAt: new Date('2026-09-09T09:00:00.000Z'),
+
+          createdAt: new Date('2026-09-09T09:00:01.000Z'),
+        },
+
+        {
+          id: newestActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorBId,
+
+          reservationId: randomUUID(),
+
+          type: 'visit',
+
+          occurredAt: new Date('2026-09-09T10:00:00.000Z'),
+
+          createdAt: new Date('2026-09-09T10:00:01.000Z'),
+        },
+      ]);
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: timelineUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      items: Array<{
+        kind: string;
+
+        id: string;
+
+        occurredAt: string;
+
+        activityType: string;
+
+        actor: {
+          userId: string;
+        };
+
+        context: {
+          campaignId: string;
+
+          campaignProspectId: string;
+
+          establishmentId: string;
+
+          assignmentId: string;
+        };
+
+        tenantId?: string;
+
+        reservationId?: string;
+
+        createdAt?: string;
+      }>;
+
+      nextCursor: string | null;
+    };
+
+    expect(body.items).toHaveLength(3);
+
+    /*
+     * Immutable timeline is newest first.
+     */
+    expect(body.items.map((item) => item.id)).toEqual([
+      newestActivityId,
+      middleActivityId,
+      oldestActivityId,
+    ]);
+
+    expect(body.items[0]).toEqual({
+      kind: 'activity',
+
+      id: newestActivityId,
+
+      occurredAt: '2026-09-09T10:00:00.000Z',
+
+      activityType: 'visit',
+
+      actor: {
+        userId: prospectorBId,
+      },
+
+      context: {
+        campaignId,
+
+        campaignProspectId: prospectId,
+
+        establishmentId,
+
+        assignmentId,
+      },
+    });
+
+    /*
+     * Internal execution evidence stays private.
+     */
+    for (const item of body.items) {
+      expect(item).not.toHaveProperty('tenantId');
+
+      expect(item).not.toHaveProperty('reservationId');
+
+      expect(item).not.toHaveProperty('createdAt');
+    }
+
+    expect(body.nextCursor).toBeNull();
+  });
+
+  it('paginates the prospect timeline with an opaque cursor', async () => {
+    await clearActivityHistory();
+
+    const oldestActivityId = randomUUID();
+    const middleActivityId = randomUUID();
+    const newestActivityId = randomUUID();
+
+    await getDatabase()
+      .insert(prospectActivities)
+      .values([
+        {
+          id: oldestActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorAId,
+
+          reservationId: randomUUID(),
+
+          type: 'call',
+
+          occurredAt: new Date('2026-09-08T08:00:00.000Z'),
+
+          createdAt: new Date('2026-09-08T08:00:01.000Z'),
+        },
+
+        {
+          id: middleActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorAId,
+
+          reservationId: randomUUID(),
+
+          type: 'email',
+
+          occurredAt: new Date('2026-09-08T09:00:00.000Z'),
+
+          createdAt: new Date('2026-09-08T09:00:01.000Z'),
+        },
+
+        {
+          id: newestActivityId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          userId: prospectorAId,
+
+          reservationId: randomUUID(),
+
+          type: 'message',
+
+          occurredAt: new Date('2026-09-08T10:00:00.000Z'),
+
+          createdAt: new Date('2026-09-08T10:00:01.000Z'),
+        },
+      ]);
+
+    /*
+     * Page 1: newest two.
+     */
+    const firstResponse = await getApp().inject({
+      method: 'GET',
+
+      url: `${timelineUrl()}?limit=2`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(firstResponse.statusCode).toBe(200);
+
+    const firstPage = JSON.parse(firstResponse.payload) as {
+      items: Array<{
+        id: string;
+      }>;
+
+      nextCursor: string | null;
+    };
+
+    expect(firstPage.items.map((item) => item.id)).toEqual([newestActivityId, middleActivityId]);
+
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+
+    if (!firstPage.nextCursor) {
+      throw new Error('Expected timeline cursor');
+    }
+
+    /*
+     * Page 2: remaining oldest row.
+     */
+    const secondResponse = await getApp().inject({
+      method: 'GET',
+
+      url: `${timelineUrl()}?limit=2&cursor=` + encodeURIComponent(firstPage.nextCursor),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(secondResponse.statusCode).toBe(200);
+
+    const secondPage = JSON.parse(secondResponse.payload) as {
+      items: Array<{
+        id: string;
+      }>;
+
+      nextCursor: string | null;
+    };
+
+    expect(secondPage.items.map((item) => item.id)).toEqual([oldestActivityId]);
+
+    expect(secondPage.nextCursor).toBeNull();
+  });
+
+  it('rejects timeline access for an authenticated user without the current team scope', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+
+    const passwordService = getApp().get(PasswordService);
+
+    const userRepository = getApp().get(UserRepository);
+
+    const email = `timeline-no-access-${suffix}@trackroster.test`;
+
+    const passwordHash = await passwordService.hash(password);
+
+    /*
+     * Deliberately create an active user
+     * WITHOUT an access grant.
+     */
+    await userRepository.create({
+      tenantId,
+
+      email,
+
+      passwordHash,
+
+      status: 'active',
+    });
+
+    const token = (await login(email)).accessToken;
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: timelineUrl(),
+
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 403,
+
+      message: 'User cannot view prospect timeline',
+    });
   });
 });
