@@ -21,6 +21,7 @@ import { ReservationModule } from './reservations/reservation.module.js';
 import { CollisionModule } from './collisions/collision.module.js';
 import { ActivityModule } from './activities/activity.module.js';
 import { FollowUpModule } from './follow-ups/follow-up.module.js';
+import { JobQueueModule } from './jobs/job-queue.module.js';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { FollowUpModule } from './follow-ups/follow-up.module.js';
     CollisionModule,
     ActivityModule,
     FollowUpModule,
+    JobQueueModule,
   ],
 })
 export class AppModule {}
