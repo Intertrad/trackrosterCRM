@@ -132,6 +132,7 @@ describe('Reservation HTTP integration', () => {
     if (
       !redisService ||
       !tenantId ||
+      !organizationId ||
       !campaignId ||
       !prospectId ||
       !secondCampaignId ||
@@ -153,9 +154,31 @@ describe('Reservation HTTP integration', () => {
       secondProspectId,
     );
 
-    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
+    /*
+     * Keep removing the legacy TR-016 key during
+     * the transition so an earlier failed test or
+     * pre-TR-017 reservation cannot contaminate
+     * the suite.
+     */
+    const legacyCollisionKey = getReservationRepository().buildCollisionKey(
+      tenantId,
+      establishmentId,
+    );
 
-    await getRedis().getClient().del([firstReservationKey, secondReservationKey, collisionKey]);
+    const organizationCollisionKey = getReservationRepository().buildOrganizationCollisionKey(
+      tenantId,
+      organizationId,
+      establishmentId,
+    );
+
+    await getRedis()
+      .getClient()
+      .del([
+        firstReservationKey,
+        secondReservationKey,
+        legacyCollisionKey,
+        organizationCollisionKey,
+      ]);
   }
 
   async function clearActivityHistory(): Promise<void> {
@@ -585,7 +608,11 @@ describe('Reservation HTTP integration', () => {
 
     const reservationTtl = await getReservationRepository().ttl(tenantId, campaignId, prospectId);
 
-    const collisionTtl = await getReservationRepository().collisionTtl(tenantId, establishmentId);
+    const collisionTtl = await getReservationRepository().organizationCollisionTtl(
+      tenantId,
+      organizationId,
+      establishmentId,
+    );
 
     /*
      * Allow a few seconds for test execution.
@@ -742,7 +769,7 @@ describe('Reservation HTTP integration', () => {
     expect(current?.reservationId).toBe(body.reservationId);
   });
 
-  it('releases the reservation and canonical collision lock for its owner', async () => {
+  it('releases the reservation and organization collision lock for its owner', async () => {
     await clearReservation();
 
     const acquired = await getApp().inject({
@@ -777,8 +804,9 @@ describe('Reservation HTTP integration', () => {
 
     expect(current).toBeNull();
 
-    const collision = await getReservationRepository().findCurrentByEstablishment(
+    const collision = await getReservationRepository().findCurrentByOrganizationEstablishment(
       tenantId,
+      organizationId,
       establishmentId,
     );
 
@@ -802,7 +830,11 @@ describe('Reservation HTTP integration', () => {
 
     const reservationKey = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
 
-    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
+    const collisionKey = getReservationRepository().buildOrganizationCollisionKey(
+      tenantId,
+      organizationId,
+      establishmentId,
+    );
 
     /*
      * Shorten both TTLs for this integration test.
@@ -820,10 +852,12 @@ describe('Reservation HTTP integration', () => {
 
     expect(expired).toBeNull();
 
-    const expiredCollision = await getReservationRepository().findCurrentByEstablishment(
-      tenantId,
-      establishmentId,
-    );
+    const expiredCollision =
+      await getReservationRepository().findCurrentByOrganizationEstablishment(
+        tenantId,
+        organizationId,
+        establishmentId,
+      );
 
     expect(expiredCollision).toBeNull();
 
@@ -843,6 +877,9 @@ describe('Reservation HTTP integration', () => {
   it('does not let a stale reservation id release a newer reservation', async () => {
     await clearReservation();
 
+    /*
+     * Reservation #1.
+     */
     const first = await getApp().inject({
       method: 'POST',
 
@@ -859,18 +896,55 @@ describe('Reservation HTTP integration', () => {
       reservationId: string;
     };
 
+    /*
+     * TR-017 reservations own two Redis keys:
+     *
+     * 1. Exact campaign-prospect reservation key
+     * 2. Organization-scoped establishment lock
+     *
+     * Both must expire together when simulating TTL
+     * expiry in this integration test.
+     */
     const reservationKey = getReservationRepository().buildKey(tenantId, campaignId, prospectId);
 
-    const collisionKey = getReservationRepository().buildCollisionKey(tenantId, establishmentId);
+    const organizationCollisionKey = getReservationRepository().buildOrganizationCollisionKey(
+      tenantId,
+      organizationId,
+      establishmentId,
+    );
 
     await Promise.all([
       getRedis().getClient().expire(reservationKey, 1),
 
-      getRedis().getClient().expire(collisionKey, 1),
+      getRedis().getClient().expire(organizationCollisionKey, 1),
     ]);
 
     await new Promise((resolve) => setTimeout(resolve, 1_200));
 
+    /*
+     * The first reservation should now be fully
+     * expired.
+     */
+    const expiredReservation = await getReservationRepository().findCurrent(
+      tenantId,
+      campaignId,
+      prospectId,
+    );
+
+    expect(expiredReservation).toBeNull();
+
+    const expiredCollision =
+      await getReservationRepository().findCurrentByOrganizationEstablishment(
+        tenantId,
+        organizationId,
+        establishmentId,
+      );
+
+    expect(expiredCollision).toBeNull();
+
+    /*
+     * Reservation #2.
+     */
     const second = await getApp().inject({
       method: 'POST',
 
@@ -889,10 +963,16 @@ describe('Reservation HTTP integration', () => {
 
     expect(secondBody.reservationId).not.toBe(firstBody.reservationId);
 
+    /*
+     * Try releasing Reservation #2 using the stale
+     * ID belonging to Reservation #1.
+     *
+     * This must never remove the newer reservation.
+     */
     const staleRelease = await getApp().inject({
       method: 'DELETE',
 
-      url: `${reservationUrl()}/${firstBody.reservationId}`,
+      url: `${reservationUrl()}/` + firstBody.reservationId,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -901,12 +981,20 @@ describe('Reservation HTTP integration', () => {
 
     expect(staleRelease.statusCode).toBe(409);
 
+    /*
+     * Exact reservation must still be Reservation #2.
+     */
     const current = await getReservationRepository().findCurrent(tenantId, campaignId, prospectId);
 
     expect(current?.reservationId).toBe(secondBody.reservationId);
 
-    const collision = await getReservationRepository().findCurrentByEstablishment(
+    /*
+     * Organization-scoped establishment lock must
+     * also still belong to Reservation #2.
+     */
+    const collision = await getReservationRepository().findCurrentByOrganizationEstablishment(
       tenantId,
+      organizationId,
       establishmentId,
     );
 
@@ -952,10 +1040,12 @@ describe('Reservation HTTP integration', () => {
 
     expect(secondReservation).toBeNull();
 
-    const canonicalReservation = await getReservationRepository().findCurrentByEstablishment(
-      tenantId,
-      establishmentId,
-    );
+    const canonicalReservation =
+      await getReservationRepository().findCurrentByOrganizationEstablishment(
+        tenantId,
+        organizationId,
+        establishmentId,
+      );
 
     expect(canonicalReservation?.campaignId).toBe(campaignId);
 
@@ -1013,8 +1103,9 @@ describe('Reservation HTTP integration', () => {
 
     expect(activeReservations).toHaveLength(1);
 
-    const collision = await getReservationRepository().findCurrentByEstablishment(
+    const collision = await getReservationRepository().findCurrentByOrganizationEstablishment(
       tenantId,
+      organizationId,
       establishmentId,
     );
 
@@ -1030,9 +1121,19 @@ describe('Reservation HTTP integration', () => {
    * Releasing one campaign frees the canonical
    * establishment for another campaign.
    */
+  /*
+   * Same-organization behavior:
+   *
+   * Releasing Campaign A's reservation must free the
+   * organization's canonical establishment lock so
+   * Campaign B can acquire it afterward.
+   */
   it('allows another campaign to reserve after the first reservation is released', async () => {
     await clearReservation();
 
+    /*
+     * Campaign A reserves the establishment.
+     */
     const first = await getApp().inject({
       method: 'POST',
 
@@ -1049,10 +1150,13 @@ describe('Reservation HTTP integration', () => {
       reservationId: string;
     };
 
+    /*
+     * Release Campaign A.
+     */
     const released = await getApp().inject({
       method: 'DELETE',
 
-      url: `${reservationUrl()}/${firstBody.reservationId}`,
+      url: `${reservationUrl()}/` + firstBody.reservationId,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -1061,13 +1165,23 @@ describe('Reservation HTTP integration', () => {
 
     expect(released.statusCode).toBe(200);
 
-    const collisionAfterRelease = await getReservationRepository().findCurrentByEstablishment(
-      tenantId,
-      establishmentId,
-    );
+    /*
+     * The organization-scoped canonical lock must
+     * have been removed.
+     */
+    const collisionAfterRelease =
+      await getReservationRepository().findCurrentByOrganizationEstablishment(
+        tenantId,
+        organizationId,
+        establishmentId,
+      );
 
     expect(collisionAfterRelease).toBeNull();
 
+    /*
+     * Campaign B should now be able to reserve the
+     * same canonical establishment.
+     */
     const second = await getApp().inject({
       method: 'POST',
 
@@ -1080,16 +1194,35 @@ describe('Reservation HTTP integration', () => {
 
     expect(second.statusCode).toBe(201);
 
-    const currentCollision = await getReservationRepository().findCurrentByEstablishment(
-      tenantId,
-      establishmentId,
-    );
+    /*
+     * Verify Campaign B now owns the organization's
+     * establishment lock.
+     */
+    const currentCollision =
+      await getReservationRepository().findCurrentByOrganizationEstablishment(
+        tenantId,
+        organizationId,
+        establishmentId,
+      );
+
+    expect(currentCollision).not.toBeNull();
 
     expect(currentCollision?.campaignId).toBe(secondCampaignId);
 
     expect(currentCollision?.campaignProspectId).toBe(secondProspectId);
 
     expect(currentCollision?.userId).toBe(prospectorBId);
+
+    /*
+     * Verify the exact Campaign B reservation too.
+     */
+    const secondReservation = await getReservationRepository().findCurrent(
+      tenantId,
+      secondCampaignId,
+      secondProspectId,
+    );
+
+    expect(secondReservation?.reservationId).toBe(currentCollision?.reservationId);
   });
 
   it('rejects collision decision without authentication', async () => {
@@ -1299,12 +1432,16 @@ describe('Reservation HTTP integration', () => {
 
       expect(currentReservation).toBeNull();
 
-      const canonicalReservation = await getReservationRepository().findCurrentByEstablishment(
-        tenantId,
-        establishmentId,
-      );
+      const organizationReservation =
+        await getReservationRepository().findCurrentByOrganizationEstablishment(
+          tenantId,
+          organizationId,
+          establishmentId,
+        );
 
-      expect(canonicalReservation).toBeNull();
+      expect(organizationReservation).toBeNull();
+
+      expect(organizationReservation).toBeNull();
     } finally {
       await clearReservation();
 

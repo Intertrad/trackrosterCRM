@@ -1,15 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ProspectActivityRepository,
+  type ProspectActivityCollisionCandidate,
+} from '../activities/prospect-activity.repository.js';
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
+import { CoordinationCollisionPolicyService } from '../coordination/coordination-collision-policy.service.js';
+import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
 import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import { ProspectFollowUpRepository } from '../follow-ups/prospect-follow-up.repository.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
 import { ReservationService } from '../reservations/reservation.service.js';
+import type { ProspectReservation } from '../reservations/reservation.types.js';
 import { CollisionDecisionService } from './collision-decision.service.js';
 
 describe('CollisionDecisionService', () => {
   let reservationRepository: {
+    findCurrent: ReturnType<typeof vi.fn>;
+
     findCurrentByEstablishment: ReturnType<typeof vi.fn>;
+
+    findCurrentCandidatesByOrganizations: ReturnType<typeof vi.fn>;
+  };
+
+  let reservationCoordinationScopeService: {
+    resolve: ReturnType<typeof vi.fn>;
   };
 
   let reservationService: {
@@ -17,88 +32,145 @@ describe('CollisionDecisionService', () => {
   };
 
   let coolingOffService: {
-    evaluate: ReturnType<typeof vi.fn>;
+    evaluateActivity: ReturnType<typeof vi.fn>;
   };
 
   let followUpRepository: {
-    findConflictingPendingByEstablishment: ReturnType<typeof vi.fn>;
+    findConflictingPendingCandidatesByEstablishment: ReturnType<typeof vi.fn>;
   };
 
   let assignmentRepository: {
-    findConflictingCurrentByEstablishment: ReturnType<typeof vi.fn>;
+    findConflictingCurrentCandidatesByEstablishment: ReturnType<typeof vi.fn>;
+  };
+
+  let prospectActivityRepository: {
+    findCandidatesByEstablishment: ReturnType<typeof vi.fn>;
+  };
+
+  let coordinationCollisionPolicyService: {
+    evaluate: ReturnType<typeof vi.fn>;
   };
 
   let service: CollisionDecisionService;
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
 
-  const establishmentId = '22222222-2222-4222-8222-222222222222';
+  const userId = '22222222-2222-4222-8222-222222222222';
 
-  const campaignAId = '33333333-3333-4333-8333-333333333333';
+  const targetOrganizationId = '33333333-3333-4333-8333-333333333333';
 
-  const campaignBId = '44444444-4444-4444-8444-444444444444';
+  const independentOrganizationId = '44444444-4444-4444-8444-444444444444';
 
-  const prospectAId = '55555555-5555-4555-8555-555555555555';
+  const coordinatedOrganizationId = '55555555-5555-4555-8555-555555555555';
 
-  const prospectBId = '66666666-6666-4666-8666-666666666666';
+  const sharedOrganizationId = '66666666-6666-4666-8666-666666666666';
 
-  const userId = '77777777-7777-4777-8777-777777777777';
+  const delayedOrganizationId = '77777777-7777-4777-8777-777777777777';
 
-  const otherUserId = '88888888-8888-4888-8888-888888888888';
+  const campaignId = '88888888-8888-4888-8888-888888888888';
 
-  const reservation = {
-    reservationId: '99999999-9999-4999-8999-999999999999',
+  const campaignProspectId = '99999999-9999-4999-8999-999999999999';
+
+  const establishmentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  const assignmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  const teamId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  const targetAssignment = {
+    id: assignmentId,
 
     tenantId,
 
-    campaignId: campaignBId,
+    campaignId,
 
-    campaignProspectId: prospectBId,
+    campaignProspectId,
 
-    establishmentId,
+    organizationId: targetOrganizationId,
 
-    assignmentId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    teamId,
 
-    teamId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    assignedUserId: userId,
 
-    userId: otherUserId,
+    assignedAt: new Date('2026-09-09T08:00:00.000Z'),
 
-    acquiredAt: '2026-09-08T08:00:00.000Z',
-
-    expiresAt: '2026-09-08T08:20:00.000Z',
+    endedAt: null,
   };
 
   beforeEach(() => {
     reservationRepository = {
-      findCurrentByEstablishment: vi.fn(),
+      findCurrent: vi.fn().mockResolvedValue(null),
+
+      findCurrentByEstablishment: vi.fn().mockResolvedValue(null),
+
+      findCurrentCandidatesByOrganizations: vi.fn().mockResolvedValue([]),
+    };
+
+    reservationCoordinationScopeService = {
+      resolve: vi.fn().mockResolvedValue({
+        targetOrganizationId,
+
+        blockingOrganizationIds: [targetOrganizationId],
+      }),
     };
 
     reservationService = {
       requireReservationEligibility: vi.fn().mockResolvedValue({
-        assignment: {
-          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-        },
+        assignment: targetAssignment,
 
         establishmentId,
       }),
     };
 
-    followUpRepository = {
-      findConflictingPendingByEstablishment: vi.fn().mockResolvedValue(null),
+    coolingOffService = {
+      evaluateActivity: vi.fn(),
     };
 
-    coolingOffService = {
-      evaluate: vi.fn().mockResolvedValue({
-        active: false,
-
-        activity: null,
-
-        expiresAt: null,
-      }),
+    followUpRepository = {
+      findConflictingPendingCandidatesByEstablishment: vi.fn().mockResolvedValue([]),
     };
 
     assignmentRepository = {
-      findConflictingCurrentByEstablishment: vi.fn().mockResolvedValue(null),
+      findConflictingCurrentCandidatesByEstablishment: vi.fn().mockResolvedValue([]),
+    };
+
+    prospectActivityRepository = {
+      findCandidatesByEstablishment: vi.fn().mockResolvedValue([]),
+    };
+
+    /*
+     * Default coordination behavior represents
+     * SHARED semantics so TR-016 remains the safe
+     * baseline:
+     *
+     * planned action  -> block
+     * recent contact  -> block
+     * assignment      -> warn
+     *
+     * Active reservation coordination is handled
+     * by ReservationCoordinationScopeService before
+     * querying Redis organization-scoped keys.
+     */
+    coordinationCollisionPolicyService = {
+      evaluate: vi.fn().mockImplementation((input: { collisionType: string }) => {
+        if (input.collisionType === 'active_assignment') {
+          return Promise.resolve({
+            action: 'warn',
+
+            policy: 'shared',
+
+            delayMinutes: null,
+          });
+        }
+
+        return Promise.resolve({
+          action: 'block',
+
+          policy: 'shared',
+
+          delayMinutes: null,
+        });
+      }),
     };
 
     service = new CollisionDecisionService(
@@ -111,21 +183,25 @@ describe('CollisionDecisionService', () => {
       followUpRepository as unknown as ProspectFollowUpRepository,
 
       assignmentRepository as unknown as CampaignProspectAssignmentRepository,
+
+      prospectActivityRepository as unknown as ProspectActivityRepository,
+
+      coordinationCollisionPolicyService as unknown as CoordinationCollisionPolicyService,
+
+      reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
     );
   });
 
-  it('allows when there is no active reservation, planned action, recent contact, or conflicting assignment', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
+  it('allows prospecting when no applicable collision exists', async () => {
     await expect(
       service.evaluate({
         tenantId,
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).resolves.toEqual({
       decision: 'allow',
@@ -137,39 +213,44 @@ describe('CollisionDecisionService', () => {
       conflict: null,
     });
 
-    expect(reservationRepository.findCurrentByEstablishment).toHaveBeenCalledWith(
+    expect(reservationCoordinationScopeService.resolve).toHaveBeenCalledWith(
       tenantId,
-      establishmentId,
+      targetOrganizationId,
     );
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).toHaveBeenCalledWith(
       tenantId,
       establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
-
-    expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
+      [targetOrganizationId],
     );
   });
 
-  it('allows the caller own reservation on the exact target campaign prospect', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue({
-      ...reservation,
+  it('allows the caller to continue using their own exact reservation', async () => {
+    const reservation: ProspectReservation = {
+      reservationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
 
-      campaignId: campaignAId,
+      tenantId,
 
-      campaignProspectId: prospectAId,
+      organizationId: targetOrganizationId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      establishmentId,
+
+      assignmentId,
+
+      teamId,
 
       userId,
-    });
+
+      acquiredAt: '2026-09-09T08:00:00.000Z',
+
+      expiresAt: '2026-09-09T08:20:00.000Z',
+    };
+
+    reservationRepository.findCurrent.mockResolvedValue(reservation);
 
     await expect(
       service.evaluate({
@@ -177,9 +258,9 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).resolves.toEqual({
       decision: 'allow',
@@ -191,58 +272,84 @@ describe('CollisionDecisionService', () => {
       conflict: null,
     });
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+    expect(reservationCoordinationScopeService.resolve).not.toHaveBeenCalled();
 
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+    expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
 
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).not.toHaveBeenCalled();
+
+    expect(coordinationCollisionPolicyService.evaluate).not.toHaveBeenCalled();
   });
 
-  it('blocks when another user reserves the exact target campaign prospect', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue({
-      ...reservation,
+  it('blocks an exact reservation owned by another user', async () => {
+    const reservation: ProspectReservation = {
+      reservationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
 
-      campaignId: campaignAId,
+      tenantId,
 
-      campaignProspectId: prospectAId,
+      organizationId: targetOrganizationId,
 
-      userId: otherUserId,
-    });
+      campaignId,
+
+      campaignProspectId,
+
+      establishmentId,
+
+      assignmentId,
+
+      teamId,
+
+      userId: '30303030-3030-4030-8030-303030303030',
+
+      acquiredAt: '2026-09-09T08:00:00.000Z',
+
+      expiresAt: '2026-09-09T08:20:00.000Z',
+    };
+
+    reservationRepository.findCurrent.mockResolvedValue(reservation);
 
     const result = await service.evaluate({
       tenantId,
 
       userId,
 
-      campaignId: campaignAId,
+      campaignId,
 
-      campaignProspectId: prospectAId,
+      campaignProspectId,
     });
 
-    expect(result).toMatchObject({
-      decision: 'block',
+    expect(result.decision).toBe('block');
 
-      reasonCode: 'ACTIVE_RESERVATION',
+    expect(result.reasonCode).toBe('ACTIVE_RESERVATION');
+
+    expect(result.establishmentId).toBe(establishmentId);
+  });
+
+  it('blocks a legacy tenant-wide reservation during rollout compatibility', async () => {
+    const reservation: ProspectReservation = {
+      reservationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+      tenantId,
+
+      organizationId: sharedOrganizationId,
+
+      campaignId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+
+      campaignProspectId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
 
       establishmentId,
 
-      conflict: {
-        campaignId: campaignAId,
+      assignmentId: '10101010-1010-4010-8010-101010101010',
 
-        campaignProspectId: prospectAId,
+      teamId: '20202020-2020-4020-8020-202020202020',
 
-        userId: otherUserId,
-      },
-    });
+      userId: '30303030-3030-4030-8030-303030303030',
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+      acquiredAt: '2026-09-09T08:00:00.000Z',
 
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+      expiresAt: '2026-09-09T08:20:00.000Z',
+    };
 
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
-  });
-
-  it('blocks when another campaign prospect for the same establishment is reserved', async () => {
     reservationRepository.findCurrentByEstablishment.mockResolvedValue(reservation);
 
     const result = await service.evaluate({
@@ -250,344 +357,107 @@ describe('CollisionDecisionService', () => {
 
       userId,
 
-      campaignId: campaignAId,
+      campaignId,
 
-      campaignProspectId: prospectAId,
-    });
-
-    expect(result).toEqual({
-      decision: 'block',
-
-      reasonCode: 'ACTIVE_RESERVATION',
-
-      establishmentId,
-
-      conflict: {
-        reservationId: reservation.reservationId,
-
-        campaignId: campaignBId,
-
-        campaignProspectId: prospectBId,
-
-        assignmentId: reservation.assignmentId,
-
-        teamId: reservation.teamId,
-
-        userId: otherUserId,
-
-        acquiredAt: reservation.acquiredAt,
-
-        expiresAt: reservation.expiresAt,
-      },
-    });
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
-
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
-  });
-
-  it('blocks another campaign context even when the caller owns the existing reservation', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue({
-      ...reservation,
-
-      userId,
-    });
-
-    const result = await service.evaluate({
-      tenantId,
-
-      userId,
-
-      campaignId: campaignAId,
-
-      campaignProspectId: prospectAId,
+      campaignProspectId,
     });
 
     expect(result.decision).toBe('block');
 
     expect(result.reasonCode).toBe('ACTIVE_RESERVATION');
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+    expect(result.establishmentId).toBe(establishmentId);
 
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
+    expect(reservationCoordinationScopeService.resolve).not.toHaveBeenCalled();
 
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).not.toHaveBeenCalled();
   });
 
-  it('blocks when another pending follow-up exists for the canonical establishment', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    followUpRepository.findConflictingPendingByEstablishment.mockResolvedValue({
-      id: '12121212-1212-4212-8212-121212121212',
+  it('blocks an active reservation in the resolved organization scope', async () => {
+    const reservation: ProspectReservation = {
+      reservationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
 
       tenantId,
 
-      campaignId: campaignBId,
+      organizationId: sharedOrganizationId,
 
-      campaignProspectId: prospectBId,
+      campaignId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+
+      campaignProspectId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
 
       establishmentId,
 
-      assignmentId: '34343434-3434-4434-8434-343434343434',
+      assignmentId: '10101010-1010-4010-8010-101010101010',
 
-      assignedUserId: otherUserId,
+      teamId: '20202020-2020-4020-8020-202020202020',
 
-      createdBy: otherUserId,
+      userId: '30303030-3030-4030-8030-303030303030',
 
-      dueAt: new Date('2026-09-10T09:00:00.000Z'),
+      acquiredAt: '2026-09-09T08:00:00.000Z',
 
-      status: 'pending',
+      expiresAt: '2026-09-09T08:20:00.000Z',
+    };
 
-      completedAt: null,
+    reservationCoordinationScopeService.resolve.mockResolvedValue({
+      targetOrganizationId,
 
-      cancelledAt: null,
-
-      createdAt: new Date('2026-09-08T12:00:00.000Z'),
-
-      updatedAt: new Date('2026-09-08T12:00:00.000Z'),
+      blockingOrganizationIds: [targetOrganizationId, sharedOrganizationId],
     });
+
+    reservationRepository.findCurrentCandidatesByOrganizations.mockResolvedValue([reservation]);
 
     const result = await service.evaluate({
       tenantId,
 
       userId,
 
-      campaignId: campaignAId,
+      campaignId,
 
-      campaignProspectId: prospectAId,
+      campaignProspectId,
     });
 
-    expect(result).toEqual({
-      decision: 'block',
+    expect(result.decision).toBe('block');
 
-      reasonCode: 'PLANNED_ACTION',
+    expect(result.reasonCode).toBe('ACTIVE_RESERVATION');
 
-      establishmentId,
+    expect(result.establishmentId).toBe(establishmentId);
 
-      conflict: {
-        followUpId: '12121212-1212-4212-8212-121212121212',
-
-        campaignId: campaignBId,
-
-        campaignProspectId: prospectBId,
-
-        assignmentId: '34343434-3434-4434-8434-343434343434',
-
-        assignedUserId: otherUserId,
-
-        dueAt: '2026-09-10T09:00:00.000Z',
-      },
-    });
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).toHaveBeenCalledWith(
       tenantId,
       establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
-
-    /*
-     * Planned action has higher priority than
-     * cooling-off and assignment warnings.
-     */
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
-  });
-
-  it('blocks when the canonical establishment was contacted recently', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    coolingOffService.evaluate.mockResolvedValue({
-      active: true,
-
-      activity: {
-        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-
-        tenantId,
-
-        campaignId: campaignBId,
-
-        campaignProspectId: prospectBId,
-
-        establishmentId,
-
-        assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-
-        userId: otherUserId,
-
-        reservationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-
-        type: 'call',
-
-        occurredAt: new Date('2026-09-08T10:00:00.000Z'),
-
-        createdAt: new Date('2026-09-08T10:00:00.000Z'),
-      },
-
-      expiresAt: new Date('2026-09-09T10:00:00.000Z'),
-    });
-
-    const result = await service.evaluate({
-      tenantId,
-
-      userId,
-
-      campaignId: campaignAId,
-
-      campaignProspectId: prospectAId,
-    });
-
-    expect(result).toEqual({
-      decision: 'block',
-
-      reasonCode: 'RECENT_CONTACT',
-
-      establishmentId,
-
-      conflict: {
-        activityId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-
-        activityType: 'call',
-
-        occurredAt: '2026-09-08T10:00:00.000Z',
-
-        expiresAt: '2026-09-09T10:00:00.000Z',
-      },
-    });
-
-    /*
-     * Planned-action lookup happens before
-     * cooling-off.
-     */
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
-  });
-
-  it('warns when another active assignment exists for the same canonical establishment', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    coolingOffService.evaluate.mockResolvedValue({
-      active: false,
-
-      activity: null,
-
-      expiresAt: null,
-    });
-
-    assignmentRepository.findConflictingCurrentByEstablishment.mockResolvedValue({
-      id: 'abababab-abab-4bab-8bab-abababababab',
-
-      tenantId,
-
-      campaignId: campaignBId,
-
-      campaignProspectId: prospectBId,
-
-      organizationId: 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd',
-
-      teamId: 'efefefef-efef-4fef-8fef-efefefefefef',
-
-      assignedUserId: otherUserId,
-
-      assignedAt: new Date('2026-09-08T12:00:00.000Z'),
-
-      endedAt: null,
-    });
-
-    const result = await service.evaluate({
-      tenantId,
-
-      userId,
-
-      campaignId: campaignAId,
-
-      campaignProspectId: prospectAId,
-    });
-
-    expect(result).toEqual({
-      decision: 'warn',
-
-      reasonCode: 'ACTIVE_ASSIGNMENT',
-
-      establishmentId,
-
-      conflict: {
-        assignmentId: 'abababab-abab-4bab-8bab-abababababab',
-
-        campaignId: campaignBId,
-
-        campaignProspectId: prospectBId,
-
-        organizationId: 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd',
-
-        teamId: 'efefefef-efef-4fef-8fef-efefefefefef',
-
-        assignedUserId: otherUserId,
-
-        assignedAt: '2026-09-08T12:00:00.000Z',
-      },
-    });
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
-
-    expect(coolingOffService.evaluate).toHaveBeenCalledWith(tenantId, establishmentId);
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
+      [targetOrganizationId, sharedOrganizationId],
     );
   });
 
-  it('allows when cooling-off exists but has expired and no conflicting assignment exists', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
+  it('uses the resolved organization reservation scope', async () => {
+    reservationCoordinationScopeService.resolve.mockResolvedValue({
+      targetOrganizationId,
 
-    coolingOffService.evaluate.mockResolvedValue({
-      active: false,
+      blockingOrganizationIds: [targetOrganizationId, coordinatedOrganizationId],
+    });
 
-      activity: {
-        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    await service.evaluate({
+      tenantId,
 
-        tenantId,
+      userId,
 
-        campaignId: campaignBId,
+      campaignId,
 
-        campaignProspectId: prospectBId,
+      campaignProspectId,
+    });
 
-        establishmentId,
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      [targetOrganizationId, coordinatedOrganizationId],
+    );
+  });
 
-        assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  it('does not include an independent organization in the reservation lookup scope', async () => {
+    reservationCoordinationScopeService.resolve.mockResolvedValue({
+      targetOrganizationId,
 
-        userId: otherUserId,
-
-        reservationId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
-
-        type: 'email',
-
-        occurredAt: new Date('2026-09-07T10:00:00.000Z'),
-
-        createdAt: new Date('2026-09-07T10:00:00.000Z'),
-      },
-
-      expiresAt: new Date('2026-09-08T10:00:00.000Z'),
+      blockingOrganizationIds: [targetOrganizationId, coordinatedOrganizationId],
     });
 
     await expect(
@@ -596,9 +466,9 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).resolves.toEqual({
       decision: 'allow',
@@ -610,26 +480,488 @@ describe('CollisionDecisionService', () => {
       conflict: null,
     });
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
+    expect(reservationRepository.findCurrentCandidatesByOrganizations).toHaveBeenCalledWith(
       tenantId,
       establishmentId,
-      campaignAId,
-      prospectAId,
+      [targetOrganizationId, coordinatedOrganizationId],
+    );
+
+    const organizationIds =
+      reservationRepository.findCurrentCandidatesByOrganizations.mock.calls[0]?.[2];
+
+    expect(organizationIds).not.toContain(independentOrganizationId);
+  });
+
+  it('ignores an independent planned action but still finds a coordinated planned action', async () => {
+    followUpRepository.findConflictingPendingCandidatesByEstablishment.mockResolvedValue([
+      {
+        id: '11111111-aaaa-4111-8111-111111111111',
+
+        tenantId,
+
+        campaignId: '12121212-1212-4212-8212-121212121212',
+
+        campaignProspectId: '13131313-1313-4313-8313-131313131313',
+
+        establishmentId,
+
+        assignmentId: '14141414-1414-4414-8414-141414141414',
+
+        assignedUserId: '15151515-1515-4515-8515-151515151515',
+
+        createdBy: '16161616-1616-4616-8616-161616161616',
+
+        dueAt: new Date('2026-09-10T10:00:00.000Z'),
+
+        status: 'pending',
+
+        completedAt: null,
+
+        cancelledAt: null,
+
+        createdAt: new Date('2026-09-09T08:00:00.000Z'),
+
+        updatedAt: new Date('2026-09-09T08:00:00.000Z'),
+
+        organizationId: independentOrganizationId,
+      },
+
+      {
+        id: '17171717-1717-4717-8717-171717171717',
+
+        tenantId,
+
+        campaignId: '18181818-1818-4818-8818-181818181818',
+
+        campaignProspectId: '19191919-1919-4919-8919-191919191919',
+
+        establishmentId,
+
+        assignmentId: '20202020-aaaa-4020-8020-202020202020',
+
+        assignedUserId: '21212121-2121-4121-8121-212121212121',
+
+        createdBy: '22222222-aaaa-4222-8222-222222222222',
+
+        dueAt: new Date('2026-09-11T10:00:00.000Z'),
+
+        status: 'pending',
+
+        completedAt: null,
+
+        cancelledAt: null,
+
+        createdAt: new Date('2026-09-09T08:00:00.000Z'),
+
+        updatedAt: new Date('2026-09-09T08:00:00.000Z'),
+
+        organizationId: coordinatedOrganizationId,
+      },
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockImplementation(
+      (input: { conflictingOrganizationId: string }) => {
+        if (input.conflictingOrganizationId === independentOrganizationId) {
+          return Promise.resolve({
+            action: 'ignore',
+
+            policy: 'independent',
+
+            delayMinutes: null,
+          });
+        }
+
+        return Promise.resolve({
+          action: 'block',
+
+          policy: 'coordinated',
+
+          delayMinutes: null,
+        });
+      },
+    );
+
+    const result = await service.evaluate({
+      tenantId,
+
       userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('block');
+
+    expect(result.reasonCode).toBe('PLANNED_ACTION');
+
+    expect(result.conflict).toMatchObject({
+      followUpId: '17171717-1717-4717-8717-171717171717',
+
+      dueAt: '2026-09-11T10:00:00.000Z',
+    });
+  });
+
+  it('blocks recent contact while a delayed coordination window is active', async () => {
+    const activity = createActivityCandidate({
+      organizationId: delayedOrganizationId,
+
+      occurredAt: new Date('2026-09-08T08:00:00.000Z'),
+    });
+
+    prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([activity]);
+
+    coordinationCollisionPolicyService.evaluate.mockResolvedValue({
+      action: 'delayed',
+
+      policy: 'delayed',
+
+      delayMinutes: 10_080,
+    });
+
+    coolingOffService.evaluateActivity.mockImplementation(
+      (
+        candidate: ProspectActivityCollisionCandidate,
+
+        now: Date,
+
+        coolingOffMinutes: number,
+      ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
     );
 
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).toHaveBeenCalledWith(
+    const result = await service.evaluate({
       tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('block');
+
+    expect(result.reasonCode).toBe('RECENT_CONTACT');
+
+    expect(result.conflict).toMatchObject({
+      activityId: activity.id,
+
+      occurredAt: activity.occurredAt.toISOString(),
+    });
+  });
+
+  it('allows when a delayed recent-contact window has expired', async () => {
+    const activity = createActivityCandidate({
+      organizationId: delayedOrganizationId,
+
+      occurredAt: new Date('2026-08-01T08:00:00.000Z'),
+    });
+
+    prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([activity]);
+
+    coordinationCollisionPolicyService.evaluate.mockResolvedValue({
+      action: 'delayed',
+
+      policy: 'delayed',
+
+      delayMinutes: 1_440,
+    });
+
+    coolingOffService.evaluateActivity.mockImplementation(
+      (
+        candidate: ProspectActivityCollisionCandidate,
+
+        now: Date,
+
+        coolingOffMinutes: number,
+      ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
+    );
+
+    await expect(
+      service.evaluate({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+      }),
+    ).resolves.toEqual({
+      decision: 'allow',
+
+      reasonCode: 'NO_COLLISION',
+
       establishmentId,
-      campaignAId,
-      prospectAId,
-    );
+
+      conflict: null,
+    });
   });
 
-  it('fails before collision lookup when the caller is not eligible for the target', async () => {
-    reservationService.requireReservationEligibility.mockRejectedValue(
-      new Error('User is not eligible'),
+  it('does not let a newer independent activity hide an older applicable activity', async () => {
+    const independentActivity = createActivityCandidate({
+      id: '31313131-3131-4131-8131-313131313131',
+
+      organizationId: independentOrganizationId,
+
+      occurredAt: new Date('2026-09-09T07:00:00.000Z'),
+    });
+
+    const coordinatedActivity = createActivityCandidate({
+      id: '32323232-3232-4232-8232-323232323232',
+
+      organizationId: coordinatedOrganizationId,
+
+      occurredAt: new Date('2026-09-09T06:00:00.000Z'),
+    });
+
+    prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([
+      independentActivity,
+
+      coordinatedActivity,
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockImplementation(
+      (input: { conflictingOrganizationId: string }) => {
+        if (input.conflictingOrganizationId === independentOrganizationId) {
+          return Promise.resolve({
+            action: 'ignore',
+
+            policy: 'independent',
+
+            delayMinutes: null,
+          });
+        }
+
+        return Promise.resolve({
+          action: 'block',
+
+          policy: 'coordinated',
+
+          delayMinutes: null,
+        });
+      },
     );
+
+    coolingOffService.evaluateActivity.mockImplementation(
+      (
+        candidate: ProspectActivityCollisionCandidate,
+
+        now: Date,
+
+        coolingOffMinutes?: number,
+      ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
+    );
+
+    const result = await service.evaluate({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('block');
+
+    expect(result.reasonCode).toBe('RECENT_CONTACT');
+
+    expect(result.conflict).toMatchObject({
+      activityId: coordinatedActivity.id,
+    });
+  });
+
+  it('returns the recent-contact collision with the latest expiry', async () => {
+    const firstActivity = createActivityCandidate({
+      id: '41414141-4141-4141-8141-414141414141',
+
+      organizationId: sharedOrganizationId,
+
+      occurredAt: new Date('2026-09-09T06:00:00.000Z'),
+    });
+
+    const secondActivity = createActivityCandidate({
+      id: '42424242-4242-4242-8242-424242424242',
+
+      organizationId: delayedOrganizationId,
+
+      occurredAt: new Date('2026-09-08T06:00:00.000Z'),
+    });
+
+    prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([
+      firstActivity,
+
+      secondActivity,
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockImplementation(
+      (input: { conflictingOrganizationId: string }) => {
+        if (input.conflictingOrganizationId === delayedOrganizationId) {
+          return Promise.resolve({
+            action: 'delayed',
+
+            policy: 'delayed',
+
+            delayMinutes: 10_080,
+          });
+        }
+
+        return Promise.resolve({
+          action: 'block',
+
+          policy: 'shared',
+
+          delayMinutes: null,
+        });
+      },
+    );
+
+    coolingOffService.evaluateActivity.mockImplementation(
+      (
+        candidate: ProspectActivityCollisionCandidate,
+
+        now: Date,
+
+        coolingOffMinutes?: number,
+      ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
+    );
+
+    const result = await service.evaluate({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('block');
+
+    expect(result.reasonCode).toBe('RECENT_CONTACT');
+
+    expect(result.conflict).toMatchObject({
+      activityId: secondActivity.id,
+    });
+  });
+
+  it('warns for an active assignment under shared coordination', async () => {
+    const assignment = createAssignmentCandidate({
+      organizationId: sharedOrganizationId,
+    });
+
+    assignmentRepository.findConflictingCurrentCandidatesByEstablishment.mockResolvedValue([
+      assignment,
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockResolvedValue({
+      action: 'warn',
+
+      policy: 'shared',
+
+      delayMinutes: null,
+    });
+
+    const result = await service.evaluate({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('warn');
+
+    expect(result.reasonCode).toBe('ACTIVE_ASSIGNMENT');
+
+    expect(result.conflict).toMatchObject({
+      assignmentId: assignment.id,
+
+      organizationId: sharedOrganizationId,
+    });
+  });
+
+  it('lets a coordinated assignment block even when a shared warning appears first', async () => {
+    const sharedAssignment = createAssignmentCandidate({
+      id: '51515151-5151-4151-8151-515151515151',
+
+      organizationId: sharedOrganizationId,
+    });
+
+    const coordinatedAssignment = createAssignmentCandidate({
+      id: '52525252-5252-4252-8252-525252525252',
+
+      organizationId: coordinatedOrganizationId,
+    });
+
+    assignmentRepository.findConflictingCurrentCandidatesByEstablishment.mockResolvedValue([
+      sharedAssignment,
+
+      coordinatedAssignment,
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockImplementation(
+      (input: { conflictingOrganizationId: string }) => {
+        if (input.conflictingOrganizationId === coordinatedOrganizationId) {
+          return Promise.resolve({
+            action: 'block',
+
+            policy: 'coordinated',
+
+            delayMinutes: null,
+          });
+        }
+
+        return Promise.resolve({
+          action: 'warn',
+
+          policy: 'shared',
+
+          delayMinutes: null,
+        });
+      },
+    );
+
+    const result = await service.evaluate({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(result.decision).toBe('block');
+
+    expect(result.reasonCode).toBe('ACTIVE_ASSIGNMENT');
+
+    expect(result.conflict).toMatchObject({
+      assignmentId: coordinatedAssignment.id,
+
+      organizationId: coordinatedOrganizationId,
+    });
+  });
+
+  it('ignores assignments belonging only to independent organizations', async () => {
+    const assignment = createAssignmentCandidate({
+      organizationId: independentOrganizationId,
+    });
+
+    assignmentRepository.findConflictingCurrentCandidatesByEstablishment.mockResolvedValue([
+      assignment,
+    ]);
+
+    coordinationCollisionPolicyService.evaluate.mockResolvedValue({
+      action: 'ignore',
+
+      policy: 'independent',
+
+      delayMinutes: null,
+    });
 
     await expect(
       service.evaluate({
@@ -637,25 +969,23 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
-    ).rejects.toThrow('User is not eligible');
+    ).resolves.toEqual({
+      decision: 'allow',
 
-    expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
+      reasonCode: 'NO_COLLISION',
 
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
+      establishmentId,
 
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
+      conflict: null,
+    });
   });
 
-  it('propagates campaign prospect eligibility failures before collision lookup', async () => {
-    reservationService.requireReservationEligibility.mockRejectedValue(
-      new Error('Campaign prospect not found'),
-    );
+  it('fails closed when exact reservation lookup fails', async () => {
+    reservationRepository.findCurrent.mockRejectedValue(new Error('Redis unavailable'));
 
     await expect(
       service.evaluate({
@@ -663,22 +993,14 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
-    ).rejects.toThrow('Campaign prospect not found');
-
-    expect(reservationRepository.findCurrentByEstablishment).not.toHaveBeenCalled();
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
-
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
+    ).rejects.toThrow('Collision service is unavailable');
   });
 
-  it('fails closed when the canonical Redis collision lookup fails', async () => {
+  it('fails closed when legacy reservation lookup fails', async () => {
     reservationRepository.findCurrentByEstablishment.mockRejectedValue(
       new Error('Redis unavailable'),
     );
@@ -689,23 +1011,15 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).rejects.toThrow('Collision service is unavailable');
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).not.toHaveBeenCalled();
-
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
   });
 
-  it('fails closed when planned-action lookup fails', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    followUpRepository.findConflictingPendingByEstablishment.mockRejectedValue(
+  it('fails closed when reservation coordination scope resolution fails', async () => {
+    reservationCoordinationScopeService.resolve.mockRejectedValue(
       new Error('Database unavailable'),
     );
 
@@ -715,21 +1029,17 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).rejects.toThrow('Collision service is unavailable');
-
-    expect(coolingOffService.evaluate).not.toHaveBeenCalled();
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
   });
 
-  it('propagates cooling-off infrastructure failure after reservation and planned-action checks are clear', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    coolingOffService.evaluate.mockRejectedValue(new Error('Cooling-off service is unavailable'));
+  it('fails closed when organization-scoped reservation lookup fails', async () => {
+    reservationRepository.findCurrentCandidatesByOrganizations.mockRejectedValue(
+      new Error('Redis unavailable'),
+    );
 
     await expect(
       service.evaluate({
@@ -737,35 +1047,15 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
-    ).rejects.toThrow('Cooling-off service is unavailable');
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
-
-    expect(assignmentRepository.findConflictingCurrentByEstablishment).not.toHaveBeenCalled();
+    ).rejects.toThrow('Collision service is unavailable');
   });
 
-  it('fails closed when active-assignment lookup fails', async () => {
-    reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-    coolingOffService.evaluate.mockResolvedValue({
-      active: false,
-
-      activity: null,
-
-      expiresAt: null,
-    });
-
-    assignmentRepository.findConflictingCurrentByEstablishment.mockRejectedValue(
+  it('fails closed when follow-up candidate lookup fails', async () => {
+    followUpRepository.findConflictingPendingCandidatesByEstablishment.mockRejectedValue(
       new Error('Database unavailable'),
     );
 
@@ -775,18 +1065,124 @@ describe('CollisionDecisionService', () => {
 
         userId,
 
-        campaignId: campaignAId,
+        campaignId,
 
-        campaignProspectId: prospectAId,
+        campaignProspectId,
       }),
     ).rejects.toThrow('Collision service is unavailable');
-
-    expect(followUpRepository.findConflictingPendingByEstablishment).toHaveBeenCalledWith(
-      tenantId,
-      establishmentId,
-      campaignAId,
-      prospectAId,
-      userId,
-    );
   });
+
+  it('fails closed when activity candidate lookup fails', async () => {
+    prospectActivityRepository.findCandidatesByEstablishment.mockRejectedValue(
+      new Error('Database unavailable'),
+    );
+
+    await expect(
+      service.evaluate({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+      }),
+    ).rejects.toThrow('Collision service is unavailable');
+  });
+
+  it('fails closed when assignment candidate lookup fails', async () => {
+    assignmentRepository.findConflictingCurrentCandidatesByEstablishment.mockRejectedValue(
+      new Error('Database unavailable'),
+    );
+
+    await expect(
+      service.evaluate({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+      }),
+    ).rejects.toThrow('Collision service is unavailable');
+  });
+
+  function createActivityCandidate(
+    overrides: Partial<ProspectActivityCollisionCandidate> = {},
+  ): ProspectActivityCollisionCandidate {
+    return {
+      id: '61616161-6161-4161-8161-616161616161',
+
+      tenantId,
+
+      campaignId: '62626262-6262-4262-8262-626262626262',
+
+      campaignProspectId: '63636363-6363-4363-8363-636363636363',
+
+      establishmentId,
+
+      assignmentId: '64646464-6464-4464-8464-646464646464',
+
+      userId: '65656565-6565-4565-8565-656565656565',
+
+      reservationId: '66666666-aaaa-4666-8666-666666666666',
+
+      type: 'call',
+
+      occurredAt: new Date('2026-09-09T07:00:00.000Z'),
+
+      createdAt: new Date('2026-09-09T07:00:00.000Z'),
+
+      organizationId: sharedOrganizationId,
+
+      ...overrides,
+    };
+  }
+
+  function createAssignmentCandidate(
+    overrides: {
+      id?: string;
+
+      organizationId?: string;
+    } = {},
+  ) {
+    return {
+      id: overrides.id ?? '71717171-7171-4171-8171-717171717171',
+
+      tenantId,
+
+      campaignId: '72727272-7272-4272-8272-727272727272',
+
+      campaignProspectId: '73737373-7373-4373-8373-737373737373',
+
+      organizationId: overrides.organizationId ?? sharedOrganizationId,
+
+      teamId: '74747474-7474-4474-8474-747474747474',
+
+      assignedUserId: '75757575-7575-4575-8575-757575757575',
+
+      assignedAt: new Date('2026-09-09T07:00:00.000Z'),
+
+      endedAt: null,
+    };
+  }
+
+  function evaluateCoolingOff(
+    activity: ProspectActivityCollisionCandidate,
+
+    now: Date,
+
+    coolingOffMinutes = 1_440,
+  ) {
+    const expiresAt = new Date(activity.occurredAt.getTime() + coolingOffMinutes * 60 * 1000);
+
+    return {
+      active: expiresAt.getTime() > now.getTime(),
+
+      activity,
+
+      expiresAt,
+    };
+  }
 });

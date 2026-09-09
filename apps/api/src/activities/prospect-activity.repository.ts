@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
-
+import { campaigns } from '../database/schema/campaigns.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
@@ -9,6 +9,9 @@ import {
   type ProspectActivityType,
 } from '../database/schema/prospect-activities.js';
 
+export type ProspectActivityCollisionCandidate = ProspectActivity & {
+  organizationId: string;
+};
 export interface CreateProspectActivityInput {
   tenantId: string;
 
@@ -64,6 +67,59 @@ export class ProspectActivityRepository {
     }
 
     return activity;
+  }
+
+  async findCandidatesByEstablishment(
+    tenantId: string,
+    establishmentId: string,
+  ): Promise<ProspectActivityCollisionCandidate[]> {
+    return this.database
+      .select({
+        id: prospectActivities.id,
+
+        tenantId: prospectActivities.tenantId,
+
+        campaignId: prospectActivities.campaignId,
+
+        campaignProspectId: prospectActivities.campaignProspectId,
+
+        establishmentId: prospectActivities.establishmentId,
+
+        assignmentId: prospectActivities.assignmentId,
+
+        userId: prospectActivities.userId,
+
+        reservationId: prospectActivities.reservationId,
+
+        type: prospectActivities.type,
+
+        occurredAt: prospectActivities.occurredAt,
+
+        createdAt: prospectActivities.createdAt,
+
+        organizationId: campaigns.organizationId,
+      })
+      .from(prospectActivities)
+      .innerJoin(
+        campaigns,
+        and(
+          eq(prospectActivities.tenantId, campaigns.tenantId),
+
+          eq(prospectActivities.campaignId, campaigns.id),
+        ),
+      )
+      .where(
+        and(
+          eq(prospectActivities.tenantId, tenantId),
+
+          eq(prospectActivities.establishmentId, establishmentId),
+        ),
+      )
+      .orderBy(
+        desc(prospectActivities.occurredAt),
+
+        desc(prospectActivities.createdAt),
+      );
   }
 
   async findLatestByEstablishment(

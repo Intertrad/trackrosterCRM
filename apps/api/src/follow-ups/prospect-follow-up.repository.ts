@@ -11,6 +11,9 @@ import {
 import { campaignProspects } from '../database/schema/campaign-prospects.js';
 import { campaigns } from '../database/schema/campaigns.js';
 
+export type ProspectFollowUpCollisionCandidate = ProspectFollowUp & {
+  organizationId: string;
+};
 @Injectable()
 export class ProspectFollowUpRepository {
   constructor(
@@ -109,6 +112,90 @@ export class ProspectFollowUpRepository {
       .limit(1);
 
     return followUp ?? null;
+  }
+
+  async findConflictingPendingCandidatesByEstablishment(
+    tenantId: string,
+    establishmentId: string,
+    targetCampaignId: string,
+    targetCampaignProspectId: string,
+    userId: string,
+  ): Promise<ProspectFollowUpCollisionCandidate[]> {
+    return this.database
+      .select({
+        id: prospectFollowUps.id,
+
+        tenantId: prospectFollowUps.tenantId,
+
+        campaignId: prospectFollowUps.campaignId,
+
+        campaignProspectId: prospectFollowUps.campaignProspectId,
+
+        establishmentId: prospectFollowUps.establishmentId,
+
+        assignmentId: prospectFollowUps.assignmentId,
+
+        assignedUserId: prospectFollowUps.assignedUserId,
+
+        createdBy: prospectFollowUps.createdBy,
+
+        dueAt: prospectFollowUps.dueAt,
+
+        status: prospectFollowUps.status,
+
+        completedAt: prospectFollowUps.completedAt,
+
+        cancelledAt: prospectFollowUps.cancelledAt,
+
+        createdAt: prospectFollowUps.createdAt,
+
+        updatedAt: prospectFollowUps.updatedAt,
+
+        organizationId: campaigns.organizationId,
+      })
+      .from(prospectFollowUps)
+      .innerJoin(
+        campaignProspects,
+        and(
+          eq(prospectFollowUps.tenantId, campaignProspects.tenantId),
+
+          eq(prospectFollowUps.campaignId, campaignProspects.campaignId),
+
+          eq(prospectFollowUps.campaignProspectId, campaignProspects.id),
+        ),
+      )
+      .innerJoin(
+        campaigns,
+        and(
+          eq(prospectFollowUps.tenantId, campaigns.tenantId),
+
+          eq(prospectFollowUps.campaignId, campaigns.id),
+        ),
+      )
+      .where(
+        and(
+          eq(prospectFollowUps.tenantId, tenantId),
+
+          eq(prospectFollowUps.establishmentId, establishmentId),
+
+          eq(prospectFollowUps.status, 'pending'),
+
+          eq(campaignProspects.status, 'active'),
+
+          eq(campaigns.status, 'active'),
+
+          or(
+            ne(prospectFollowUps.campaignId, targetCampaignId),
+
+            ne(prospectFollowUps.campaignProspectId, targetCampaignProspectId),
+
+            isNull(prospectFollowUps.assignedUserId),
+
+            ne(prospectFollowUps.assignedUserId, userId),
+          ),
+        ),
+      )
+      .orderBy(asc(prospectFollowUps.dueAt));
   }
 
   async findByCampaignProspect(

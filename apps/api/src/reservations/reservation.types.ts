@@ -2,6 +2,9 @@ export interface ProspectReservation {
   reservationId: string;
 
   tenantId: string;
+
+  organizationId: string;
+
   campaignId: string;
   campaignProspectId: string;
 
