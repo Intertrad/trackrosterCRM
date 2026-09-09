@@ -56,6 +56,57 @@ export class CampaignProspectAssignmentRepository {
     return assignment ?? null;
   }
 
+  async findConflictingCurrentCandidatesByEstablishment(
+    tenantId: string,
+    establishmentId: string,
+    targetCampaignId: string,
+    targetCampaignProspectId: string,
+  ): Promise<CampaignProspectAssignment[]> {
+    return this.database
+      .select({
+        ...getTableColumns(campaignProspectAssignments),
+      })
+      .from(campaignProspectAssignments)
+      .innerJoin(
+        campaignProspects,
+        and(
+          eq(campaignProspectAssignments.tenantId, campaignProspects.tenantId),
+
+          eq(campaignProspectAssignments.campaignId, campaignProspects.campaignId),
+
+          eq(campaignProspectAssignments.campaignProspectId, campaignProspects.id),
+        ),
+      )
+      .innerJoin(
+        campaigns,
+        and(
+          eq(campaignProspectAssignments.tenantId, campaigns.tenantId),
+
+          eq(campaignProspectAssignments.campaignId, campaigns.id),
+        ),
+      )
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantId),
+
+          eq(campaignProspects.establishmentId, establishmentId),
+
+          eq(campaignProspects.status, 'active'),
+
+          eq(campaigns.status, 'active'),
+
+          isNull(campaignProspectAssignments.endedAt),
+
+          or(
+            ne(campaignProspectAssignments.campaignId, targetCampaignId),
+
+            ne(campaignProspectAssignments.campaignProspectId, targetCampaignProspectId),
+          ),
+        ),
+      )
+      .orderBy(desc(campaignProspectAssignments.assignedAt));
+  }
+
   async findConflictingCurrentByEstablishment(
     tenantId: string,
     establishmentId: string,

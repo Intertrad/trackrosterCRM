@@ -1,6 +1,9 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
+import { ProspectActivityRepository } from '../activities/prospect-activity.repository.js';
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
+import { CoordinationCollisionPolicyService } from '../coordination/coordination-collision-policy.service.js';
+import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
 import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import { ProspectFollowUpRepository } from '../follow-ups/prospect-follow-up.repository.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
@@ -35,52 +38,53 @@ export class CollisionDecisionService {
     private readonly followUpRepository: ProspectFollowUpRepository,
 
     private readonly assignmentRepository: CampaignProspectAssignmentRepository,
+
+    private readonly prospectActivityRepository: ProspectActivityRepository,
+
+    private readonly coordinationCollisionPolicyService: CoordinationCollisionPolicyService,
+
+    private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
   ) {}
 
   async evaluate(input: EvaluateCollisionInput): Promise<CollisionDecisionResult> {
+    const { assignment, establishmentId } =
+      await this.reservationService.requireReservationEligibility({
+        tenantId: input.tenantId,
+
+        userId: input.userId,
+
+        campaignId: input.campaignId,
+
+        campaignProspectId: input.campaignProspectId,
+      });
+
+    const targetOrganizationId = assignment.organizationId;
+
     /*
-     * The target campaign prospect must first be
-     * valid and the caller must be eligible to work it.
-     */
-    const { establishmentId } = await this.reservationService.requireReservationEligibility({
-      tenantId: input.tenantId,
-
-      userId: input.userId,
-
-      campaignId: input.campaignId,
-
-      campaignProspectId: input.campaignProspectId,
-    });
-
-    /*
-     * Priority 1:
-     * ACTIVE_RESERVATION
+     * Priority 1A:
+     * Exact reservation.
      *
-     * Somebody is actively working this canonical
-     * establishment right now.
+     * Check this first so the existing owner of
+     * this exact campaign prospect gets the same
+     * idempotent behavior as POST /reservation.
      */
-    let reservation: ProspectReservation | null;
+    let exactReservation: ProspectReservation | null;
 
     try {
-      reservation = await this.reservationRepository.findCurrentByEstablishment(
+      exactReservation = await this.reservationRepository.findCurrent(
         input.tenantId,
-        establishmentId,
+        input.campaignId,
+        input.campaignProspectId,
       );
     } catch {
       throw new ServiceUnavailableException('Collision service is unavailable');
     }
 
-    if (reservation) {
-      const isExactTarget =
-        reservation.campaignId === input.campaignId &&
-        reservation.campaignProspectId === input.campaignProspectId;
+    if (exactReservation) {
+      const isSameOwner =
+        exactReservation.userId === input.userId && exactReservation.assignmentId === assignment.id;
 
-      /*
-       * The caller may continue working when they
-       * already own the reservation for this exact
-       * campaign prospect.
-       */
-      if (isExactTarget && reservation.userId === input.userId) {
+      if (isSameOwner) {
         return {
           decision: 'allow',
 
@@ -99,36 +103,122 @@ export class CollisionDecisionService {
 
         establishmentId,
 
-        conflict: this.toReservationConflict(reservation),
+        conflict: this.toReservationConflict(exactReservation),
+      };
+    }
+
+    /*
+     * Priority 1B:
+     * Legacy TR-016 reservation compatibility.
+     *
+     * Old tenant-wide Redis locks may briefly exist
+     * during migration. They remain authoritative
+     * until their TTL expires.
+     */
+    let legacyReservation: ProspectReservation | null;
+
+    try {
+      legacyReservation = await this.reservationRepository.findCurrentByEstablishment(
+        input.tenantId,
+        establishmentId,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Collision service is unavailable');
+    }
+
+    if (legacyReservation) {
+      return {
+        decision: 'block',
+
+        reasonCode: 'ACTIVE_RESERVATION',
+
+        establishmentId,
+
+        conflict: this.toReservationConflict(legacyReservation),
+      };
+    }
+
+    /*
+     * Resolve the organizations whose reservation
+     * locks conflict with the target organization.
+     *
+     * INDEPENDENT organizations are excluded.
+     */
+    let blockingOrganizationIds: string[];
+
+    try {
+      const scope = await this.reservationCoordinationScopeService.resolve(
+        input.tenantId,
+        targetOrganizationId,
+      );
+
+      blockingOrganizationIds = scope.blockingOrganizationIds;
+    } catch {
+      throw new ServiceUnavailableException('Collision service is unavailable');
+    }
+
+    /*
+     * Priority 1C:
+     * Organization-scoped active reservations.
+     */
+    let reservationCandidates: ProspectReservation[];
+
+    try {
+      reservationCandidates = await this.reservationRepository.findCurrentCandidatesByOrganizations(
+        input.tenantId,
+        establishmentId,
+        blockingOrganizationIds,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Collision service is unavailable');
+    }
+
+    if (reservationCandidates.length > 0) {
+      return {
+        decision: 'block',
+
+        reasonCode: 'ACTIVE_RESERVATION',
+
+        establishmentId,
+
+        conflict: this.toReservationConflict(reservationCandidates[0]!),
       };
     }
 
     /*
      * Priority 2:
      * PLANNED_ACTION
-     *
-     * A pending follow-up represents an explicit
-     * future or overdue commitment to contact this
-     * canonical establishment.
-     *
-     * The repository ignores only the caller's own
-     * pending follow-up on this exact target.
      */
-    let conflictingFollowUp;
+    let conflictingFollowUps;
 
     try {
-      conflictingFollowUp = await this.followUpRepository.findConflictingPendingByEstablishment(
-        input.tenantId,
-        establishmentId,
-        input.campaignId,
-        input.campaignProspectId,
-        input.userId,
-      );
+      conflictingFollowUps =
+        await this.followUpRepository.findConflictingPendingCandidatesByEstablishment(
+          input.tenantId,
+          establishmentId,
+          input.campaignId,
+          input.campaignProspectId,
+          input.userId,
+        );
     } catch {
       throw new ServiceUnavailableException('Collision service is unavailable');
     }
 
-    if (conflictingFollowUp) {
+    for (const followUp of conflictingFollowUps) {
+      const coordination = await this.coordinationCollisionPolicyService.evaluate({
+        tenantId: input.tenantId,
+
+        targetOrganizationId,
+
+        conflictingOrganizationId: followUp.organizationId,
+
+        collisionType: 'planned_action',
+      });
+
+      if (coordination.action === 'ignore') {
+        continue;
+      }
+
       return {
         decision: 'block',
 
@@ -136,20 +226,81 @@ export class CollisionDecisionService {
 
         establishmentId,
 
-        conflict: this.toPlannedActionConflict(conflictingFollowUp),
+        conflict: this.toPlannedActionConflict(followUp),
       };
     }
 
     /*
      * Priority 3:
      * RECENT_CONTACT
-     *
-     * No active reservation or conflicting planned
-     * action exists, so evaluate cooling-off.
      */
-    const coolingOff = await this.coolingOffService.evaluate(input.tenantId, establishmentId);
+    let activities;
 
-    if (coolingOff.active && coolingOff.activity && coolingOff.expiresAt) {
+    try {
+      activities = await this.prospectActivityRepository.findCandidatesByEstablishment(
+        input.tenantId,
+        establishmentId,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Collision service is unavailable');
+    }
+
+    const now = new Date();
+
+    let strongestRecentContact: {
+      activity: (typeof activities)[number];
+
+      expiresAt: Date;
+    } | null = null;
+
+    for (const activity of activities) {
+      const coordination = await this.coordinationCollisionPolicyService.evaluate({
+        tenantId: input.tenantId,
+
+        targetOrganizationId,
+
+        conflictingOrganizationId: activity.organizationId,
+
+        collisionType: 'recent_contact',
+      });
+
+      if (coordination.action === 'ignore') {
+        continue;
+      }
+
+      let coolingOff;
+
+      if (coordination.action === 'delayed') {
+        if (coordination.delayMinutes === null || coordination.delayMinutes <= 0) {
+          throw new ServiceUnavailableException('Collision service is unavailable');
+        }
+
+        coolingOff = this.coolingOffService.evaluateActivity(
+          activity,
+          now,
+          coordination.delayMinutes,
+        );
+      } else {
+        coolingOff = this.coolingOffService.evaluateActivity(activity, now);
+      }
+
+      if (!coolingOff.active || !coolingOff.expiresAt) {
+        continue;
+      }
+
+      if (
+        !strongestRecentContact ||
+        coolingOff.expiresAt.getTime() > strongestRecentContact.expiresAt.getTime()
+      ) {
+        strongestRecentContact = {
+          activity,
+
+          expiresAt: coolingOff.expiresAt,
+        };
+      }
+    }
+
+    if (strongestRecentContact) {
       return {
         decision: 'block',
 
@@ -158,13 +309,13 @@ export class CollisionDecisionService {
         establishmentId,
 
         conflict: {
-          activityId: coolingOff.activity.id,
+          activityId: strongestRecentContact.activity.id,
 
-          activityType: coolingOff.activity.type,
+          activityType: strongestRecentContact.activity.type,
 
-          occurredAt: coolingOff.activity.occurredAt.toISOString(),
+          occurredAt: strongestRecentContact.activity.occurredAt.toISOString(),
 
-          expiresAt: coolingOff.expiresAt.toISOString(),
+          expiresAt: strongestRecentContact.expiresAt.toISOString(),
         },
       };
     }
@@ -173,26 +324,60 @@ export class CollisionDecisionService {
      * Priority 4:
      * ACTIVE_ASSIGNMENT
      *
-     * Another active assignment exists for the same
-     * canonical establishment.
-     *
-     * Assignment alone is advisory, therefore WARN
-     * rather than BLOCK.
+     * INDEPENDENT → ignore
+     * SHARED      → warn
+     * DELAYED     → warn
+     * COORDINATED → block
      */
-    let conflictingAssignment;
+    let conflictingAssignments;
 
     try {
-      conflictingAssignment = await this.assignmentRepository.findConflictingCurrentByEstablishment(
-        input.tenantId,
-        establishmentId,
-        input.campaignId,
-        input.campaignProspectId,
-      );
+      conflictingAssignments =
+        await this.assignmentRepository.findConflictingCurrentCandidatesByEstablishment(
+          input.tenantId,
+          establishmentId,
+          input.campaignId,
+          input.campaignProspectId,
+        );
     } catch {
       throw new ServiceUnavailableException('Collision service is unavailable');
     }
 
-    if (conflictingAssignment) {
+    let warningAssignment: (typeof conflictingAssignments)[number] | null = null;
+
+    for (const conflictingAssignment of conflictingAssignments) {
+      const coordination = await this.coordinationCollisionPolicyService.evaluate({
+        tenantId: input.tenantId,
+
+        targetOrganizationId,
+
+        conflictingOrganizationId: conflictingAssignment.organizationId,
+
+        collisionType: 'active_assignment',
+      });
+
+      if (coordination.action === 'ignore') {
+        continue;
+      }
+
+      if (coordination.action === 'block') {
+        return {
+          decision: 'block',
+
+          reasonCode: 'ACTIVE_ASSIGNMENT',
+
+          establishmentId,
+
+          conflict: this.toAssignmentConflict(conflictingAssignment),
+        };
+      }
+
+      if (coordination.action === 'warn' && !warningAssignment) {
+        warningAssignment = conflictingAssignment;
+      }
+    }
+
+    if (warningAssignment) {
       return {
         decision: 'warn',
 
@@ -200,13 +385,10 @@ export class CollisionDecisionService {
 
         establishmentId,
 
-        conflict: this.toAssignmentConflict(conflictingAssignment),
+        conflict: this.toAssignmentConflict(warningAssignment),
       };
     }
 
-    /*
-     * No collision was found.
-     */
     return {
       decision: 'allow',
 

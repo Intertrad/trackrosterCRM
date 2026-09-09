@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ProspectActivityRepository } from '../activities/prospect-activity.repository.js';
+import type { ProspectActivity } from '../database/schema/prospect-activities.js';
 import type { CoolingOffEvaluation } from './cooling-off.types.js';
 
 @Injectable()
@@ -32,9 +33,8 @@ export class CoolingOffService {
       );
     } catch {
       /*
-       * Cooling-off is part of prospecting
-       * safety, so database failure must never
-       * silently become "not cooling".
+       * Cooling-off is part of prospecting safety,
+       * therefore database failure fails closed.
        */
       throw new ServiceUnavailableException('Cooling-off service is unavailable');
     }
@@ -49,12 +49,18 @@ export class CoolingOffService {
       };
     }
 
-    const expiresAt = new Date(activity.occurredAt.getTime() + this.coolingOffMinutes * 60 * 1000);
+    return this.evaluateActivity(activity, now);
+  }
 
-    const active = expiresAt.getTime() > now.getTime();
+  evaluateActivity(
+    activity: ProspectActivity,
+    now: Date = new Date(),
+    coolingOffMinutes: number = this.coolingOffMinutes,
+  ): CoolingOffEvaluation {
+    const expiresAt = new Date(activity.occurredAt.getTime() + coolingOffMinutes * 60 * 1000);
 
     return {
-      active,
+      active: expiresAt.getTime() > now.getTime(),
 
       activity,
 
