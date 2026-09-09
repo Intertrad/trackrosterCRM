@@ -20,6 +20,7 @@ import { RedisModule } from './redis/redis.module.js';
 import { ReservationModule } from './reservations/reservation.module.js';
 import { CollisionModule } from './collisions/collision.module.js';
 import { ActivityModule } from './activities/activity.module.js';
+import { FollowUpModule } from './follow-ups/follow-up.module.js';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { ActivityModule } from './activities/activity.module.js';
     ReservationModule,
     CollisionModule,
     ActivityModule,
+    FollowUpModule,
   ],
 })
 export class AppModule {}
