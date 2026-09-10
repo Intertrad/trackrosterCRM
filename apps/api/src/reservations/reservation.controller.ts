@@ -1,7 +1,17 @@
-import { Controller, Delete, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
+import { AcquireReservationDto } from './acquire-reservation.dto.js';
 import { ReservationService } from './reservation.service.js';
 
 interface AuthContext {
@@ -24,6 +34,9 @@ export class ReservationController {
 
     @Param('prospectId', new ParseUUIDPipe())
     prospectId: string,
+
+    @Body()
+    body?: AcquireReservationDto,
   ) {
     return this.reservationService.acquire({
       tenantId: auth.tenantId,
@@ -33,6 +46,8 @@ export class ReservationController {
       campaignId,
 
       campaignProspectId: prospectId,
+
+      overrideId: body?.overrideId,
     });
   }
 
