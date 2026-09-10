@@ -8,20 +8,23 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 
-import { ProspectActivityRepository } from '../activities/prospect-activity.repository.js';
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
-import { CoordinationCollisionPolicyService } from '../coordination/coordination-collision-policy.service.js';
+import { CollisionBusinessDecisionService } from '../collisions/collision-business-decision.service.js';
+import {
+  buildCollisionOverrideConflictKey,
+  isOverrideableCollisionReason,
+} from '../collisions/collision-override-key.js';
+import { CollisionOverrideRepository } from '../collisions/collision-override.repository.js';
+import type { CollisionDecisionResult } from '../collisions/collision.types.js';
 import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
-import { CoolingOffService } from '../cooling-off/cooling-off.service.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
-import { ProspectFollowUpRepository } from '../follow-ups/prospect-follow-up.repository.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
+import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
 import type { ProspectReservation } from './reservation.types.js';
 
@@ -33,6 +36,17 @@ export interface AcquireReservationInput {
 
   campaignId: string;
   campaignProspectId: string;
+
+  /*
+   * Optional reference to a server-issued manager
+   * override.
+   *
+   * The presence of an ID does NOT itself authorize
+   * anything. The record is revalidated against the
+   * exact current collision before reservation
+   * acquisition.
+   */
+  overrideId?: string;
 }
 
 export interface ReservationEligibilityContext {
@@ -40,7 +54,13 @@ export interface ReservationEligibilityContext {
   establishmentId: string;
 }
 
-export interface ReleaseReservationInput extends AcquireReservationInput {
+export interface ReleaseReservationInput {
+  tenantId: string;
+  userId: string;
+
+  campaignId: string;
+  campaignProspectId: string;
+
   reservationId: string;
 }
 
@@ -63,13 +83,9 @@ export class ReservationService {
 
     private readonly authorizationService: AuthorizationService,
 
-    private readonly coolingOffService: CoolingOffService,
+    private readonly collisionBusinessDecisionService: CollisionBusinessDecisionService,
 
-    private readonly followUpRepository: ProspectFollowUpRepository,
-
-    private readonly prospectActivityRepository: ProspectActivityRepository,
-
-    private readonly coordinationCollisionPolicyService: CoordinationCollisionPolicyService,
+    private readonly collisionOverrideRepository: CollisionOverrideRepository,
 
     private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
 
@@ -77,18 +93,30 @@ export class ReservationService {
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
+    /*
+     * First establish authoritative target context.
+     *
+     * This validates:
+     *
+     * - active campaign
+     * - active campaign prospect
+     * - current assignment
+     * - active team
+     * - active user
+     * - individual ownership
+     * - exact team-level prospector grant
+     */
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
 
     const targetOrganizationId = assignment.organizationId;
 
     /*
-     * Priority 1:
+     * Priority 1A:
      * Exact campaign-prospect reservation.
      *
-     * This is checked before every collision rule
-     * so an idempotent retry by the existing owner
-     * can continue even if another activity or
-     * follow-up was created afterward.
+     * This remains ahead of every collision rule so
+     * an idempotent retry by the existing owner can
+     * return the already-acquired reservation.
      */
     let currentExact: ProspectReservation | null;
 
@@ -109,12 +137,16 @@ export class ReservationService {
         return currentExact;
       }
 
+      /*
+       * Manager overrides NEVER bypass an already
+       * active reservation owned by another request.
+       */
       throw new ConflictException('Campaign prospect is currently reserved');
     }
 
     /*
-     * Determine which organizations participate
-     * in reservation mutual exclusion.
+     * Determine which organizations participate in
+     * reservation mutual exclusion.
      *
      * SAME / SHARED / COORDINATED / DELAYED
      * are included.
@@ -135,14 +167,12 @@ export class ReservationService {
     }
 
     /*
-     * Temporary TR-016 compatibility check.
+     * Priority 1B:
+     * Legacy TR-016 tenant-wide reservation
+     * compatibility.
      *
-     * Existing reservations created before the
-     * organization-scoped Redis model may still
-     * have the old tenant-wide collision key for
-     * up to the reservation TTL.
-     *
-     * Do not ignore that lock during migration.
+     * Existing legacy locks remain authoritative
+     * until their Redis TTL expires.
      */
     let legacyReservation: ProspectReservation | null;
 
@@ -156,19 +186,19 @@ export class ReservationService {
     }
 
     if (legacyReservation) {
+      /*
+       * This is also non-overrideable.
+       */
       throw new ConflictException('Campaign prospect is currently reserved');
     }
 
     /*
-     * Priority 2:
-     * ACTIVE_RESERVATION
+     * Priority 1C:
+     * Organization-aware ACTIVE_RESERVATION.
      *
-     * Query only organizations that participate
-     * in the target organization's coordination
-     * scope.
-     *
-     * Independent organizations are intentionally
-     * absent from this list.
+     * Manager approval may override a persisted
+     * business policy collision, but never a live
+     * reservation lock.
      */
     let reservationCandidates: ProspectReservation[];
 
@@ -187,173 +217,113 @@ export class ReservationService {
     }
 
     /*
-     * Priority 3:
-     * PLANNED_ACTION
+     * Persisted business collision evaluation.
      *
-     * Evaluate every pending follow-up.
+     * Both manager-override creation and reservation
+     * consumption use the same canonical evaluator.
      *
-     * An independent organization's follow-up is
-     * ignored, but it must not hide another
-     * applicable follow-up.
+     * This prevents the two workflows from selecting
+     * different follow-ups, activities or assignments
+     * for the same collision.
      */
-    let followUpCandidates;
+    const businessCollision = await this.collisionBusinessDecisionService.evaluate({
+      tenantId: input.tenantId,
 
-    try {
-      followUpCandidates =
-        await this.followUpRepository.findConflictingPendingCandidatesByEstablishment(
-          input.tenantId,
-          establishmentId,
-          input.campaignId,
-          input.campaignProspectId,
-          input.userId,
-        );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
+      userId: input.userId,
 
-    for (const followUp of followUpCandidates) {
-      let coordination;
+      campaignId: input.campaignId,
 
-      try {
-        coordination = await this.coordinationCollisionPolicyService.evaluate({
-          tenantId: input.tenantId,
+      campaignProspectId: input.campaignProspectId,
 
-          targetOrganizationId,
+      establishmentId,
 
-          conflictingOrganizationId: followUp.organizationId,
+      targetOrganizationId,
+    });
 
-          collisionType: 'planned_action',
-        });
-      } catch {
-        throw new ServiceUnavailableException('Reservation service is unavailable');
+    if (businessCollision.decision === 'block') {
+      /*
+       * The shared business evaluator should only
+       * produce hard blocks for collision types that
+       * TR-022 explicitly allows a manager to
+       * override.
+       *
+       * Keep this defensive check so a future reason
+       * cannot accidentally become overrideable.
+       */
+      if (
+        !isOverrideableCollisionReason(businessCollision.reasonCode) ||
+        !businessCollision.conflict
+      ) {
+        throw new ServiceUnavailableException('Collision context is invalid');
       }
 
-      if (coordination.action === 'ignore') {
-        continue;
+      /*
+       * Ordinary reservation path.
+       *
+       * Preserve the existing business-specific
+       * conflict response when no manager override
+       * was supplied.
+       */
+      if (!input.overrideId) {
+        this.throwBusinessCollision(businessCollision.reasonCode);
       }
 
-      throw new ConflictException('Establishment has a planned action');
-    }
+      /*
+       * An override ID is only a reference.
+       *
+       * Revalidate:
+       *
+       * - tenant
+       * - campaign
+       * - campaign prospect
+       * - prospector
+       * - expiration
+       * - canonical establishment
+       * - current assignment
+       * - organization
+       * - team
+       * - collision reason
+       * - exact collision fingerprint
+       */
+      await this.requireValidCollisionOverride({
+        tenantId: input.tenantId,
 
-    /*
-     * Priority 4:
-     * RECENT_CONTACT
-     *
-     * Activities must also be evaluated
-     * individually because policy may differ
-     * between organizations.
-     */
-    let activityCandidates;
+        userId: input.userId,
 
-    try {
-      activityCandidates = await this.prospectActivityRepository.findCandidatesByEstablishment(
-        input.tenantId,
+        campaignId: input.campaignId,
+
+        campaignProspectId: input.campaignProspectId,
+
+        overrideId: input.overrideId,
+
         establishmentId,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
 
-    const now = new Date();
+        assignmentId: assignment.id,
 
-    for (const activity of activityCandidates) {
-      let coordination;
+        organizationId: assignment.organizationId,
 
-      try {
-        coordination = await this.coordinationCollisionPolicyService.evaluate({
-          tenantId: input.tenantId,
+        teamId: assignment.teamId,
 
-          targetOrganizationId,
-
-          conflictingOrganizationId: activity.organizationId,
-
-          collisionType: 'recent_contact',
-        });
-      } catch {
-        throw new ServiceUnavailableException('Reservation service is unavailable');
-      }
-
-      if (coordination.action === 'ignore') {
-        continue;
-      }
-
-      let coolingOff;
-
-      if (coordination.action === 'delayed') {
-        /*
-         * The database constraint requires a
-         * positive delay for DELAYED policies,
-         * but keep a defensive runtime guard.
-         */
-        if (coordination.delayMinutes === null || coordination.delayMinutes <= 0) {
-          throw new ServiceUnavailableException('Reservation service is unavailable');
-        }
-
-        coolingOff = this.coolingOffService.evaluateActivity(
-          activity,
-          now,
-          coordination.delayMinutes,
-        );
-      } else {
-        coolingOff = this.coolingOffService.evaluateActivity(activity, now);
-      }
-
-      if (coolingOff.active) {
-        throw new ConflictException('Establishment is in cooling-off period');
-      }
+        collision: businessCollision,
+      });
+    } else if (input.overrideId) {
+      /*
+       * Never let an old approval become a generic
+       * privileged reservation token.
+       *
+       * If the approved hard collision disappeared
+       * or became advisory, this approval no longer
+       * applies.
+       */
+      throw new ConflictException('Collision override is no longer applicable');
     }
 
     /*
-     * Priority 5:
-     * ACTIVE_ASSIGNMENT
-     *
-     * SHARED / DELAYED assignments remain advisory
-     * and therefore do not prevent reservation.
-     *
-     * COORDINATED assignment ownership is a hard
-     * reservation boundary.
-     *
-     * INDEPENDENT assignments are ignored.
+     * Reservation timestamps are generated only
+     * after every eligibility and collision check
+     * succeeds.
      */
-    let assignmentCandidates;
-
-    try {
-      assignmentCandidates =
-        await this.assignmentRepository.findConflictingCurrentCandidatesByEstablishment(
-          input.tenantId,
-          establishmentId,
-          input.campaignId,
-          input.campaignProspectId,
-        );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    for (const conflictingAssignment of assignmentCandidates) {
-      let coordination;
-
-      try {
-        coordination = await this.coordinationCollisionPolicyService.evaluate({
-          tenantId: input.tenantId,
-
-          targetOrganizationId,
-
-          conflictingOrganizationId: conflictingAssignment.organizationId,
-
-          collisionType: 'active_assignment',
-        });
-      } catch {
-        throw new ServiceUnavailableException('Reservation service is unavailable');
-      }
-
-      if (coordination.action === 'ignore' || coordination.action === 'warn') {
-        continue;
-      }
-
-      if (coordination.action === 'block') {
-        throw new ConflictException('Establishment is assigned to a coordinated organization');
-      }
-    }
+    const now = new Date();
 
     const expiresAt = new Date(now.getTime() + RESERVATION_TTL_SECONDS * 1000);
 
@@ -382,16 +352,20 @@ export class ReservationService {
     };
 
     /*
-     * Priority 6:
-     * Authoritative atomic Redis acquisition.
+     * Final authoritative concurrency boundary.
      *
-     * Redis checks every establishment lock in the
-     * blocking organization scope inside one Lua
-     * execution.
+     * Even after a valid manager override, Redis
+     * checks:
      *
-     * This protects against the race between the
-     * PostgreSQL pre-checks above and simultaneous
-     * reservation requests.
+     * - exact campaign-prospect reservation key
+     * - target organization's establishment lock
+     * - every blocking organization's establishment
+     *   lock
+     *
+     * atomically in one Lua execution.
+     *
+     * Therefore manager override can never authorize
+     * two simultaneous conflicting reservations.
      */
     try {
       const acquired = await this.reservationRepository.acquireWithinOrganizationScope(
@@ -408,11 +382,11 @@ export class ReservationService {
 
       /*
        * Another request may have won the atomic
-       * acquisition.
+       * acquisition between our earlier checks and
+       * this Redis command.
        *
-       * Re-check the exact campaign prospect so a
-       * concurrent retry from the same owner remains
-       * idempotent.
+       * Re-check exact reservation so an idempotent
+       * retry from the same owner can still succeed.
        */
       const current = await this.reservationRepository.findCurrent(
         input.tenantId,
@@ -471,7 +445,11 @@ export class ReservationService {
     }
 
     /*
-     * Manager override remains deferred to TR-022.
+     * Only the current reservation owner may release
+     * the reservation.
+     *
+     * Manager override does not change reservation
+     * ownership.
      */
     if (current.userId !== input.userId) {
       throw new ForbiddenException('Reservation belongs to another user');
@@ -483,13 +461,12 @@ export class ReservationService {
 
     /*
      * During the TR-016 -> TR-017 transition an
-     * existing reservation may still own the
-     * legacy tenant-wide collision key.
+     * existing reservation may still own the legacy
+     * tenant-wide collision key.
      *
      * If that exact legacy lock belongs to this
-     * reservation, release using the old atomic
-     * path. Otherwise release the new
-     * organization-scoped lock.
+     * reservation, release using the old atomic path.
+     * Otherwise release the organization-scoped lock.
      */
     let legacyReservation: ProspectReservation | null;
 
@@ -542,6 +519,17 @@ export class ReservationService {
     };
   }
 
+  /*
+   * Shared eligibility boundary used by:
+   *
+   * - reservation acquisition
+   * - collision decision evaluation
+   * - manager override creation
+   *
+   * This means all three workflows resolve the
+   * target prospect through the same ownership and
+   * authorization rules.
+   */
   async requireReservationEligibility(
     input: AcquireReservationInput,
   ): Promise<ReservationEligibilityContext> {
@@ -604,15 +592,16 @@ export class ReservationService {
     }
 
     /*
-     * Individual ownership remains authoritative.
+     * Individual assignment ownership remains
+     * authoritative.
      */
     if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
       throw new ForbiddenException('Campaign prospect is assigned to another user');
     }
 
     /*
-     * Even an individually assigned user must
-     * retain the exact team-level prospector grant.
+     * Even an individually assigned user must retain
+     * the exact team-level prospector grant.
      */
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
@@ -633,6 +622,149 @@ export class ReservationService {
 
       establishmentId: prospect.establishmentId,
     };
+  }
+
+  /*
+   * Validate a previously-created manager approval
+   * against the exact collision that exists NOW.
+   */
+  private async requireValidCollisionOverride(input: {
+    tenantId: string;
+
+    userId: string;
+
+    campaignId: string;
+
+    campaignProspectId: string;
+
+    overrideId: string;
+
+    establishmentId: string;
+
+    assignmentId: string;
+
+    organizationId: string;
+
+    teamId: string;
+
+    collision: CollisionDecisionResult;
+  }): Promise<void> {
+    /*
+     * Only hard persisted business collisions may
+     * reach this validation path.
+     */
+    if (
+      input.collision.decision !== 'block' ||
+      !input.collision.conflict ||
+      !isOverrideableCollisionReason(input.collision.reasonCode)
+    ) {
+      throw new ServiceUnavailableException('Collision context is incomplete');
+    }
+
+    let overrideRecord;
+
+    try {
+      overrideRecord = await this.collisionOverrideRepository.findApplicableById({
+        tenantId: input.tenantId,
+
+        overrideId: input.overrideId,
+
+        campaignId: input.campaignId,
+
+        campaignProspectId: input.campaignProspectId,
+
+        prospectorUserId: input.userId,
+
+        now: new Date(),
+      });
+    } catch {
+      throw new ServiceUnavailableException('Collision override service is unavailable');
+    }
+
+    /*
+     * findApplicableById already enforces:
+     *
+     * - same tenant
+     * - same override ID
+     * - same campaign
+     * - same campaign prospect
+     * - same prospector
+     * - expiresAt > now
+     */
+    if (!overrideRecord) {
+      throw new ConflictException('Collision override is invalid or expired');
+    }
+
+    /*
+     * Bind the approval to the canonical target
+     * context existing when the manager approved it.
+     *
+     * Reassignment, team transfer, organization
+     * change or establishment mismatch invalidates
+     * the approval.
+     */
+    if (
+      overrideRecord.establishmentId !== input.establishmentId ||
+      overrideRecord.assignmentId !== input.assignmentId ||
+      overrideRecord.organizationId !== input.organizationId ||
+      overrideRecord.teamId !== input.teamId
+    ) {
+      throw new ConflictException('Collision override does not match current prospect context');
+    }
+
+    /*
+     * An approval for one business collision type
+     * cannot be reused for another.
+     */
+    if (overrideRecord.reasonCode !== input.collision.reasonCode) {
+      throw new ConflictException('Collision override does not match current collision');
+    }
+
+    let currentConflictKey: string;
+
+    try {
+      currentConflictKey = buildCollisionOverrideConflictKey(input.collision);
+    } catch {
+      throw new ServiceUnavailableException('Collision context is invalid');
+    }
+
+    /*
+     * Critical stale-approval check.
+     *
+     * Examples:
+     *
+     * planned_action:<followUpId>:<dueAt>
+     *
+     * recent_contact:<activityId>:<expiresAt>
+     *
+     * active_assignment:<assignmentId>:<assignedAt>
+     *
+     * If the underlying business collision changes,
+     * the key changes and the approval is rejected.
+     */
+    if (overrideRecord.conflictKey !== currentConflictKey) {
+      throw new ConflictException('Collision override is stale');
+    }
+  }
+
+  /*
+   * Preserve the existing reservation API's
+   * business-specific conflict semantics when no
+   * override has been supplied.
+   */
+  private throwBusinessCollision(
+    reasonCode: 'PLANNED_ACTION' | 'RECENT_CONTACT' | 'ACTIVE_ASSIGNMENT',
+  ): never {
+    switch (reasonCode) {
+      case 'PLANNED_ACTION':
+        throw new ConflictException('Establishment has a planned action');
+
+      case 'RECENT_CONTACT':
+        throw new ConflictException('Establishment is in cooling-off period');
+
+      case 'ACTIVE_ASSIGNMENT':
+        throw new ConflictException('Establishment is assigned to a coordinated organization');
+    }
   }
 
   private isIdempotentReservation(

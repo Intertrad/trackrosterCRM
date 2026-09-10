@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 
-import { ActivityRepositoryModule } from '../activities/activity-repository.module.js';
 import { AssignmentModule } from '../assignments/assignment.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { CampaignModule } from '../campaigns/campaign.module.js';
+import { CollisionBusinessModule } from '../collisions/collision-business.module.js';
+import { CollisionOverrideRepositoryModule } from '../collisions/collision-override-repository.module.js';
 import { CoordinationPolicyModule } from '../coordination/coordination-policy.module.js';
-import { CoolingOffModule } from '../cooling-off/cooling-off.module.js';
-import { FollowUpRepositoryModule } from '../follow-ups/follow-up-repository.module.js';
 import { JobQueueModule } from '../jobs/job-queue.module.js';
 import { RedisModule } from '../redis/redis.module.js';
 import { TeamModule } from '../teams/team.module.js';
@@ -34,15 +33,27 @@ import { ReservationService } from './reservation.service.js';
 
     AuthorizationModule,
 
-    CoolingOffModule,
-
-    FollowUpRepositoryModule,
-
-    ActivityRepositoryModule,
-
     CoordinationPolicyModule,
 
     JobQueueModule,
+
+    /*
+     * Shared persisted-business collision evaluator.
+     *
+     * Import the small lower-level module rather
+     * than CollisionModule to avoid:
+     *
+     * ReservationModule -> CollisionModule
+     * CollisionModule   -> ReservationModule
+     */
+    CollisionBusinessModule,
+
+    /*
+     * Provides CollisionOverrideRepository used
+     * when an overrideId is presented during
+     * reservation acquisition.
+     */
+    CollisionOverrideRepositoryModule,
   ],
 
   controllers: [ReservationController],
