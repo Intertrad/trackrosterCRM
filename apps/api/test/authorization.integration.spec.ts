@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module.js';
 import { AuthorizationService } from '../src/authorization/authorization.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
 import { DATABASE } from '../src/database/database.constants.js';
-import { Database } from '../src/database/database.types.js';
+import type { Database } from '../src/database/database.types.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
@@ -20,9 +20,9 @@ import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
 
 describe('Authorization integration', () => {
-  let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>>;
+  let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
 
-  let database: Database;
+  let database: Database | undefined;
 
   let grantRepository: UserAccessGrantRepository;
   let authorizationService: AuthorizationService;
@@ -48,17 +48,19 @@ describe('Authorization integration', () => {
     database = app.get<Database>(DATABASE);
 
     const tenantService = app.get(TenantService);
-
     const organizationService = app.get(OrganizationService);
-
     const teamService = app.get(TeamService);
-
     const userRepository = app.get(UserRepository);
 
     grantRepository = app.get(UserAccessGrantRepository);
-
     authorizationService = app.get(AuthorizationService);
 
+    /*
+     * Every integration run gets unique natural keys.
+     *
+     * This prevents collisions when test databases are
+     * reused or integration suites run close together.
+     */
     const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
     const tenantA = await tenantService.create({
@@ -66,44 +68,47 @@ describe('Authorization integration', () => {
       slug: `rbac-a-${suffix}`,
     });
 
+    tenantAId = tenantA.id;
+
     const tenantB = await tenantService.create({
       name: `RBAC Tenant B ${suffix}`,
       slug: `rbac-b-${suffix}`,
     });
 
-    tenantAId = tenantA.id;
     tenantBId = tenantB.id;
 
     const organizationA = await organizationService.create({
       tenantId: tenantA.id,
-      name: 'Organization A',
+      name: `Organization A ${suffix}`,
       slug: `organization-a-${suffix}`,
     });
 
+    organizationAId = organizationA.id;
+
     const organizationB = await organizationService.create({
       tenantId: tenantB.id,
-      name: 'Organization B',
+      name: `Organization B ${suffix}`,
       slug: `organization-b-${suffix}`,
     });
 
-    organizationAId = organizationA.id;
     organizationBId = organizationB.id;
 
     const teamA = await teamService.create({
       tenantId: tenantA.id,
       organizationId: organizationA.id,
-      name: 'Team A',
+      name: `Team A ${suffix}`,
       slug: `team-a-${suffix}`,
     });
+
+    teamAId = teamA.id;
 
     const teamB = await teamService.create({
       tenantId: tenantB.id,
       organizationId: organizationB.id,
-      name: 'Team B',
+      name: `Team B ${suffix}`,
       slug: `team-b-${suffix}`,
     });
 
-    teamAId = teamA.id;
     teamBId = teamB.id;
 
     const userA = await userRepository.create({
@@ -113,6 +118,8 @@ describe('Authorization integration', () => {
       status: 'active',
     });
 
+    userAId = userA.id;
+
     const userB = await userRepository.create({
       tenantId: tenantB.id,
       email: `rbac-b-${suffix}@trackroster.test`,
@@ -120,33 +127,47 @@ describe('Authorization integration', () => {
       status: 'active',
     });
 
-    userAId = userA.id;
     userBId = userB.id;
   });
 
   afterAll(async () => {
     try {
-      await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantAId));
+      /*
+       * beforeAll may fail partway through.
+       *
+       * Clean up only resources that were successfully
+       * initialized so teardown cannot hide the original
+       * integration-test failure.
+       */
+      if (database) {
+        if (tenantAId) {
+          await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantAId));
 
-      await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantBId));
+          await database.delete(teams).where(eq(teams.tenantId, tenantAId));
 
-      await database.delete(teams).where(eq(teams.tenantId, tenantAId));
+          await database.delete(organizations).where(eq(organizations.tenantId, tenantAId));
 
-      await database.delete(teams).where(eq(teams.tenantId, tenantBId));
+          await database.delete(users).where(eq(users.tenantId, tenantAId));
 
-      await database.delete(organizations).where(eq(organizations.tenantId, tenantAId));
+          await database.delete(tenants).where(eq(tenants.id, tenantAId));
+        }
 
-      await database.delete(organizations).where(eq(organizations.tenantId, tenantBId));
+        if (tenantBId) {
+          await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantBId));
 
-      await database.delete(users).where(eq(users.tenantId, tenantAId));
+          await database.delete(teams).where(eq(teams.tenantId, tenantBId));
 
-      await database.delete(users).where(eq(users.tenantId, tenantBId));
+          await database.delete(organizations).where(eq(organizations.tenantId, tenantBId));
 
-      await database.delete(tenants).where(eq(tenants.id, tenantAId));
+          await database.delete(users).where(eq(users.tenantId, tenantBId));
 
-      await database.delete(tenants).where(eq(tenants.id, tenantBId));
+          await database.delete(tenants).where(eq(tenants.id, tenantBId));
+        }
+      }
     } finally {
-      await app.close();
+      if (app) {
+        await app.close();
+      }
     }
   });
 
@@ -159,9 +180,7 @@ describe('Authorization integration', () => {
     });
 
     expect(grant.tenantId).toBe(tenantAId);
-
     expect(grant.userId).toBe(userAId);
-
     expect(grant.role).toBe('client_admin');
 
     expect(await authorizationService.isClientAdmin(tenantAId, userAId)).toBe(true);
