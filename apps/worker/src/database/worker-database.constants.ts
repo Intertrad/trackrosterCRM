@@ -1,0 +1,1 @@
+export const WORKER_DATABASE_POOL = Symbol('WORKER_DATABASE_POOL');

@@ -22,7 +22,7 @@ import { CollisionModule } from './collisions/collision.module.js';
 import { ActivityModule } from './activities/activity.module.js';
 import { FollowUpModule } from './follow-ups/follow-up.module.js';
 import { JobQueueModule } from './jobs/job-queue.module.js';
-
+import { NotificationModule } from './notifications/notification.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -51,6 +51,7 @@ import { JobQueueModule } from './jobs/job-queue.module.js';
     CollisionModule,
     ActivityModule,
     FollowUpModule,
+    NotificationModule,
     JobQueueModule,
   ],
 })

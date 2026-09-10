@@ -699,77 +699,85 @@ describe('CollisionDecisionService', () => {
   });
 
   it('does not let a newer independent activity hide an older applicable activity', async () => {
-    const independentActivity = createActivityCandidate({
-      id: '31313131-3131-4131-8131-313131313131',
+    vi.useFakeTimers();
 
-      organizationId: independentOrganizationId,
+    vi.setSystemTime(new Date('2026-09-09T08:00:00.000Z'));
 
-      occurredAt: new Date('2026-09-09T07:00:00.000Z'),
-    });
+    try {
+      const independentActivity = createActivityCandidate({
+        id: '31313131-3131-4131-8131-313131313131',
 
-    const coordinatedActivity = createActivityCandidate({
-      id: '32323232-3232-4232-8232-323232323232',
+        organizationId: independentOrganizationId,
 
-      organizationId: coordinatedOrganizationId,
+        occurredAt: new Date('2026-09-09T07:00:00.000Z'),
+      });
 
-      occurredAt: new Date('2026-09-09T06:00:00.000Z'),
-    });
+      const coordinatedActivity = createActivityCandidate({
+        id: '32323232-3232-4232-8232-323232323232',
 
-    prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([
-      independentActivity,
+        organizationId: coordinatedOrganizationId,
 
-      coordinatedActivity,
-    ]);
+        occurredAt: new Date('2026-09-09T06:00:00.000Z'),
+      });
 
-    coordinationCollisionPolicyService.evaluate.mockImplementation(
-      (input: { conflictingOrganizationId: string }) => {
-        if (input.conflictingOrganizationId === independentOrganizationId) {
+      prospectActivityRepository.findCandidatesByEstablishment.mockResolvedValue([
+        independentActivity,
+
+        coordinatedActivity,
+      ]);
+
+      coordinationCollisionPolicyService.evaluate.mockImplementation(
+        (input: { conflictingOrganizationId: string }) => {
+          if (input.conflictingOrganizationId === independentOrganizationId) {
+            return Promise.resolve({
+              action: 'ignore',
+
+              policy: 'independent',
+
+              delayMinutes: null,
+            });
+          }
+
           return Promise.resolve({
-            action: 'ignore',
+            action: 'block',
 
-            policy: 'independent',
+            policy: 'coordinated',
 
             delayMinutes: null,
           });
-        }
+        },
+      );
 
-        return Promise.resolve({
-          action: 'block',
+      coolingOffService.evaluateActivity.mockImplementation(
+        (
+          candidate: ProspectActivityCollisionCandidate,
 
-          policy: 'coordinated',
+          now: Date,
 
-          delayMinutes: null,
-        });
-      },
-    );
+          coolingOffMinutes?: number,
+        ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
+      );
 
-    coolingOffService.evaluateActivity.mockImplementation(
-      (
-        candidate: ProspectActivityCollisionCandidate,
+      const result = await service.evaluate({
+        tenantId,
 
-        now: Date,
+        userId,
 
-        coolingOffMinutes?: number,
-      ) => evaluateCoolingOff(candidate, now, coolingOffMinutes),
-    );
+        campaignId,
 
-    const result = await service.evaluate({
-      tenantId,
+        campaignProspectId,
+      });
 
-      userId,
+      expect(result.decision).toBe('block');
 
-      campaignId,
+      expect(result.reasonCode).toBe('RECENT_CONTACT');
 
-      campaignProspectId,
-    });
-
-    expect(result.decision).toBe('block');
-
-    expect(result.reasonCode).toBe('RECENT_CONTACT');
-
-    expect(result.conflict).toMatchObject({
-      activityId: coordinatedActivity.id,
-    });
+      expect(result.conflict).toMatchObject({
+        activityId: coordinatedActivity.id,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns the recent-contact collision with the latest expiry', async () => {

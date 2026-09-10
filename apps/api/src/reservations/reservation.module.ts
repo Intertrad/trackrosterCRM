@@ -8,31 +8,46 @@ import { CampaignModule } from '../campaigns/campaign.module.js';
 import { CoordinationPolicyModule } from '../coordination/coordination-policy.module.js';
 import { CoolingOffModule } from '../cooling-off/cooling-off.module.js';
 import { FollowUpRepositoryModule } from '../follow-ups/follow-up-repository.module.js';
+import { JobQueueModule } from '../jobs/job-queue.module.js';
 import { RedisModule } from '../redis/redis.module.js';
 import { TeamModule } from '../teams/team.module.js';
 import { UserModule } from '../users/user.module.js';
+
 import { ReservationController } from './reservation.controller.js';
+import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
 import { ReservationService } from './reservation.service.js';
 
 @Module({
   imports: [
     RedisModule,
+
     AuthModule,
+
     CampaignModule,
+
     AssignmentModule,
+
     TeamModule,
+
     UserModule,
+
     AuthorizationModule,
+
     CoolingOffModule,
+
     FollowUpRepositoryModule,
+
     ActivityRepositoryModule,
+
     CoordinationPolicyModule,
+
+    JobQueueModule,
   ],
 
   controllers: [ReservationController],
 
-  providers: [ReservationRepository, ReservationService],
+  providers: [ReservationRepository, ReservationExpirySchedulerService, ReservationService],
 
   exports: [ReservationRepository, ReservationService],
 })

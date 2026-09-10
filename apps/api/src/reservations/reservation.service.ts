@@ -4,9 +4,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 
 import { ProspectActivityRepository } from '../activities/prospect-activity.repository.js';
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
@@ -44,6 +46,8 @@ export interface ReleaseReservationInput extends AcquireReservationInput {
 
 @Injectable()
 export class ReservationService {
+  private readonly logger = new Logger(ReservationService.name);
+
   constructor(
     private readonly reservationRepository: ReservationRepository,
 
@@ -68,6 +72,8 @@ export class ReservationService {
     private readonly coordinationCollisionPolicyService: CoordinationCollisionPolicyService,
 
     private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
+
+    private readonly reservationExpirySchedulerService: ReservationExpirySchedulerService,
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
@@ -98,6 +104,8 @@ export class ReservationService {
 
     if (currentExact) {
       if (this.isIdempotentReservation(currentExact, input, assignment.id)) {
+        await this.scheduleExpiryBestEffort(currentExact);
+
         return currentExact;
       }
 
@@ -393,6 +401,8 @@ export class ReservationService {
       );
 
       if (acquired) {
+        await this.scheduleExpiryBestEffort(reservation);
+
         return reservation;
       }
 
@@ -411,6 +421,8 @@ export class ReservationService {
       );
 
       if (current && this.isIdempotentReservation(current, input, assignment.id)) {
+        await this.scheduleExpiryBestEffort(current);
+
         return current;
       }
 
@@ -655,6 +667,30 @@ export class ReservationService {
 
     if (!prospect) {
       throw new NotFoundException('Campaign prospect not found');
+    }
+  }
+
+  private async scheduleExpiryBestEffort(reservation: ProspectReservation): Promise<void> {
+    try {
+      await this.reservationExpirySchedulerService.schedule(reservation);
+    } catch (error: unknown) {
+      /*
+       * Redis TTL is authoritative.
+       *
+       * Failure to enqueue this secondary expiry job
+       * must never invalidate an already-acquired
+       * reservation.
+       */
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      this.logger.warn(
+        [
+          'Reservation expiry job could not be scheduled',
+          `reservationId=${reservation.reservationId}`,
+          `tenantId=${reservation.tenantId}`,
+          `error=${errorMessage}`,
+        ].join(' '),
+      );
     }
   }
 }

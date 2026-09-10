@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -9,11 +11,14 @@ import {
 
 import type { ProspectFollowUp } from '../database/schema/prospect-follow-ups.js';
 import { ReservationService } from '../reservations/reservation.service.js';
+
+import { FollowUpReminderSchedulerService } from './follow-up-reminder-scheduler.service.js';
 import { ProspectFollowUpRepository } from './prospect-follow-up.repository.js';
 import {
   toPublicProspectFollowUp,
   type PublicProspectFollowUp,
 } from './prospect-follow-up.types.js';
+
 export interface CreateProspectFollowUpInput {
   tenantId: string;
 
@@ -50,6 +55,8 @@ export class ProspectFollowUpService {
     private readonly followUpRepository: ProspectFollowUpRepository,
 
     private readonly reservationService: ReservationService,
+
+    private readonly followUpReminderSchedulerService: FollowUpReminderSchedulerService,
   ) {}
 
   async create(input: CreateProspectFollowUpInput): Promise<PublicProspectFollowUp> {
@@ -72,10 +79,41 @@ export class ProspectFollowUpService {
       throw new ForbiddenException('Prospector cannot assign follow-up to another user');
     }
 
+    /*
+     * Generate the identifier before persistence so
+     * the reminder can be queued first.
+     *
+     * If BullMQ is unavailable, no follow-up is
+     * created without its scheduled reminder.
+     *
+     * If persistence subsequently fails, the worker
+     * will eventually find no matching follow-up and
+     * treat the queued job as stale/no-op.
+     */
+    const followUpId = randomUUID();
+
+    try {
+      await this.followUpReminderSchedulerService.schedule({
+        tenantId: input.tenantId,
+
+        followUpId,
+
+        campaignId: input.campaignId,
+
+        campaignProspectId: input.campaignProspectId,
+
+        dueAt: input.dueAt,
+      });
+    } catch {
+      throw new ServiceUnavailableException('Follow-up service is unavailable');
+    }
+
     let followUp: ProspectFollowUp;
 
     try {
       followUp = await this.followUpRepository.create({
+        id: followUpId,
+
         tenantId: input.tenantId,
 
         campaignId: input.campaignId,
@@ -99,6 +137,13 @@ export class ProspectFollowUpService {
         cancelledAt: null,
       });
     } catch {
+      /*
+       * The already queued job is harmless.
+       *
+       * Worker processing always reloads the source
+       * follow-up from PostgreSQL before producing a
+       * notification.
+       */
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -109,6 +154,33 @@ export class ProspectFollowUpService {
     this.requireFutureDueAt(input.dueAt);
 
     const followUp = await this.requireMutableFollowUp(input);
+
+    /*
+     * Queue the new schedule before modifying the
+     * authoritative database value.
+     *
+     * If enqueue fails, dueAt remains unchanged.
+     *
+     * If the database update later loses a race or
+     * fails, this queued job becomes stale because
+     * scheduledFor will not equal the authoritative
+     * dueAt when the worker executes.
+     */
+    try {
+      await this.followUpReminderSchedulerService.schedule({
+        tenantId: input.tenantId,
+
+        followUpId: followUp.id,
+
+        campaignId: input.campaignId,
+
+        campaignProspectId: input.campaignProspectId,
+
+        dueAt: input.dueAt,
+      });
+    } catch {
+      throw new ServiceUnavailableException('Follow-up service is unavailable');
+    }
 
     const now = new Date();
 
@@ -138,6 +210,10 @@ export class ProspectFollowUpService {
      *
      * Repository status predicates make the
      * transition atomic.
+     *
+     * The already queued reminder is harmless
+     * because worker processing will re-check the
+     * current database state.
      */
     if (!updated) {
       throw new ConflictException('Follow-up is no longer pending');
@@ -173,6 +249,13 @@ export class ProspectFollowUpService {
       throw new ConflictException('Follow-up is no longer pending');
     }
 
+    /*
+     * We intentionally do not remove the delayed
+     * BullMQ job.
+     *
+     * When it eventually executes, the worker sees
+     * status=completed and returns a business no-op.
+     */
     return toPublicProspectFollowUp(updated);
   }
 
@@ -203,12 +286,17 @@ export class ProspectFollowUpService {
       throw new ConflictException('Follow-up is no longer pending');
     }
 
+    /*
+     * As with completion, queue deletion is not part
+     * of correctness. The worker performs the final
+     * authoritative status check.
+     */
     return toPublicProspectFollowUp(updated);
   }
 
   /*
-   * Validate that the caller may mutate this
-   * exact pending follow-up.
+   * Validate that the caller may mutate this exact
+   * pending follow-up.
    *
    * Current assignment owns current workflow.
    * Historical/stale assignment follow-ups stay
@@ -251,8 +339,8 @@ export class ProspectFollowUpService {
     }
 
     /*
-     * Reassignment invalidates the old follow-up
-     * as an actionable workflow item.
+     * Reassignment invalidates the old follow-up as
+     * an actionable workflow item.
      *
      * The row remains stored as historical data.
      */
@@ -284,32 +372,4 @@ export class ProspectFollowUpService {
       throw new BadRequestException('Follow-up due date must be in the future');
     }
   }
-
-  //   private toPublicFollowUp(followUp: ProspectFollowUp): PublicProspectFollowUp {
-  //     return {
-  //       id: followUp.id,
-
-  //       campaignId: followUp.campaignId,
-
-  //       campaignProspectId: followUp.campaignProspectId,
-
-  //       establishmentId: followUp.establishmentId,
-
-  //       assignedUserId: followUp.assignedUserId,
-
-  //       createdBy: followUp.createdBy,
-
-  //       dueAt: followUp.dueAt.toISOString(),
-
-  //       status: followUp.status,
-
-  //       completedAt: followUp.completedAt ? followUp.completedAt.toISOString() : null,
-
-  //       cancelledAt: followUp.cancelledAt ? followUp.cancelledAt.toISOString() : null,
-
-  //       createdAt: followUp.createdAt.toISOString(),
-
-  //       updatedAt: followUp.updatedAt.toISOString(),
-  //     };
-  //   }
 }
