@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReservationService } from '../reservations/reservation.service.js';
+import { FollowUpReminderSchedulerService } from './follow-up-reminder-scheduler.service.js';
 import { ProspectFollowUpRepository } from './prospect-follow-up.repository.js';
 import { ProspectFollowUpService } from './prospect-follow-up.service.js';
 
@@ -26,6 +27,10 @@ describe('ProspectFollowUpService', () => {
 
   let reservationService: {
     requireReservationEligibility: ReturnType<typeof vi.fn>;
+  };
+
+  let followUpReminderSchedulerService: {
+    schedule: ReturnType<typeof vi.fn>;
   };
 
   let service: ProspectFollowUpService;
@@ -145,9 +150,14 @@ describe('ProspectFollowUpService', () => {
       }),
     };
 
+    followUpReminderSchedulerService = {
+      schedule: vi.fn().mockResolvedValue(undefined),
+    };
+
     service = new ProspectFollowUpService(
       followUpRepository as unknown as ProspectFollowUpRepository,
       reservationService as unknown as ReservationService,
+      followUpReminderSchedulerService as unknown as FollowUpReminderSchedulerService,
     );
   });
 
@@ -174,29 +184,55 @@ describe('ProspectFollowUpService', () => {
       campaignProspectId,
     });
 
-    expect(followUpRepository.create).toHaveBeenCalledWith({
+    expect(followUpRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expect.any(String),
+
+        tenantId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        establishmentId,
+
+        assignmentId,
+
+        assignedUserId: userId,
+
+        createdBy: userId,
+
+        dueAt: futureDueAt,
+
+        status: 'pending',
+
+        completedAt: null,
+
+        cancelledAt: null,
+      }),
+    );
+
+    expect(followUpReminderSchedulerService.schedule).toHaveBeenCalledWith({
       tenantId,
+
+      followUpId: expect.any(String),
 
       campaignId,
 
       campaignProspectId,
 
-      establishmentId,
-
-      assignmentId,
-
-      assignedUserId: userId,
-
-      createdBy: userId,
-
       dueAt: futureDueAt,
-
-      status: 'pending',
-
-      completedAt: null,
-
-      cancelledAt: null,
     });
+
+    const createInput = followUpRepository.create.mock.calls[0]?.[0];
+
+    const scheduleInput = followUpReminderSchedulerService.schedule.mock.calls[0]?.[0];
+
+    expect(createInput.id).toBe(scheduleInput.followUpId);
+
+    expect(followUpReminderSchedulerService.schedule.mock.invocationCallOrder[0]!).toBeLessThan(
+      followUpRepository.create.mock.invocationCallOrder[0]!,
+    );
 
     expect(result).toMatchObject({
       id: followUpId,
@@ -242,9 +278,43 @@ describe('ProspectFollowUpService', () => {
 
     expect(followUpRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: expect.any(String),
+
+        tenantId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        establishmentId,
+
+        assignmentId,
+
         assignedUserId: null,
+
+        createdBy: userId,
+
+        dueAt: futureDueAt,
+
+        status: 'pending',
+
+        completedAt: null,
+
+        cancelledAt: null,
       }),
     );
+
+    expect(followUpReminderSchedulerService.schedule).toHaveBeenCalledWith({
+      tenantId,
+
+      followUpId: expect.any(String),
+
+      campaignId,
+
+      campaignProspectId,
+
+      dueAt: futureDueAt,
+    });
   });
 
   it('rejects assigning a follow-up to another user', async () => {
@@ -263,6 +333,8 @@ describe('ProspectFollowUpService', () => {
         assignedUserId: otherUserId,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
 
     expect(followUpRepository.create).not.toHaveBeenCalled();
   });
@@ -284,6 +356,8 @@ describe('ProspectFollowUpService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
+
     expect(followUpRepository.create).not.toHaveBeenCalled();
   });
 
@@ -302,6 +376,18 @@ describe('ProspectFollowUpService', () => {
       dueAt: laterDueAt,
     });
 
+    expect(followUpReminderSchedulerService.schedule).toHaveBeenCalledWith({
+      tenantId,
+
+      followUpId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      dueAt: laterDueAt,
+    });
+
     expect(followUpRepository.reschedulePending).toHaveBeenCalledWith(
       tenantId,
 
@@ -316,12 +402,58 @@ describe('ProspectFollowUpService', () => {
       expect.any(Date),
     );
 
+    expect(followUpReminderSchedulerService.schedule.mock.invocationCallOrder[0]!).toBeLessThan(
+      followUpRepository.reschedulePending.mock.invocationCallOrder[0]!,
+    );
+
     expect(result.dueAt).toBe(laterDueAt.toISOString());
 
     expect(result.status).toBe('pending');
   });
 
-  it('completes a pending follow-up', async () => {
+  it('fails closed when reminder scheduling fails during create', async () => {
+    followUpReminderSchedulerService.schedule.mockRejectedValue(new Error('BullMQ unavailable'));
+
+    await expect(
+      service.create({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        dueAt: futureDueAt,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(followUpRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when reminder scheduling fails during reschedule', async () => {
+    followUpReminderSchedulerService.schedule.mockRejectedValue(new Error('BullMQ unavailable'));
+
+    await expect(
+      service.reschedule({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        followUpId,
+
+        dueAt: laterDueAt,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(followUpRepository.reschedulePending).not.toHaveBeenCalled();
+  });
+
+  it('completes a pending follow-up without scheduling another reminder', async () => {
     const result = await service.complete({
       tenantId,
 
@@ -346,6 +478,8 @@ describe('ProspectFollowUpService', () => {
       expect.any(Date),
     );
 
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
+
     expect(result.status).toBe('completed');
 
     expect(result.completedAt).toEqual(expect.any(String));
@@ -353,7 +487,7 @@ describe('ProspectFollowUpService', () => {
     expect(result.cancelledAt).toBeNull();
   });
 
-  it('cancels a pending follow-up', async () => {
+  it('cancels a pending follow-up without scheduling another reminder', async () => {
     const result = await service.cancel({
       tenantId,
 
@@ -377,6 +511,8 @@ describe('ProspectFollowUpService', () => {
 
       expect.any(Date),
     );
+
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
 
     expect(result.status).toBe('cancelled');
 
@@ -482,6 +618,8 @@ describe('ProspectFollowUpService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
+
     expect(followUpRepository.reschedulePending).not.toHaveBeenCalled();
   });
 
@@ -537,6 +675,13 @@ describe('ProspectFollowUpService', () => {
         dueAt: futureDueAt,
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    /*
+     * Scheduling happens first by design.
+     * If persistence fails afterward, the worker
+     * will later treat the queued job as stale/no-op.
+     */
+    expect(followUpReminderSchedulerService.schedule).toHaveBeenCalledOnce();
   });
 
   it('fails closed when follow-up lookup fails', async () => {

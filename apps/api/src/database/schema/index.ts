@@ -12,3 +12,4 @@ export * from './campaign-prospects.js';
 export * from './prospect-activities.js';
 export * from './prospect-follow-ups.js';
 export * from './organization-coordination-policies.js';
+export * from './notifications.js';

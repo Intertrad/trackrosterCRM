@@ -15,6 +15,8 @@ import {
 
 import { JobDispatcherService, type TrackRosterJob } from '../src/jobs/job-dispatcher.service.js';
 import type { JobProcessorResult } from '../src/jobs/job-processing.types.js';
+import { FollowUpReminderProcessor } from '../src/jobs/processors/follow-up-reminder.processor.js';
+import { ReservationExpiryProcessor } from '../src/jobs/processors/reservation-expiry.processor.js';
 import { SystemHealthCheckProcessor } from '../src/jobs/processors/system-health-check.processor.js';
 import { SystemRetryProbeProcessor } from '../src/jobs/processors/system-retry-probe.processor.js';
 import { createQueueConnection, createWorkerConnection } from '../src/queue/queue-connection.js';
@@ -37,6 +39,10 @@ describe('TrackRoster background job pipeline', () => {
   let healthProcessor: SystemHealthCheckProcessor;
 
   let retryProcessor: SystemRetryProbeProcessor;
+
+  let followUpReminderProcessor: FollowUpReminderProcessor;
+
+  let reservationExpiryProcessor: ReservationExpiryProcessor;
 
   let dispatcher: JobDispatcherService;
 
@@ -63,8 +69,8 @@ describe('TrackRoster background job pipeline', () => {
         connection: producerConnection,
 
         /*
-         * Every integration run gets its
-         * own Redis namespace.
+         * Every integration run gets its own
+         * Redis namespace.
          *
          * It cannot consume or modify
          * development/production jobs.
@@ -95,7 +101,43 @@ describe('TrackRoster background job pipeline', () => {
 
     retryProcessor = new SystemRetryProbeProcessor();
 
-    dispatcher = new JobDispatcherService(healthProcessor, retryProcessor);
+    /*
+     * This integration suite validates the generic
+     * BullMQ pipeline established in TR-020.
+     *
+     * Follow-up reminder persistence has separate
+     * processor/integration coverage, so this suite
+     * uses a lightweight processor stub only to
+     * satisfy the dispatcher dependency.
+     */
+    followUpReminderProcessor = {
+      process: async () => ({
+        status: 'processed' as const,
+      }),
+    } as unknown as FollowUpReminderProcessor;
+
+    /*
+     * Reservation expiry behavior also has its own
+     * focused processor/Redis integration coverage.
+     *
+     * This generic pipeline test only needs a stub
+     * for the dispatcher dependency.
+     */
+    reservationExpiryProcessor = {
+      process: async () => ({
+        status: 'processed' as const,
+      }),
+    } as unknown as ReservationExpiryProcessor;
+
+    dispatcher = new JobDispatcherService(
+      healthProcessor,
+
+      retryProcessor,
+
+      followUpReminderProcessor,
+
+      reservationExpiryProcessor,
+    );
 
     worker = new Worker<AnyTrackRosterJobData, JobProcessorResult, TrackRosterJobName>(
       TRACKROSTER_JOB_QUEUE,
