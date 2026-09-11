@@ -32,6 +32,6 @@ import { ReportingRepositoryModule } from './reporting-repository.module.js';
 
   providers: [ManagerDashboardScopeService, ManagerDashboardService],
 
-  exports: [ManagerDashboardService],
+  exports: [ManagerDashboardService, ManagerDashboardScopeService],
 })
 export class ReportingModule {}
