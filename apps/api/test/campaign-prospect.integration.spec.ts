@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-
+import { auditEvents } from '../src/database/schema/audit-events.js';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -280,10 +280,15 @@ describe('Campaign prospect HTTP integration', () => {
           }
 
           await database.delete(campaignProspects).where(eq(campaignProspects.tenantId, tenantId));
+          await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
+
+          await database.delete(users).where(eq(users.tenantId, tenantId));
 
           await database.delete(campaigns).where(eq(campaigns.tenantId, tenantId));
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantId));
+
+          await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
 
           await database.delete(users).where(eq(users.tenantId, tenantId));
 

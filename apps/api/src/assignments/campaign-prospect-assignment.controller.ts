@@ -42,9 +42,15 @@ export class CampaignProspectAssignmentController {
   ) {
     return this.assignmentService.assign({
       tenantId: auth.tenantId,
+
+      actorUserId: auth.userId,
+
       campaignId,
+
       campaignProspectId: prospectId,
+
       teamId: input.teamId,
+
       assignedUserId: input.assignedUserId,
     });
   }
@@ -65,9 +71,15 @@ export class CampaignProspectAssignmentController {
   ) {
     return this.assignmentService.reassign({
       tenantId: auth.tenantId,
+
+      actorUserId: auth.userId,
+
       campaignId,
+
       campaignProspectId: prospectId,
+
       teamId: input.teamId,
+
       assignedUserId: input.assignedUserId,
     });
   }

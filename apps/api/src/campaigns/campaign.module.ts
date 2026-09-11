@@ -11,6 +11,7 @@ import { CampaignProspectService } from './campaign-prospect.service.js';
 import { CampaignController } from './campaign.controller.js';
 import { CampaignRepository } from './campaign.repository.js';
 import { CampaignService } from './campaign.service.js';
+import { AuditModule } from '../audit/audit.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { CampaignService } from './campaign.service.js';
     AuthorizationModule,
     OrganizationModule,
     EstablishmentModule,
+    AuditModule,
   ],
 
   controllers: [CampaignController, CampaignProspectController],

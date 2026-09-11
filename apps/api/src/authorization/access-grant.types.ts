@@ -29,3 +29,24 @@ export interface TeamAccessGrantInput {
 
 export type CreateAccessGrantInput =
   TenantAccessGrantInput | OrganizationAccessGrantInput | TeamAccessGrantInput;
+
+export type CreateAccessGrantCommand = CreateAccessGrantInput & {
+  /*
+   * Authenticated administrator who is changing
+   * another user's authorization.
+   *
+   * This value is supplied by CurrentAuth and is
+   * never accepted from the request body.
+   */
+  actorUserId: string;
+};
+
+export interface RevokeAccessGrantCommand {
+  tenantId: string;
+
+  actorUserId: string;
+
+  userId: string;
+
+  grantId: string;
+}

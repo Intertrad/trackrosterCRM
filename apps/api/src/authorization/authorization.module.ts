@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { OrganizationModule } from '../organizations/organization.module.js';
@@ -12,14 +13,17 @@ import { ClientAdminGuard } from './client-admin.guard.js';
 import { UserAccessGrantRepository } from './user-access-grant.repository.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, OrganizationModule, TeamModule, UserModule],
+  imports: [AuthModule, DatabaseModule, AuditModule, OrganizationModule, TeamModule, UserModule],
 
   controllers: [AccessGrantController],
 
   providers: [
     AccessGrantService,
+
     AuthorizationService,
+
     ClientAdminGuard,
+
     UserAccessGrantRepository,
   ],
 

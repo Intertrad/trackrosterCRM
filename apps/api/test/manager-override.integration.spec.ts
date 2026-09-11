@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-
+import { auditEvents } from '../src/database/schema/audit-events.js';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -713,6 +713,14 @@ describe('Manager override HTTP integration', () => {
         await getDatabase().delete(establishments).where(
           eq(
             establishments.tenantId,
+
+            tenantId,
+          ),
+        );
+
+        await getDatabase().delete(auditEvents).where(
+          eq(
+            auditEvents.tenantId,
 
             tenantId,
           ),

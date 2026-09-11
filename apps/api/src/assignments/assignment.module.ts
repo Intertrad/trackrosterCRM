@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { CampaignModule } from '../campaigns/campaign.module.js';
@@ -13,10 +14,17 @@ import { CampaignProspectAssignmentService } from './campaign-prospect-assignmen
 @Module({
   imports: [
     DatabaseModule,
+
+    AuditModule,
+
     AuthModule,
+
     AuthorizationModule,
+
     CampaignModule,
+
     TeamModule,
+
     UserModule,
   ],
 

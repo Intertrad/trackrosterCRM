@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { auditEvents } from '../src/database/schema/audit-events.js';
 
 import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
@@ -601,6 +602,8 @@ describe('Manager override reservation concurrency integration', () => {
         await getDatabase().delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantId));
 
         await getDatabase().delete(establishments).where(eq(establishments.tenantId, tenantId));
+
+        await getDatabase().delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
 
         await getDatabase().delete(users).where(eq(users.tenantId, tenantId));
 

@@ -3,11 +3,11 @@ import { and, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import {
-  NewUserAccessGrant,
-  UserAccessGrant,
   userAccessGrants,
+  type NewUserAccessGrant,
+  type UserAccessGrant,
 } from '../database/schema/user-access-grants.js';
-import { Database } from '../database/database.types.js';
+import type { Database, DatabaseExecutor } from '../database/database.types.js';
 
 @Injectable()
 export class UserAccessGrantRepository {
@@ -16,8 +16,11 @@ export class UserAccessGrantRepository {
     private readonly database: Database,
   ) {}
 
-  async create(input: NewUserAccessGrant): Promise<UserAccessGrant> {
-    const [grant] = await this.database.insert(userAccessGrants).values(input).returning();
+  async create(
+    input: NewUserAccessGrant,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<UserAccessGrant> {
+    const [grant] = await executor.insert(userAccessGrants).values(input).returning();
 
     if (!grant) {
       throw new Error('Failed to create user access grant');
@@ -26,30 +29,57 @@ export class UserAccessGrantRepository {
     return grant;
   }
 
-  async findById(tenantId: string, grantId: string): Promise<UserAccessGrant | null> {
-    const [grant] = await this.database
+  async findById(
+    tenantId: string,
+    grantId: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<UserAccessGrant | null> {
+    const [grant] = await executor
       .select()
       .from(userAccessGrants)
-      .where(and(eq(userAccessGrants.tenantId, tenantId), eq(userAccessGrants.id, grantId)))
+      .where(
+        and(
+          eq(userAccessGrants.tenantId, tenantId),
+
+          eq(userAccessGrants.id, grantId),
+        ),
+      )
       .limit(1);
 
     return grant ?? null;
   }
 
-  async findByUser(tenantId: string, userId: string): Promise<UserAccessGrant[]> {
-    return this.database
+  async findByUser(
+    tenantId: string,
+    userId: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<UserAccessGrant[]> {
+    return executor
       .select()
       .from(userAccessGrants)
-      .where(and(eq(userAccessGrants.tenantId, tenantId), eq(userAccessGrants.userId, userId)));
+      .where(
+        and(
+          eq(userAccessGrants.tenantId, tenantId),
+
+          eq(userAccessGrants.userId, userId),
+        ),
+      );
   }
 
-  async deleteById(tenantId: string, userId: string, grantId: string): Promise<boolean> {
-    const [grant] = await this.database
+  async deleteById(
+    tenantId: string,
+    userId: string,
+    grantId: string,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<boolean> {
+    const [grant] = await executor
       .delete(userAccessGrants)
       .where(
         and(
           eq(userAccessGrants.tenantId, tenantId),
+
           eq(userAccessGrants.userId, userId),
+
           eq(userAccessGrants.id, grantId),
         ),
       )
@@ -64,14 +94,17 @@ export class UserAccessGrantRepository {
     tenantId: string,
     userId: string,
     grantId: string,
+    executor: DatabaseExecutor = this.database,
   ): Promise<UserAccessGrant | null> {
-    const [grant] = await this.database
+    const [grant] = await executor
       .select()
       .from(userAccessGrants)
       .where(
         and(
           eq(userAccessGrants.tenantId, tenantId),
+
           eq(userAccessGrants.userId, userId),
+
           eq(userAccessGrants.id, grantId),
         ),
       )

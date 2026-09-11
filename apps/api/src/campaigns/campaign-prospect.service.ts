@@ -1,10 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Campaign } from '../database/schema/campaigns.js';
 import type {
   CampaignProspect,
   CampaignProspectStatus,
 } from '../database/schema/campaign-prospects.js';
+import { AuditService } from '../audit/audit.service.js';
+import { DATABASE } from '../database/database.constants.js';
+import type { Database } from '../database/database.types.js';
 import { EstablishmentRepository } from '../establishments/establishment.repository.js';
 import { CampaignRepository } from './campaign.repository.js';
 import { CampaignProspectRepository } from './campaign-prospect.repository.js';
@@ -14,15 +16,33 @@ export interface AddCampaignProspectInput {
   campaignId: string;
   establishmentId: string;
 }
+export interface AddCampaignProspectInput {
+  tenantId: string;
+  actorUserId: string;
+  campaignId: string;
+  establishmentId: string;
+}
+export interface UpdateCampaignProspectStatusInput {
+  tenantId: string;
+  actorUserId: string;
+  campaignId: string;
+  prospectId: string;
+  status: CampaignProspectStatus;
+}
 
 @Injectable()
 export class CampaignProspectService {
   constructor(
+    @Inject(DATABASE)
+    private readonly database: Database,
+
     private readonly prospectRepository: CampaignProspectRepository,
 
     private readonly campaignRepository: CampaignRepository,
 
     private readonly establishmentRepository: EstablishmentRepository,
+
+    private readonly auditService: AuditService,
   ) {}
 
   async add(input: AddCampaignProspectInput): Promise<CampaignProspect> {
@@ -39,40 +59,80 @@ export class CampaignProspectService {
     );
 
     /*
-     * We preserve membership history.
+     * Membership history is preserved.
      *
-     * Re-adding an excluded establishment
-     * reactivates its existing membership
-     * instead of creating another row.
+     * Re-adding an excluded prospect means reactivating
+     * the existing membership, not creating a new row.
      */
     if (existing) {
       if (existing.status === 'active') {
         throw new ConflictException('Establishment already belongs to campaign');
       }
 
-      const reactivated = await this.prospectRepository.updateStatus(
-        input.tenantId,
-        input.campaignId,
-        existing.id,
-        'active',
-      );
+      return this.database.transaction(async (transaction) => {
+        const reactivated = await this.prospectRepository.updateStatus(
+          input.tenantId,
+          input.campaignId,
+          existing.id,
+          'active',
+          transaction,
+        );
 
-      if (!reactivated) {
-        throw new NotFoundException('Campaign prospect not found');
-      }
+        if (!reactivated) {
+          throw new NotFoundException('Campaign prospect not found');
+        }
 
-      return reactivated;
+        await this.auditService.record(
+          {
+            tenantId: input.tenantId,
+            actorType: 'user',
+            actorUserId: input.actorUserId,
+            action: 'campaign_prospect.reactivated',
+            resourceType: 'campaign_prospect',
+            resourceId: reactivated.id,
+            metadata: {
+              campaignId: reactivated.campaignId,
+              establishmentId: reactivated.establishmentId,
+              status: reactivated.status,
+            },
+          },
+          transaction,
+        );
+
+        return reactivated;
+      });
     }
 
     try {
-      return await this.prospectRepository.create({
-        tenantId: input.tenantId,
+      return await this.database.transaction(async (transaction) => {
+        const prospect = await this.prospectRepository.create(
+          {
+            tenantId: input.tenantId,
+            campaignId: input.campaignId,
+            establishmentId: input.establishmentId,
+            status: 'active',
+          },
+          transaction,
+        );
 
-        campaignId: input.campaignId,
+        await this.auditService.record(
+          {
+            tenantId: input.tenantId,
+            actorType: 'user',
+            actorUserId: input.actorUserId,
+            action: 'campaign_prospect.added',
+            resourceType: 'campaign_prospect',
+            resourceId: prospect.id,
+            metadata: {
+              campaignId: prospect.campaignId,
+              establishmentId: prospect.establishmentId,
+              status: prospect.status,
+            },
+          },
+          transaction,
+        );
 
-        establishmentId: input.establishmentId,
-
-        status: 'active',
+        return prospect;
       });
     } catch (error: unknown) {
       if (this.isUniqueViolation(error)) {
@@ -105,34 +165,54 @@ export class CampaignProspectService {
     return prospect;
   }
 
-  async updateStatus(
-    tenantId: string,
-    campaignId: string,
-    prospectId: string,
-    status: CampaignProspectStatus,
-  ): Promise<CampaignProspect> {
-    const campaign = await this.requireCampaign(tenantId, campaignId);
+  async updateStatus(input: UpdateCampaignProspectStatusInput): Promise<CampaignProspect> {
+    const campaign = await this.requireCampaign(input.tenantId, input.campaignId);
 
     this.requireMutableCampaign(campaign);
 
-    const current = await this.findById(tenantId, campaignId, prospectId);
+    const current = await this.findById(input.tenantId, input.campaignId, input.prospectId);
 
-    if (current.status === status) {
+    if (current.status === input.status) {
       return current;
     }
 
-    const prospect = await this.prospectRepository.updateStatus(
-      tenantId,
-      campaignId,
-      prospectId,
-      status,
-    );
+    return this.database.transaction(async (transaction) => {
+      const prospect = await this.prospectRepository.updateStatus(
+        input.tenantId,
+        input.campaignId,
+        input.prospectId,
+        input.status,
+        transaction,
+      );
 
-    if (!prospect) {
-      throw new NotFoundException('Campaign prospect not found');
-    }
+      if (!prospect) {
+        throw new NotFoundException('Campaign prospect not found');
+      }
 
-    return prospect;
+      const action =
+        input.status === 'excluded'
+          ? 'campaign_prospect.excluded'
+          : 'campaign_prospect.reactivated';
+
+      await this.auditService.record(
+        {
+          tenantId: input.tenantId,
+          actorType: 'user',
+          actorUserId: input.actorUserId,
+          action,
+          resourceType: 'campaign_prospect',
+          resourceId: prospect.id,
+          metadata: {
+            campaignId: prospect.campaignId,
+            establishmentId: prospect.establishmentId,
+            status: prospect.status,
+          },
+        },
+        transaction,
+      );
+
+      return prospect;
+    });
   }
 
   private async requireCampaign(tenantId: string, campaignId: string): Promise<Campaign> {

@@ -1,14 +1,24 @@
 import { ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
+import type { Database } from '../database/database.types.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 import { CollisionDecisionService } from './collision-decision.service.js';
 import { CollisionOverrideRepository } from './collision-override.repository.js';
 import { ManagerOverrideService } from './manager-override.service.js';
 
 describe('ManagerOverrideService', () => {
+  let database: {
+    transaction: ReturnType<typeof vi.fn>;
+  };
+
+  let auditService: {
+    record: ReturnType<typeof vi.fn>;
+  };
+
   let collisionDecisionService: CollisionDecisionService;
 
   let collisionOverrideRepository: CollisionOverrideRepository;
@@ -39,6 +49,10 @@ describe('ManagerOverrideService', () => {
 
   const followUpId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
+  const overrideId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+  const transaction = {};
+
   const assignment = {
     id: assignmentId,
     tenantId,
@@ -52,6 +66,16 @@ describe('ManagerOverrideService', () => {
   } as CampaignProspectAssignment;
 
   beforeEach(() => {
+    database = {
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+      ),
+    };
+
+    auditService = {
+      record: vi.fn(),
+    };
+
     collisionDecisionService = {
       evaluate: vi.fn(),
     } as unknown as CollisionDecisionService;
@@ -71,10 +95,12 @@ describe('ManagerOverrideService', () => {
     } as unknown as ReservationService;
 
     service = new ManagerOverrideService(
+      database as unknown as Database,
       collisionDecisionService,
       collisionOverrideRepository,
       authorizationService,
       reservationService,
+      auditService as unknown as AuditService,
     );
 
     vi.mocked(reservationService.requireReservationEligibility).mockResolvedValue({
@@ -85,7 +111,7 @@ describe('ManagerOverrideService', () => {
     vi.mocked(authorizationService.getOverrideAuthority).mockResolvedValue('manager');
   });
 
-  it('creates an override for a blocking planned action', async () => {
+  it('creates and audits an override for a blocking planned action', async () => {
     const dueAt = '2026-09-11T10:00:00.000Z';
 
     vi.mocked(collisionDecisionService.evaluate).mockResolvedValue({
@@ -113,13 +139,15 @@ describe('ManagerOverrideService', () => {
     vi.mocked(collisionOverrideRepository.create).mockImplementation(
       async (input) =>
         ({
-          id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+          id: overrideId,
 
           createdAt: new Date(),
 
           ...input,
         }) as never,
     );
+
+    auditService.record.mockResolvedValue({});
 
     const result = await service.create({
       tenantId,
@@ -149,6 +177,8 @@ describe('ManagerOverrideService', () => {
       campaignProspectId,
     });
 
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
     expect(collisionOverrideRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId,
@@ -177,6 +207,42 @@ describe('ManagerOverrideService', () => {
 
         reason: 'Approved after coordination with the other team.',
       }),
+      transaction,
+    );
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      {
+        tenantId,
+
+        actorType: 'user',
+
+        actorUserId: approverUserId,
+
+        action: 'collision_override.approved',
+
+        resourceType: 'collision_override',
+
+        resourceId: overrideId,
+
+        metadata: {
+          campaignId,
+
+          campaignProspectId,
+
+          prospectorUserId,
+
+          organizationId,
+
+          teamId,
+
+          approvedByRole: 'manager',
+
+          reasonCode: 'PLANNED_ACTION',
+
+          conflictKey: ['planned_action', followUpId, dueAt].join(':'),
+        },
+      },
+      transaction,
     );
 
     expect(result.reasonCode).toBe('PLANNED_ACTION');
@@ -198,7 +264,11 @@ describe('ManagerOverrideService', () => {
 
     expect(collisionDecisionService.evaluate).not.toHaveBeenCalled();
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('never allows an active reservation to be overridden', async () => {
@@ -239,7 +309,11 @@ describe('ManagerOverrideService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('rejects an override when the current decision is allow', async () => {
@@ -264,7 +338,11 @@ describe('ManagerOverrideService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('rejects an override for an advisory warning', async () => {
@@ -302,6 +380,12 @@ describe('ManagerOverrideService', () => {
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('rejects inconsistent canonical establishment context', async () => {
@@ -337,9 +421,15 @@ describe('ManagerOverrideService', () => {
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
-  it('maps persistence failure to service unavailable', async () => {
+  it('maps override persistence failure to service unavailable', async () => {
     vi.mocked(collisionDecisionService.evaluate).mockResolvedValue({
       decision: 'block',
 
@@ -376,5 +466,78 @@ describe('ManagerOverrideService', () => {
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('maps audit persistence failure to service unavailable', async () => {
+    const dueAt = '2026-09-11T10:00:00.000Z';
+
+    vi.mocked(collisionDecisionService.evaluate).mockResolvedValue({
+      decision: 'block',
+
+      reasonCode: 'PLANNED_ACTION',
+
+      establishmentId,
+
+      conflict: {
+        followUpId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        assignmentId,
+
+        assignedUserId: prospectorUserId,
+
+        dueAt,
+      },
+    });
+
+    vi.mocked(collisionOverrideRepository.create).mockImplementation(
+      async (input) =>
+        ({
+          id: overrideId,
+
+          createdAt: new Date(),
+
+          ...input,
+        }) as never,
+    );
+
+    auditService.record.mockRejectedValue(new Error('audit unavailable'));
+
+    await expect(
+      service.create({
+        tenantId,
+        approvedByUserId: approverUserId,
+        prospectorUserId,
+        campaignId,
+        campaignProspectId,
+        reason: 'Manager approval reason is valid.',
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(collisionOverrideRepository.create).toHaveBeenCalledWith(
+      expect.any(Object),
+      transaction,
+    );
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId,
+        actorType: 'user',
+        actorUserId: approverUserId,
+        action: 'collision_override.approved',
+        resourceType: 'collision_override',
+        resourceId: overrideId,
+      }),
+      transaction,
+    );
   });
 });
