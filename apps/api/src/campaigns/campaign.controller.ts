@@ -35,8 +35,9 @@ export class CampaignController {
     input: CreateCampaignDto,
   ) {
     return this.campaignService.create({
-      tenantId: auth.tenantId,
       ...input,
+      tenantId: auth.tenantId,
+      actorUserId: auth.userId,
     });
   }
 
@@ -70,6 +71,11 @@ export class CampaignController {
     @Body()
     input: UpdateCampaignDto,
   ) {
-    return this.campaignService.update(auth.tenantId, campaignId, input);
+    return this.campaignService.update({
+      ...input,
+      tenantId: auth.tenantId,
+      actorUserId: auth.userId,
+      campaignId,
+    });
   }
 }

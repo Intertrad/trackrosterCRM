@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
-import type { Database } from '../database/database.types.js';
+import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   campaignProspects,
   type CampaignProspect,
@@ -17,8 +17,11 @@ export class CampaignProspectRepository {
     private readonly database: Database,
   ) {}
 
-  async create(input: NewCampaignProspect): Promise<CampaignProspect> {
-    const [prospect] = await this.database.insert(campaignProspects).values(input).returning();
+  async create(
+    input: NewCampaignProspect,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<CampaignProspect> {
+    const [prospect] = await executor.insert(campaignProspects).values(input).returning();
 
     if (!prospect) {
       throw new Error('Failed to create campaign prospect');
@@ -98,8 +101,9 @@ export class CampaignProspectRepository {
     campaignId: string,
     prospectId: string,
     status: CampaignProspectStatus,
+    executor: DatabaseExecutor = this.database,
   ): Promise<CampaignProspect | null> {
-    const [prospect] = await this.database
+    const [prospect] = await executor
       .update(campaignProspects)
       .set({
         status,

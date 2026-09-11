@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
-import type { Database } from '../database/database.types.js';
+import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import { campaigns, type Campaign, type NewCampaign } from '../database/schema/campaigns.js';
 
 export type UpdateCampaign = Partial<
@@ -16,8 +16,8 @@ export class CampaignRepository {
     private readonly database: Database,
   ) {}
 
-  async create(input: NewCampaign): Promise<Campaign> {
-    const [campaign] = await this.database.insert(campaigns).values(input).returning();
+  async create(input: NewCampaign, executor: DatabaseExecutor = this.database): Promise<Campaign> {
+    const [campaign] = await executor.insert(campaigns).values(input).returning();
 
     if (!campaign) {
       throw new Error('Failed to create campaign');
@@ -48,8 +48,9 @@ export class CampaignRepository {
     tenantId: string,
     campaignId: string,
     input: UpdateCampaign,
+    executor: DatabaseExecutor = this.database,
   ): Promise<Campaign | null> {
-    const [campaign] = await this.database
+    const [campaign] = await executor
       .update(campaigns)
       .set({
         ...input,

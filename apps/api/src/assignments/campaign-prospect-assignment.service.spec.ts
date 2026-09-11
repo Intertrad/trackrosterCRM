@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
@@ -42,6 +43,10 @@ describe('CampaignProspectAssignmentService', () => {
 
   let authorizationService: {
     getUserGrants: ReturnType<typeof vi.fn>;
+  };
+
+  let auditService: {
+    record: ReturnType<typeof vi.fn>;
   };
 
   let service: CampaignProspectAssignmentService;
@@ -159,6 +164,10 @@ describe('CampaignProspectAssignmentService', () => {
       getUserGrants: vi.fn(),
     };
 
+    auditService = {
+      record: vi.fn(),
+    };
+
     service = new CampaignProspectAssignmentService(
       database as never,
 
@@ -173,6 +182,8 @@ describe('CampaignProspectAssignmentService', () => {
       userRepository as unknown as UserRepository,
 
       authorizationService as unknown as AuthorizationService,
+
+      auditService as unknown as AuditService,
     );
   });
 
@@ -204,6 +215,8 @@ describe('CampaignProspectAssignmentService', () => {
 
     const result = await service.assign({
       tenantId,
+
+      actorUserId: userId,
       campaignId,
 
       campaignProspectId: prospectId,
@@ -258,6 +271,8 @@ describe('CampaignProspectAssignmentService', () => {
 
     const result = await service.assign({
       tenantId,
+
+      actorUserId: userId,
       campaignId,
 
       campaignProspectId: prospectId,
@@ -288,6 +303,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -311,6 +328,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -332,6 +351,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -357,6 +378,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -396,6 +419,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -421,6 +446,8 @@ describe('CampaignProspectAssignmentService', () => {
     await expect(
       service.assign({
         tenantId,
+
+        actorUserId: userId,
         campaignId,
 
         campaignProspectId: prospectId,
@@ -474,6 +501,8 @@ describe('CampaignProspectAssignmentService', () => {
 
     const result = await service.reassign({
       tenantId,
+
+      actorUserId: userId,
       campaignId,
 
       campaignProspectId: prospectId,

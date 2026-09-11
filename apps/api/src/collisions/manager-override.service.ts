@@ -2,9 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { AuditService } from '../audit/audit.service.js';
+import { DATABASE } from '../database/database.constants.js';
+import type { Database } from '../database/database.types.js';
 
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import type { CollisionOverride } from '../database/schema/collision-overrides.js';
@@ -35,6 +39,9 @@ export interface CreateManagerOverrideInput {
 @Injectable()
 export class ManagerOverrideService {
   constructor(
+    @Inject(DATABASE)
+    private readonly database: Database,
+
     private readonly collisionDecisionService: CollisionDecisionService,
 
     private readonly collisionOverrideRepository: CollisionOverrideRepository,
@@ -42,6 +49,8 @@ export class ManagerOverrideService {
     private readonly authorizationService: AuthorizationService,
 
     private readonly reservationService: ReservationService,
+
+    private readonly auditService: AuditService,
   ) {}
 
   async create(input: CreateManagerOverrideInput): Promise<CollisionOverride> {
@@ -149,7 +158,9 @@ export class ManagerOverrideService {
       throw new ConflictException('Current collision does not require an override');
     }
 
-    if (!isOverrideableCollisionReason(collision.reasonCode)) {
+    const overrideReasonCode = collision.reasonCode;
+
+    if (!isOverrideableCollisionReason(overrideReasonCode)) {
       throw new ConflictException('Current collision cannot be overridden');
     }
 
@@ -170,38 +181,79 @@ export class ManagerOverrideService {
     const expiresAt = new Date(now.getTime() + OVERRIDE_TTL_MINUTES * 60 * 1000);
 
     try {
-      return await this.collisionOverrideRepository.create({
-        tenantId: input.tenantId,
+      return await this.database.transaction(async (transaction) => {
+        const override = await this.collisionOverrideRepository.create(
+          {
+            tenantId: input.tenantId,
 
-        campaignId: input.campaignId,
+            campaignId: input.campaignId,
 
-        campaignProspectId: input.campaignProspectId,
+            campaignProspectId: input.campaignProspectId,
 
-        establishmentId,
+            establishmentId,
 
-        assignmentId: assignment.id,
+            assignmentId: assignment.id,
 
-        organizationId: assignment.organizationId,
+            organizationId: assignment.organizationId,
 
-        teamId: assignment.teamId,
+            teamId: assignment.teamId,
 
-        prospectorUserId: input.prospectorUserId,
+            prospectorUserId: input.prospectorUserId,
 
-        approvedByUserId: input.approvedByUserId,
+            approvedByUserId: input.approvedByUserId,
 
-        approvedByRole: authority,
+            approvedByRole: authority,
 
-        reasonCode: collision.reasonCode,
+            reasonCode: overrideReasonCode,
+            conflictKey,
 
-        conflictKey,
+            conflictSnapshot: {
+              ...collision.conflict,
+            },
 
-        conflictSnapshot: {
-          ...collision.conflict,
-        },
+            reason,
 
-        reason,
+            expiresAt,
+          },
+          transaction,
+        );
 
-        expiresAt,
+        await this.auditService.record(
+          {
+            tenantId: input.tenantId,
+
+            actorType: 'user',
+
+            actorUserId: input.approvedByUserId,
+
+            action: 'collision_override.approved',
+
+            resourceType: 'collision_override',
+
+            resourceId: override.id,
+
+            metadata: {
+              campaignId: override.campaignId,
+
+              campaignProspectId: override.campaignProspectId,
+
+              prospectorUserId: override.prospectorUserId,
+
+              organizationId: override.organizationId,
+
+              teamId: override.teamId,
+
+              approvedByRole: override.approvedByRole,
+
+              reasonCode: override.reasonCode,
+
+              conflictKey: override.conflictKey,
+            },
+          },
+          transaction,
+        );
+
+        return override;
       });
     } catch {
       throw new ServiceUnavailableException('Collision override could not be recorded');

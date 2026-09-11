@@ -39,6 +39,7 @@ export class CampaignProspectController {
   ) {
     return this.campaignProspectService.add({
       tenantId: auth.tenantId,
+      actorUserId: auth.userId,
       campaignId,
       establishmentId: input.establishmentId,
     });
@@ -83,11 +84,12 @@ export class CampaignProspectController {
     @Body()
     input: UpdateCampaignProspectDto,
   ) {
-    return this.campaignProspectService.updateStatus(
-      auth.tenantId,
+    return this.campaignProspectService.updateStatus({
+      tenantId: auth.tenantId,
+      actorUserId: auth.userId,
       campaignId,
       prospectId,
-      input.status,
-    );
+      status: input.status,
+    });
   }
 }

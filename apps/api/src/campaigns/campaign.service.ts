@@ -1,11 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
+import { AuditService } from '../audit/audit.service.js';
+import { DATABASE } from '../database/database.constants.js';
 import type { Campaign, CampaignStatus } from '../database/schema/campaigns.js';
+import type { Database } from '../database/database.types.js';
 import { OrganizationRepository } from '../organizations/organization.repository.js';
 import { CampaignRepository, type UpdateCampaign } from './campaign.repository.js';
 
 export interface CreateCampaignInput {
   tenantId: string;
+  actorUserId: string;
   organizationId: string;
 
   name: string;
@@ -17,12 +21,13 @@ export interface CreateCampaignInput {
 }
 
 export interface UpdateCampaignInput {
+  tenantId: string;
+  actorUserId: string;
+  campaignId: string;
+
   name?: string;
-
   description?: string | null;
-
   status?: CampaignStatus;
-
   startsAt?: Date | null;
   endsAt?: Date | null;
 }
@@ -30,9 +35,14 @@ export interface UpdateCampaignInput {
 @Injectable()
 export class CampaignService {
   constructor(
+    @Inject(DATABASE)
+    private readonly database: Database,
+
     private readonly campaignRepository: CampaignRepository,
 
     private readonly organizationRepository: OrganizationRepository,
+
+    private readonly auditService: AuditService,
   ) {}
 
   async create(input: CreateCampaignInput): Promise<Campaign> {
@@ -41,24 +51,41 @@ export class CampaignService {
     await this.requireOrganization(input.tenantId, input.organizationId);
 
     const startsAt = input.startsAt ?? null;
-
     const endsAt = input.endsAt ?? null;
 
     this.validateDateRange(startsAt, endsAt);
 
-    return this.campaignRepository.create({
-      tenantId: input.tenantId,
+    return this.database.transaction(async (transaction) => {
+      const campaign = await this.campaignRepository.create(
+        {
+          tenantId: input.tenantId,
+          organizationId: input.organizationId,
+          name,
+          description: this.normalizeOptionalText(input.description),
+          status: 'draft',
+          startsAt,
+          endsAt,
+        },
+        transaction,
+      );
 
-      organizationId: input.organizationId,
+      await this.auditService.record(
+        {
+          tenantId: input.tenantId,
+          actorType: 'user',
+          actorUserId: input.actorUserId,
+          action: 'campaign.created',
+          resourceType: 'campaign',
+          resourceId: campaign.id,
+          metadata: {
+            organizationId: campaign.organizationId,
+            status: campaign.status,
+          },
+        },
+        transaction,
+      );
 
-      name,
-
-      description: this.normalizeOptionalText(input.description),
-
-      status: 'draft',
-
-      startsAt,
-      endsAt,
+      return campaign;
     });
   }
 
@@ -76,12 +103,8 @@ export class CampaignService {
     return this.campaignRepository.findByTenant(tenantId);
   }
 
-  async update(
-    tenantId: string,
-    campaignId: string,
-    input: UpdateCampaignInput,
-  ): Promise<Campaign> {
-    const current = await this.findById(tenantId, campaignId);
+  async update(input: UpdateCampaignInput): Promise<Campaign> {
+    const current = await this.findById(input.tenantId, input.campaignId);
 
     const update: UpdateCampaign = {};
 
@@ -107,17 +130,39 @@ export class CampaignService {
       this.validateDateRange(startsAt, endsAt);
 
       update.startsAt = startsAt;
-
       update.endsAt = endsAt;
     }
 
-    const campaign = await this.campaignRepository.update(tenantId, campaignId, update);
+    return this.database.transaction(async (transaction) => {
+      const campaign = await this.campaignRepository.update(
+        input.tenantId,
+        input.campaignId,
+        update,
+        transaction,
+      );
 
-    if (!campaign) {
-      throw new NotFoundException('Campaign not found');
-    }
+      if (!campaign) {
+        throw new NotFoundException('Campaign not found');
+      }
 
-    return campaign;
+      await this.auditService.record(
+        {
+          tenantId: input.tenantId,
+          actorType: 'user',
+          actorUserId: input.actorUserId,
+          action: 'campaign.updated',
+          resourceType: 'campaign',
+          resourceId: campaign.id,
+          metadata: {
+            organizationId: campaign.organizationId,
+            status: campaign.status,
+          },
+        },
+        transaction,
+      );
+
+      return campaign;
+    });
   }
 
   private async requireOrganization(tenantId: string, organizationId: string): Promise<void> {
@@ -164,13 +209,9 @@ export class CampaignService {
 
     const transitions: Record<CampaignStatus, readonly CampaignStatus[]> = {
       draft: ['active', 'archived'],
-
       active: ['paused', 'completed', 'archived'],
-
       paused: ['active', 'completed', 'archived'],
-
       completed: ['archived'],
-
       archived: [],
     };
 

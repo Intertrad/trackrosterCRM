@@ -6,13 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import { DATABASE } from '../database/database.constants.js';
-import type { Campaign } from '../database/schema/campaigns.js';
-import type { CampaignProspect } from '../database/schema/campaign-prospects.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
+import type { CampaignProspect } from '../database/schema/campaign-prospects.js';
+import type { Campaign } from '../database/schema/campaigns.js';
 import type { Database } from '../database/database.types.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
@@ -20,15 +21,29 @@ import { CampaignProspectAssignmentRepository } from './campaign-prospect-assign
 
 export interface AssignCampaignProspectInput {
   tenantId: string;
+
+  /*
+   * Authenticated administrator performing
+   * the ownership mutation.
+   *
+   * Never sourced from the request body.
+   */
+  actorUserId: string;
+
   campaignId: string;
+
   campaignProspectId: string;
+
   teamId: string;
+
   assignedUserId?: string | null;
 }
 
 interface ValidatedAssignmentTarget {
   campaign: Campaign;
+
   prospect: CampaignProspect;
+
   assignedUserId: string | null;
 }
 
@@ -49,6 +64,8 @@ export class CampaignProspectAssignmentService {
     private readonly userRepository: UserRepository,
 
     private readonly authorizationService: AuthorizationService,
+
+    private readonly auditService: AuditService,
   ) {}
 
   async assign(input: AssignCampaignProspectInput): Promise<CampaignProspectAssignment> {
@@ -67,7 +84,7 @@ export class CampaignProspectAssignmentService {
           throw new ConflictException('Campaign prospect already has an active assignment');
         }
 
-        return this.assignmentRepository.create(
+        const assignment = await this.assignmentRepository.create(
           {
             tenantId: input.tenantId,
 
@@ -81,8 +98,41 @@ export class CampaignProspectAssignmentService {
 
             assignedUserId: target.assignedUserId,
           },
+
           transaction,
         );
+
+        await this.auditService.record(
+          {
+            tenantId: input.tenantId,
+
+            actorType: 'user',
+
+            actorUserId: input.actorUserId,
+
+            action: 'assignment.assigned',
+
+            resourceType: 'campaign_prospect',
+
+            resourceId: input.campaignProspectId,
+
+            metadata: {
+              assignmentId: assignment.id,
+
+              campaignId: input.campaignId,
+
+              organizationId: assignment.organizationId,
+
+              teamId: assignment.teamId,
+
+              assignedUserId: assignment.assignedUserId,
+            },
+          },
+
+          transaction,
+        );
+
+        return assignment;
       });
     } catch (error: unknown) {
       if (this.isUniqueViolation(error)) {
@@ -110,8 +160,9 @@ export class CampaignProspectAssignmentService {
         }
 
         /*
-         * Avoid creating meaningless assignment
-         * history when ownership is unchanged.
+         * Do not create meaningless assignment
+         * history or audit evidence when ownership
+         * has not actually changed.
          */
         if (current.teamId === input.teamId && current.assignedUserId === target.assignedUserId) {
           return current;
@@ -131,7 +182,7 @@ export class CampaignProspectAssignmentService {
           throw new ConflictException('Active assignment changed during reassignment');
         }
 
-        return this.assignmentRepository.create(
+        const assignment = await this.assignmentRepository.create(
           {
             tenantId: input.tenantId,
 
@@ -147,8 +198,45 @@ export class CampaignProspectAssignmentService {
 
             assignedAt: changedAt,
           },
+
           transaction,
         );
+
+        await this.auditService.record(
+          {
+            tenantId: input.tenantId,
+
+            actorType: 'user',
+
+            actorUserId: input.actorUserId,
+
+            action: 'assignment.reassigned',
+
+            resourceType: 'campaign_prospect',
+
+            resourceId: input.campaignProspectId,
+
+            metadata: {
+              campaignId: input.campaignId,
+
+              previousAssignmentId: current.id,
+
+              newAssignmentId: assignment.id,
+
+              previousTeamId: current.teamId,
+
+              newTeamId: assignment.teamId,
+
+              previousAssignedUserId: current.assignedUserId,
+
+              newAssignedUserId: assignment.assignedUserId,
+            },
+          },
+
+          transaction,
+        );
+
+        return assignment;
       });
     } catch (error: unknown) {
       if (this.isUniqueViolation(error)) {

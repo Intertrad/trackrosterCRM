@@ -16,6 +16,8 @@ import { CollisionOverrideRepositoryModule } from './collision-override-reposito
 import { ManagerOverrideService } from './manager-override.service.js';
 import { ManagerOverrideController } from './manager-override.controller.js';
 import { CollisionBusinessModule } from './collision-business.module.js';
+import { AuditModule } from '../audit/audit.module.js';
+import { DatabaseModule } from '../database/database.module.js';
 
 @Module({
   imports: [
@@ -33,7 +35,8 @@ import { CollisionBusinessModule } from './collision-business.module.js';
     AssignmentModule,
 
     FollowUpRepositoryModule,
-
+    AuditModule,
+    DatabaseModule,
     ActivityRepositoryModule,
 
     CoordinationPolicyModule,

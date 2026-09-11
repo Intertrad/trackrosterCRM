@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
-import { AuthenticatedUser } from '../auth/auth.types.js';
+import type { AuthenticatedUser } from '../auth/auth.types.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
-import { UserAccessGrant } from '../database/schema/user-access-grants.js';
+import type { UserAccessGrant } from '../database/schema/user-access-grants.js';
 import { AccessGrantService } from './access-grant.service.js';
 import { AuthorizationService } from './authorization.service.js';
 import { ClientAdminGuard } from './client-admin.guard.js';
@@ -47,8 +47,13 @@ export class AccessGrantController {
 
       return this.accessGrantService.create({
         tenantId: auth.tenantId,
+
+        actorUserId: auth.userId,
+
         userId,
+
         role: input.role,
+
         scopeType: 'tenant',
       });
     }
@@ -64,9 +69,15 @@ export class AccessGrantController {
 
       return this.accessGrantService.create({
         tenantId: auth.tenantId,
+
+        actorUserId: auth.userId,
+
         userId,
+
         role: input.role,
+
         scopeType: 'organization',
+
         organizationId: input.organizationId,
       });
     }
@@ -81,10 +92,17 @@ export class AccessGrantController {
 
     return this.accessGrantService.create({
       tenantId: auth.tenantId,
+
+      actorUserId: auth.userId,
+
       userId,
+
       role: input.role,
+
       scopeType: 'team',
+
       organizationId: input.organizationId,
+
       teamId: input.teamId,
     });
   }
@@ -100,6 +118,14 @@ export class AccessGrantController {
     @Param('grantId')
     grantId: string,
   ): Promise<void> {
-    await this.accessGrantService.revoke(auth.tenantId, userId, grantId);
+    await this.accessGrantService.revoke({
+      tenantId: auth.tenantId,
+
+      actorUserId: auth.userId,
+
+      userId,
+
+      grantId,
+    });
   }
 }

@@ -5,7 +5,6 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { and, eq, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
 import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
@@ -22,6 +21,7 @@ import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { auditEvents } from '../src/database/schema/audit-events.js';
 
 describe('Campaign prospect assignment HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -363,6 +363,8 @@ describe('Campaign prospect assignment HTTP integration', () => {
           await database.delete(establishments).where(eq(establishments.tenantId, tenantId));
 
           await database.delete(teams).where(eq(teams.tenantId, tenantId));
+
+          await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
 
           await database.delete(users).where(eq(users.tenantId, tenantId));
 

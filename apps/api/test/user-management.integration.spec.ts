@@ -5,7 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
+import { auditEvents } from '../src/database/schema/audit-events.js';
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { AuthenticationTokens } from '../src/auth/auth.types.js';
@@ -181,6 +181,8 @@ describe('User management and RBAC integration', () => {
     try {
       if (database) {
         if (tenantAId) {
+          await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantAId));
+
           await database.delete(users).where(eq(users.tenantId, tenantAId));
 
           await database.delete(teams).where(eq(teams.tenantId, tenantAId));
@@ -191,6 +193,8 @@ describe('User management and RBAC integration', () => {
         }
 
         if (tenantBId) {
+          await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantBId));
+
           await database.delete(users).where(eq(users.tenantId, tenantBId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantBId));
@@ -229,6 +233,8 @@ describe('User management and RBAC integration', () => {
   it('allows a client admin to create a tenant user', async () => {
     const tokens = await login(adminEmail, adminPassword);
 
+    const newUserEmail = `created-user-${randomUUID()}@trackroster.test`;
+
     const response = await getApp().inject({
       method: 'POST',
       url: '/users',
@@ -238,7 +244,7 @@ describe('User management and RBAC integration', () => {
       },
 
       payload: {
-        email: 'NEW.USER@TRACKROSTER.TEST',
+        email: newUserEmail,
 
         password: 'NewUserPassword123!',
       },
@@ -248,7 +254,7 @@ describe('User management and RBAC integration', () => {
 
     const user = JSON.parse(response.payload) as ManagedUser;
 
-    expect(user.email).toBe('new.user@trackroster.test');
+    expect(user.email).toBe(newUserEmail);
 
     expect(user.tenantId).toBe(tenantAId);
 

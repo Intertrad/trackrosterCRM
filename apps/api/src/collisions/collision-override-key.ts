@@ -1,13 +1,13 @@
 import type { CollisionOverrideReason } from '../database/schema/collision-overrides.js';
 import type { CollisionDecisionResult, CollisionReasonCode } from './collision.types.js';
 
+export type OverrideableCollisionReason = CollisionOverrideReason;
+
 export function isOverrideableCollisionReason(
-  reasonCode: CollisionReasonCode,
-): reasonCode is CollisionOverrideReason {
+  reason: CollisionReasonCode,
+): reason is OverrideableCollisionReason {
   return (
-    reasonCode === 'PLANNED_ACTION' ||
-    reasonCode === 'RECENT_CONTACT' ||
-    reasonCode === 'ACTIVE_ASSIGNMENT'
+    reason === 'PLANNED_ACTION' || reason === 'RECENT_CONTACT' || reason === 'ACTIVE_ASSIGNMENT'
   );
 }
 
