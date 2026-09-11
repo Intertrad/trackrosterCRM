@@ -23,6 +23,7 @@ import { ActivityModule } from './activities/activity.module.js';
 import { FollowUpModule } from './follow-ups/follow-up.module.js';
 import { JobQueueModule } from './jobs/job-queue.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
+import { ReportingModule } from './reporting/reporting.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -53,6 +54,7 @@ import { NotificationModule } from './notifications/notification.module.js';
     FollowUpModule,
     NotificationModule,
     JobQueueModule,
+    ReportingModule,
   ],
 })
 export class AppModule {}
