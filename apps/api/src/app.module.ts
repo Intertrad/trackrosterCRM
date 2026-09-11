@@ -24,6 +24,8 @@ import { FollowUpModule } from './follow-ups/follow-up.module.js';
 import { JobQueueModule } from './jobs/job-queue.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
 import { ReportingModule } from './reporting/reporting.module.js';
+import { ExportModule } from './exports/export.module.js';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -55,6 +57,7 @@ import { ReportingModule } from './reporting/reporting.module.js';
     NotificationModule,
     JobQueueModule,
     ReportingModule,
+    ExportModule,
   ],
 })
 export class AppModule {}
