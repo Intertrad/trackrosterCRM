@@ -4,48 +4,94 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { DatabaseExecutor } from '../database/database.types.js';
+import {
+  EstablishmentRepository,
+  type NearbyEstablishment,
+  type UpdateEstablishment,
+} from './establishment.repository.js';
 
+import type { DatabaseExecutor } from '../database/database.types.js';
 import type {
   Establishment,
   EstablishmentSource,
   EstablishmentStatus,
 } from '../database/schema/establishments.js';
-import { EstablishmentRepository, type UpdateEstablishment } from './establishment.repository.js';
+import { RegionRepository } from '../regions/region.repository.js';
 import { normalizeEstablishmentName } from './establishment.utils.js';
 
 export interface CreateEstablishmentInput {
   tenantId: string;
+
+  regionId?: string | null;
+
   name: string;
+
   externalReference?: string | null;
+
   addressLine1?: string | null;
+
   postalCode?: string | null;
+
   city?: string | null;
+
   countryCode: string;
+
   phone?: string | null;
+
   website?: string | null;
+
   latitude?: number | null;
+
   longitude?: number | null;
+
   source?: EstablishmentSource;
+}
+
+export interface FindNearbyEstablishmentsInput {
+  tenantId: string;
+
+  latitude: number;
+
+  longitude: number;
+
+  radiusMeters: number;
+
+  limit?: number;
 }
 
 export interface UpdateEstablishmentInput {
   name?: string;
+
+  regionId?: string | null;
+
   externalReference?: string | null;
+
   addressLine1?: string | null;
+
   postalCode?: string | null;
+
   city?: string | null;
+
   countryCode?: string;
+
   phone?: string | null;
+
   website?: string | null;
+
   latitude?: number | null;
+
   longitude?: number | null;
+
   status?: EstablishmentStatus;
 }
 
 @Injectable()
 export class EstablishmentService {
-  constructor(private readonly establishmentRepository: EstablishmentRepository) {}
+  constructor(
+    private readonly establishmentRepository: EstablishmentRepository,
+
+    private readonly regionRepository: RegionRepository,
+  ) {}
 
   async create(
     input: CreateEstablishmentInput,
@@ -61,29 +107,50 @@ export class EstablishmentService {
 
     this.validateCoordinates(input.latitude, input.longitude);
 
+    /*
+     * Region assignment is explicit.
+     *
+     * We deliberately do not infer a region from
+     * country, city, postal code or coordinates.
+     */
+    if (input.regionId) {
+      await this.requireAssignableRegion(input.tenantId, input.regionId, executor);
+    }
+
     const createInput = {
       tenantId: input.tenantId,
+
+      regionId: input.regionId ?? null,
+
       name,
+
       normalizedName: normalizeEstablishmentName(name),
+
       externalReference: this.normalizeOptionalText(input.externalReference),
+
       addressLine1: this.normalizeOptionalText(input.addressLine1),
+
       postalCode: this.normalizeOptionalText(input.postalCode),
+
       city: this.normalizeOptionalText(input.city),
+
       countryCode,
+
       phone: this.normalizeOptionalText(input.phone),
+
       website: this.normalizeOptionalText(input.website),
+
       latitude: input.latitude ?? null,
+
       longitude: input.longitude ?? null,
+
       source: input.source ?? 'manual',
+
       status: 'active' as const,
     };
 
     try {
-      if (executor) {
-        return await this.establishmentRepository.create(createInput, executor);
-      }
-
-      return await this.establishmentRepository.create(createInput);
+      return await this.establishmentRepository.create(createInput, executor);
     } catch (error: unknown) {
       if (this.isUniqueViolation(error)) {
         throw new ConflictException('Establishment external reference already exists');
@@ -106,6 +173,31 @@ export class EstablishmentService {
   async list(tenantId: string): Promise<Establishment[]> {
     return this.establishmentRepository.findByTenant(tenantId);
   }
+  async findNearby(input: FindNearbyEstablishmentsInput): Promise<NearbyEstablishment[]> {
+    this.validateCoordinates(input.latitude, input.longitude);
+
+    if (
+      !Number.isInteger(input.radiusMeters) ||
+      input.radiusMeters < 1 ||
+      input.radiusMeters > 100_000
+    ) {
+      throw new BadRequestException('Radius must be an integer between 1 and 100000 meters');
+    }
+
+    const limit = input.limit ?? 50;
+
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be an integer between 1 and 100');
+    }
+
+    return this.establishmentRepository.findNearby(
+      input.tenantId,
+      input.latitude,
+      input.longitude,
+      input.radiusMeters,
+      limit,
+    );
+  }
 
   async update(
     tenantId: string,
@@ -122,6 +214,7 @@ export class EstablishmentService {
       }
 
       update.name = name;
+
       update.normalizedName = normalizeEstablishmentName(name);
     }
 
@@ -153,6 +246,11 @@ export class EstablishmentService {
       update.website = this.normalizeOptionalText(input.website);
     }
 
+    /*
+     * Support partial coordinate updates while still
+     * maintaining the latitude/longitude pair
+     * invariant.
+     */
     if (input.latitude !== undefined || input.longitude !== undefined) {
       const current = await this.findById(tenantId, establishmentId);
 
@@ -163,7 +261,23 @@ export class EstablishmentService {
       this.validateCoordinates(latitude, longitude);
 
       update.latitude = latitude;
+
       update.longitude = longitude;
+    }
+
+    /*
+     * undefined = do not change region
+     * null      = remove region assignment
+     * UUID      = validate and assign region
+     */
+    if (input.regionId !== undefined) {
+      if (input.regionId === null) {
+        update.regionId = null;
+      } else {
+        await this.requireAssignableRegion(tenantId, input.regionId);
+
+        update.regionId = input.regionId;
+      }
     }
 
     if (input.status !== undefined) {
@@ -188,6 +302,29 @@ export class EstablishmentService {
       }
 
       throw error;
+    }
+  }
+
+  /*
+   * RegionRepository always scopes by tenantId.
+   *
+   * Therefore a region belonging to another tenant
+   * is intentionally indistinguishable from a region
+   * that does not exist.
+   */
+  private async requireAssignableRegion(
+    tenantId: string,
+    regionId: string,
+    executor?: DatabaseExecutor,
+  ): Promise<void> {
+    const region = await this.regionRepository.findById(tenantId, regionId, executor);
+
+    if (!region) {
+      throw new NotFoundException('Region not found');
+    }
+
+    if (region.status !== 'active') {
+      throw new ConflictException('Region is not active');
     }
   }
 
@@ -233,7 +370,15 @@ export class EstablishmentService {
   }
 
   private isUniqueViolation(error: unknown): boolean {
-    if (typeof error !== 'object' || error === null || !('cause' in error)) {
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+
+    if ('code' in error && error.code === '23505') {
+      return true;
+    }
+
+    if (!('cause' in error)) {
       return false;
     }
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, isNotNull, sql } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DATABASE } from '../database/database.constants.js';
@@ -8,6 +8,16 @@ import {
   type Establishment,
   type NewEstablishment,
 } from '../database/schema/establishments.js';
+
+const { location: internalLocationColumn, ...establishmentColumns } =
+  getTableColumns(establishments);
+
+/*
+ * Prevent TypeScript/no-unused-locals from treating
+ * the intentionally omitted internal column as
+ * accidental.
+ */
+void internalLocationColumn;
 
 export type UpdateEstablishment = Partial<
   Pick<
@@ -24,8 +34,13 @@ export type UpdateEstablishment = Partial<
     | 'latitude'
     | 'longitude'
     | 'status'
+    | 'regionId'
   >
 >;
+
+export type NearbyEstablishment = Establishment & {
+  distanceMeters: number;
+};
 
 @Injectable()
 export class EstablishmentRepository {
@@ -38,7 +53,10 @@ export class EstablishmentRepository {
     input: NewEstablishment,
     executor: DatabaseExecutor = this.database,
   ): Promise<Establishment> {
-    const [establishment] = await executor.insert(establishments).values(input).returning();
+    const [establishment] = await executor
+      .insert(establishments)
+      .values(input)
+      .returning(establishmentColumns);
 
     if (!establishment) {
       throw new Error('Failed to create establishment');
@@ -53,7 +71,7 @@ export class EstablishmentRepository {
     executor: DatabaseExecutor = this.database,
   ): Promise<Establishment | null> {
     const [establishment] = await executor
-      .select()
+      .select(establishmentColumns)
       .from(establishments)
       .where(and(eq(establishments.tenantId, tenantId), eq(establishments.id, establishmentId)))
       .limit(1);
@@ -63,7 +81,7 @@ export class EstablishmentRepository {
 
   async findByTenant(tenantId: string): Promise<Establishment[]> {
     return this.database
-      .select()
+      .select(establishmentColumns)
       .from(establishments)
       .where(eq(establishments.tenantId, tenantId))
       .orderBy(asc(establishments.createdAt));
@@ -78,12 +96,87 @@ export class EstablishmentRepository {
       .update(establishments)
       .set({
         ...input,
+
         updatedAt: new Date(),
       })
       .where(and(eq(establishments.tenantId, tenantId), eq(establishments.id, establishmentId)))
-      .returning();
+      .returning(establishmentColumns);
 
     return establishment ?? null;
+  }
+
+  /*
+   * Searches are performed using geography rather
+   * than geometry because geography gives distance
+   * and radius semantics in meters on WGS84.
+   *
+   * Tenant filtering is mandatory and lives inside
+   * the database query rather than being applied
+   * after results are loaded.
+   */
+  async findNearby(
+    tenantId: string,
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    limit: number,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<NearbyEstablishment[]> {
+    const queryPoint = sql`
+      ST_SetSRID(
+        ST_MakePoint(
+          ${longitude},
+          ${latitude}
+        ),
+        4326
+      )::geography
+    `;
+
+    const distanceMeters = sql<number>`
+      ST_Distance(
+        ${establishments.location}::geography,
+        ${queryPoint}
+      )
+    `.mapWith(Number);
+
+    const results = await executor
+      .select({
+        ...establishmentColumns,
+
+        distanceMeters,
+      })
+      .from(establishments)
+      .where(
+        and(
+          /*
+           * Never allow spatial searches to cross
+           * tenant boundaries.
+           */
+          eq(establishments.tenantId, tenantId),
+
+          isNotNull(establishments.location),
+
+          sql`
+            ST_DWithin(
+              ${establishments.location}::geography,
+              ${queryPoint},
+              ${radiusMeters}
+            )
+          `,
+        ),
+      )
+      .orderBy(
+        distanceMeters,
+
+        /*
+         * Deterministic ordering for establishments
+         * at identical/effectively identical distance.
+         */
+        asc(establishments.id),
+      )
+      .limit(limit);
+
+    return results;
   }
 
   async findByExternalReference(
@@ -93,12 +186,14 @@ export class EstablishmentRepository {
     executor: DatabaseExecutor = this.database,
   ): Promise<Establishment | null> {
     const [establishment] = await executor
-      .select()
+      .select(establishmentColumns)
       .from(establishments)
       .where(
         and(
           eq(establishments.tenantId, tenantId),
+
           eq(establishments.source, source),
+
           eq(establishments.externalReference, externalReference),
         ),
       )
@@ -120,7 +215,7 @@ export class EstablishmentRepository {
     const normalizedCity = this.normalizeLookupText(city);
 
     const [establishment] = await executor
-      .select()
+      .select(establishmentColumns)
       .from(establishments)
       .where(
         and(

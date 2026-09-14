@@ -1,4 +1,13 @@
-import { IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsUUID,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateEstablishmentDto {
   @IsString()
@@ -14,6 +23,10 @@ export class CreateEstablishmentDto {
   @IsString()
   @MaxLength(255)
   addressLine1?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  regionId?: string | null;
 
   @IsOptional()
   @IsString()

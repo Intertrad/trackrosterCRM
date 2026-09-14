@@ -16,3 +16,4 @@ export * from './notifications.js';
 export * from './collision-overrides.js';
 export * from './audit-events.js';
 export * from './idempotency-records.js';
+export * from './regions.js';
