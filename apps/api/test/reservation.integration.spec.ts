@@ -1645,12 +1645,16 @@ describe('Reservation HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
+
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
         type: 'call',
       },
     });
+
+    console.log('ACTIVITY 400 PAYLOAD:', response.payload);
 
     expect(response.statusCode).toBe(409);
 
@@ -1672,6 +1676,7 @@ describe('Reservation HTTP integration', () => {
    * End-to-end recent-contact protection
    * across campaign contexts.
    */
+
   it('blocks a second campaign after recent contact with the same canonical establishment', async () => {
     await clearReservation();
 
@@ -1684,6 +1689,11 @@ describe('Reservation HTTP integration', () => {
        * Step 1:
        * Prospector A reserves
        * Campaign A / Prospect A.
+       *
+       * Reservation uses its existing
+       * domain-level idempotency behavior,
+       * therefore no HTTP Idempotency-Key
+       * is required here.
        */
       const reservationResponse = await getApp().inject({
         method: 'POST',
@@ -1719,9 +1729,8 @@ describe('Reservation HTTP integration', () => {
        * Step 2:
        * Prospector A records a real contact.
        *
-       * Reservation/user/assignment/
-       * establishment context is derived
-       * server-side.
+       * Activity recording IS protected by
+       * TR-026 HTTP idempotency.
        */
       const activityResponse = await getApp().inject({
         method: 'POST',
@@ -1730,12 +1739,16 @@ describe('Reservation HTTP integration', () => {
 
         headers: {
           authorization: `Bearer ${prospectorAToken}`,
+
+          'idempotency-key': randomUUID(),
         },
 
         payload: {
           type: 'call',
         },
       });
+
+      console.log('ACTIVITY CREATE 400 PAYLOAD:', activityResponse.payload);
 
       expect(activityResponse.statusCode).toBe(201);
 
@@ -1779,8 +1792,8 @@ describe('Reservation HTTP integration', () => {
 
       /*
        * Step 3:
-       * Release the temporary
-       * Redis reservation.
+       * Release the temporary Redis
+       * reservation.
        */
       const releaseResponse = await getApp().inject({
         method: 'DELETE',
@@ -1797,7 +1810,8 @@ describe('Reservation HTTP integration', () => {
       /*
        * Step 4:
        * Immutable activity remains in
-       * PostgreSQL after reservation release.
+       * PostgreSQL after the Redis
+       * reservation is released.
        */
       const [storedActivity] = await getDatabase()
         .select()
@@ -1829,11 +1843,11 @@ describe('Reservation HTTP integration', () => {
 
       /*
        * Step 5:
-       * Prospector B attempts direct reservation
-       * in Campaign B without calling
-       * collision-decision first.
+       * Prospector B attempts direct
+       * reservation in Campaign B.
        *
-       * RECENT_CONTACT must remain authoritative.
+       * RECENT_CONTACT must remain
+       * authoritative.
        */
       const blockedReservationResponse = await getApp().inject({
         method: 'POST',
@@ -1855,8 +1869,8 @@ describe('Reservation HTTP integration', () => {
 
       /*
        * Step 6:
-       * Advisory endpoint must reach
-       * the same RECENT_CONTACT decision.
+       * Advisory endpoint must produce
+       * the same RECENT_CONTACT result.
        */
       const collisionResponse = await getApp().inject({
         method: 'GET',
@@ -1893,8 +1907,9 @@ describe('Reservation HTTP integration', () => {
       });
 
       /*
-       * Public collision response must not leak
-       * activity or ownership metadata.
+       * Public response must not leak
+       * internal activity/ownership
+       * information.
        */
       expect(collisionDecision.conflict).not.toHaveProperty('userId');
 

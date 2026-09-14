@@ -88,6 +88,13 @@ describe('Follow-up HTTP integration', () => {
       `/campaigns/${targetCampaignId}` + `/prospects/${targetProspectId}` + '/collision-decision'
     );
   }
+  function idempotentHeaders(token: string): Record<string, string> {
+    return {
+      authorization: `Bearer ${token}`,
+
+      'idempotency-key': randomUUID(),
+    };
+  }
 
   async function login(email: string): Promise<AuthenticationTokens> {
     const response = await getApp().inject({
@@ -149,9 +156,7 @@ describe('Follow-up HTTP integration', () => {
 
       url: followUpUrl(targetCampaignId, targetProspectId),
 
-      headers: {
-        authorization: `Bearer ${input?.token ?? prospectorAToken}`,
-      },
+      headers: idempotentHeaders(input?.token ?? prospectorAToken),
 
       payload,
     });
@@ -629,6 +634,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorBToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -659,6 +665,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorBToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -679,6 +686,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -718,6 +726,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -730,6 +739,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -759,6 +769,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -1059,6 +1070,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorBToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -1136,6 +1148,7 @@ describe('Follow-up HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${prospectorBToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 

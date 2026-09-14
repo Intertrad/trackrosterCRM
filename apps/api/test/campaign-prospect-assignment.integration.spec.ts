@@ -22,6 +22,8 @@ import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
 import { auditEvents } from '../src/database/schema/audit-events.js';
+import { idempotencyRecords } from '../src/database/schema/idempotency-records.js';
+import { userAccessGrants } from '../src/database/schema/user-access-grants.js';
 
 describe('Campaign prospect assignment HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -362,11 +364,17 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantId));
 
-          await database.delete(teams).where(eq(teams.tenantId, tenantId));
-
           await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
 
+          await database
+            .delete(idempotencyRecords)
+            .where(eq(idempotencyRecords.tenantId, tenantId));
+
+          await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantId));
+
           await database.delete(users).where(eq(users.tenantId, tenantId));
+
+          await database.delete(teams).where(eq(teams.tenantId, tenantId));
 
           await database.delete(organizations).where(eq(organizations.tenantId, tenantId));
 
@@ -420,6 +428,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -438,6 +447,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -458,6 +468,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -504,6 +515,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -558,9 +570,9 @@ describe('Campaign prospect assignment HTTP integration', () => {
       method: 'PUT',
 
       url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
-
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
@@ -629,6 +641,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${adminAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
     });
 
@@ -682,9 +695,9 @@ describe('Campaign prospect assignment HTTP integration', () => {
         method: 'POST',
 
         url: `/campaigns/${campaignId}/prospects/${prospectId}/assignment`,
-
         headers: {
           authorization: `Bearer ${adminAccessToken}`,
+          'idempotency-key': randomUUID(),
         },
 
         payload: {

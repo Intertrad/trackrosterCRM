@@ -15,6 +15,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { ClientAdminGuard } from '../authorization/client-admin.guard.js';
 import { CampaignProspectAssignmentService } from './campaign-prospect-assignment.service.js';
 import { AssignCampaignProspectDto } from './dto/assign-campaign-prospect.dto.js';
+import { Idempotent } from '../idempotency/idempotent.decorator.js';
 
 interface AuthContext {
   userId: string;
@@ -25,7 +26,7 @@ interface AuthContext {
 @UseGuards(AuthGuard, ClientAdminGuard)
 export class CampaignProspectAssignmentController {
   constructor(private readonly assignmentService: CampaignProspectAssignmentService) {}
-
+  @Idempotent('assignment.assign')
   @Post('assignment')
   assign(
     @CurrentAuth()
@@ -54,7 +55,7 @@ export class CampaignProspectAssignmentController {
       assignedUserId: input.assignedUserId,
     });
   }
-
+  @Idempotent('assignment.reassign')
   @Put('assignment')
   reassign(
     @CurrentAuth()
@@ -83,7 +84,7 @@ export class CampaignProspectAssignmentController {
       assignedUserId: input.assignedUserId,
     });
   }
-
+  @Idempotent('assignment.reassign')
   @Delete('assignment')
   unassign(
     @CurrentAuth()

@@ -4,6 +4,7 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { CreateCollisionOverrideDto } from './create-collision-override.dto.js';
 import { ManagerOverrideService } from './manager-override.service.js';
+import { Idempotent } from '../idempotency/idempotent.decorator.js';
 
 interface AuthContext {
   userId: string;
@@ -14,7 +15,7 @@ interface AuthContext {
 @UseGuards(AuthGuard)
 export class ManagerOverrideController {
   constructor(private readonly managerOverrideService: ManagerOverrideService) {}
-
+  @Idempotent('collision_override.create')
   @Post()
   async create(
     @CurrentAuth()
