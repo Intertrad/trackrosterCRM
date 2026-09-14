@@ -1,5 +1,6 @@
 import {
   IsIn,
+  IsUUID,
   IsNumber,
   IsOptional,
   IsString,
@@ -16,6 +17,10 @@ export class UpdateEstablishmentDto {
   @IsString()
   @MaxLength(255)
   name?: string;
+
+  @IsOptional()
+  @IsUUID()
+  regionId?: string | null;
 
   @IsOptional()
   @IsString()

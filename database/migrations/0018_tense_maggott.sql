@@ -1,0 +1,1 @@
+CREATE INDEX "establishments_location_geography_gist_idx" ON "establishments" USING gist (("location"::geography)) WHERE "establishments"."location" IS NOT NULL;

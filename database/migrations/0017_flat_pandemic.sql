@@ -1,0 +1,3 @@
+ALTER TABLE "establishments" ADD COLUMN "region_id" uuid;--> statement-breakpoint
+ALTER TABLE "establishments" ADD CONSTRAINT "establishments_tenant_region_fk" FOREIGN KEY ("tenant_id","region_id") REFERENCES "public"."regions"("tenant_id","id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
+CREATE INDEX "establishments_tenant_region_idx" ON "establishments" USING btree ("tenant_id","region_id");

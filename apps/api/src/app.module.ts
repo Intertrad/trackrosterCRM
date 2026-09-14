@@ -27,7 +27,7 @@ import { ReportingModule } from './reporting/reporting.module.js';
 import { ExportModule } from './exports/export.module.js';
 import { ApiErrorModule } from './errors/api-error.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
-
+import { RegionModule } from './regions/region.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -63,6 +63,7 @@ import { IdempotencyModule } from './idempotency/idempotency.module.js';
     ReportingModule,
     ExportModule,
     IdempotencyModule,
+    RegionModule,
   ],
 })
 export class AppModule {}
