@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthorizationService } from '../authorization/authorization.service.js';
@@ -33,7 +33,7 @@ describe('ManagerDashboardScopeService', () => {
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
 
-  const authenticatedUserId = '22222222-2222-4222-8222-222222222222';
+  const userId = '22222222-2222-4222-8222-222222222222';
 
   const organizationAId = '33333333-3333-4333-8333-333333333333';
 
@@ -43,11 +43,13 @@ describe('ManagerDashboardScopeService', () => {
 
   const teamBId = '66666666-6666-4666-8666-666666666666';
 
-  const targetUserId = '77777777-7777-4777-8777-777777777777';
+  const campaignBId = '88888888-8888-4888-8888-888888888888';
 
-  const campaignAId = '88888888-8888-4888-8888-888888888888';
+  const prospectorAId = '99999999-9999-4999-8999-999999999999';
 
-  const campaignBId = '99999999-9999-4999-8999-999999999999';
+  const prospectorBId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  const now = new Date('2026-09-14T10:00:00.000Z');
 
   const organizationA = {
     id: organizationAId,
@@ -60,59 +62,53 @@ describe('ManagerDashboardScopeService', () => {
 
     status: 'active',
 
-    createdAt: new Date(),
+    createdAt: now,
 
-    updatedAt: new Date(),
+    updatedAt: now,
   };
 
   const organizationB = {
-    ...organizationA,
-
     id: organizationBId,
+
+    tenantId,
 
     name: 'Organization B',
 
     slug: 'organization-b',
-  };
-
-  const teamA = {
-    id: teamAId,
-
-    tenantId,
-
-    organizationId: organizationAId,
-
-    name: 'Team A',
-
-    slug: 'team-a',
 
     status: 'active',
 
-    createdAt: new Date(),
+    createdAt: now,
 
-    updatedAt: new Date(),
+    updatedAt: now,
   };
 
   const teamB = {
-    ...teamA,
-
     id: teamBId,
+
+    tenantId,
 
     organizationId: organizationBId,
 
     name: 'Team B',
 
     slug: 'team-b',
+
+    status: 'active',
+
+    createdAt: now,
+
+    updatedAt: now,
   };
 
-  const campaignA = {
-    id: campaignAId,
+  const campaignB = {
+    id: campaignBId,
 
     tenantId,
 
-    organizationId: organizationAId,
+    organizationId: organizationBId,
 
-    name: 'Campaign A',
+    name: 'Campaign B',
 
     description: null,
 
@@ -122,44 +118,50 @@ describe('ManagerDashboardScopeService', () => {
 
     endsAt: null,
 
-    createdAt: new Date(),
+    createdAt: now,
 
-    updatedAt: new Date(),
+    updatedAt: now,
   };
 
-  const campaignB = {
-    ...campaignA,
-
-    id: campaignBId,
-
-    organizationId: organizationBId,
-
-    name: 'Campaign B',
-  };
-
-  const targetUser = {
-    id: targetUserId,
+  const prospectorA = {
+    id: prospectorAId,
 
     tenantId,
 
-    email: 'prospector@trackroster.test',
+    email: 'prospector-a@trackroster.test',
 
     passwordHash: 'hash',
 
     status: 'active',
 
-    createdAt: new Date(),
+    createdAt: now,
 
-    updatedAt: new Date(),
+    updatedAt: now,
   };
 
-  function tenantAdminGrant() {
+  const prospectorB = {
+    id: prospectorBId,
+
+    tenantId,
+
+    email: 'prospector-b@trackroster.test',
+
+    passwordHash: 'hash',
+
+    status: 'active',
+
+    createdAt: now,
+
+    updatedAt: now,
+  };
+
+  function clientAdminGrant() {
     return {
-      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
 
       tenantId,
 
-      userId: authenticatedUserId,
+      userId,
 
       role: 'client_admin' as const,
 
@@ -169,63 +171,17 @@ describe('ManagerDashboardScopeService', () => {
 
       teamId: null,
 
-      createdAt: new Date(),
-
-      updatedAt: new Date(),
+      createdAt: now,
     };
   }
 
-  function directorGrant(organizationId: string) {
+  function prospectorGrant(organizationId: string, teamId: string, grantUserId = userId) {
     return {
-      id: crypto.randomUUID(),
+      id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 
       tenantId,
 
-      userId: authenticatedUserId,
-
-      role: 'director' as const,
-
-      scopeType: 'organization' as const,
-
-      organizationId,
-
-      teamId: null,
-
-      createdAt: new Date(),
-
-      updatedAt: new Date(),
-    };
-  }
-
-  function managerGrant(organizationId: string, teamId: string) {
-    return {
-      id: crypto.randomUUID(),
-
-      tenantId,
-
-      userId: authenticatedUserId,
-
-      role: 'manager' as const,
-
-      scopeType: 'team' as const,
-
-      organizationId,
-
-      teamId,
-
-      createdAt: new Date(),
-
-      updatedAt: new Date(),
-    };
-  }
-
-  function prospectorGrant(userId: string, organizationId: string, teamId: string) {
-    return {
-      id: crypto.randomUUID(),
-
-      tenantId,
-
-      userId,
+      userId: grantUserId,
 
       role: 'prospector' as const,
 
@@ -235,9 +191,67 @@ describe('ManagerDashboardScopeService', () => {
 
       teamId,
 
-      createdAt: new Date(),
+      createdAt: now,
+    };
+  }
 
-      updatedAt: new Date(),
+  function observerGrant() {
+    return {
+      id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+      tenantId,
+
+      userId,
+
+      role: 'observer' as const,
+
+      scopeType: 'tenant' as const,
+
+      organizationId: null,
+
+      teamId: null,
+
+      createdAt: now,
+    };
+  }
+
+  function directorGrant(organizationId: string) {
+    return {
+      id: `director-${organizationId}`,
+
+      tenantId,
+
+      userId,
+
+      role: 'director' as const,
+
+      scopeType: 'organization' as const,
+
+      organizationId,
+
+      teamId: null,
+
+      createdAt: now,
+    };
+  }
+
+  function managerGrant(organizationId: string, teamId: string) {
+    return {
+      id: `manager-${teamId}`,
+
+      tenantId,
+
+      userId,
+
+      role: 'manager' as const,
+
+      scopeType: 'team' as const,
+
+      organizationId,
+
+      teamId,
+
+      createdAt: now,
     };
   }
 
@@ -262,50 +276,6 @@ describe('ManagerDashboardScopeService', () => {
       findById: vi.fn(),
     };
 
-    organizationRepository.findById.mockImplementation(
-      async (_tenantId: string, organizationId: string) => {
-        if (organizationId === organizationAId) {
-          return organizationA;
-        }
-
-        if (organizationId === organizationBId) {
-          return organizationB;
-        }
-
-        return null;
-      },
-    );
-
-    teamRepository.findById.mockImplementation(async (_tenantId: string, teamId: string) => {
-      if (teamId === teamAId) {
-        return teamA;
-      }
-
-      if (teamId === teamBId) {
-        return teamB;
-      }
-
-      return null;
-    });
-
-    campaignRepository.findById.mockImplementation(
-      async (_tenantId: string, campaignId: string) => {
-        if (campaignId === campaignAId) {
-          return campaignA;
-        }
-
-        if (campaignId === campaignBId) {
-          return campaignB;
-        }
-
-        return null;
-      },
-    );
-
-    userRepository.findById.mockImplementation(async (_tenantId: string, userId: string) =>
-      userId === targetUserId ? targetUser : null,
-    );
-
     service = new ManagerDashboardScopeService(
       authorizationService as unknown as AuthorizationService,
 
@@ -320,13 +290,13 @@ describe('ManagerDashboardScopeService', () => {
   });
 
   it('allows a client admin to report across the tenant', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([tenantAdminGrant()]);
+    authorizationService.getUserGrants.mockResolvedValue([clientAdminGrant()]);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
@@ -341,17 +311,17 @@ describe('ManagerDashboardScopeService', () => {
 
   it('denies a prospector before resolving requested resources', async () => {
     authorizationService.getUserGrants.mockResolvedValue([
-      prospectorGrant(authenticatedUserId, organizationAId, teamAId),
+      prospectorGrant(organizationAId, teamAId),
     ]);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
-          organizationId: organizationAId,
+          organizationId: organizationBId,
         },
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -361,22 +331,18 @@ describe('ManagerDashboardScopeService', () => {
     expect(teamRepository.findById).not.toHaveBeenCalled();
 
     expect(campaignRepository.findById).not.toHaveBeenCalled();
+
+    expect(userRepository.findById).not.toHaveBeenCalled();
   });
 
   it('denies an observer from manager reporting', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([
-      {
-        ...tenantAdminGrant(),
-
-        role: 'observer' as const,
-      },
-    ]);
+    authorizationService.getUserGrants.mockResolvedValue([observerGrant()]);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
@@ -390,7 +356,7 @@ describe('ManagerDashboardScopeService', () => {
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
@@ -414,7 +380,7 @@ describe('ManagerDashboardScopeService', () => {
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
@@ -428,11 +394,13 @@ describe('ManagerDashboardScopeService', () => {
       directorGrant(organizationBId),
     ]);
 
+    organizationRepository.findById.mockResolvedValue(organizationB);
+
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           organizationId: organizationBId,
@@ -447,20 +415,22 @@ describe('ManagerDashboardScopeService', () => {
     });
   });
 
-  it('rejects a director organization outside their authorization', async () => {
+  it('masks a director organization outside their authorization', async () => {
     authorizationService.getUserGrants.mockResolvedValue([directorGrant(organizationAId)]);
+
+    organizationRepository.findById.mockResolvedValue(organizationB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           organizationId: organizationBId,
         },
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Reporting resource not found');
   });
 
   it('infers the team when a manager has exactly one team grant', async () => {
@@ -470,7 +440,7 @@ describe('ManagerDashboardScopeService', () => {
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
@@ -494,37 +464,48 @@ describe('ManagerDashboardScopeService', () => {
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {},
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects a manager team outside their authorization', async () => {
+  it('masks a manager team outside their authorization', async () => {
     authorizationService.getUserGrants.mockResolvedValue([managerGrant(organizationAId, teamAId)]);
+
+    teamRepository.findById.mockResolvedValue(teamB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           teamId: teamBId,
         },
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Reporting resource not found');
   });
 
   it('rejects a team that does not belong to the requested organization', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([tenantAdminGrant()]);
+    /*
+     * Client admin legitimately knows both
+     * resources, so exposing the relationship error
+     * is safe.
+     */
+    authorizationService.getUserGrants.mockResolvedValue([clientAdminGrant()]);
+
+    organizationRepository.findById.mockResolvedValue(organizationA);
+
+    teamRepository.findById.mockResolvedValue(teamB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           organizationId: organizationAId,
@@ -536,13 +517,22 @@ describe('ManagerDashboardScopeService', () => {
   });
 
   it('rejects a campaign that does not belong to the requested organization', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([tenantAdminGrant()]);
+    /*
+     * Both resources are visible to the client
+     * admin. The invalid relationship may therefore
+     * safely remain a 400.
+     */
+    authorizationService.getUserGrants.mockResolvedValue([clientAdminGrant()]);
+
+    organizationRepository.findById.mockResolvedValue(organizationA);
+
+    campaignRepository.findById.mockResolvedValue(campaignB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           organizationId: organizationAId,
@@ -554,34 +544,38 @@ describe('ManagerDashboardScopeService', () => {
   });
 
   it('rejects an unknown team after reporting authority is established', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([tenantAdminGrant()]);
+    authorizationService.getUserGrants.mockResolvedValue([managerGrant(organizationAId, teamAId)]);
+
+    teamRepository.findById.mockResolvedValue(null);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
-          teamId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          teamId: teamAId,
         },
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Reporting resource not found');
   });
 
   it('allows a manager to filter by a prospector in the managed team', async () => {
     authorizationService.getUserGrants
       .mockResolvedValueOnce([managerGrant(organizationAId, teamAId)])
-      .mockResolvedValueOnce([prospectorGrant(targetUserId, organizationAId, teamAId)]);
+      .mockResolvedValueOnce([prospectorGrant(organizationAId, teamAId, prospectorAId)]);
+
+    userRepository.findById.mockResolvedValue(prospectorA);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
-          userId: targetUserId,
+          userId: prospectorAId,
         },
       }),
     ).resolves.toEqual({
@@ -591,40 +585,52 @@ describe('ManagerDashboardScopeService', () => {
 
       teamId: teamAId,
     });
+
+    expect(authorizationService.getUserGrants).toHaveBeenNthCalledWith(
+      2,
+
+      tenantId,
+
+      prospectorAId,
+    );
   });
 
-  it('rejects a prospector filter outside the manager team', async () => {
+  it('masks a prospector filter outside the manager team', async () => {
     authorizationService.getUserGrants
       .mockResolvedValueOnce([managerGrant(organizationAId, teamAId)])
-      .mockResolvedValueOnce([prospectorGrant(targetUserId, organizationBId, teamBId)]);
+      .mockResolvedValueOnce([prospectorGrant(organizationBId, teamBId, prospectorBId)]);
+
+    userRepository.findById.mockResolvedValue(prospectorB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
-          userId: targetUserId,
+          userId: prospectorBId,
         },
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Reporting resource not found');
   });
 
-  it('rejects a campaign outside a manager organization', async () => {
+  it('masks a campaign outside a manager organization', async () => {
     authorizationService.getUserGrants.mockResolvedValue([managerGrant(organizationAId, teamAId)]);
+
+    campaignRepository.findById.mockResolvedValue(campaignB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
         filters: {
           campaignId: campaignBId,
         },
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Reporting resource not found');
   });
 
   it('uses client admin authority before lower scoped grants', async () => {
@@ -633,16 +639,28 @@ describe('ManagerDashboardScopeService', () => {
 
       directorGrant(organizationAId),
 
-      tenantAdminGrant(),
+      clientAdminGrant(),
     ]);
+
+    organizationRepository.findById.mockResolvedValue(organizationB);
+
+    teamRepository.findById.mockResolvedValue(teamB);
+
+    campaignRepository.findById.mockResolvedValue(campaignB);
 
     await expect(
       service.resolve({
         tenantId,
 
-        userId: authenticatedUserId,
+        userId,
 
-        filters: {},
+        filters: {
+          organizationId: organizationBId,
+
+          teamId: teamBId,
+
+          campaignId: campaignBId,
+        },
       }),
     ).resolves.toEqual({
       authority: 'client_admin',

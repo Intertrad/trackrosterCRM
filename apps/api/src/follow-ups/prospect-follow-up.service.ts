@@ -304,6 +304,13 @@ export class ProspectFollowUpService {
    * them.
    */
   private async requireMutableFollowUp(input: FollowUpCommandInput): Promise<ProspectFollowUp> {
+    /*
+     * First prove that the caller is currently
+     * authorized for this campaign prospect.
+     *
+     * This prevents follow-up IDs from being used to
+     * bypass the prospect-level authorization boundary.
+     */
     const { assignment } = await this.reservationService.requireReservationEligibility({
       tenantId: input.tenantId,
 
@@ -334,6 +341,22 @@ export class ProspectFollowUpService {
       throw new NotFoundException('Follow-up not found');
     }
 
+    /*
+     * An existing follow-up owned by another user
+     * must be indistinguishable from a nonexistent
+     * follow-up.
+     *
+     * Check ownership before exposing mutable state.
+     */
+    if (followUp.assignedUserId !== null && followUp.assignedUserId !== input.userId) {
+      throw new NotFoundException('Follow-up not found');
+    }
+
+    /*
+     * At this point the caller is allowed to know
+     * about this follow-up, so lifecycle-state
+     * conflicts may be returned normally.
+     */
     if (followUp.status !== 'pending') {
       throw new ConflictException('Follow-up is no longer pending');
     }
@@ -349,17 +372,13 @@ export class ProspectFollowUpService {
     }
 
     /*
-     * Team-owned:
-     * any eligible prospector for the current
-     * assignment team may act on it.
+     * Team-owned follow-ups have assignedUserId=null,
+     * so any currently eligible prospector for that
+     * assignment may act on them.
      *
-     * User-owned:
-     * only that user may act on it.
+     * User-owned follow-ups are already filtered
+     * above to the exact owner.
      */
-    if (followUp.assignedUserId !== null && followUp.assignedUserId !== input.userId) {
-      throw new ForbiddenException('Follow-up belongs to another user');
-    }
-
     return followUp;
   }
 

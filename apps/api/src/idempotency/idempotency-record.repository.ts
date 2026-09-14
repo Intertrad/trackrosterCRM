@@ -26,9 +26,23 @@ export interface ClaimIdempotencyRecordInput extends IdempotencyBoundary {
   expiresAt: Date;
 }
 
-export interface CompleteIdempotencyRecordInput {
+/*
+ * Lifecycle mutations must prove ownership of the
+ * idempotency record rather than relying only on
+ * its opaque primary key.
+ *
+ * This prevents an incorrect internal record ID
+ * from mutating another tenant/user boundary.
+ */
+export interface IdempotencyRecordOwnership {
   id: string;
 
+  tenantId: string;
+
+  userId: string;
+}
+
+export interface CompleteIdempotencyRecordInput extends IdempotencyRecordOwnership {
   responseStatus: number;
 
   responseBody: unknown;
@@ -36,9 +50,7 @@ export interface CompleteIdempotencyRecordInput {
   finalizedAt: Date;
 }
 
-export interface MarkIdempotencyRecordUncertainInput {
-  id: string;
-
+export interface MarkIdempotencyRecordUncertainInput extends IdempotencyRecordOwnership {
   finalizedAt: Date;
 }
 
@@ -128,9 +140,16 @@ export class IdempotencyRecordRepository {
   /*
    * Transitions processing -> completed.
    *
-   * The status predicate prevents a second
-   * request from overwriting a finalized
-   * response.
+   * The transition is bound to:
+   *
+   * - exact record
+   * - exact tenant
+   * - exact authenticated user
+   * - processing state
+   *
+   * The ownership predicates ensure that an
+   * internal record ID alone is never sufficient
+   * to finalize another tenant/user request.
    */
   async markCompleted(
     input: CompleteIdempotencyRecordInput,
@@ -153,6 +172,10 @@ export class IdempotencyRecordRepository {
         and(
           eq(idempotencyRecords.id, input.id),
 
+          eq(idempotencyRecords.tenantId, input.tenantId),
+
+          eq(idempotencyRecords.userId, input.userId),
+
           eq(idempotencyRecords.status, 'processing'),
         ),
       )
@@ -168,6 +191,9 @@ export class IdempotencyRecordRepository {
    * retained so a retry cannot silently
    * execute a potentially-successful write
    * for a second time.
+   *
+   * Tenant/user ownership remains part of the
+   * transition predicate.
    */
   async markUncertain(
     input: MarkIdempotencyRecordUncertainInput,
@@ -189,6 +215,10 @@ export class IdempotencyRecordRepository {
       .where(
         and(
           eq(idempotencyRecords.id, input.id),
+
+          eq(idempotencyRecords.tenantId, input.tenantId),
+
+          eq(idempotencyRecords.userId, input.userId),
 
           eq(idempotencyRecords.status, 'processing'),
         ),
@@ -224,6 +254,7 @@ export class IdempotencyRecordRepository {
           eq(idempotencyRecords.userId, boundary.userId),
 
           eq(idempotencyRecords.operation, boundary.operation),
+
           eq(idempotencyRecords.status, 'completed'),
 
           eq(idempotencyRecords.idempotencyKeyHash, boundary.idempotencyKeyHash),
@@ -242,9 +273,10 @@ export class IdempotencyRecordRepository {
    * Maintenance hook for eventual scheduled
    * cleanup.
    *
-   * TR-026 does not need a cleanup worker yet,
-   * but keeping this repository primitive here
-   * avoids raw SQL elsewhere later.
+   * This is intentionally global rather than
+   * request-owned. It only removes completed,
+   * expired records and is intended for trusted
+   * server-side maintenance.
    */
   async deleteExpired(now: Date, executor: DatabaseExecutor = this.database): Promise<number> {
     const deleted = await executor
@@ -263,12 +295,27 @@ export class IdempotencyRecordRepository {
     return deleted.length;
   }
 
-  async deleteProcessing(id: string, executor: DatabaseExecutor = this.database): Promise<boolean> {
+  /*
+   * Releases only the exact processing record
+   * owned by the authenticated tenant/user.
+   *
+   * This prevents an opaque record ID from being
+   * sufficient to release another request's
+   * idempotency boundary.
+   */
+  async deleteProcessing(
+    ownership: IdempotencyRecordOwnership,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<boolean> {
     const deleted = await executor
       .delete(idempotencyRecords)
       .where(
         and(
-          eq(idempotencyRecords.id, id),
+          eq(idempotencyRecords.id, ownership.id),
+
+          eq(idempotencyRecords.tenantId, ownership.tenantId),
+
+          eq(idempotencyRecords.userId, ownership.userId),
 
           eq(idempotencyRecords.status, 'processing'),
         ),

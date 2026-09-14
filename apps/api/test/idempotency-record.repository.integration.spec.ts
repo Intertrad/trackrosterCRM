@@ -70,11 +70,17 @@ describe('idempotency record repository integration', () => {
   ): ClaimIdempotencyRecordInput {
     return {
       tenantId: tenantAId,
+
       userId: userAId,
+
       operation: 'activity.record',
+
       idempotencyKeyHash: uniqueHash('key'),
+
       requestHash: uniqueHash('request'),
+
       expiresAt: futureExpiry(),
+
       ...overrides,
     };
   }
@@ -82,8 +88,11 @@ describe('idempotency record repository integration', () => {
   function boundaryFromClaim(input: ClaimIdempotencyRecordInput): IdempotencyBoundary {
     return {
       tenantId: input.tenantId,
+
       userId: input.userId,
+
       operation: input.operation,
+
       idempotencyKeyHash: input.idempotencyKeyHash,
     };
   }
@@ -101,22 +110,28 @@ describe('idempotency record repository integration', () => {
     await application.init();
 
     app = application;
+
     database = application.get<Database>(DATABASE);
+
     repository = application.get(IdempotencyRecordRepository);
 
     const tenantService = application.get(TenantService);
+
     const userRepository = application.get(UserRepository);
+
     const passwordService = application.get(PasswordService);
 
     const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
     const tenantA = await tenantService.create({
       name: `Idempotency Tenant A ${suffix}`,
+
       slug: `idempotency-a-${suffix}`,
     });
 
     const tenantB = await tenantService.create({
       name: `Idempotency Tenant B ${suffix}`,
+
       slug: `idempotency-b-${suffix}`,
     });
 
@@ -127,22 +142,31 @@ describe('idempotency record repository integration', () => {
 
     const userA = await userRepository.create({
       tenantId: tenantAId,
+
       email: `idempotency-a1-${suffix}@trackroster.test`,
+
       passwordHash,
+
       status: 'active',
     });
 
     const userA2 = await userRepository.create({
       tenantId: tenantAId,
+
       email: `idempotency-a2-${suffix}@trackroster.test`,
+
       passwordHash,
+
       status: 'active',
     });
 
     const userB = await userRepository.create({
       tenantId: tenantBId,
+
       email: `idempotency-b1-${suffix}@trackroster.test`,
+
       passwordHash,
+
       status: 'active',
     });
 
@@ -160,6 +184,7 @@ describe('idempotency record repository integration', () => {
             .where(eq(idempotencyRecords.tenantId, tenantAId));
 
           await getDatabase().delete(users).where(eq(users.tenantId, tenantAId));
+
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantAId));
         }
 
@@ -169,6 +194,7 @@ describe('idempotency record repository integration', () => {
             .where(eq(idempotencyRecords.tenantId, tenantBId));
 
           await getDatabase().delete(users).where(eq(users.tenantId, tenantBId));
+
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantBId));
         }
       }
@@ -189,12 +215,18 @@ describe('idempotency record repository integration', () => {
     const winners = results.filter((record) => record !== null);
 
     expect(winners).toHaveLength(1);
+
     expect(winners[0]).toMatchObject({
       tenantId: tenantAId,
+
       userId: userAId,
+
       operation: input.operation,
+
       idempotencyKeyHash: input.idempotencyKeyHash,
+
       requestHash: input.requestHash,
+
       status: 'processing',
     });
 
@@ -206,8 +238,11 @@ describe('idempotency record repository integration', () => {
       .where(
         and(
           eq(idempotencyRecords.tenantId, input.tenantId),
+
           eq(idempotencyRecords.userId, input.userId),
+
           eq(idempotencyRecords.operation, input.operation),
+
           eq(idempotencyRecords.idempotencyKeyHash, input.idempotencyKeyHash),
         ),
       );
@@ -217,42 +252,62 @@ describe('idempotency record repository integration', () => {
 
   it('isolates claims by tenant, user, and server-owned operation', async () => {
     const sharedKeyHash = uniqueHash('shared-key');
+
     const sharedRequestHash = uniqueHash('shared-request');
 
     const claims = await Promise.all([
       getRepository().tryClaim(
         createClaimInput({
           tenantId: tenantAId,
+
           userId: userAId,
+
           operation: 'activity.record',
+
           idempotencyKeyHash: sharedKeyHash,
+
           requestHash: sharedRequestHash,
         }),
       ),
+
       getRepository().tryClaim(
         createClaimInput({
           tenantId: tenantAId,
+
           userId: userA2Id,
+
           operation: 'activity.record',
+
           idempotencyKeyHash: sharedKeyHash,
+
           requestHash: sharedRequestHash,
         }),
       ),
+
       getRepository().tryClaim(
         createClaimInput({
           tenantId: tenantAId,
+
           userId: userAId,
+
           operation: 'follow_up.create',
+
           idempotencyKeyHash: sharedKeyHash,
+
           requestHash: sharedRequestHash,
         }),
       ),
+
       getRepository().tryClaim(
         createClaimInput({
           tenantId: tenantBId,
+
           userId: userBId,
+
           operation: 'activity.record',
+
           idempotencyKeyHash: sharedKeyHash,
+
           requestHash: sharedRequestHash,
         }),
       ),
@@ -274,20 +329,32 @@ describe('idempotency record repository integration', () => {
 
     const completed = await getRepository().markCompleted({
       id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+
       responseStatus: 201,
+
       responseBody: {
         id: 'activity-123',
+
         type: 'call',
       },
+
       finalizedAt,
     });
 
     expect(completed).toMatchObject({
       id: claimed!.id,
+
       status: 'completed',
+
       responseStatus: 201,
+
       responseBody: {
         id: 'activity-123',
+
         type: 'call',
       },
     });
@@ -296,10 +363,17 @@ describe('idempotency record repository integration', () => {
 
     const secondCompletion = await getRepository().markCompleted({
       id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+
       responseStatus: 202,
+
       responseBody: {
         shouldNot: 'overwrite',
       },
+
       finalizedAt: new Date(finalizedAt.getTime() + 1_000),
     });
 
@@ -307,6 +381,11 @@ describe('idempotency record repository integration', () => {
 
     const uncertainAfterCompletion = await getRepository().markUncertain({
       id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+
       finalizedAt: new Date(finalizedAt.getTime() + 2_000),
     });
 
@@ -324,13 +403,21 @@ describe('idempotency record repository integration', () => {
 
     const uncertain = await getRepository().markUncertain({
       id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+
       finalizedAt,
     });
 
     expect(uncertain).toMatchObject({
       id: claimed!.id,
+
       status: 'uncertain',
+
       responseStatus: null,
+
       responseBody: null,
     });
 
@@ -338,12 +425,23 @@ describe('idempotency record repository integration', () => {
 
     const secondTransition = await getRepository().markUncertain({
       id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+
       finalizedAt: new Date(finalizedAt.getTime() + 1_000),
     });
 
     expect(secondTransition).toBeNull();
 
-    const released = await getRepository().deleteProcessing(claimed!.id);
+    const released = await getRepository().deleteProcessing({
+      id: claimed!.id,
+
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+    });
 
     expect(released).toBe(false);
 
@@ -352,56 +450,175 @@ describe('idempotency record repository integration', () => {
     expect(persisted?.status).toBe('uncertain');
   });
 
+  it('does not allow lifecycle mutation with the correct record id but wrong tenant or user ownership', async () => {
+    const input = createClaimInput();
+
+    const claimed = await getRepository().tryClaim(input);
+
+    expect(claimed).not.toBeNull();
+
+    const wrongTenantCompletion = await getRepository().markCompleted({
+      id: claimed!.id,
+
+      tenantId: tenantBId,
+
+      userId: userBId,
+
+      responseStatus: 201,
+
+      responseBody: {
+        forbidden: true,
+      },
+
+      finalizedAt: new Date(),
+    });
+
+    expect(wrongTenantCompletion).toBeNull();
+
+    const wrongUserUncertain = await getRepository().markUncertain({
+      id: claimed!.id,
+
+      tenantId: tenantAId,
+
+      userId: userA2Id,
+
+      finalizedAt: new Date(),
+    });
+
+    expect(wrongUserUncertain).toBeNull();
+
+    await expect(
+      getRepository().deleteProcessing({
+        id: claimed!.id,
+
+        tenantId: tenantBId,
+
+        userId: userBId,
+      }),
+    ).resolves.toBe(false);
+
+    await expect(
+      getRepository().deleteProcessing({
+        id: claimed!.id,
+
+        tenantId: tenantAId,
+
+        userId: userA2Id,
+      }),
+    ).resolves.toBe(false);
+
+    const persisted = await getRepository().findByBoundary(boundaryFromClaim(input));
+
+    expect(persisted).toMatchObject({
+      id: claimed!.id,
+
+      tenantId: tenantAId,
+
+      userId: userAId,
+
+      status: 'processing',
+
+      responseStatus: null,
+
+      responseBody: null,
+    });
+
+    /*
+     * Correct ownership can still perform the
+     * lifecycle mutation.
+     */
+    await expect(
+      getRepository().deleteProcessing({
+        id: claimed!.id,
+
+        tenantId: tenantAId,
+
+        userId: userAId,
+      }),
+    ).resolves.toBe(true);
+  });
+
   it('deleteExpiredBoundary reclaims only expired completed records', async () => {
     const completedInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('expired-completed'),
+
       expiresAt: shortExpiry(),
     });
 
     const processingInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('expired-processing'),
+
       expiresAt: shortExpiry(),
     });
 
     const uncertainInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('expired-uncertain'),
+
       expiresAt: shortExpiry(),
     });
 
     const completed = await getRepository().tryClaim(completedInput);
+
     const processing = await getRepository().tryClaim(processingInput);
+
     const uncertain = await getRepository().tryClaim(uncertainInput);
 
     expect(completed).not.toBeNull();
+
     expect(processing).not.toBeNull();
+
     expect(uncertain).not.toBeNull();
 
     await getRepository().markCompleted({
       id: completed!.id,
+
+      tenantId: completed!.tenantId,
+
+      userId: completed!.userId,
+
       responseStatus: 201,
+
       responseBody: {
         completed: true,
       },
+
       finalizedAt: new Date(),
     });
 
     await getRepository().markUncertain({
       id: uncertain!.id,
+
+      tenantId: uncertain!.tenantId,
+
+      userId: uncertain!.userId,
+
       finalizedAt: new Date(),
     });
 
     const cleanupAt = cleanupAfterShortExpiry();
 
     await expect(
-      getRepository().deleteExpiredBoundary(boundaryFromClaim(completedInput), cleanupAt),
+      getRepository().deleteExpiredBoundary(
+        boundaryFromClaim(completedInput),
+
+        cleanupAt,
+      ),
     ).resolves.toBe(true);
 
     await expect(
-      getRepository().deleteExpiredBoundary(boundaryFromClaim(processingInput), cleanupAt),
+      getRepository().deleteExpiredBoundary(
+        boundaryFromClaim(processingInput),
+
+        cleanupAt,
+      ),
     ).resolves.toBe(false);
 
     await expect(
-      getRepository().deleteExpiredBoundary(boundaryFromClaim(uncertainInput), cleanupAt),
+      getRepository().deleteExpiredBoundary(
+        boundaryFromClaim(uncertainInput),
+
+        cleanupAt,
+      ),
     ).resolves.toBe(false);
 
     expect(await getRepository().findByBoundary(boundaryFromClaim(completedInput))).toBeNull();
@@ -418,38 +635,57 @@ describe('idempotency record repository integration', () => {
   it('bulk expiration cleanup deletes completed records but retains processing and uncertain records', async () => {
     const completedInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('bulk-completed'),
+
       expiresAt: shortExpiry(),
     });
 
     const processingInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('bulk-processing'),
+
       expiresAt: shortExpiry(),
     });
 
     const uncertainInput = createClaimInput({
       idempotencyKeyHash: uniqueHash('bulk-uncertain'),
+
       expiresAt: shortExpiry(),
     });
 
     const completed = await getRepository().tryClaim(completedInput);
+
     const processing = await getRepository().tryClaim(processingInput);
+
     const uncertain = await getRepository().tryClaim(uncertainInput);
 
     expect(completed).not.toBeNull();
+
     expect(processing).not.toBeNull();
+
     expect(uncertain).not.toBeNull();
 
     await getRepository().markCompleted({
       id: completed!.id,
+
+      tenantId: completed!.tenantId,
+
+      userId: completed!.userId,
+
       responseStatus: 200,
+
       responseBody: {
         ok: true,
       },
+
       finalizedAt: new Date(),
     });
 
     await getRepository().markUncertain({
       id: uncertain!.id,
+
+      tenantId: uncertain!.tenantId,
+
+      userId: uncertain!.userId,
+
       finalizedAt: new Date(),
     });
 
@@ -475,9 +711,17 @@ describe('idempotency record repository integration', () => {
 
     expect(claimed).not.toBeNull();
 
-    await expect(getRepository().deleteProcessing(claimed!.id)).resolves.toBe(true);
+    const ownership = {
+      id: claimed!.id,
 
-    await expect(getRepository().deleteProcessing(claimed!.id)).resolves.toBe(false);
+      tenantId: claimed!.tenantId,
+
+      userId: claimed!.userId,
+    };
+
+    await expect(getRepository().deleteProcessing(ownership)).resolves.toBe(true);
+
+    await expect(getRepository().deleteProcessing(ownership)).resolves.toBe(false);
 
     expect(await getRepository().findByBoundary(boundaryFromClaim(input))).toBeNull();
   });

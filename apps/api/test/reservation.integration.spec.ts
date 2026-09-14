@@ -736,7 +736,7 @@ describe('Reservation HTTP integration', () => {
     expect(body.campaignProspectId).toBe(prospectId);
   });
 
-  it('prevents another user from releasing the reservation', async () => {
+  it('masks another user reservation ownership exactly like an absent reservation', async () => {
     await clearReservation();
 
     const acquired = await getApp().inject({
@@ -755,7 +755,10 @@ describe('Reservation HTTP integration', () => {
       reservationId: string;
     };
 
-    const response = await getApp().inject({
+    /*
+     * B knows the real reservation ID but does not own it.
+     */
+    const foreignOwnerResponse = await getApp().inject({
       method: 'DELETE',
 
       url: `${reservationUrl()}/${body.reservationId}`,
@@ -765,11 +768,96 @@ describe('Reservation HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(foreignOwnerResponse.statusCode).toBe(404);
 
+    /*
+     * Failed foreign release must not mutate A's reservation.
+     */
     const current = await getReservationRepository().findCurrent(tenantId, campaignId, prospectId);
 
     expect(current?.reservationId).toBe(body.reservationId);
+
+    /*
+     * Remove the reservation directly so the second request
+     * exercises the genuinely-absent-resource case.
+     */
+    await clearReservation();
+
+    const absentResponse = await getApp().inject({
+      method: 'DELETE',
+
+      url: `${reservationUrl()}/${body.reservationId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorBToken}`,
+      },
+    });
+
+    expect(absentResponse.statusCode).toBe(404);
+
+    const foreignOwnerBody = JSON.parse(foreignOwnerResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const absentBody = JSON.parse(absentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(foreignOwnerBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reservation not found',
+
+      error: 'Not Found',
+    });
+
+    expect(absentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reservation not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: foreignOwnerBody.statusCode,
+
+      code: foreignOwnerBody.code,
+
+      message: foreignOwnerBody.message,
+
+      error: foreignOwnerBody.error,
+    }).toEqual({
+      statusCode: absentBody.statusCode,
+
+      code: absentBody.code,
+
+      message: absentBody.message,
+
+      error: absentBody.error,
+    });
+
+    expect(foreignOwnerBody.requestId).not.toBe(absentBody.requestId);
   });
 
   it('releases the reservation and organization collision lock for its owner', async () => {
@@ -2265,7 +2353,7 @@ describe('Reservation HTTP integration', () => {
     expect(secondPage.nextCursor).toBeNull();
   });
 
-  it('rejects timeline access for an authenticated user without the current team scope', async () => {
+  it('masks timeline access without scope exactly like a nonexistent campaign prospect', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
     const passwordService = getApp().get(PasswordService);
@@ -2277,8 +2365,8 @@ describe('Reservation HTTP integration', () => {
     const passwordHash = await passwordService.hash(password);
 
     /*
-     * Deliberately create an active user
-     * WITHOUT an access grant.
+     * Active authenticated user deliberately has
+     * no grant for the target team.
      */
     await userRepository.create({
       tenantId,
@@ -2292,7 +2380,7 @@ describe('Reservation HTTP integration', () => {
 
     const token = (await login(email)).accessToken;
 
-    const response = await getApp().inject({
+    const outOfScopeResponse = await getApp().inject({
       method: 'GET',
 
       url: timelineUrl(),
@@ -2302,12 +2390,82 @@ describe('Reservation HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    const nonexistentResponse = await getApp().inject({
+      method: 'GET',
 
-    expect(JSON.parse(response.payload)).toMatchObject({
-      statusCode: 403,
+      url: `/campaigns/${campaignId}` + `/prospects/${randomUUID()}` + '/timeline',
 
-      message: 'User cannot view prospect timeline',
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
     });
+
+    expect(outOfScopeResponse.statusCode).toBe(404);
+
+    expect(nonexistentResponse.statusCode).toBe(404);
+
+    const outOfScopeBody = JSON.parse(outOfScopeResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const nonexistentBody = JSON.parse(nonexistentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(outOfScopeBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Campaign prospect not found',
+
+      error: 'Not Found',
+    });
+
+    expect(nonexistentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Campaign prospect not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: outOfScopeBody.statusCode,
+
+      code: outOfScopeBody.code,
+
+      message: outOfScopeBody.message,
+
+      error: outOfScopeBody.error,
+    }).toEqual({
+      statusCode: nonexistentBody.statusCode,
+
+      code: nonexistentBody.code,
+
+      message: nonexistentBody.message,
+
+      error: nonexistentBody.error,
+    });
+
+    expect(outOfScopeBody.requestId).not.toBe(nonexistentBody.requestId);
   });
 });

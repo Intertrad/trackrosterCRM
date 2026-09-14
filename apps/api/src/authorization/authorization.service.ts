@@ -140,6 +140,35 @@ export class AuthorizationService {
     return null;
   }
 
+  async hasAnyOverrideAuthority(tenantId: string, userId: string): Promise<boolean> {
+    const grants = await this.getUserGrants(tenantId, userId);
+
+    return grants.some((grant) => {
+      if (grant.role === 'client_admin' && grant.scopeType === 'tenant') {
+        return true;
+      }
+
+      if (
+        grant.role === 'director' &&
+        grant.scopeType === 'organization' &&
+        grant.organizationId !== null
+      ) {
+        return true;
+      }
+
+      if (
+        grant.role === 'manager' &&
+        grant.scopeType === 'team' &&
+        grant.organizationId !== null &&
+        grant.teamId !== null
+      ) {
+        return true;
+      }
+
+      return false;
+    });
+  }
+
   async canOverrideTeam(
     tenantId: string,
     userId: string,

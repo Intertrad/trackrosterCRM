@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
@@ -14,6 +15,8 @@ describe('ManagerOverrideService', () => {
   let database: {
     transaction: ReturnType<typeof vi.fn>;
   };
+
+  let assignmentRepository: CampaignProspectAssignmentRepository;
 
   let auditService: {
     record: ReturnType<typeof vi.fn>;
@@ -55,13 +58,21 @@ describe('ManagerOverrideService', () => {
 
   const assignment = {
     id: assignmentId,
+
     tenantId,
+
     campaignId,
+
     campaignProspectId,
+
     organizationId,
+
     teamId,
+
     assignedUserId: prospectorUserId,
+
     assignedAt: new Date(),
+
     endedAt: null,
   } as CampaignProspectAssignment;
 
@@ -82,33 +93,61 @@ describe('ManagerOverrideService', () => {
 
     collisionOverrideRepository = {
       create: vi.fn(),
+
       findById: vi.fn(),
+
       findApplicableById: vi.fn(),
     } as unknown as CollisionOverrideRepository;
 
+    assignmentRepository = {
+      findCurrentForUpdate: vi.fn(),
+    } as unknown as CampaignProspectAssignmentRepository;
+
     authorizationService = {
+      hasAnyOverrideAuthority: vi.fn(),
+
       getOverrideAuthority: vi.fn(),
     } as unknown as AuthorizationService;
 
     reservationService = {
+      resolveReservationTargetScope: vi.fn(),
+
       requireReservationEligibility: vi.fn(),
     } as unknown as ReservationService;
 
     service = new ManagerOverrideService(
       database as unknown as Database,
+
       collisionDecisionService,
+
       collisionOverrideRepository,
+
+      assignmentRepository,
+
       authorizationService,
+
       reservationService,
+
       auditService as unknown as AuditService,
     );
 
+    vi.mocked(authorizationService.hasAnyOverrideAuthority).mockResolvedValue(true);
+
+    vi.mocked(reservationService.resolveReservationTargetScope).mockResolvedValue({
+      assignment,
+
+      establishmentId,
+    });
+
     vi.mocked(reservationService.requireReservationEligibility).mockResolvedValue({
       assignment,
+
       establishmentId,
     });
 
     vi.mocked(authorizationService.getOverrideAuthority).mockResolvedValue('manager');
+
+    vi.mocked(assignmentRepository.findCurrentForUpdate).mockResolvedValue(assignment);
   });
 
   it('creates and audits an override for a blocking planned action', async () => {
@@ -163,21 +202,60 @@ describe('ManagerOverrideService', () => {
       reason: '  Approved after coordination with the other team.  ',
     });
 
-    expect(authorizationService.getOverrideAuthority).toHaveBeenCalledWith(
+    expect(authorizationService.hasAnyOverrideAuthority).toHaveBeenCalledWith(
       tenantId,
       approverUserId,
+    );
+
+    expect(reservationService.resolveReservationTargetScope).toHaveBeenCalledWith({
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(authorizationService.getOverrideAuthority).toHaveBeenCalledWith(
+      tenantId,
+
+      approverUserId,
+
       organizationId,
+
       teamId,
     );
 
+    expect(reservationService.requireReservationEligibility).toHaveBeenCalledWith({
+      tenantId,
+
+      userId: prospectorUserId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
     expect(collisionDecisionService.evaluate).toHaveBeenCalledWith({
       tenantId,
+
       userId: prospectorUserId,
+
       campaignId,
+
       campaignProspectId,
     });
 
     expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
 
     expect(collisionOverrideRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -207,6 +285,7 @@ describe('ManagerOverrideService', () => {
 
         reason: 'Approved after coordination with the other team.',
       }),
+
       transaction,
     );
 
@@ -242,33 +321,143 @@ describe('ManagerOverrideService', () => {
           conflictKey: ['planned_action', followUpId, dueAt].join(':'),
         },
       },
+
       transaction,
     );
 
     expect(result.reasonCode).toBe('PLANNED_ACTION');
   });
 
-  it('rejects an unauthorized approver before evaluating collision details', async () => {
-    vi.mocked(authorizationService.getOverrideAuthority).mockResolvedValue(null);
+  it('rejects a caller with no override authority before resolving the target', async () => {
+    vi.mocked(authorizationService.hasAnyOverrideAuthority).mockResolvedValue(false);
 
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(reservationService.resolveReservationTargetScope).not.toHaveBeenCalled();
+
+    expect(reservationService.requireReservationEligibility).not.toHaveBeenCalled();
+
+    expect(authorizationService.getOverrideAuthority).not.toHaveBeenCalled();
 
     expect(collisionDecisionService.evaluate).not.toHaveBeenCalled();
 
     expect(database.transaction).not.toHaveBeenCalled();
 
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
 
     expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('masks a target outside the approver exact organization or team scope', async () => {
+    vi.mocked(authorizationService.getOverrideAuthority).mockResolvedValue(null);
+
+    await expect(
+      service.create({
+        tenantId,
+
+        approvedByUserId: approverUserId,
+
+        prospectorUserId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        reason: 'Manager approval reason is valid.',
+      }),
+    ).rejects.toThrow('Campaign prospect not found');
+
+    expect(reservationService.resolveReservationTargetScope).toHaveBeenCalledWith({
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+    });
+
+    expect(reservationService.requireReservationEligibility).not.toHaveBeenCalled();
+
+    expect(collisionDecisionService.evaluate).not.toHaveBeenCalled();
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('rechecks approver authority when the prospect assignment scope changes', async () => {
+    const movedAssignment = {
+      ...assignment,
+
+      organizationId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+
+      teamId: 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff',
+    } as CampaignProspectAssignment;
+
+    vi.mocked(reservationService.requireReservationEligibility).mockResolvedValue({
+      assignment: movedAssignment,
+
+      establishmentId,
+    });
+
+    vi.mocked(authorizationService.getOverrideAuthority)
+      .mockResolvedValueOnce('manager')
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      service.create({
+        tenantId,
+
+        approvedByUserId: approverUserId,
+
+        prospectorUserId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        reason: 'Manager approval reason is valid.',
+      }),
+    ).rejects.toThrow('Campaign prospect not found');
+
+    expect(authorizationService.getOverrideAuthority).toHaveBeenNthCalledWith(
+      2,
+
+      tenantId,
+
+      approverUserId,
+
+      movedAssignment.organizationId,
+
+      movedAssignment.teamId,
+    );
+
+    expect(collisionDecisionService.evaluate).not.toHaveBeenCalled();
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
   });
 
   it('never allows an active reservation to be overridden', async () => {
@@ -301,15 +490,22 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
 
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
 
@@ -330,15 +526,22 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
 
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
 
@@ -373,15 +576,22 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
 
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
 
@@ -414,15 +624,88 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects override persistence when the assignment changes after collision evaluation', async () => {
+    const dueAt = '2026-09-11T10:00:00.000Z';
+
+    vi.mocked(collisionDecisionService.evaluate).mockResolvedValue({
+      decision: 'block',
+
+      reasonCode: 'PLANNED_ACTION',
+
+      establishmentId,
+
+      conflict: {
+        followUpId,
+
+        campaignId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+
+        campaignProspectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+
+        assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+        assignedUserId: null,
+
+        dueAt,
+      },
+    });
+
+    const newerAssignment = {
+      ...assignment,
+
+      id: '12121212-1212-4121-8121-121212121212',
+    } as CampaignProspectAssignment;
+
+    vi.mocked(assignmentRepository.findCurrentForUpdate).mockResolvedValue(newerAssignment);
+
+    await expect(
+      service.create({
+        tenantId,
+
+        approvedByUserId: approverUserId,
+
+        prospectorUserId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        reason: 'Manager approval reason is valid.',
+      }),
+    ).rejects.toThrow('Campaign prospect changed during override approval');
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
 
     expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
 
@@ -459,15 +742,30 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
 
     expect(auditService.record).not.toHaveBeenCalled();
   });
@@ -513,30 +811,52 @@ describe('ManagerOverrideService', () => {
     await expect(
       service.create({
         tenantId,
+
         approvedByUserId: approverUserId,
+
         prospectorUserId,
+
         campaignId,
+
         campaignProspectId,
+
         reason: 'Manager approval reason is valid.',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     expect(database.transaction).toHaveBeenCalledTimes(1);
 
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
+
     expect(collisionOverrideRepository.create).toHaveBeenCalledWith(
       expect.any(Object),
+
       transaction,
     );
 
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId,
+
         actorType: 'user',
+
         actorUserId: approverUserId,
+
         action: 'collision_override.approved',
+
         resourceType: 'collision_override',
+
         resourceId: overrideId,
       }),
+
       transaction,
     );
   });

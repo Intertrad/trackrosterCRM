@@ -810,7 +810,11 @@ describe('Manager override HTTP integration', () => {
     expect(JSON.parse(response.payload)).toMatchObject({
       statusCode: 403,
 
-      message: 'User is not authorized to approve an override for this team',
+      code: 'FORBIDDEN',
+
+      message: 'User is not authorized to approve collision overrides',
+
+      error: 'Forbidden',
     });
 
     const stored = await getDatabase().select().from(collisionOverrides).where(

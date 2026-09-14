@@ -1,14 +1,24 @@
 import { ConflictException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
+import type { Database } from '../database/database.types.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 import { ProspectActivityRepository } from './prospect-activity.repository.js';
 import { ProspectActivityService } from './prospect-activity.service.js';
 
 describe('ProspectActivityService', () => {
+  let database: {
+    transaction: ReturnType<typeof vi.fn>;
+  };
+
   let prospectActivityRepository: {
     create: ReturnType<typeof vi.fn>;
+  };
+
+  let assignmentRepository: {
+    findCurrentForUpdate: ReturnType<typeof vi.fn>;
   };
 
   let reservationRepository: {
@@ -37,6 +47,32 @@ describe('ProspectActivityService', () => {
 
   const reservationId = '88888888-8888-4888-8888-888888888888';
 
+  const teamId = '99999999-9999-4999-8999-999999999999';
+
+  const organizationId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  const transaction = {};
+
+  const assignment = {
+    id: assignmentId,
+
+    tenantId,
+
+    campaignId,
+
+    campaignProspectId,
+
+    organizationId,
+
+    teamId,
+
+    assignedUserId: userId,
+
+    assignedAt: new Date('2026-09-08T09:00:00.000Z'),
+
+    endedAt: null,
+  };
+
   const reservation = {
     reservationId,
 
@@ -50,7 +86,7 @@ describe('ProspectActivityService', () => {
 
     assignmentId,
 
-    teamId: '99999999-9999-4999-8999-999999999999',
+    teamId,
 
     userId,
 
@@ -84,8 +120,18 @@ describe('ProspectActivityService', () => {
   };
 
   beforeEach(() => {
+    database = {
+      transaction: vi.fn(async (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+      ),
+    };
+
     prospectActivityRepository = {
       create: vi.fn().mockResolvedValue(activity),
+    };
+
+    assignmentRepository = {
+      findCurrentForUpdate: vi.fn().mockResolvedValue(assignment),
     };
 
     reservationRepository = {
@@ -94,16 +140,18 @@ describe('ProspectActivityService', () => {
 
     reservationService = {
       requireReservationEligibility: vi.fn().mockResolvedValue({
-        assignment: {
-          id: assignmentId,
-        },
+        assignment,
 
         establishmentId,
       }),
     };
 
     service = new ProspectActivityService(
+      database as unknown as Database,
+
       prospectActivityRepository as unknown as ProspectActivityRepository,
+
+      assignmentRepository as unknown as CampaignProspectAssignmentRepository,
 
       reservationRepository as unknown as ReservationRepository,
 
@@ -126,23 +174,39 @@ describe('ProspectActivityService', () => {
       }),
     ).resolves.toEqual(activity);
 
-    expect(prospectActivityRepository.create).toHaveBeenCalledWith({
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
       tenantId,
 
       campaignId,
 
       campaignProspectId,
 
-      establishmentId,
+      transaction,
+    );
 
-      assignmentId,
+    expect(prospectActivityRepository.create).toHaveBeenCalledWith(
+      {
+        tenantId,
 
-      userId,
+        campaignId,
 
-      reservationId,
+        campaignProspectId,
 
-      type: 'call',
-    });
+        establishmentId,
+
+        assignmentId,
+
+        userId,
+
+        reservationId,
+
+        type: 'call',
+      },
+
+      transaction,
+    );
   });
 
   it('requires an active reservation', async () => {
@@ -161,6 +225,10 @@ describe('ProspectActivityService', () => {
         type: 'call',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
 
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
@@ -186,13 +254,19 @@ describe('ProspectActivityService', () => {
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
 
   it('rejects a reservation from a stale assignment', async () => {
     reservationService.requireReservationEligibility.mockResolvedValue({
       assignment: {
-        id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        ...assignment,
+
+        id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       },
 
       establishmentId,
@@ -212,6 +286,10 @@ describe('ProspectActivityService', () => {
       }),
     ).rejects.toThrow('Reservation does not match current assignment');
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
 
@@ -219,7 +297,7 @@ describe('ProspectActivityService', () => {
     reservationRepository.findCurrent.mockResolvedValue({
       ...reservation,
 
-      establishmentId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      establishmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     });
 
     await expect(
@@ -235,6 +313,10 @@ describe('ProspectActivityService', () => {
         type: 'visit',
       }),
     ).rejects.toThrow('Reservation does not match campaign prospect');
+
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
 
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
@@ -260,6 +342,10 @@ describe('ProspectActivityService', () => {
 
     expect(reservationRepository.findCurrent).not.toHaveBeenCalled();
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
 
@@ -280,6 +366,66 @@ describe('ProspectActivityService', () => {
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrentForUpdate).not.toHaveBeenCalled();
+
+    expect(prospectActivityRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects activity when the assignment changes after reservation validation', async () => {
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue({
+      ...assignment,
+
+      id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    });
+
+    await expect(
+      service.record({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        type: 'call',
+      }),
+    ).rejects.toThrow('Campaign prospect changed during activity recording');
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
+
+    expect(prospectActivityRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects activity when the current assignment disappears before persistence', async () => {
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(null);
+
+    await expect(
+      service.record({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        type: 'call',
+      }),
+    ).rejects.toThrow('Campaign prospect changed during activity recording');
+
     expect(prospectActivityRepository.create).not.toHaveBeenCalled();
   });
 
@@ -299,5 +445,17 @@ describe('ProspectActivityService', () => {
         type: 'call',
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(assignmentRepository.findCurrentForUpdate).toHaveBeenCalledWith(
+      tenantId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      transaction,
+    );
   });
 });

@@ -189,7 +189,15 @@ describe('ReservationController', () => {
       prospectId,
     );
 
-    expect(reservationService.getCurrent).toHaveBeenCalledWith(tenantId, campaignId, prospectId);
+    expect(reservationService.getCurrent).toHaveBeenCalledWith({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
+    });
 
     expect(result).toEqual(reservation);
   });

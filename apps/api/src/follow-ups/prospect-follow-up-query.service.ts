@@ -114,8 +114,18 @@ export class ProspectFollowUpQueryService {
      */
     const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
 
+    /*
+     * Do not distinguish between:
+     *
+     * - missing campaign
+     * - missing campaign prospect
+     * - existing but unauthorized campaign prospect
+     *
+     * All cases use the same public response to
+     * prevent same-tenant resource enumeration.
+     */
     if (!campaign) {
-      throw new NotFoundException('Campaign not found');
+      throw new NotFoundException('Campaign prospect not found');
     }
 
     const prospect = await this.campaignProspectRepository.findById(
@@ -156,8 +166,13 @@ export class ProspectFollowUpQueryService {
       );
     }
 
+    /*
+     * Existing resources outside the caller's
+     * authorized scope are intentionally masked
+     * as not found.
+     */
     if (!canView) {
-      throw new ForbiddenException('User cannot view prospect follow-ups');
+      throw new NotFoundException('Campaign prospect not found');
     }
 
     try {

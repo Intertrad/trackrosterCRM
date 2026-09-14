@@ -225,7 +225,13 @@ describe('IdempotencyInterceptor', () => {
 
     await expect(firstValueFrom(observable)).resolves.toEqual(responseBody);
 
-    expect(idempotencyService.complete).toHaveBeenCalledWith(recordId, 201, responseBody);
+    expect(idempotencyService.complete).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+      responseStatus: 201,
+      responseBody,
+    });
     expect(reply.header).toHaveBeenCalledWith(IDEMPOTENCY_REPLAY_HEADER, 'false');
   });
 
@@ -244,9 +250,14 @@ describe('IdempotencyInterceptor', () => {
 
     const observable = await interceptor.intercept(context, next);
     await firstValueFrom(observable);
-
-    expect(idempotencyService.complete).toHaveBeenCalledWith(recordId, 200, {
-      status: 'pending',
+    expect(idempotencyService.complete).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+      responseStatus: 200,
+      responseBody: {
+        status: 'pending',
+      },
     });
   });
 
@@ -268,8 +279,14 @@ describe('IdempotencyInterceptor', () => {
     const observable = await interceptor.intercept(context, next);
     await firstValueFrom(observable);
 
-    expect(idempotencyService.complete).toHaveBeenCalledWith(recordId, 202, {
-      accepted: true,
+    expect(idempotencyService.complete).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+      responseStatus: 202,
+      responseBody: {
+        accepted: true,
+      },
     });
   });
 
@@ -320,7 +337,11 @@ describe('IdempotencyInterceptor', () => {
 
     await expect(firstValueFrom(observable)).rejects.toBe(originalError);
 
-    expect(idempotencyService.release).toHaveBeenCalledWith(recordId);
+    expect(idempotencyService.release).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+    });
     expect(idempotencyService.markUncertain).not.toHaveBeenCalled();
     expect(idempotencyService.complete).not.toHaveBeenCalled();
   });
@@ -343,7 +364,11 @@ describe('IdempotencyInterceptor', () => {
 
     await expect(firstValueFrom(observable)).rejects.toBe(originalError);
 
-    expect(idempotencyService.markUncertain).toHaveBeenCalledWith(recordId);
+    expect(idempotencyService.markUncertain).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+    });
     expect(idempotencyService.release).not.toHaveBeenCalled();
   });
 
@@ -365,7 +390,11 @@ describe('IdempotencyInterceptor', () => {
 
     await expect(firstValueFrom(observable)).rejects.toBe(originalError);
 
-    expect(idempotencyService.markUncertain).toHaveBeenCalledWith(recordId);
+    expect(idempotencyService.markUncertain).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+    });
     expect(idempotencyService.release).not.toHaveBeenCalled();
   });
 
@@ -386,7 +415,11 @@ describe('IdempotencyInterceptor', () => {
     const observable = await interceptor.intercept(context, next);
 
     await expect(firstValueFrom(observable)).rejects.toBe(originalError);
-    expect(idempotencyService.release).toHaveBeenCalledWith(recordId);
+    expect(idempotencyService.release).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+    });
   });
 
   it('preserves the original server error even if uncertain persistence fails', async () => {
@@ -406,7 +439,11 @@ describe('IdempotencyInterceptor', () => {
     const observable = await interceptor.intercept(context, next);
 
     await expect(firstValueFrom(observable)).rejects.toBe(originalError);
-    expect(idempotencyService.markUncertain).toHaveBeenCalledWith(recordId);
+    expect(idempotencyService.markUncertain).toHaveBeenCalledWith({
+      recordId,
+      tenantId,
+      userId,
+    });
   });
 
   it('passes duplicate Idempotency-Key header values to the service for validation', async () => {

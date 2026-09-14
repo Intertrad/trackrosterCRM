@@ -56,6 +56,43 @@ export class CampaignProspectAssignmentRepository {
     return assignment ?? null;
   }
 
+  /*
+   * Transactional current-assignment read used by
+   * sensitive mutations.
+   *
+   * SELECT ... FOR UPDATE prevents a concurrent
+   * reassignment/unassignment from ending this
+   * assignment until the caller's transaction
+   * completes.
+   *
+   * The executor is deliberately mandatory. This
+   * method should never accidentally acquire a row
+   * lock outside the transaction that protects the
+   * associated mutation.
+   */
+  async findCurrentForUpdate(
+    tenantId: string,
+    campaignId: string,
+    campaignProspectId: string,
+    executor: DatabaseExecutor,
+  ): Promise<CampaignProspectAssignment | null> {
+    const [assignment] = await executor
+      .select()
+      .from(campaignProspectAssignments)
+      .where(
+        and(
+          eq(campaignProspectAssignments.tenantId, tenantId),
+          eq(campaignProspectAssignments.campaignId, campaignId),
+          eq(campaignProspectAssignments.campaignProspectId, campaignProspectId),
+          isNull(campaignProspectAssignments.endedAt),
+        ),
+      )
+      .limit(1)
+      .for('update');
+
+    return assignment ?? null;
+  }
+
   async findConflictingCurrentCandidatesByEstablishment(
     tenantId: string,
     establishmentId: string,
@@ -71,9 +108,7 @@ export class CampaignProspectAssignmentRepository {
         campaignProspects,
         and(
           eq(campaignProspectAssignments.tenantId, campaignProspects.tenantId),
-
           eq(campaignProspectAssignments.campaignId, campaignProspects.campaignId),
-
           eq(campaignProspectAssignments.campaignProspectId, campaignProspects.id),
         ),
       )
@@ -81,25 +116,18 @@ export class CampaignProspectAssignmentRepository {
         campaigns,
         and(
           eq(campaignProspectAssignments.tenantId, campaigns.tenantId),
-
           eq(campaignProspectAssignments.campaignId, campaigns.id),
         ),
       )
       .where(
         and(
           eq(campaignProspectAssignments.tenantId, tenantId),
-
           eq(campaignProspects.establishmentId, establishmentId),
-
           eq(campaignProspects.status, 'active'),
-
           eq(campaigns.status, 'active'),
-
           isNull(campaignProspectAssignments.endedAt),
-
           or(
             ne(campaignProspectAssignments.campaignId, targetCampaignId),
-
             ne(campaignProspectAssignments.campaignProspectId, targetCampaignProspectId),
           ),
         ),
@@ -136,13 +164,9 @@ export class CampaignProspectAssignmentRepository {
       .where(
         and(
           eq(campaignProspectAssignments.tenantId, tenantId),
-
           eq(campaignProspects.establishmentId, establishmentId),
-
           eq(campaignProspects.status, 'active'),
-
           eq(campaigns.status, 'active'),
-
           isNull(campaignProspectAssignments.endedAt),
 
           /*

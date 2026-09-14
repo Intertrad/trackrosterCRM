@@ -1431,7 +1431,17 @@ describe('Manager dashboard HTTP integration', () => {
       to: rangeTo,
     });
 
-    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.statusCode).toBe(404);
+
+    expect(JSON.parse(forbidden.payload)).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
   });
 
   it('allows a client admin to report across the entire tenant', async () => {
@@ -1610,8 +1620,8 @@ describe('Manager dashboard HTTP integration', () => {
     ]);
   });
 
-  it('does not let a manager widen reporting to another team', async () => {
-    const response = await requestDashboard(managerToken, {
+  it('masks an out-of-scope team exactly like a nonexistent team', async () => {
+    const outOfScopeResponse = await requestDashboard(managerToken, {
       teamId: teamA2Id,
 
       from: rangeFrom,
@@ -1619,11 +1629,85 @@ describe('Manager dashboard HTTP integration', () => {
       to: rangeTo,
     });
 
-    expect(response.statusCode).toBe(403);
+    const nonexistentResponse = await requestDashboard(managerToken, {
+      teamId: randomUUID(),
+
+      from: rangeFrom,
+
+      to: rangeTo,
+    });
+
+    expect(outOfScopeResponse.statusCode).toBe(404);
+
+    expect(nonexistentResponse.statusCode).toBe(404);
+
+    const outOfScopeBody = JSON.parse(outOfScopeResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const nonexistentBody = JSON.parse(nonexistentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(outOfScopeBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect(nonexistentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: outOfScopeBody.statusCode,
+
+      code: outOfScopeBody.code,
+
+      message: outOfScopeBody.message,
+
+      error: outOfScopeBody.error,
+    }).toEqual({
+      statusCode: nonexistentBody.statusCode,
+
+      code: nonexistentBody.code,
+
+      message: nonexistentBody.message,
+
+      error: nonexistentBody.error,
+    });
+
+    expect(outOfScopeBody.requestId).not.toBe(nonexistentBody.requestId);
   });
 
-  it('does not let a manager filter to a prospector outside the managed team', async () => {
-    const response = await requestDashboard(managerToken, {
+  it('masks an out-of-scope prospector exactly like a nonexistent user', async () => {
+    const outOfScopeResponse = await requestDashboard(managerToken, {
       userId: prospectorDId,
 
       from: rangeFrom,
@@ -1631,11 +1715,85 @@ describe('Manager dashboard HTTP integration', () => {
       to: rangeTo,
     });
 
-    expect(response.statusCode).toBe(403);
+    const nonexistentResponse = await requestDashboard(managerToken, {
+      userId: randomUUID(),
+
+      from: rangeFrom,
+
+      to: rangeTo,
+    });
+
+    expect(outOfScopeResponse.statusCode).toBe(404);
+
+    expect(nonexistentResponse.statusCode).toBe(404);
+
+    const outOfScopeBody = JSON.parse(outOfScopeResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const nonexistentBody = JSON.parse(nonexistentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(outOfScopeBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect(nonexistentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: outOfScopeBody.statusCode,
+
+      code: outOfScopeBody.code,
+
+      message: outOfScopeBody.message,
+
+      error: outOfScopeBody.error,
+    }).toEqual({
+      statusCode: nonexistentBody.statusCode,
+
+      code: nonexistentBody.code,
+
+      message: nonexistentBody.message,
+
+      error: nonexistentBody.error,
+    });
+
+    expect(outOfScopeBody.requestId).not.toBe(nonexistentBody.requestId);
   });
 
-  it('does not let a manager widen reporting through another organization campaign', async () => {
-    const response = await requestDashboard(managerToken, {
+  it('masks an out-of-scope campaign exactly like a nonexistent campaign', async () => {
+    const outOfScopeResponse = await requestDashboard(managerToken, {
       campaignId: campaignBId,
 
       from: rangeFrom,
@@ -1643,11 +1801,85 @@ describe('Manager dashboard HTTP integration', () => {
       to: rangeTo,
     });
 
-    expect(response.statusCode).toBe(403);
+    const nonexistentResponse = await requestDashboard(managerToken, {
+      campaignId: randomUUID(),
+
+      from: rangeFrom,
+
+      to: rangeTo,
+    });
+
+    expect(outOfScopeResponse.statusCode).toBe(404);
+
+    expect(nonexistentResponse.statusCode).toBe(404);
+
+    const outOfScopeBody = JSON.parse(outOfScopeResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const nonexistentBody = JSON.parse(nonexistentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(outOfScopeBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect(nonexistentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: outOfScopeBody.statusCode,
+
+      code: outOfScopeBody.code,
+
+      message: outOfScopeBody.message,
+
+      error: outOfScopeBody.error,
+    }).toEqual({
+      statusCode: nonexistentBody.statusCode,
+
+      code: nonexistentBody.code,
+
+      message: nonexistentBody.message,
+
+      error: nonexistentBody.error,
+    });
+
+    expect(outOfScopeBody.requestId).not.toBe(nonexistentBody.requestId);
   });
 
-  it('returns not found for a team belonging to another tenant', async () => {
-    const response = await requestDashboard(managerToken, {
+  it('masks a cross-tenant team exactly like a nonexistent team', async () => {
+    const crossTenantResponse = await requestDashboard(managerToken, {
       teamId: foreignTeamId,
 
       from: rangeFrom,
@@ -1655,7 +1887,81 @@ describe('Manager dashboard HTTP integration', () => {
       to: rangeTo,
     });
 
-    expect(response.statusCode).toBe(404);
+    const nonexistentResponse = await requestDashboard(managerToken, {
+      teamId: randomUUID(),
+
+      from: rangeFrom,
+
+      to: rangeTo,
+    });
+
+    expect(crossTenantResponse.statusCode).toBe(404);
+
+    expect(nonexistentResponse.statusCode).toBe(404);
+
+    const crossTenantBody = JSON.parse(crossTenantResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const nonexistentBody = JSON.parse(nonexistentResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(crossTenantBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect(nonexistentBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
+
+    expect({
+      statusCode: crossTenantBody.statusCode,
+
+      code: crossTenantBody.code,
+
+      message: crossTenantBody.message,
+
+      error: crossTenantBody.error,
+    }).toEqual({
+      statusCode: nonexistentBody.statusCode,
+
+      code: nonexistentBody.code,
+
+      message: nonexistentBody.message,
+
+      error: nonexistentBody.error,
+    });
+
+    expect(crossTenantBody.requestId).not.toBe(nonexistentBody.requestId);
   });
 
   it('rejects a one-sided reporting date range', async () => {

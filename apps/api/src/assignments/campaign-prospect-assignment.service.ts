@@ -39,6 +39,16 @@ export interface AssignCampaignProspectInput {
   assignedUserId?: string | null;
 }
 
+export interface UnassignCampaignProspectInput {
+  tenantId: string;
+
+  actorUserId: string;
+
+  campaignId: string;
+
+  campaignProspectId: string;
+}
+
 interface ValidatedAssignmentTarget {
   campaign: Campaign;
 
@@ -247,25 +257,80 @@ export class CampaignProspectAssignmentService {
     }
   }
 
-  async unassign(
-    tenantId: string,
-    campaignId: string,
-    campaignProspectId: string,
-  ): Promise<CampaignProspectAssignment> {
-    await this.requireAssignableProspect(tenantId, campaignId, campaignProspectId);
-
-    const assignment = await this.assignmentRepository.endCurrent(
-      tenantId,
-      campaignId,
-      campaignProspectId,
-      new Date(),
+  async unassign(input: UnassignCampaignProspectInput): Promise<CampaignProspectAssignment> {
+    /*
+     * Preserve the same campaign/prospect domain
+     * validation currently used by assignment
+     * mutations.
+     */
+    await this.requireAssignableProspect(
+      input.tenantId,
+      input.campaignId,
+      input.campaignProspectId,
     );
 
-    if (!assignment) {
-      throw new ConflictException('Campaign prospect is not currently assigned');
-    }
+    return this.database.transaction(async (transaction) => {
+      const changedAt = new Date();
 
-    return assignment;
+      /*
+       * endCurrent() is itself conditional on
+       * ended_at IS NULL.
+       *
+       * This means concurrent unassign/reassign
+       * attempts cannot both successfully end the
+       * same current assignment.
+       */
+      const assignment = await this.assignmentRepository.endCurrent(
+        input.tenantId,
+        input.campaignId,
+        input.campaignProspectId,
+        changedAt,
+        transaction,
+      );
+
+      if (!assignment) {
+        throw new ConflictException('Campaign prospect is not currently assigned');
+      }
+
+      /*
+       * Mutation and immutable audit evidence belong
+       * to the same transaction.
+       *
+       * If audit persistence fails, the assignment
+       * termination must roll back too.
+       */
+      await this.auditService.record(
+        {
+          tenantId: input.tenantId,
+
+          actorType: 'user',
+
+          actorUserId: input.actorUserId,
+
+          action: 'assignment.unassigned',
+
+          resourceType: 'campaign_prospect',
+
+          resourceId: input.campaignProspectId,
+
+          metadata: {
+            assignmentId: assignment.id,
+
+            campaignId: input.campaignId,
+
+            organizationId: assignment.organizationId,
+
+            teamId: assignment.teamId,
+
+            assignedUserId: assignment.assignedUserId,
+          },
+        },
+
+        transaction,
+      );
+
+      return assignment;
+    });
   }
 
   async getCurrent(

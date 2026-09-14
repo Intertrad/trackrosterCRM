@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
@@ -298,7 +298,7 @@ describe('ProspectFollowUpQueryService', () => {
     expect(authorizationService.canViewTeam).not.toHaveBeenCalled();
   });
 
-  it('rejects prospect history when the user cannot view the current team', async () => {
+  it('masks prospect history when the user cannot view the current team', async () => {
     authorizationService.canViewTeam.mockResolvedValue(false);
 
     await expect(
@@ -311,12 +311,12 @@ describe('ProspectFollowUpQueryService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
   });
 
-  it('rejects an unassigned prospect when organization access is missing', async () => {
+  it('masks an unassigned prospect when organization access is missing', async () => {
     assignmentRepository.findCurrent.mockResolvedValue(null);
 
     authorizationService.canViewOrganization.mockResolvedValue(false);
@@ -331,10 +331,12 @@ describe('ProspectFollowUpQueryService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Campaign prospect not found');
+
+    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
   });
 
-  it('returns not found when the campaign does not exist', async () => {
+  it('returns the same masked response when the campaign does not exist', async () => {
     campaignRepository.findById.mockResolvedValue(null);
 
     await expect(
@@ -347,12 +349,16 @@ describe('ProspectFollowUpQueryService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(campaignProspectRepository.findById).not.toHaveBeenCalled();
+
+    expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
+
+    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
   });
 
-  it('returns not found when the campaign prospect does not exist', async () => {
+  it('returns the same masked response when the campaign prospect does not exist', async () => {
     campaignProspectRepository.findById.mockResolvedValue(null);
 
     await expect(
@@ -365,9 +371,11 @@ describe('ProspectFollowUpQueryService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
+
+    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
   });
 
   it('allows historical follow-up reads for an archived campaign', async () => {

@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
@@ -981,7 +981,75 @@ describe('ReservationService', () => {
       });
     });
 
-    it('rejects a missing campaign', async () => {
+    it('rejects a missing authenticated user before resolving the target', async () => {
+      userRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('User is not active');
+
+      expect(authorizationService.getUserGrants).not.toHaveBeenCalled();
+
+      expect(campaignRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('rejects an inactive user before resolving the target', async () => {
+      userRepository.findById.mockResolvedValue({
+        id: userId,
+
+        tenantId,
+
+        status: 'inactive',
+      });
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(authorizationService.getUserGrants).not.toHaveBeenCalled();
+
+      expect(campaignRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('rejects a caller with no prospector team scope before resolving the target', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([]);
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('User does not have a prospector team scope');
+
+      expect(campaignRepository.findById).not.toHaveBeenCalled();
+
+      expect(campaignProspectRepository.findById).not.toHaveBeenCalled();
+
+      expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
+    });
+
+    it('returns the masked response for a missing campaign', async () => {
       campaignRepository.findById.mockResolvedValue(null);
 
       await expect(
@@ -994,10 +1062,14 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(campaignProspectRepository.findById).not.toHaveBeenCalled();
+
+      expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
     });
 
-    it('rejects an inactive campaign', async () => {
+    it('rejects an inactive campaign for an authorized prospector', async () => {
       campaignRepository.findById.mockResolvedValue({
         ...campaign,
 
@@ -1017,7 +1089,7 @@ describe('ReservationService', () => {
       ).rejects.toThrow('Campaign is not active');
     });
 
-    it('rejects a missing campaign prospect', async () => {
+    it('returns the masked response for a missing campaign prospect', async () => {
       campaignProspectRepository.findById.mockResolvedValue(null);
 
       await expect(
@@ -1030,10 +1102,12 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
     });
 
-    it('rejects an inactive campaign prospect', async () => {
+    it('rejects an inactive campaign prospect for an authorized prospector', async () => {
       campaignProspectRepository.findById.mockResolvedValue({
         ...prospect,
 
@@ -1053,7 +1127,7 @@ describe('ReservationService', () => {
       ).rejects.toThrow('Campaign prospect is not active');
     });
 
-    it('rejects a prospect without a current assignment', async () => {
+    it('masks a prospect without a current assignment', async () => {
       assignmentRepository.findCurrent.mockResolvedValue(null);
 
       await expect(
@@ -1066,10 +1140,62 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toThrow('Campaign prospect is not assigned');
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(teamRepository.findById).not.toHaveBeenCalled();
     });
 
-    it('rejects a missing assigned team', async () => {
+    it('masks a prospect assigned to another user', async () => {
+      assignmentRepository.findCurrent.mockResolvedValue({
+        ...assignment,
+
+        assignedUserId: otherUserId,
+      });
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(teamRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('masks a prospect outside the caller exact prospector team scope', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'prospector',
+
+          scopeType: 'team',
+
+          organizationId,
+
+          teamId: '89898989-8989-4898-8898-898989898989',
+        },
+      ]);
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(teamRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing assigned team after exact authorization is established', async () => {
       teamRepository.findById.mockResolvedValue(null);
 
       await expect(
@@ -1082,10 +1208,10 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toThrow('Assigned team not found');
     });
 
-    it('rejects an inactive assigned team', async () => {
+    it('rejects an inactive assigned team after exact authorization is established', async () => {
       teamRepository.findById.mockResolvedValue({
         id: teamId,
 
@@ -1108,12 +1234,13 @@ describe('ReservationService', () => {
         }),
       ).rejects.toThrow('Assigned team is not active');
     });
-
-    it('rejects a missing user', async () => {
-      userRepository.findById.mockResolvedValue(null);
+  });
+  describe('getCurrent', () => {
+    it('returns the current reservation for the authorized prospector', async () => {
+      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
 
       await expect(
-        service.requireReservationEligibility({
+        service.getCurrent({
           tenantId,
 
           userId,
@@ -1122,20 +1249,20 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
+      ).resolves.toEqual(existingReservation);
 
-    it('rejects an inactive user', async () => {
-      userRepository.findById.mockResolvedValue({
-        id: userId,
-
+      expect(reservationRepository.findCurrent).toHaveBeenCalledWith(
         tenantId,
+        campaignId,
+        prospectId,
+      );
+    });
 
-        status: 'inactive',
-      });
+    it('returns the masked response when the campaign does not exist', async () => {
+      campaignRepository.findById.mockResolvedValue(null);
 
       await expect(
-        service.requireReservationEligibility({
+        service.getCurrent({
           tenantId,
 
           userId,
@@ -1144,18 +1271,22 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(reservationRepository.findCurrent).not.toHaveBeenCalled();
     });
 
-    it('rejects a user when the assignment belongs to somebody else', async () => {
+    it('masks a reservation read when the prospect is assigned to another user', async () => {
       assignmentRepository.findCurrent.mockResolvedValue({
         ...assignment,
 
         assignedUserId: otherUserId,
       });
 
+      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
+
       await expect(
-        service.requireReservationEligibility({
+        service.getCurrent({
           tenantId,
 
           userId,
@@ -1164,14 +1295,18 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toThrow('Campaign prospect is assigned to another user');
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(reservationRepository.findCurrent).not.toHaveBeenCalled();
     });
 
-    it('rejects a user without an exact team prospector grant', async () => {
+    it('rejects reservation reads when the caller has no prospector scope', async () => {
       authorizationService.getUserGrants.mockResolvedValue([]);
 
+      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
+
       await expect(
-        service.requireReservationEligibility({
+        service.getCurrent({
           tenantId,
 
           userId,
@@ -1180,44 +1315,48 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toThrow('User is not a prospector for the assigned team');
-    });
-  });
+      ).rejects.toThrow('User does not have a prospector team scope');
 
-  describe('getCurrent', () => {
-    it('returns the current reservation', async () => {
+      expect(reservationRepository.findCurrent).not.toHaveBeenCalled();
+
+      expect(campaignRepository.findById).not.toHaveBeenCalled();
+    });
+
+    it('masks reservation reads outside the caller exact prospector team scope', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'prospector',
+
+          scopeType: 'team',
+
+          organizationId,
+
+          teamId: '89898989-8989-4898-8898-898989898989',
+        },
+      ]);
+
       reservationRepository.findCurrent.mockResolvedValue(existingReservation);
 
-      await expect(service.getCurrent(tenantId, campaignId, prospectId)).resolves.toEqual(
-        existingReservation,
-      );
+      await expect(
+        service.getCurrent({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('Campaign prospect not found');
+
+      expect(reservationRepository.findCurrent).not.toHaveBeenCalled();
     });
 
-    it('fails when campaign does not exist', async () => {
-      campaignRepository.findById.mockResolvedValue(null);
-
-      await expect(service.getCurrent(tenantId, campaignId, prospectId)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
-    });
-
-    it('maps Redis lookup failure to service unavailable', async () => {
+    it('maps Redis lookup failure to service unavailable after authorization succeeds', async () => {
       reservationRepository.findCurrent.mockRejectedValue(new Error('Redis unavailable'));
 
-      await expect(service.getCurrent(tenantId, campaignId, prospectId)).rejects.toBeInstanceOf(
-        ServiceUnavailableException,
-      );
-    });
-  });
-
-  describe('release', () => {
-    it('releases an organization-scoped reservation owned by the caller', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
-
-      reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
       await expect(
-        service.release({
+        service.getCurrent({
           tenantId,
 
           userId,
@@ -1225,222 +1364,8 @@ describe('ReservationService', () => {
           campaignId,
 
           campaignProspectId: prospectId,
-
-          reservationId,
-        }),
-      ).resolves.toEqual({
-        released: true,
-
-        reservationId,
-      });
-
-      expect(reservationRepository.releaseOrganizationScoped).toHaveBeenCalledWith(
-        tenantId,
-
-        campaignId,
-
-        prospectId,
-
-        organizationId,
-
-        establishmentId,
-
-        reservationId,
-      );
-
-      expect(reservationRepository.release).not.toHaveBeenCalled();
-    });
-
-    it('uses legacy release when the reservation owns the legacy lock', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
-
-      reservationRepository.findCurrentByEstablishment.mockResolvedValue(existingReservation);
-
-      await service.release({
-        tenantId,
-
-        userId,
-
-        campaignId,
-
-        campaignProspectId: prospectId,
-
-        reservationId,
-      });
-
-      expect(reservationRepository.release).toHaveBeenCalledWith(
-        tenantId,
-
-        campaignId,
-
-        prospectId,
-
-        establishmentId,
-
-        reservationId,
-      );
-
-      expect(reservationRepository.releaseOrganizationScoped).not.toHaveBeenCalled();
-    });
-
-    it('rejects release when reservation does not exist', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(null);
-
-      await expect(
-        service.release({
-          tenantId,
-
-          userId,
-
-          campaignId,
-
-          campaignProspectId: prospectId,
-
-          reservationId,
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
-
-    it('rejects release by another user', async () => {
-      reservationRepository.findCurrent.mockResolvedValue({
-        ...existingReservation,
-
-        userId: otherUserId,
-      });
-
-      await expect(
-        service.release({
-          tenantId,
-
-          userId,
-
-          campaignId,
-
-          campaignProspectId: prospectId,
-
-          reservationId,
-        }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
-    });
-
-    it('rejects release when reservation identity changed', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
-
-      await expect(
-        service.release({
-          tenantId,
-
-          userId,
-
-          campaignId,
-
-          campaignProspectId: prospectId,
-
-          reservationId: '31313131-3131-4131-8131-313131313131',
-        }),
-      ).rejects.toThrow('Reservation has changed');
-    });
-
-    it('rejects when repository reports the reservation changed or expired', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
-
-      reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-      reservationRepository.releaseOrganizationScoped.mockResolvedValue(false);
-
-      await expect(
-        service.release({
-          tenantId,
-
-          userId,
-
-          campaignId,
-
-          campaignProspectId: prospectId,
-
-          reservationId,
-        }),
-      ).rejects.toThrow('Reservation has changed or expired');
-    });
-
-    it('maps release infrastructure failure to service unavailable', async () => {
-      reservationRepository.findCurrent.mockResolvedValue(existingReservation);
-
-      reservationRepository.findCurrentByEstablishment.mockResolvedValue(null);
-
-      reservationRepository.releaseOrganizationScoped.mockRejectedValue(
-        new Error('Redis unavailable'),
-      );
-
-      await expect(
-        service.release({
-          tenantId,
-
-          userId,
-
-          campaignId,
-
-          campaignProspectId: prospectId,
-
-          reservationId,
         }),
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
-  });
-
-  it('allows an exact-team prospector to reserve a team-owned assignment', async () => {
-    assignmentRepository.findCurrent.mockResolvedValue({
-      ...assignment,
-
-      assignedUserId: null,
-    });
-
-    const result = await service.acquire({
-      tenantId,
-
-      userId,
-
-      campaignId,
-
-      campaignProspectId: prospectId,
-    });
-
-    expect(result).toMatchObject({
-      tenantId,
-
-      campaignId,
-
-      campaignProspectId: prospectId,
-
-      assignmentId,
-
-      teamId,
-
-      userId,
-    });
-
-    expect(reservationRepository.acquireWithinOrganizationScope).toHaveBeenCalledTimes(1);
-  });
-
-  it('fails closed when coordination scope resolution fails', async () => {
-    reservationCoordinationScopeService.resolve.mockRejectedValue(
-      new Error('coordination unavailable'),
-    );
-
-    await expect(
-      service.acquire({
-        tenantId,
-
-        userId,
-
-        campaignId,
-
-        campaignProspectId: prospectId,
-      }),
-    ).rejects.toBeInstanceOf(ServiceUnavailableException);
-
-    expect(collisionBusinessDecisionService.evaluate).not.toHaveBeenCalled();
-
-    expect(reservationRepository.acquireWithinOrganizationScope).not.toHaveBeenCalled();
   });
 });

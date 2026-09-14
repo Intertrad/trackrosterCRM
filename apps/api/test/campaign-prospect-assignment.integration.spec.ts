@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { and, eq, isNull } from 'drizzle-orm';
+import { CampaignProspectAssignmentRepository } from '../src/assignments/campaign-prospect-assignment.repository.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
@@ -725,5 +726,241 @@ describe('Campaign prospect assignment HTTP integration', () => {
       );
 
     expect(current).toHaveLength(1);
+  });
+
+  it('prevents concurrent assignment invalidation while the current row is locked', async () => {
+    const assignmentRepository = getApp().get(CampaignProspectAssignmentRepository);
+
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+
+    const [establishment] = await getDatabase()
+      .insert(establishments)
+      .values({
+        tenantId: tenantAId,
+
+        name: `Lock Test Establishment ${suffix}`,
+
+        normalizedName: `lock test establishment ${suffix}`,
+
+        city: 'Paris',
+
+        countryCode: 'FR',
+
+        source: 'manual',
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!establishment) {
+      throw new Error('Failed to create lock-test establishment');
+    }
+
+    const [prospect] = await getDatabase()
+      .insert(campaignProspects)
+      .values({
+        tenantId: tenantAId,
+
+        campaignId,
+
+        establishmentId: establishment.id,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!prospect) {
+      throw new Error('Failed to create lock-test campaign prospect');
+    }
+
+    const [assignment] = await getDatabase()
+      .insert(campaignProspectAssignments)
+      .values({
+        tenantId: tenantAId,
+
+        campaignId,
+
+        campaignProspectId: prospect.id,
+
+        organizationId: organizationAId,
+
+        teamId: teamAId,
+
+        assignedUserId: null,
+      })
+      .returning();
+
+    if (!assignment) {
+      throw new Error('Failed to create lock-test assignment');
+    }
+
+    let releaseLock!: () => void;
+
+    let markLockAcquired!: () => void;
+
+    let rejectLockAcquired!: (error: unknown) => void;
+
+    const holdLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    const lockAcquired = new Promise<void>((resolve, reject) => {
+      markLockAcquired = resolve;
+
+      rejectLockAcquired = reject;
+    });
+
+    /*
+     * Transaction A acquires the exact row lock used
+     * by manager override / activity sensitive writes.
+     *
+     * It deliberately stays open until the test
+     * releases holdLock.
+     */
+    const lockingTransaction = getDatabase().transaction(async (transaction) => {
+      try {
+        const lockedAssignment = await assignmentRepository.findCurrentForUpdate(
+          tenantAId,
+
+          campaignId,
+
+          prospect.id,
+
+          transaction,
+        );
+
+        expect(lockedAssignment).toBeDefined();
+
+        expect(lockedAssignment?.id).toBe(assignment.id);
+
+        markLockAcquired();
+
+        await holdLock;
+      } catch (error) {
+        rejectLockAcquired(error);
+
+        throw error;
+      }
+    });
+
+    try {
+      /*
+       * Never race Transaction B against lock acquisition.
+       * The explicit promise means B starts only after
+       * SELECT ... FOR UPDATE has completed.
+       */
+      await lockAcquired;
+
+      let concurrentError: unknown;
+
+      try {
+        await getDatabase().transaction(async (transaction) => {
+          /*
+           * Do not use arbitrary sleeps to infer that
+           * blocking happened.
+           *
+           * PostgreSQL itself terminates this statement
+           * if it cannot acquire the row lock.
+           */
+          await transaction.execute(sql`SET LOCAL lock_timeout = '250ms'`);
+
+          await transaction
+            .update(campaignProspectAssignments)
+            .set({
+              endedAt: new Date(),
+            })
+            .where(eq(campaignProspectAssignments.id, assignment.id));
+        });
+      } catch (error) {
+        concurrentError = error;
+      }
+
+      expect(concurrentError).toBeDefined();
+
+      /*
+       * Drizzle/node-postgres may wrap the underlying
+       * PostgreSQL error, so walk the cause chain.
+       */
+      function findPostgresErrorCode(error: unknown): string | undefined {
+        const seen = new Set<object>();
+
+        let current: unknown = error;
+
+        while (typeof current === 'object' && current !== null && !seen.has(current)) {
+          seen.add(current);
+
+          const candidate = current as {
+            code?: unknown;
+
+            cause?: unknown;
+          };
+
+          if (typeof candidate.code === 'string') {
+            return candidate.code;
+          }
+
+          current = candidate.cause;
+        }
+
+        return undefined;
+      }
+
+      /*
+       * PostgreSQL 55P03 = lock_not_available.
+       *
+       * lock_timeout reports this when Transaction B
+       * cannot obtain the row lock held by Transaction A.
+       */
+      expect(findPostgresErrorCode(concurrentError)).toBe('55P03');
+
+      /*
+       * The concurrent mutation never changed the row.
+       */
+      const [whileLocked] = await getDatabase()
+        .select()
+        .from(campaignProspectAssignments)
+        .where(eq(campaignProspectAssignments.id, assignment.id))
+        .limit(1);
+
+      expect(whileLocked).toBeDefined();
+
+      expect(whileLocked?.endedAt).toBeNull();
+    } finally {
+      /*
+       * Always release Transaction A, even when an
+       * assertion fails, so the suite cannot deadlock.
+       */
+      releaseLock();
+
+      await lockingTransaction;
+    }
+
+    /*
+     * Once the protecting transaction commits, the
+     * exact same row may be mutated normally.
+     */
+    const [endedAssignment] = await getDatabase()
+      .update(campaignProspectAssignments)
+      .set({
+        endedAt: new Date(),
+      })
+      .where(eq(campaignProspectAssignments.id, assignment.id))
+      .returning();
+
+    expect(endedAssignment).toBeDefined();
+
+    expect(endedAssignment?.endedAt).not.toBeNull();
+
+    /*
+     * Remove the isolated fixture immediately so this
+     * concurrency proof cannot affect other tests.
+     */
+    await getDatabase()
+      .delete(campaignProspectAssignments)
+      .where(eq(campaignProspectAssignments.id, assignment.id));
+
+    await getDatabase().delete(campaignProspects).where(eq(campaignProspects.id, prospect.id));
+
+    await getDatabase().delete(establishments).where(eq(establishments.id, establishment.id));
   });
 });

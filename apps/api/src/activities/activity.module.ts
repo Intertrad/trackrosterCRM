@@ -4,6 +4,7 @@ import { AssignmentModule } from '../assignments/assignment.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { CampaignModule } from '../campaigns/campaign.module.js';
+import { DatabaseModule } from '../database/database.module.js';
 import { ReservationModule } from '../reservations/reservation.module.js';
 import { ActivityRepositoryModule } from './activity-repository.module.js';
 import { ProspectActivityController } from './prospect-activity.controller.js';
@@ -20,6 +21,8 @@ import { ProspectTimelineService } from './prospect-timeline.service.js';
     CampaignModule,
 
     AssignmentModule,
+
+    DatabaseModule,
 
     ReservationModule,
 
