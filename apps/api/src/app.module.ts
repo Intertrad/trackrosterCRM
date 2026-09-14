@@ -25,6 +25,8 @@ import { JobQueueModule } from './jobs/job-queue.module.js';
 import { NotificationModule } from './notifications/notification.module.js';
 import { ReportingModule } from './reporting/reporting.module.js';
 import { ExportModule } from './exports/export.module.js';
+import { ApiErrorModule } from './errors/api-error.module.js';
+import { IdempotencyModule } from './idempotency/idempotency.module.js';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { ExportModule } from './exports/export.module.js';
     TeamModule,
     AuthModule,
     UserModule,
+    ApiErrorModule,
+
     AuthorizationModule,
     UserManagementModule,
     EstablishmentModule,
@@ -58,6 +62,7 @@ import { ExportModule } from './exports/export.module.js';
     JobQueueModule,
     ReportingModule,
     ExportModule,
+    IdempotencyModule,
   ],
 })
 export class AppModule {}

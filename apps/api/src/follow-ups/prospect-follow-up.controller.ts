@@ -17,6 +17,7 @@ import {
 } from './prospect-follow-up.dto.js';
 import { ProspectFollowUpService } from './prospect-follow-up.service.js';
 import { ProspectFollowUpQueryService } from './prospect-follow-up-query.service.js';
+import { Idempotent } from '../idempotency/idempotent.decorator.js';
 
 interface AuthContext {
   userId: string;
@@ -54,7 +55,7 @@ export class ProspectFollowUpController {
       campaignProspectId: prospectId,
     });
   }
-
+  @Idempotent('follow_up.create')
   @Post()
   create(
     @CurrentAuth()
@@ -83,7 +84,7 @@ export class ProspectFollowUpController {
       assignedUserId: body.assignedUserId,
     });
   }
-
+  @Idempotent('follow_up.reschedule')
   @Patch(':followUpId/reschedule')
   reschedule(
     @CurrentAuth()
@@ -115,7 +116,7 @@ export class ProspectFollowUpController {
       dueAt: body.dueAt,
     });
   }
-
+  @Idempotent('follow_up.complete')
   @Post(':followUpId/complete')
   complete(
     @CurrentAuth()
@@ -142,7 +143,7 @@ export class ProspectFollowUpController {
       followUpId,
     });
   }
-
+  @Idempotent('follow_up.cancel')
   @Post(':followUpId/cancel')
   cancel(
     @CurrentAuth()

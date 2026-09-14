@@ -4,6 +4,7 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { CreateProspectActivityDto } from './prospect-activity.dto.js';
 import { ProspectActivityService } from './prospect-activity.service.js';
+import { Idempotent } from '../idempotency/idempotent.decorator.js';
 
 interface AuthContext {
   userId: string;
@@ -14,7 +15,7 @@ interface AuthContext {
 @UseGuards(AuthGuard)
 export class ProspectActivityController {
   constructor(private readonly prospectActivityService: ProspectActivityService) {}
-
+  @Idempotent('activity.record')
   @Post()
   record(
     @CurrentAuth()

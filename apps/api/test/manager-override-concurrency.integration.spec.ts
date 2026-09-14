@@ -6,6 +6,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { auditEvents } from '../src/database/schema/audit-events.js';
+import { idempotencyRecords } from '../src/database/schema/idempotency-records.js';
 
 import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
@@ -612,6 +613,9 @@ describe('Manager override reservation concurrency integration', () => {
         await getDatabase().delete(organizations).where(eq(organizations.tenantId, tenantId));
 
         await getDatabase().delete(tenants).where(eq(tenants.id, tenantId));
+        await getDatabase()
+          .delete(idempotencyRecords)
+          .where(eq(idempotencyRecords.tenantId, tenantId));
       }
     } finally {
       if (app) {
@@ -709,12 +713,13 @@ describe('Manager override reservation concurrency integration', () => {
 
         headers: {
           authorization: `Bearer ${managerToken}`,
+          'idempotency-key': randomUUID(),
         },
 
         payload: {
           prospectorUserId: prospectorAId,
 
-          reason: 'Approved after manager coordination for the concurrency integration test.',
+          reason: 'Approved for prospector A during the manager override concurrency test.',
         },
       });
 
@@ -755,12 +760,13 @@ describe('Manager override reservation concurrency integration', () => {
 
         headers: {
           authorization: `Bearer ${managerToken}`,
+          'idempotency-key': randomUUID(),
         },
 
         payload: {
           prospectorUserId: prospectorBId,
 
-          reason: 'Approved after manager coordination for the concurrency integration test.',
+          reason: 'Approved for prospector B during the manager override concurrency test.',
         },
       });
 

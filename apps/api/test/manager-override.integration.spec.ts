@@ -256,9 +256,7 @@ describe('Manager override HTTP integration', () => {
 
   async function requestOverride(
     token: string,
-
     prospectorUserId: string,
-
     reason = 'Approved by the manager after reviewing the current prospecting collision.',
   ) {
     return getApp().inject({
@@ -268,11 +266,12 @@ describe('Manager override HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${token}`,
+
+        'idempotency-key': randomUUID(),
       },
 
       payload: {
         prospectorUserId,
-
         reason,
       },
     });
