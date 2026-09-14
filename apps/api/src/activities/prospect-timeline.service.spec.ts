@@ -1,6 +1,5 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { BadRequestException } from '@nestjs/common';
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repository.js';
@@ -298,7 +297,7 @@ describe('ProspectTimelineService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(prospectActivityRepository.findTimelineByCampaignProspect).not.toHaveBeenCalled();
   });
@@ -318,7 +317,7 @@ describe('ProspectTimelineService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(prospectActivityRepository.findTimelineByCampaignProspect).not.toHaveBeenCalled();
   });
@@ -336,7 +335,7 @@ describe('ProspectTimelineService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(campaignProspectRepository.findById).not.toHaveBeenCalled();
 
@@ -356,7 +355,7 @@ describe('ProspectTimelineService', () => {
 
         campaignProspectId,
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Campaign prospect not found');
 
     expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
   });

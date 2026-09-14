@@ -20,7 +20,9 @@ import {
 
 import type {
   BeginIdempotencyInput,
+  CompleteIdempotencyInput,
   IdempotencyDecision,
+  IdempotencyLifecycleIdentity,
   IdempotencyRequestIdentity,
 } from './idempotency.types.js';
 
@@ -134,6 +136,10 @@ export class IdempotencyService {
             await this.repository.markUncertain({
               id: existing.id,
 
+              tenantId: boundary.tenantId,
+
+              userId: boundary.userId,
+
               finalizedAt: now,
             });
 
@@ -198,17 +204,29 @@ export class IdempotencyService {
     });
   }
 
-  async complete(recordId: string, responseStatus: number, responseBody: unknown): Promise<void> {
-    if (!Number.isInteger(responseStatus) || responseStatus < 100 || responseStatus > 599) {
+  /*
+   * Finalizes only the processing record owned by
+   * the authenticated tenant/user.
+   */
+  async complete(input: CompleteIdempotencyInput): Promise<void> {
+    if (
+      !Number.isInteger(input.responseStatus) ||
+      input.responseStatus < 100 ||
+      input.responseStatus > 599
+    ) {
       throw this.persistenceFailure();
     }
 
     const completed = await this.repository.markCompleted({
-      id: recordId,
+      id: input.recordId,
 
-      responseStatus,
+      tenantId: input.tenantId,
 
-      responseBody: responseBody ?? null,
+      userId: input.userId,
+
+      responseStatus: input.responseStatus,
+
+      responseBody: input.responseBody ?? null,
 
       finalizedAt: new Date(),
     });
@@ -224,9 +242,18 @@ export class IdempotencyService {
    *
    * Releasing the processing record allows the
    * client to correct the request and retry.
+   *
+   * Ownership remains part of the deletion
+   * predicate.
    */
-  async release(recordId: string): Promise<void> {
-    const deleted = await this.repository.deleteProcessing(recordId);
+  async release(input: IdempotencyLifecycleIdentity): Promise<void> {
+    const deleted = await this.repository.deleteProcessing({
+      id: input.recordId,
+
+      tenantId: input.tenantId,
+
+      userId: input.userId,
+    });
 
     if (!deleted) {
       throw this.persistenceFailure();
@@ -239,10 +266,18 @@ export class IdempotencyService {
    * The key remains occupied as "uncertain" so
    * the same operation cannot silently execute
    * twice.
+   *
+   * The transition is constrained to the
+   * authenticated tenant/user that owns the
+   * processing record.
    */
-  async markUncertain(recordId: string): Promise<void> {
+  async markUncertain(input: IdempotencyLifecycleIdentity): Promise<void> {
     const uncertain = await this.repository.markUncertain({
-      id: recordId,
+      id: input.recordId,
+
+      tenantId: input.tenantId,
+
+      userId: input.userId,
 
       finalizedAt: new Date(),
     });
@@ -388,6 +423,7 @@ export class IdempotencyService {
 
     throw this.invalidFingerprintRequest();
   }
+
   private invalidFingerprintRequest(): BadRequestException {
     return new BadRequestException({
       code: 'INVALID_IDEMPOTENCY_REQUEST',

@@ -521,22 +521,100 @@ describe('CampaignProspectAssignmentService', () => {
     expect(result.assignedUserId).toBe(newUserId);
   });
 
-  it('unassigns by ending the current assignment', async () => {
+  it('unassigns and audits the ended assignment inside one transaction', async () => {
     campaignRepository.findById.mockResolvedValue(campaign);
 
     campaignProspectRepository.findById.mockResolvedValue(prospect);
 
-    assignmentRepository.endCurrent.mockResolvedValue({
+    const endedAssignment = {
       ...assignment,
 
-      endedAt: new Date(),
+      endedAt: new Date('2026-09-14T12:00:00.000Z'),
+    };
+
+    assignmentRepository.endCurrent.mockResolvedValue(endedAssignment);
+
+    auditService.record.mockResolvedValue({});
+
+    const result = await service.unassign({
+      tenantId,
+
+      actorUserId: userId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
     });
 
-    const result = await service.unassign(tenantId, campaignId, prospectId);
+    expect(database.transaction).toHaveBeenCalledTimes(1);
 
-    expect(assignmentRepository.endCurrent).toHaveBeenCalled();
+    expect(assignmentRepository.endCurrent).toHaveBeenCalledWith(
+      tenantId,
 
-    expect(result.endedAt).not.toBeNull();
+      campaignId,
+
+      prospectId,
+
+      expect.any(Date),
+
+      expect.anything(),
+    );
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      {
+        tenantId,
+
+        actorType: 'user',
+
+        actorUserId: userId,
+
+        action: 'assignment.unassigned',
+
+        resourceType: 'campaign_prospect',
+
+        resourceId: prospectId,
+
+        metadata: {
+          assignmentId,
+
+          campaignId,
+
+          organizationId,
+
+          teamId,
+
+          assignedUserId: userId,
+        },
+      },
+
+      expect.anything(),
+    );
+
+    expect(result).toEqual(endedAssignment);
+  });
+
+  it('rejects concurrent or repeated unassignment without writing audit evidence', async () => {
+    campaignRepository.findById.mockResolvedValue(campaign);
+
+    campaignProspectRepository.findById.mockResolvedValue(prospect);
+
+    assignmentRepository.endCurrent.mockResolvedValue(null);
+
+    await expect(
+      service.unassign({
+        tenantId,
+
+        actorUserId: userId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+      }),
+    ).rejects.toThrow('Campaign prospect is not currently assigned');
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('returns assignment history', async () => {

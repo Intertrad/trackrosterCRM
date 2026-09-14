@@ -23,6 +23,14 @@ describe('IdempotencyService', () => {
 
   const idempotencyKey = 'test-idempotency-key-001';
 
+  const lifecycleIdentity = {
+    tenantId,
+
+    userId,
+
+    recordId,
+  };
+
   let repository: {
     tryClaim: ReturnType<typeof vi.fn>;
 
@@ -459,6 +467,10 @@ describe('IdempotencyService', () => {
     expect(repository.markUncertain).toHaveBeenCalledWith({
       id: recordId,
 
+      tenantId,
+
+      userId,
+
       finalizedAt: NOW,
     });
 
@@ -602,10 +614,20 @@ describe('IdempotencyService', () => {
       type: 'call',
     };
 
-    await service.complete(recordId, 201, body);
+    await service.complete({
+      ...lifecycleIdentity,
+
+      responseStatus: 201,
+
+      responseBody: body,
+    });
 
     expect(repository.markCompleted).toHaveBeenCalledWith({
       id: recordId,
+
+      tenantId,
+
+      userId,
 
       responseStatus: 201,
 
@@ -622,10 +644,20 @@ describe('IdempotencyService', () => {
       status: 'completed',
     });
 
-    await service.complete(recordId, 200, undefined);
+    await service.complete({
+      ...lifecycleIdentity,
+
+      responseStatus: 200,
+
+      responseBody: undefined,
+    });
 
     expect(repository.markCompleted).toHaveBeenCalledWith({
       id: recordId,
+
+      tenantId,
+
+      userId,
 
       responseStatus: 200,
 
@@ -636,7 +668,15 @@ describe('IdempotencyService', () => {
   });
 
   it.each([99, 600, 200.5])('rejects invalid stored response status %s', async (responseStatus) => {
-    const error = await captureHttpException(service.complete(recordId, responseStatus, {}));
+    const error = await captureHttpException(
+      service.complete({
+        ...lifecycleIdentity,
+
+        responseStatus,
+
+        responseBody: {},
+      }),
+    );
 
     expectErrorCode(error, 503, 'IDEMPOTENCY_PERSISTENCE_FAILED');
 
@@ -647,8 +687,14 @@ describe('IdempotencyService', () => {
     repository.markCompleted.mockResolvedValue(null);
 
     const error = await captureHttpException(
-      service.complete(recordId, 201, {
-        id: 'activity-123',
+      service.complete({
+        ...lifecycleIdentity,
+
+        responseStatus: 201,
+
+        responseBody: {
+          id: 'activity-123',
+        },
       }),
     );
 
@@ -658,15 +704,21 @@ describe('IdempotencyService', () => {
   it('releases a processing record after a deterministic rejected request', async () => {
     repository.deleteProcessing.mockResolvedValue(true);
 
-    await expect(service.release(recordId)).resolves.toBeUndefined();
+    await expect(service.release(lifecycleIdentity)).resolves.toBeUndefined();
 
-    expect(repository.deleteProcessing).toHaveBeenCalledWith(recordId);
+    expect(repository.deleteProcessing).toHaveBeenCalledWith({
+      id: recordId,
+
+      tenantId,
+
+      userId,
+    });
   });
 
   it('fails safely when a processing record cannot be released', async () => {
     repository.deleteProcessing.mockResolvedValue(false);
 
-    const error = await captureHttpException(service.release(recordId));
+    const error = await captureHttpException(service.release(lifecycleIdentity));
 
     expectErrorCode(error, 503, 'IDEMPOTENCY_PERSISTENCE_FAILED');
   });
@@ -678,10 +730,14 @@ describe('IdempotencyService', () => {
       status: 'uncertain',
     });
 
-    await expect(service.markUncertain(recordId)).resolves.toBeUndefined();
+    await expect(service.markUncertain(lifecycleIdentity)).resolves.toBeUndefined();
 
     expect(repository.markUncertain).toHaveBeenCalledWith({
       id: recordId,
+
+      tenantId,
+
+      userId,
 
       finalizedAt: NOW,
     });
@@ -690,7 +746,7 @@ describe('IdempotencyService', () => {
   it('fails safely when uncertain state cannot be persisted', async () => {
     repository.markUncertain.mockResolvedValue(null);
 
-    const error = await captureHttpException(service.markUncertain(recordId));
+    const error = await captureHttpException(service.markUncertain(lifecycleIdentity));
 
     expectErrorCode(error, 503, 'IDEMPOTENCY_PERSISTENCE_FAILED');
   });

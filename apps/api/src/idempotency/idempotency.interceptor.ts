@@ -23,6 +23,8 @@ import {
 
 import { IdempotencyService } from './idempotency.service.js';
 
+import type { IdempotencyLifecycleIdentity } from './idempotency.types.js';
+
 interface IdempotencyHttpRequest extends AuthenticatedRequest {
   method: string;
 
@@ -70,6 +72,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const request = http.getRequest<IdempotencyHttpRequest>();
 
     const reply = http.getResponse<IdempotencyHttpReply>();
+
     const successStatus = this.resolveSuccessStatus(context, request.method);
 
     if (!request.auth) {
@@ -115,7 +118,21 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     reply.header(IDEMPOTENCY_REPLAY_HEADER, 'false');
 
-    const recordId = decision.recordId;
+    /*
+     * The authenticated ownership boundary is
+     * captured once and carried through every
+     * lifecycle transition.
+     *
+     * tenantId/userId come from AuthGuard-populated
+     * server context, not request body/query data.
+     */
+    const lifecycleIdentity: IdempotencyLifecycleIdentity = {
+      tenantId: request.auth.tenantId,
+
+      userId: request.auth.userId,
+
+      recordId: decision.recordId,
+    };
 
     return next.handle().pipe(
       /*
@@ -125,9 +142,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
        * allowing Nest to send the response.
        */
       mergeMap((responseBody) =>
-        from(this.idempotencyService.complete(recordId, successStatus, responseBody)).pipe(
-          map(() => responseBody),
-        ),
+        from(
+          this.idempotencyService.complete({
+            ...lifecycleIdentity,
+
+            responseStatus: successStatus,
+
+            responseBody,
+          }),
+        ).pipe(map(() => responseBody)),
       ),
 
       catchError((error: unknown) => {
@@ -138,7 +161,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
          * key; the caller may correct and retry.
          */
         if (error instanceof HttpException && error.getStatus() < 500) {
-          return from(this.releaseSafely(recordId)).pipe(mergeMap(() => throwError(() => error)));
+          return from(this.releaseSafely(lifecycleIdentity)).pipe(
+            mergeMap(() => throwError(() => error)),
+          );
         }
 
         /*
@@ -147,7 +172,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
          *
          * Fail closed.
          */
-        return from(this.markUncertainSafely(recordId)).pipe(
+        return from(this.markUncertainSafely(lifecycleIdentity)).pipe(
           mergeMap(() => throwError(() => error)),
         );
       }),
@@ -170,28 +195,28 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return method.toUpperCase() === 'POST' ? 201 : 200;
   }
 
-  private async releaseSafely(recordId: string): Promise<void> {
+  private async releaseSafely(identity: IdempotencyLifecycleIdentity): Promise<void> {
     try {
-      await this.idempotencyService.release(recordId);
+      await this.idempotencyService.release(identity);
     } catch (error) {
       /*
        * Leaving the row processing is safer than
        * accidentally allowing a duplicate write.
        */
-      this.logPersistenceFailure('release', recordId, error);
+      this.logPersistenceFailure('release', identity.recordId, error);
     }
   }
 
-  private async markUncertainSafely(recordId: string): Promise<void> {
+  private async markUncertainSafely(identity: IdempotencyLifecycleIdentity): Promise<void> {
     try {
-      await this.idempotencyService.markUncertain(recordId);
+      await this.idempotencyService.markUncertain(identity);
     } catch (error) {
       /*
        * If persistence itself is unavailable, the
        * existing processing row still prevents an
        * immediate duplicate execution.
        */
-      this.logPersistenceFailure('mark uncertain', recordId, error);
+      this.logPersistenceFailure('mark uncertain', identity.recordId, error);
     }
   }
 

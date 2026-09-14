@@ -6,16 +6,18 @@ import {
 } from '@nestjs/common';
 
 import { AuthorizationService } from '../authorization/authorization.service.js';
-import type { UserAccessGrant } from '../database/schema/user-access-grants.js';
+import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import type { Campaign } from '../database/schema/campaigns.js';
 import type { Organization } from '../database/schema/organizations.js';
 import type { Team } from '../database/schema/teams.js';
+import type { UserAccessGrant } from '../database/schema/user-access-grants.js';
 import type { User } from '../database/schema/users.js';
-import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import { OrganizationRepository } from '../organizations/organization.repository.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import type { ManagerDashboardFilters, ManagerDashboardScope } from './manager-dashboard.types.js';
+
+const REPORTING_RESOURCE_NOT_FOUND = 'Reporting resource not found';
 
 export interface ResolveManagerDashboardScopeInput {
   tenantId: string;
@@ -51,15 +53,13 @@ export class ManagerDashboardScopeService {
 
   async resolve(input: ResolveManagerDashboardScopeInput): Promise<ManagerDashboardScope> {
     /*
-     * Authorization comes first.
+     * Establish caller-level reporting authority
+     * before resolving any client-supplied resource
+     * identifiers.
      *
-     * Do not resolve requested organization/team/
-     * campaign IDs until we know that the caller
-     * possesses some manager-reporting authority.
-     *
-     * This prevents prospectors and observers from
-     * using the reporting endpoint as an entity
-     * existence oracle.
+     * A caller with no reporting authority receives
+     * 403 regardless of whether any supplied IDs
+     * exist.
      */
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
@@ -87,43 +87,89 @@ export class ManagerDashboardScopeService {
     }
 
     /*
-     * Once basic reporting authority is proven,
-     * tenant-safe repositories may resolve the
-     * requested filters.
+     * Tenant-scoped repositories resolve the
+     * requested filter entities.
+     *
+     * Loaders deliberately return null for both an
+     * omitted resource and a nonexistent resource.
+     * The requested filter object is then used to
+     * distinguish omission from lookup failure.
+     *
+     * This allows every missing reporting resource
+     * to use the same public 404 response.
      */
     const loaded = await this.loadFilters(input);
 
-    this.validateFilterRelationships(loaded);
+    this.requireRequestedFiltersExist(input.filters, loaded);
 
-    let scope: ManagerDashboardScope;
+    /*
+     * Mask existing-but-out-of-scope organization,
+     * team and campaign resources before any
+     * relationship validation.
+     *
+     * This prevents:
+     *
+     * missing resource       -> 404
+     * existing out-of-scope  -> 403 / 400
+     *
+     * from becoming an existence oracle.
+     */
+    this.requireResourceFiltersWithinAuthority(
+      loaded,
+      hasClientAdminAuthority,
+      directorGrants,
+      managerGrants,
+    );
+
+    /*
+     * userId is a special reporting dimension.
+     *
+     * It does not mean "any tenant user"; it means a
+     * prospector reportable within the caller's
+     * authority and all supplied dimensions.
+     *
+     * Validate it before exposing relationship
+     * errors so an out-of-scope user cannot become
+     * detectable through 404-vs-400 differences.
+     */
+    await this.requireRequestedUserWithinAuthority(
+      input.tenantId,
+      loaded,
+      hasClientAdminAuthority,
+      directorGrants,
+      managerGrants,
+    );
+
+    /*
+     * At this point every resolved resource is known
+     * to be visible within the caller's reporting
+     * authority.
+     *
+     * Relationship validation can therefore safely
+     * expose a 400 for an incoherent request.
+     */
+    this.validateFilterRelationships(loaded);
 
     /*
      * Deterministic authority precedence:
      *
      * client_admin > director > manager
-     *
-     * This mirrors the principle already used by
-     * manager overrides.
      */
     if (hasClientAdminAuthority) {
-      scope = {
+      return {
         authority: 'client_admin',
 
         organizationId: null,
 
         teamId: null,
       };
-    } else if (directorGrants.length > 0) {
-      scope = this.resolveDirectorScope(directorGrants, loaded);
-    } else {
-      scope = this.resolveManagerScope(managerGrants, loaded);
     }
 
-    if (loaded.user && input.filters.userId) {
-      await this.requireReportableProspector(input.tenantId, input.filters, loaded, scope);
+    if (directorGrants.length > 0) {
+      return this.resolveDirectorScope(directorGrants, loaded);
     }
 
-    return scope;
+    return this.resolveManagerScope(managerGrants, loaded);
   }
 
   /*
@@ -164,13 +210,7 @@ export class ManagerDashboardScopeService {
       return null;
     }
 
-    const organization = await this.organizationRepository.findById(tenantId, organizationId);
-
-    if (!organization) {
-      throw new NotFoundException('Organization not found');
-    }
-
-    return organization;
+    return this.organizationRepository.findById(tenantId, organizationId);
   }
 
   private async loadTeam(tenantId: string, teamId: string | undefined): Promise<Team | null> {
@@ -178,13 +218,7 @@ export class ManagerDashboardScopeService {
       return null;
     }
 
-    const team = await this.teamRepository.findById(tenantId, teamId);
-
-    if (!team) {
-      throw new NotFoundException('Team not found');
-    }
-
-    return team;
+    return this.teamRepository.findById(tenantId, teamId);
   }
 
   private async loadCampaign(
@@ -195,13 +229,7 @@ export class ManagerDashboardScopeService {
       return null;
     }
 
-    const campaign = await this.campaignRepository.findById(tenantId, campaignId);
-
-    if (!campaign) {
-      throw new NotFoundException('Campaign not found');
-    }
-
-    return campaign;
+    return this.campaignRepository.findById(tenantId, campaignId);
   }
 
   private async loadUser(tenantId: string, userId: string | undefined): Promise<User | null> {
@@ -209,13 +237,215 @@ export class ManagerDashboardScopeService {
       return null;
     }
 
-    const user = await this.userRepository.findById(tenantId, userId);
+    return this.userRepository.findById(tenantId, userId);
+  }
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+  /*
+   * Missing organization/team/campaign/user IDs all
+   * use one reporting-specific 404 contract.
+   *
+   * This is intentionally less descriptive than
+   * administration APIs because this endpoint
+   * accepts several independently enumerable
+   * dimensions.
+   */
+  private requireRequestedFiltersExist(
+    filters: ManagerDashboardFilters,
+    loaded: LoadedReportingFilters,
+  ): void {
+    if (filters.organizationId && !loaded.organization) {
+      this.reportingResourceNotFound();
     }
 
-    return user;
+    if (filters.teamId && !loaded.team) {
+      this.reportingResourceNotFound();
+    }
+
+    if (filters.campaignId && !loaded.campaign) {
+      this.reportingResourceNotFound();
+    }
+
+    if (filters.userId && !loaded.user) {
+      this.reportingResourceNotFound();
+    }
+  }
+
+  /*
+   * -------------------------------------------------
+   * RESOURCE-SCOPE MASKING
+   * -------------------------------------------------
+   */
+
+  private requireResourceFiltersWithinAuthority(
+    loaded: LoadedReportingFilters,
+    hasClientAdminAuthority: boolean,
+    directorGrants: UserAccessGrant[],
+    managerGrants: UserAccessGrant[],
+  ): void {
+    /*
+     * Tenant client administrators may report over
+     * any resource already proven to belong to their
+     * tenant.
+     */
+    if (hasClientAdminAuthority) {
+      return;
+    }
+
+    /*
+     * Authority precedence means a caller with at
+     * least one director grant is evaluated using
+     * director scope rather than narrower manager
+     * grants.
+     */
+    if (directorGrants.length > 0) {
+      const allowedOrganizationIds = new Set(
+        directorGrants.flatMap((grant) => (grant.organizationId ? [grant.organizationId] : [])),
+      );
+
+      if (loaded.organization && !allowedOrganizationIds.has(loaded.organization.id)) {
+        this.reportingResourceNotFound();
+      }
+
+      if (loaded.team && !allowedOrganizationIds.has(loaded.team.organizationId)) {
+        this.reportingResourceNotFound();
+      }
+
+      if (loaded.campaign && !allowedOrganizationIds.has(loaded.campaign.organizationId)) {
+        this.reportingResourceNotFound();
+      }
+
+      return;
+    }
+
+    /*
+     * Manager authority is exact-team scoped.
+     *
+     * Organization and campaign filters may select
+     * an organization containing at least one
+     * managed team.
+     *
+     * teamId itself must match an exact manager
+     * grant.
+     */
+    const allowedOrganizationIds = new Set(
+      managerGrants.flatMap((grant) => (grant.organizationId ? [grant.organizationId] : [])),
+    );
+
+    const allowedTeamIds = new Set(
+      managerGrants.flatMap((grant) => (grant.teamId ? [grant.teamId] : [])),
+    );
+
+    if (loaded.organization && !allowedOrganizationIds.has(loaded.organization.id)) {
+      this.reportingResourceNotFound();
+    }
+
+    if (loaded.team && !allowedTeamIds.has(loaded.team.id)) {
+      this.reportingResourceNotFound();
+    }
+
+    if (loaded.campaign && !allowedOrganizationIds.has(loaded.campaign.organizationId)) {
+      this.reportingResourceNotFound();
+    }
+  }
+
+  /*
+   * -------------------------------------------------
+   * USER FILTER MASKING
+   * -------------------------------------------------
+   *
+   * A requested user must be a prospector that is
+   * reportable within BOTH:
+   *
+   * - the caller's authority
+   * - every supplied reporting dimension
+   *
+   * Existing users outside that boundary are
+   * intentionally indistinguishable from missing
+   * users.
+   */
+
+  private async requireRequestedUserWithinAuthority(
+    tenantId: string,
+    loaded: LoadedReportingFilters,
+    hasClientAdminAuthority: boolean,
+    directorGrants: UserAccessGrant[],
+    managerGrants: UserAccessGrant[],
+  ): Promise<void> {
+    if (!loaded.user) {
+      return;
+    }
+
+    const targetGrants = await this.authorizationService.getUserGrants(tenantId, loaded.user.id);
+
+    const prospectorGrants = targetGrants.filter(
+      (
+        grant,
+      ): grant is UserAccessGrant & {
+        organizationId: string;
+        teamId: string;
+      } =>
+        grant.role === 'prospector' &&
+        grant.scopeType === 'team' &&
+        grant.organizationId !== null &&
+        grant.teamId !== null,
+    );
+
+    const directorOrganizationIds = new Set(
+      directorGrants.flatMap((grant) => (grant.organizationId ? [grant.organizationId] : [])),
+    );
+
+    const managerScopes = new Set(
+      managerGrants.flatMap((grant) =>
+        grant.organizationId && grant.teamId ? [`${grant.organizationId}:${grant.teamId}`] : [],
+      ),
+    );
+
+    const isAllowed = prospectorGrants.some((grant) => {
+      /*
+       * Caller authority.
+       */
+      if (!hasClientAdminAuthority) {
+        if (directorGrants.length > 0) {
+          if (!directorOrganizationIds.has(grant.organizationId)) {
+            return false;
+          }
+        } else if (!managerScopes.has(`${grant.organizationId}:${grant.teamId}`)) {
+          return false;
+        }
+      }
+
+      /*
+       * Explicit organization filter.
+       */
+      if (loaded.organization && grant.organizationId !== loaded.organization.id) {
+        return false;
+      }
+
+      /*
+       * Explicit team filter.
+       */
+      if (
+        loaded.team &&
+        (grant.organizationId !== loaded.team.organizationId || grant.teamId !== loaded.team.id)
+      ) {
+        return false;
+      }
+
+      /*
+       * Campaign belongs to an organization, so a
+       * reportable prospector must belong to that
+       * same organization.
+       */
+      if (loaded.campaign && grant.organizationId !== loaded.campaign.organizationId) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (!isAllowed) {
+      this.reportingResourceNotFound();
+    }
   }
 
   /*
@@ -223,10 +453,9 @@ export class ManagerDashboardScopeService {
    * DIMENSION CONSISTENCY
    * -------------------------------------------------
    *
-   * These checks are not authorization.
-   *
-   * They ensure that the requested dimensions
-   * describe a coherent reporting slice.
+   * These errors are safe only after all referenced
+   * resources have been established as visible to
+   * the caller.
    */
 
   private validateFilterRelationships(loaded: LoadedReportingFilters): void {
@@ -259,16 +488,6 @@ export class ManagerDashboardScopeService {
    * -------------------------------------------------
    * DIRECTOR SCOPE
    * -------------------------------------------------
-   *
-   * A director grant authorizes exactly one
-   * organization.
-   *
-   * Users may hold multiple director grants.
-   *
-   * If multiple organizations are available and the
-   * request does not identify which organization
-   * through organization/team/campaign filters, the
-   * API refuses to guess.
    */
 
   private resolveDirectorScope(
@@ -286,8 +505,14 @@ export class ManagerDashboardScopeService {
       null;
 
     if (requestedOrganizationId) {
+      /*
+       * This should already have been masked by
+       * requireResourceFiltersWithinAuthority().
+       *
+       * Keep the check as defense in depth.
+       */
       if (!allowedOrganizationIds.has(requestedOrganizationId)) {
-        throw new ForbiddenException('Requested reporting scope is outside the user authorization');
+        this.reportingResourceNotFound();
       }
 
       return {
@@ -324,15 +549,6 @@ export class ManagerDashboardScopeService {
    * -------------------------------------------------
    * MANAGER SCOPE
    * -------------------------------------------------
-   *
-   * Manager reporting is always exact-team scoped.
-   *
-   * A user may hold multiple manager grants.
-   *
-   * organizationId/campaignId may narrow the
-   * candidate grants, but if more than one team
-   * remains the request must explicitly provide
-   * teamId.
    */
 
   private resolveManagerScope(
@@ -362,8 +578,15 @@ export class ManagerDashboardScopeService {
       candidates = candidates.filter((grant) => grant.teamId === loaded.team?.id);
     }
 
+    /*
+     * An empty candidate set after requested
+     * resource resolution means the requested slice
+     * is outside this manager's authority.
+     *
+     * Mask it like a nonexistent reporting resource.
+     */
     if (candidates.length === 0) {
-      throw new ForbiddenException('Requested reporting scope is outside the user authorization');
+      this.reportingResourceNotFound();
     }
 
     const uniqueTeamScopes = new Map<
@@ -404,81 +627,16 @@ export class ManagerDashboardScopeService {
   }
 
   /*
-   * -------------------------------------------------
-   * USER FILTER AUTHORIZATION
-   * -------------------------------------------------
+   * One deliberately generic public response for
+   * every requested reporting entity that is either:
    *
-   * The dashboard's per-user dimension means
-   * "prospector".
-   *
-   * A tenant user existing in PostgreSQL is not by
-   * itself enough.
-   *
-   * The target user must hold a prospector team
-   * grant inside the effective reporting scope.
+   * - nonexistent
+   * - cross-tenant
+   * - outside caller reporting authority
+   * - an existing user who is not reportable as a
+   *   prospector in the requested scope
    */
-
-  private async requireReportableProspector(
-    tenantId: string,
-    filters: ManagerDashboardFilters,
-    loaded: LoadedReportingFilters,
-    scope: ManagerDashboardScope,
-  ): Promise<void> {
-    if (!loaded.user) {
-      return;
-    }
-
-    const grants = await this.authorizationService.getUserGrants(tenantId, loaded.user.id);
-
-    const prospectorGrants = grants.filter(
-      (
-        grant,
-      ): grant is UserAccessGrant & {
-        organizationId: string;
-        teamId: string;
-      } =>
-        grant.role === 'prospector' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId !== null &&
-        grant.teamId !== null,
-    );
-
-    const requestedOrganizationId =
-      filters.organizationId ??
-      loaded.team?.organizationId ??
-      loaded.campaign?.organizationId ??
-      null;
-
-    const requestedTeamId = filters.teamId ?? null;
-
-    const isAllowed = prospectorGrants.some((grant) => {
-      /*
-       * Mandatory authority scope.
-       */
-      if (scope.organizationId && grant.organizationId !== scope.organizationId) {
-        return false;
-      }
-
-      if (scope.teamId && grant.teamId !== scope.teamId) {
-        return false;
-      }
-
-      /*
-       * Optional request dimensions.
-       */
-      if (requestedOrganizationId && grant.organizationId !== requestedOrganizationId) {
-        return false;
-      }
-
-      if (requestedTeamId && grant.teamId !== requestedTeamId) {
-        return false;
-      }
-
-      return true;
-    });
-
-    if (!isAllowed) {
-      throw new ForbiddenException('Requested user is outside the reporting scope');
-    }
+  private reportingResourceNotFound(): never {
+    throw new NotFoundException(REPORTING_RESOURCE_NOT_FOUND);
   }
 }

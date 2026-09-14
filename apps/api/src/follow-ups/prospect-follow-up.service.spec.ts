@@ -255,6 +255,50 @@ describe('ProspectFollowUpService', () => {
     expect(result).not.toHaveProperty('assignmentId');
   });
 
+  it('masks mutation when the follow-up belongs to another user', async () => {
+    followUpRepository.findById.mockResolvedValue({
+      ...followUp,
+
+      assignedUserId: otherUserId,
+    });
+
+    await expect(
+      service.complete({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        followUpId,
+      }),
+    ).rejects.toThrow('Follow-up not found');
+
+    expect(followUpRepository.completePending).not.toHaveBeenCalled();
+  });
+
+  it('returns the same masked response when the follow-up does not exist', async () => {
+    followUpRepository.findById.mockResolvedValue(null);
+
+    await expect(
+      service.complete({
+        tenantId,
+
+        userId,
+
+        campaignId,
+
+        campaignProspectId,
+
+        followUpId,
+      }),
+    ).rejects.toThrow('Follow-up not found');
+
+    expect(followUpRepository.completePending).not.toHaveBeenCalled();
+  });
+
   it('creates a team-owned follow-up when assignedUserId is null', async () => {
     followUpRepository.create.mockResolvedValue({
       ...followUp,
@@ -564,7 +608,7 @@ describe('ProspectFollowUpService', () => {
 
         followUpId,
       }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toThrow('Follow-up not found');
 
     expect(followUpRepository.completePending).not.toHaveBeenCalled();
   });

@@ -5,7 +5,6 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-
 import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
@@ -17,6 +16,7 @@ import { campaignProspects } from '../src/database/schema/campaign-prospects.js'
 import { campaigns } from '../src/database/schema/campaigns.js';
 import { establishments } from '../src/database/schema/establishments.js';
 import { organizations } from '../src/database/schema/organizations.js';
+import { notifications } from '../src/database/schema/notifications.js';
 import { prospectFollowUps } from '../src/database/schema/prospect-follow-ups.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
@@ -118,6 +118,8 @@ describe('Follow-up HTTP integration', () => {
     if (!database || !tenantId) {
       return;
     }
+
+    await getDatabase().delete(notifications).where(eq(notifications.tenantId, tenantId));
 
     await getDatabase().delete(prospectFollowUps).where(eq(prospectFollowUps.tenantId, tenantId));
   }
@@ -600,6 +602,248 @@ describe('Follow-up HTTP integration', () => {
     expect(persisted?.assignedUserId).toBe(prospectorAId);
   });
 
+  it('isolates notification inbox and mark-read access by authenticated recipient', async () => {
+    const dueAtA = new Date(Date.now() + 60 * 60 * 1000);
+
+    const dueAtB = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    const followUpA = await createFollowUpViaApi({
+      token: prospectorAToken,
+
+      targetCampaignId: campaignId,
+
+      targetProspectId: prospectId,
+
+      dueAt: dueAtA,
+    });
+
+    const followUpB = await createFollowUpViaApi({
+      token: prospectorBToken,
+
+      targetCampaignId: secondCampaignId,
+
+      targetProspectId: secondProspectId,
+
+      dueAt: dueAtB,
+    });
+
+    expect(followUpA.statusCode).toBe(201);
+
+    expect(followUpB.statusCode).toBe(201);
+
+    const [notificationA] = await getDatabase()
+      .insert(notifications)
+      .values({
+        tenantId,
+
+        recipientUserId: prospectorAId,
+
+        type: 'follow_up_reminder',
+
+        followUpId: followUpA.body.id as string,
+
+        scheduledFor: dueAtA,
+
+        title: 'Prospector A reminder',
+
+        message: 'Prospector A private notification',
+      })
+      .returning();
+
+    const [notificationB] = await getDatabase()
+      .insert(notifications)
+      .values({
+        tenantId,
+
+        recipientUserId: prospectorBId,
+
+        type: 'follow_up_reminder',
+
+        followUpId: followUpB.body.id as string,
+
+        scheduledFor: dueAtB,
+
+        title: 'Prospector B reminder',
+
+        message: 'Prospector B private notification',
+      })
+      .returning();
+
+    if (!notificationA || !notificationB) {
+      throw new Error('Failed to create notification security fixtures');
+    }
+
+    /*
+     * A's inbox must contain only A's notification.
+     */
+    const inboxResponse = await getApp().inject({
+      method: 'GET',
+
+      url: '/notifications',
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(inboxResponse.statusCode).toBe(200);
+
+    const inbox = JSON.parse(inboxResponse.payload) as Array<{
+      id: string;
+
+      recipientUserId: string;
+    }>;
+
+    const inboxIds = inbox.map((notification) => notification.id);
+
+    expect(inboxIds).toContain(notificationA.id);
+
+    expect(inboxIds).not.toContain(notificationB.id);
+
+    expect(inbox.every((notification) => notification.recipientUserId === prospectorAId)).toBe(
+      true,
+    );
+
+    /*
+     * A may mark A's notification as read.
+     */
+    const ownMarkReadResponse = await getApp().inject({
+      method: 'PATCH',
+
+      url: `/notifications/${notificationA.id}/read`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(ownMarkReadResponse.statusCode).toBe(200);
+
+    const ownMarkedNotification = JSON.parse(ownMarkReadResponse.payload) as {
+      id: string;
+
+      recipientUserId: string;
+
+      readAt: string | null;
+    };
+
+    expect(ownMarkedNotification.id).toBe(notificationA.id);
+
+    expect(ownMarkedNotification.recipientUserId).toBe(prospectorAId);
+
+    expect(ownMarkedNotification.readAt).not.toBeNull();
+
+    /*
+     * A knows B's real notification UUID but must receive
+     * the same public security response as for a UUID that
+     * does not exist at all.
+     */
+    const foreignMarkReadResponse = await getApp().inject({
+      method: 'PATCH',
+
+      url: `/notifications/${notificationB.id}/read`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    const missingMarkReadResponse = await getApp().inject({
+      method: 'PATCH',
+
+      url: `/notifications/${randomUUID()}/read`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(foreignMarkReadResponse.statusCode).toBe(404);
+
+    expect(missingMarkReadResponse.statusCode).toBe(404);
+
+    const foreignBody = JSON.parse(foreignMarkReadResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    const missingBody = JSON.parse(missingMarkReadResponse.payload) as {
+      statusCode: number;
+
+      code: string;
+
+      message: string;
+
+      error: string;
+
+      requestId: string;
+    };
+
+    expect(foreignBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Notification not found',
+
+      error: 'Not Found',
+    });
+
+    expect(missingBody).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Notification not found',
+
+      error: 'Not Found',
+    });
+
+    /*
+     * requestId is intentionally excluded from the
+     * anti-enumeration comparison because each HTTP
+     * request receives its own trace identifier.
+     */
+    expect({
+      statusCode: foreignBody.statusCode,
+
+      code: foreignBody.code,
+
+      message: foreignBody.message,
+
+      error: foreignBody.error,
+    }).toEqual({
+      statusCode: missingBody.statusCode,
+
+      code: missingBody.code,
+
+      message: missingBody.message,
+
+      error: missingBody.error,
+    });
+
+    expect(foreignBody.requestId).not.toBe(missingBody.requestId);
+
+    /*
+     * Failed foreign access must not mutate B's row.
+     */
+    const [persistedB] = await getDatabase()
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationB.id));
+
+    expect(persistedB).toBeDefined();
+
+    expect(persistedB?.readAt).toBeNull();
+  });
+
   it('rejects a past due date', async () => {
     const created = await createFollowUpViaApi({
       dueAt: new Date(Date.now() - 60_000),
@@ -653,7 +897,7 @@ describe('Follow-up HTTP integration', () => {
     });
   });
 
-  it('rejects another user from mutating a user-owned follow-up', async () => {
+  it('masks another user from mutating a user-owned follow-up', async () => {
     const created = await createFollowUpViaApi();
 
     expect(created.statusCode).toBe(201);
@@ -669,7 +913,13 @@ describe('Follow-up HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 404,
+
+      message: 'Follow-up not found',
+    });
   });
 
   it('reschedules a pending follow-up', async () => {
@@ -810,7 +1060,7 @@ describe('Follow-up HTTP integration', () => {
     }
   });
 
-  it('rejects prospect follow-up history for a user outside the current team scope', async () => {
+  it('masks prospect follow-up history for a user outside the current team scope', async () => {
     expect(noScopeUserId).not.toBe('');
 
     const response = await getApp().inject({
@@ -823,7 +1073,13 @@ describe('Follow-up HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 404,
+
+      message: 'Campaign prospect not found',
+    });
   });
 
   it('returns only actionable overdue work owned by the caller or their team', async () => {

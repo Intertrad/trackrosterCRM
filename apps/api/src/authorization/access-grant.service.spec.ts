@@ -389,6 +389,68 @@ describe('AccessGrantService', () => {
     );
   });
 
+  it('fails closed when another request revokes the grant after it was read', async () => {
+    userRepository.findById.mockResolvedValue(user);
+
+    /*
+     * Our transaction successfully observes the grant,
+     * but another transaction wins the DELETE race
+     * before our conditional delete executes.
+     */
+    grantRepository.findByIdForUser.mockResolvedValue(tenantGrant);
+
+    grantRepository.deleteById.mockResolvedValue(false);
+
+    await expect(
+      service.revoke({
+        tenantId,
+
+        actorUserId,
+
+        userId,
+
+        grantId,
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Access grant not found',
+
+        statusCode: 404,
+      },
+    });
+
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+
+    expect(grantRepository.findByIdForUser).toHaveBeenCalledWith(
+      tenantId,
+
+      userId,
+
+      grantId,
+
+      transaction,
+    );
+
+    expect(grantRepository.deleteById).toHaveBeenCalledWith(
+      tenantId,
+
+      userId,
+
+      grantId,
+
+      transaction,
+    );
+
+    /*
+     * Critical invariant:
+     *
+     * losing the deletion race must never create
+     * false audit evidence claiming this request
+     * performed the revocation.
+     */
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
   it('rejects revoking an unknown grant', async () => {
     userRepository.findById.mockResolvedValue(user);
 

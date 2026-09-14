@@ -64,6 +64,16 @@ export interface ReleaseReservationInput {
   reservationId: string;
 }
 
+export interface GetCurrentReservationInput {
+  tenantId: string;
+
+  userId: string;
+
+  campaignId: string;
+
+  campaignProspectId: string;
+}
+
 @Injectable()
 export class ReservationService {
   private readonly logger = new Logger(ReservationService.name);
@@ -409,16 +419,38 @@ export class ReservationService {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
   }
+  async getCurrent(input: GetCurrentReservationInput): Promise<ProspectReservation | null> {
+    /*
+     * Reading the current reservation is an
+     * operational prospect action.
+     *
+     * Authentication alone is insufficient:
+     * the caller must still be the currently
+     * authorized prospector for this exact
+     * campaign prospect/team.
+     *
+     * Reuse the same authorization boundary as
+     * reservation acquisition so reads cannot
+     * bypass assignment/team ownership rules.
+     */
+    await this.requireReservationEligibility({
+      tenantId: input.tenantId,
 
-  async getCurrent(
-    tenantId: string,
-    campaignId: string,
-    campaignProspectId: string,
-  ): Promise<ProspectReservation | null> {
-    await this.requireCampaignProspect(tenantId, campaignId, campaignProspectId);
+      userId: input.userId,
+
+      campaignId: input.campaignId,
+
+      campaignProspectId: input.campaignProspectId,
+    });
 
     try {
-      return await this.reservationRepository.findCurrent(tenantId, campaignId, campaignProspectId);
+      return await this.reservationRepository.findCurrent(
+        input.tenantId,
+
+        input.campaignId,
+
+        input.campaignProspectId,
+      );
     } catch {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
@@ -428,12 +460,32 @@ export class ReservationService {
     released: true;
     reservationId: string;
   }> {
+    /*
+     * Releasing a reservation is an operational
+     * prospect mutation.
+     *
+     * Authorize the caller before reading Redis so
+     * this endpoint cannot reveal whether another
+     * prospect has an active reservation.
+     */
+    await this.requireReservationEligibility({
+      tenantId: input.tenantId,
+
+      userId: input.userId,
+
+      campaignId: input.campaignId,
+
+      campaignProspectId: input.campaignProspectId,
+    });
+
     let current: ProspectReservation | null;
 
     try {
       current = await this.reservationRepository.findCurrent(
         input.tenantId,
+
         input.campaignId,
+
         input.campaignProspectId,
       );
     } catch {
@@ -445,16 +497,26 @@ export class ReservationService {
     }
 
     /*
-     * Only the current reservation owner may release
-     * the reservation.
+     * Defense in depth.
      *
-     * Manager override does not change reservation
-     * ownership.
+     * requireReservationEligibility() already proves
+     * the caller owns the current prospect workflow,
+     * but the reservation may be stale or may have
+     * been created before reassignment.
+     *
+     * Do not expose that another user's reservation
+     * exists.
      */
     if (current.userId !== input.userId) {
-      throw new ForbiddenException('Reservation belongs to another user');
+      throw new NotFoundException('Reservation not found');
     }
 
+    /*
+     * At this point the caller is authorized for the
+     * prospect and owns the current reservation, so
+     * exposing that the submitted reservation ID is
+     * stale is safe.
+     */
     if (current.reservationId !== input.reservationId) {
       throw new ConflictException('Reservation has changed');
     }
@@ -473,6 +535,7 @@ export class ReservationService {
     try {
       legacyReservation = await this.reservationRepository.findCurrentByEstablishment(
         input.tenantId,
+
         current.establishmentId,
       );
     } catch {
@@ -485,25 +548,44 @@ export class ReservationService {
       if (legacyReservation?.reservationId === current.reservationId) {
         released = await this.reservationRepository.release(
           input.tenantId,
+
           input.campaignId,
+
           input.campaignProspectId,
+
           current.establishmentId,
+
           input.reservationId,
         );
       } else {
         released = await this.reservationRepository.releaseOrganizationScoped(
           input.tenantId,
+
           input.campaignId,
+
           input.campaignProspectId,
+
           current.organizationId,
+
           current.establishmentId,
+
           input.reservationId,
         );
       }
 
+      /*
+       * The reservation may have changed between the
+       * read and atomic release operation.
+       */
       if (!released) {
-        throw new ConflictException('Reservation has changed or expired');
+        throw new ConflictException('Reservation has changed');
       }
+
+      return {
+        released: true,
+
+        reservationId: input.reservationId,
+      };
     } catch (error: unknown) {
       if (error instanceof ConflictException) {
         throw error;
@@ -511,11 +593,57 @@ export class ReservationService {
 
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
+  }
+
+  async resolveReservationTargetScope(input: {
+    tenantId: string;
+
+    campaignId: string;
+
+    campaignProspectId: string;
+  }): Promise<ReservationEligibilityContext> {
+    /*
+     * This method resolves only enough information
+     * to determine the target organization/team.
+     *
+     * It deliberately does NOT expose campaign,
+     * prospect or team workflow state.
+     *
+     * Missing campaign, prospect and assignment all
+     * share the same response so an override-capable
+     * caller cannot use this resolver as an
+     * existence/state oracle.
+     */
+    const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
+
+    if (!campaign) {
+      throw new NotFoundException('Campaign prospect not found');
+    }
+
+    const prospect = await this.campaignProspectRepository.findById(
+      input.tenantId,
+      input.campaignId,
+      input.campaignProspectId,
+    );
+
+    if (!prospect) {
+      throw new NotFoundException('Campaign prospect not found');
+    }
+
+    const assignment = await this.assignmentRepository.findCurrent(
+      input.tenantId,
+      input.campaignId,
+      input.campaignProspectId,
+    );
+
+    if (!assignment) {
+      throw new NotFoundException('Campaign prospect not found');
+    }
 
     return {
-      released: true,
+      assignment,
 
-      reservationId: input.reservationId,
+      establishmentId: prospect.establishmentId,
     };
   }
 
@@ -533,18 +661,49 @@ export class ReservationService {
   async requireReservationEligibility(
     input: AcquireReservationInput,
   ): Promise<ReservationEligibilityContext> {
-    const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
+    /*
+     * Validate the authenticated principal before
+     * resolving any requested campaign/prospect IDs.
+     *
+     * A missing authenticated user is treated the
+     * same as an inactive principal. The target
+     * resource must not become an existence oracle.
+     */
+    const user = await this.userRepository.findById(input.tenantId, input.userId);
 
-    if (!campaign) {
-      throw new NotFoundException('Campaign not found');
+    if (!user || user.status !== 'active') {
+      throw new ForbiddenException('User is not active');
     }
 
     /*
-     * Assignment may exist during draft/paused,
-     * but prospecting requires an active campaign.
+     * Coarse authorization comes before target
+     * resolution.
+     *
+     * Users with no prospector team scope at all
+     * cannot probe campaign/prospect identifiers.
      */
-    if (campaign.status !== 'active') {
-      throw new ConflictException('Campaign is not active');
+    const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
+
+    const hasProspectorTeamScope = grants.some(
+      (grant) =>
+        grant.role === 'prospector' &&
+        grant.scopeType === 'team' &&
+        grant.organizationId !== null &&
+        grant.teamId !== null,
+    );
+
+    if (!hasProspectorTeamScope) {
+      throw new ForbiddenException('User does not have a prospector team scope');
+    }
+
+    const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
+
+    /*
+     * Missing and unauthorized targets deliberately
+     * share one public response.
+     */
+    if (!campaign) {
+      throw new NotFoundException('Campaign prospect not found');
     }
 
     const prospect = await this.campaignProspectRepository.findById(
@@ -557,18 +716,66 @@ export class ReservationService {
       throw new NotFoundException('Campaign prospect not found');
     }
 
-    if (prospect.status !== 'active') {
-      throw new ConflictException('Campaign prospect is not active');
-    }
-
     const assignment = await this.assignmentRepository.findCurrent(
       input.tenantId,
       input.campaignId,
       input.campaignProspectId,
     );
 
+    /*
+     * An unassigned prospect is not an operational
+     * prospecting resource for this workflow.
+     *
+     * Mask it exactly like a missing prospect.
+     */
     if (!assignment) {
-      throw new ConflictException('Campaign prospect is not assigned');
+      throw new NotFoundException('Campaign prospect not found');
+    }
+
+    /*
+     * Individual assignment ownership remains
+     * authoritative.
+     *
+     * Do not reveal that another user's assignment
+     * exists.
+     */
+    if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
+      throw new NotFoundException('Campaign prospect not found');
+    }
+
+    /*
+     * The caller must possess the exact team-level
+     * prospector grant for the current assignment.
+     *
+     * A user who has some other prospector grant must
+     * not be able to distinguish an out-of-scope
+     * prospect from a nonexistent one.
+     */
+    const isExactTeamProspector = grants.some(
+      (grant) =>
+        grant.role === 'prospector' &&
+        grant.scopeType === 'team' &&
+        grant.organizationId === assignment.organizationId &&
+        grant.teamId === assignment.teamId,
+    );
+
+    if (!isExactTeamProspector) {
+      throw new NotFoundException('Campaign prospect not found');
+    }
+
+    /*
+     * Exact authorization is now proven.
+     *
+     * From this point onward it is safe to expose
+     * meaningful workflow-state conflicts to the
+     * legitimate prospector.
+     */
+    if (campaign.status !== 'active') {
+      throw new ConflictException('Campaign is not active');
+    }
+
+    if (prospect.status !== 'active') {
+      throw new ConflictException('Campaign prospect is not active');
     }
 
     const team = await this.teamRepository.findById(input.tenantId, assignment.teamId);
@@ -579,42 +786,6 @@ export class ReservationService {
 
     if (team.status !== 'active') {
       throw new ConflictException('Assigned team is not active');
-    }
-
-    const user = await this.userRepository.findById(input.tenantId, input.userId);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.status !== 'active') {
-      throw new ForbiddenException('User is not active');
-    }
-
-    /*
-     * Individual assignment ownership remains
-     * authoritative.
-     */
-    if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
-      throw new ForbiddenException('Campaign prospect is assigned to another user');
-    }
-
-    /*
-     * Even an individually assigned user must retain
-     * the exact team-level prospector grant.
-     */
-    const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
-
-    const isExactTeamProspector = grants.some(
-      (grant) =>
-        grant.role === 'prospector' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId === assignment.organizationId &&
-        grant.teamId === assignment.teamId,
-    );
-
-    if (!isExactTeamProspector) {
-      throw new ForbiddenException('User is not a prospector for the assigned team');
     }
 
     return {

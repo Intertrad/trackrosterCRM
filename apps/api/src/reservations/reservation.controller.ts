@@ -62,7 +62,15 @@ export class ReservationController {
     @Param('prospectId', new ParseUUIDPipe())
     prospectId: string,
   ) {
-    return this.reservationService.getCurrent(auth.tenantId, campaignId, prospectId);
+    return this.reservationService.getCurrent({
+      tenantId: auth.tenantId,
+
+      userId: auth.userId,
+
+      campaignId,
+
+      campaignProspectId: prospectId,
+    });
   }
 
   @Delete(':reservationId')

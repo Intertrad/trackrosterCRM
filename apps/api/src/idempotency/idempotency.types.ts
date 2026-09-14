@@ -20,6 +20,28 @@ export interface BeginIdempotencyInput {
   request: IdempotencyRequestIdentity;
 }
 
+/*
+ * Identity carried through the lifecycle of an
+ * already-claimed idempotency record.
+ *
+ * The interceptor derives tenantId/userId from
+ * authenticated server context, never from client
+ * request payload data.
+ */
+export interface IdempotencyLifecycleIdentity {
+  tenantId: string;
+
+  userId: string;
+
+  recordId: string;
+}
+
+export interface CompleteIdempotencyInput extends IdempotencyLifecycleIdentity {
+  responseStatus: number;
+
+  responseBody: unknown;
+}
+
 export interface ExecuteIdempotencyDecision {
   kind: 'execute';
 

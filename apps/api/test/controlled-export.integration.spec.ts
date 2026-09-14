@@ -648,7 +648,7 @@ describe('Controlled export HTTP integration', () => {
     });
   });
 
-  it('does not allow a manager to export another team', async () => {
+  it('masks another team from a manager and does not audit a rejected export', async () => {
     const response = await getApp().inject({
       method: 'GET',
 
@@ -659,7 +659,17 @@ describe('Controlled export HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
 
     const events = await findExportAuditEvents(managerUserId);
 
@@ -706,7 +716,7 @@ describe('Controlled export HTTP integration', () => {
     });
   });
 
-  it('does not allow a director to escape the authorized organization', async () => {
+  it('masks another organization from a director and does not audit a rejected export', async () => {
     const response = await getApp().inject({
       method: 'GET',
 
@@ -717,7 +727,17 @@ describe('Controlled export HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 404,
+
+      code: 'NOT_FOUND',
+
+      message: 'Reporting resource not found',
+
+      error: 'Not Found',
+    });
 
     const events = await findExportAuditEvents(directorUserId);
 

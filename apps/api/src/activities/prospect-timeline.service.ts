@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
@@ -74,8 +69,18 @@ export class ProspectTimelineService {
      */
     const campaign = await this.campaignRepository.findById(input.tenantId, input.campaignId);
 
+    /*
+     * Do not distinguish between:
+     *
+     * - missing campaign
+     * - missing campaign prospect
+     * - existing but unauthorized campaign prospect
+     *
+     * All three cases use the same public resource
+     * response to prevent same-tenant enumeration.
+     */
     if (!campaign) {
-      throw new NotFoundException('Campaign not found');
+      throw new NotFoundException('Campaign prospect not found');
     }
 
     const prospect = await this.campaignProspectRepository.findById(
@@ -140,8 +145,16 @@ export class ProspectTimelineService {
       );
     }
 
+    /*
+     * Mask an existing-but-forbidden prospect as
+     * not found.
+     *
+     * This prevents an authenticated user from
+     * determining whether a prospect exists outside
+     * their authorized organization/team scope.
+     */
     if (!canView) {
-      throw new ForbiddenException('User cannot view prospect timeline');
+      throw new NotFoundException('Campaign prospect not found');
     }
 
     const cursor = input.cursor ? this.decodeCursor(input.cursor) : null;
