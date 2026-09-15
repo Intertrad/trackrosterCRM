@@ -1,0 +1,939 @@
+.shell {
+  --sidebar-width: 272px;
+  --navy: #071548;
+  --navy-soft: #0d205e;
+  --blue: #1769ff;
+  --lime: #c9ff21;
+  --surface: #fbfcff;
+  --border: #dbe3f0;
+  --text: #07164f;
+  --muted: #64748b;
+
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.desktopSidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+
+  display: flex;
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  flex-direction: column;
+
+  padding: 24px 18px 20px;
+
+  background:
+    radial-gradient(circle at 35% 0%, rgb(23 105 255 / 20%), transparent 32%), var(--navy);
+
+  color: white;
+  border-right: 1px solid rgb(255 255 255 / 8%);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  min-width: 0;
+  padding: 4px 6px 26px;
+}
+
+.brandMark {
+  display: grid;
+  grid-template-columns: repeat(2, 7px);
+  grid-template-rows: repeat(2, 7px);
+  gap: 3px;
+
+  flex: 0 0 auto;
+
+  padding: 10px;
+
+  border-radius: 11px;
+  background: var(--blue);
+  box-shadow: 0 8px 24px rgb(23 105 255 / 28%);
+}
+
+.brandMark span {
+  display: block;
+  border-radius: 2px;
+  background: white;
+}
+
+.brandMark span:last-child {
+  background: var(--lime);
+}
+
+.brandName {
+  margin: 0;
+  color: white;
+
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: -0.025em;
+}
+
+.brandTagline {
+  margin: 3px 0 0;
+  color: rgb(226 232 240 / 68%);
+
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.navigationLabel {
+  padding: 0 12px 9px;
+
+  color: rgb(203 213 225 / 58%);
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.navigationLink {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 12px;
+
+  padding: 0 13px;
+
+  border: 1px solid transparent;
+  border-radius: 11px;
+
+  color: rgb(241 245 249 / 74%);
+  text-decoration: none;
+
+  font-size: 14px;
+  font-weight: 590;
+
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.navigationLink:hover {
+  background: rgb(255 255 255 / 6%);
+  color: white;
+}
+
+.navigationLinkActive {
+  background: rgb(23 105 255 / 18%);
+  border-color: rgb(72 134 255 / 32%);
+  color: white;
+}
+
+.navigationLinkActive svg {
+  color: var(--lime);
+}
+
+.sidebarSpacer {
+  flex: 1;
+  min-height: 24px;
+}
+
+.workspaceCard {
+  margin-bottom: 12px;
+  padding: 14px;
+
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 13px;
+
+  background: rgb(255 255 255 / 5%);
+}
+
+.workspaceCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workspaceCardHeader svg {
+  color: var(--lime);
+}
+
+.identityList {
+  display: grid;
+  gap: 10px;
+
+  margin: 14px 0 0;
+}
+
+.identityList div {
+  min-width: 0;
+}
+
+.identityList dt {
+  margin-bottom: 3px;
+
+  color: rgb(203 213 225 / 55%);
+
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.identityList dd {
+  overflow: hidden;
+
+  margin: 0;
+
+  color: rgb(241 245 249 / 84%);
+
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logoutError {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+
+  border: 1px solid rgb(248 113 113 / 28%);
+  border-radius: 10px;
+
+  background: rgb(127 29 29 / 22%);
+  color: #fecaca;
+
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.logoutButton {
+  display: flex;
+  width: 100%;
+  min-height: 46px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+
+  padding: 0 13px;
+
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 11px;
+
+  background: transparent;
+  color: rgb(241 245 249 / 80%);
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.logoutButton:hover:not(:disabled) {
+  background: rgb(255 255 255 / 7%);
+  border-color: rgb(255 255 255 / 16%);
+  color: white;
+}
+
+.logoutButton:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.contentColumn {
+  display: flex;
+  min-width: 0;
+  min-height: 100vh;
+  flex: 1;
+  flex-direction: column;
+
+  margin-left: var(--sidebar-width);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 12px 30px;
+
+  border-bottom: 1px solid var(--border);
+
+  background: rgb(251 252 255 / 93%);
+  backdrop-filter: blur(14px);
+}
+
+.topbarLeft {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbarEyebrow {
+  margin: 0 0 2px;
+
+  color: #94a3b8;
+
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.topbarTitle {
+  margin: 0;
+
+  color: var(--text);
+
+  font-size: 15px;
+  font-weight: 690;
+  letter-spacing: -0.01em;
+}
+
+.topbarIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+
+  padding: 7px 10px;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: white;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+
+  border-radius: 999px;
+  background: #22c55e;
+
+  box-shadow: 0 0 0 3px #dcfce7;
+}
+
+.topbarIdentity > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.topbarIdentityLabel {
+  color: #94a3b8;
+
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topbarIdentityValue {
+  max-width: 180px;
+  overflow: hidden;
+
+  color: #334155;
+
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mainContent {
+  width: 100%;
+  max-width: 1500px;
+  flex: 1;
+
+  margin: 0 auto;
+  padding: 30px;
+}
+
+.iconButton {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: white;
+  color: var(--text);
+
+  cursor: pointer;
+}
+
+.mobileMenuButton {
+  display: none;
+}
+
+.mobileLayer {
+  display: none;
+}
+
+.sessionLoading,
+.sessionRedirect {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: #fbfcff;
+}
+
+.sessionLoadingContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+
+  color: #64748b;
+
+  font-size: 13px;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+
+  border: 4px solid #dbeafe;
+  border-top-color: #1769ff;
+  border-radius: 999px;
+
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1279px) {
+  .desktopSidebar {
+    width: 250px;
+  }
+
+  .shell {
+    --sidebar-width: 250px;
+  }
+
+  .mainContent {
+    padding: 26px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .desktopSidebar {
+    display: none;
+  }
+
+  .contentColumn {
+    margin-left: 0;
+  }
+
+  .mobileMenuButton {
+    display: inline-flex;
+  }
+
+  .mobileLayer {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+
+    display: block;
+  }
+
+  .mobileBackdrop {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    padding: 0;
+
+    border: 0;
+
+    background: rgb(2 6 23 / 58%);
+    backdrop-filter: blur(2px);
+
+    cursor: pointer;
+  }
+
+  .mobileSidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+
+    display: flex;
+    width: min(320px, 88vw);
+    min-height: 100%;
+    flex-direction: column;
+
+    padding: 18px;
+
+    overflow-y: auto;
+
+    background:
+      radial-gradient(circle at 35% 0%, rgb(23 105 255 / 20%), transparent 32%), var(--navy);
+
+    box-shadow: 20px 0 60px rgb(2 6 23 / 28%);
+  }
+
+  .mobileSidebarTop {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 8px;
+  }
+
+  .mobileMenuTitle {
+    color: rgb(226 232 240 / 66%);
+
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .mobileSidebar .iconButton {
+    border-color: rgb(255 255 255 / 12%);
+    background: rgb(255 255 255 / 6%);
+    color: white;
+  }
+
+  .topbar {
+    padding-inline: 22px;
+  }
+
+  .mainContent {
+    padding: 24px 22px;
+  }
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    min-height: 68px;
+    padding: 10px 16px;
+  }
+
+  .topbarEyebrow {
+    display: none;
+  }
+
+  .topbarIdentity {
+    padding: 7px 9px;
+  }
+
+  .topbarIdentityLabel {
+    display: none;
+  }
+
+  .topbarIdentityValue {
+    max-width: 100px;
+  }
+
+  .mainContent {
+    padding: 20px 16px;
+  }
+}
+
+@media (max-width: 479px) {
+  .topbarIdentity {
+    display: none;
+  }
+
+  .topbarTitle {
+    font-size: 14px;
+  }
+
+  .mainContent {
+    padding: 18px 14px;
+  }
+}
+
+@media (max-width: 359px) {
+  .mobileSidebar {
+    width: 92vw;
+    padding: 14px;
+  }
+
+  .topbar {
+    padding-inline: 12px;
+  }
+
+  .mainContent {
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigationLink,
+  .logoutButton {
+    transition: none;
+  }
+
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+.navigationLinkLabel {
+  min-width: 0;
+  flex: 1;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navigationLinkPlanned {
+  cursor: default;
+  color: rgb(203 213 225 / 48%);
+}
+
+.navigationLinkPlanned:hover {
+  background: transparent;
+  color: rgb(203 213 225 / 48%);
+}
+
+.navigationLinkPlanned svg {
+  opacity: 0.65;
+}
+
+.soonBadge {
+  display: inline-flex;
+  min-height: 20px;
+  flex: 0 0 auto;
+  align-items: center;
+
+  padding: 0 7px;
+
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 999px;
+
+  background: rgb(255 255 255 / 5%);
+  color: rgb(203 213 225 / 60%);
+
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.workspaceSwitcher {
+  display: grid;
+  gap: 6px;
+
+  margin-top: 14px;
+}
+
+.workspaceSwitcherLabel {
+  color: rgb(203 213 225 / 68%);
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workspaceSelect {
+  width: 100%;
+  min-height: 44px;
+
+  padding: 0 34px 0 11px;
+
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 10px;
+
+  outline: none;
+
+  background: rgb(255 255 255 / 7%);
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+
+  cursor: pointer;
+}
+
+.workspaceSelect:focus-visible {
+  border-color: #c9ff21;
+
+  box-shadow: 0 0 0 3px rgb(201 255 33 / 16%);
+}
+
+.workspaceSelect option {
+  color: #07164f;
+}
+
+.sessionErrorPage {
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: #fbfcff;
+}
+
+.sessionErrorCard {
+  width: min(100%, 480px);
+
+  padding: 32px;
+
+  border: 1px solid #dbe3f0;
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow: 0 18px 48px rgb(7 22 79 / 8%);
+}
+
+.sessionErrorIcon {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 20px;
+
+  border-radius: 14px;
+
+  background: #fff2f2;
+  color: #c62828;
+}
+
+.sessionErrorEyebrow {
+  margin: 0 0 8px;
+
+  color: #1769ff;
+
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sessionErrorCard h1 {
+  margin: 0;
+
+  color: #07164f;
+
+  font-size: clamp(24px, 5vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.sessionErrorMessage {
+  margin: 14px 0 0;
+
+  color: #64748b;
+
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.sessionRetryButton {
+  min-height: 44px;
+
+  margin-top: 24px;
+  padding: 0 18px;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: #1769ff;
+  color: #ffffff;
+
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.sessionRetryButton:hover {
+  background: #0f5be5;
+}
+
+.sessionRetryButton:focus-visible {
+  outline: 3px solid rgb(23 105 255 / 24%);
+  outline-offset: 3px;
+}
+
+.accessDeniedPage {
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: #fbfcff;
+}
+
+.accessDeniedCard {
+  width: min(100%, 500px);
+
+  padding: 32px;
+
+  border: 1px solid #dbe3f0;
+  border-radius: 20px;
+
+  background: #ffffff;
+
+  box-shadow: 0 18px 48px rgb(7 22 79 / 8%);
+}
+
+.accessDeniedIcon {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 20px;
+
+  border-radius: 14px;
+
+  background: #fff7e8;
+  color: #b45309;
+}
+
+.accessDeniedEyebrow {
+  margin: 0 0 8px;
+
+  color: #1769ff;
+
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.accessDeniedCard h1 {
+  margin: 0;
+
+  color: #07164f;
+
+  font-size: clamp(24px, 5vw, 32px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.accessDeniedMessage {
+  margin: 14px 0 0;
+
+  color: #64748b;
+
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.accessDeniedIdentity {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+
+  margin-top: 24px;
+  padding: 14px;
+
+  border: 1px solid #e5eaf2;
+  border-radius: 12px;
+
+  background: #f8fafc;
+
+  font-size: 12px;
+}
+
+.accessDeniedIdentity span {
+  color: #64748b;
+}
+
+.accessDeniedIdentity strong {
+  color: #07164f;
+  font-weight: 700;
+}
+
+.accessDeniedLogout {
+  min-height: 44px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  margin-top: 24px;
+  padding: 0 18px;
+
+  border: 1px solid #dbe3f0;
+  border-radius: 10px;
+
+  background: #ffffff;
+  color: #07164f;
+
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.accessDeniedLogout:hover {
+  background: #f8fafc;
+}
+
+.accessDeniedLogout:focus-visible {
+  outline: 3px solid rgb(23 105 255 / 24%);
+  outline-offset: 3px;
+}
+
+.accessDeniedLogout:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}

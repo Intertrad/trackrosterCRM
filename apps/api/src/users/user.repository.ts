@@ -46,6 +46,23 @@ export class UserRepository {
       .orderBy(asc(users.createdAt));
   }
 
+  async updatePasswordHash(
+    tenantId: string,
+    userId: string,
+    passwordHash: string,
+  ): Promise<User | null> {
+    const [user] = await this.database
+      .update(users)
+      .set({
+        passwordHash,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(users.tenantId, tenantId), eq(users.id, userId)))
+      .returning();
+
+    return user ?? null;
+  }
+
   async updateStatus(
     tenantId: string,
     userId: string,
