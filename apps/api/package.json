@@ -13,7 +13,7 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
-    "db:seed": "tsx src/database/seeds/development.seed.ts"
+    "db:seed": "rm -rf dist-seed && tsc -p tsconfig.seed.json && node dist-seed/database/seeds/development.seed.js"
   },
   "dependencies": {
     "@fastify/multipart": "^10.1.1",
