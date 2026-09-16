@@ -143,6 +143,11 @@
   align-items: start;
   gap: 20px;
 }
+.leftColumn {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+}
 
 .infoCard,
 .timelineCard,

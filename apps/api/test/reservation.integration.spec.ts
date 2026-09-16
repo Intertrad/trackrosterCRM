@@ -697,8 +697,7 @@ describe('Reservation HTTP integration', () => {
 
     expect([prospectorAId, prospectorBId]).toContain(current?.userId);
   });
-
-  it('returns the current reservation', async () => {
+  it('returns owned reservation state to the reservation owner', async () => {
     await clearReservation();
 
     const acquired = await getApp().inject({
@@ -713,6 +712,67 @@ describe('Reservation HTTP integration', () => {
 
     expect(acquired.statusCode).toBe(201);
 
+    const acquiredBody = JSON.parse(acquired.payload) as {
+      reservationId: string;
+
+      acquiredAt: string;
+
+      expiresAt: string;
+    };
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as Record<string, unknown>;
+
+    expect(body).toEqual({
+      state: 'owned',
+
+      reservationId: acquiredBody.reservationId,
+
+      acquiredAt: acquiredBody.acquiredAt,
+
+      expiresAt: acquiredBody.expiresAt,
+    });
+
+    expect(body).not.toHaveProperty('tenantId');
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('campaignId');
+    expect(body).not.toHaveProperty('campaignProspectId');
+    expect(body).not.toHaveProperty('establishmentId');
+    expect(body).not.toHaveProperty('assignmentId');
+    expect(body).not.toHaveProperty('teamId');
+    expect(body).not.toHaveProperty('userId');
+  });
+
+  it('returns reserved state to another eligible prospector without leaking reservation ownership', async () => {
+    await clearReservation();
+
+    const acquired = await getApp().inject({
+      method: 'POST',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(acquired.statusCode).toBe(201);
+
+    const acquiredBody = JSON.parse(acquired.payload) as {
+      expiresAt: string;
+    };
+
     const response = await getApp().inject({
       method: 'GET',
 
@@ -725,15 +785,24 @@ describe('Reservation HTTP integration', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = JSON.parse(response.payload) as {
-      userId: string;
+    const body = JSON.parse(response.payload) as Record<string, unknown>;
 
-      campaignProspectId: string;
-    };
+    expect(body).toEqual({
+      state: 'reserved',
 
-    expect(body.userId).toBe(prospectorAId);
+      expiresAt: acquiredBody.expiresAt,
+    });
 
-    expect(body.campaignProspectId).toBe(prospectId);
+    expect(body).not.toHaveProperty('reservationId');
+    expect(body).not.toHaveProperty('acquiredAt');
+    expect(body).not.toHaveProperty('tenantId');
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('campaignId');
+    expect(body).not.toHaveProperty('campaignProspectId');
+    expect(body).not.toHaveProperty('establishmentId');
+    expect(body).not.toHaveProperty('assignmentId');
+    expect(body).not.toHaveProperty('teamId');
+    expect(body).not.toHaveProperty('userId');
   });
 
   it('masks another user reservation ownership exactly like an absent reservation', async () => {

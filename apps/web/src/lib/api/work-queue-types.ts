@@ -118,3 +118,68 @@ export interface ProspectTimelinePage {
 
   nextCursor: string | null;
 }
+
+export type ProspectReservationState =
+  | {
+      state: 'none';
+    }
+  | {
+      state: 'owned';
+
+      reservationId: string;
+
+      acquiredAt: string;
+      expiresAt: string;
+    }
+  | {
+      state: 'reserved';
+
+      expiresAt: string;
+    };
+
+export interface AcquiredProspectReservation {
+  reservationId: string;
+
+  acquiredAt: string;
+  expiresAt: string;
+}
+
+export interface ReleasedProspectReservation {
+  released: true;
+
+  reservationId: string;
+}
+
+export type ProspectCollisionDecisionValue = 'allow' | 'block' | 'warn' | 'require_override';
+
+export type ProspectCollisionReasonCode =
+  'NO_COLLISION' | 'ACTIVE_ASSIGNMENT' | 'ACTIVE_RESERVATION' | 'PLANNED_ACTION' | 'RECENT_CONTACT';
+
+export type ProspectCollisionConflict =
+  | {
+      expiresAt: string;
+    }
+  | {
+      dueAt: string;
+    }
+  | {
+      assignedAt: string;
+    }
+  | null;
+
+export interface ProspectCollisionDecision {
+  decision: ProspectCollisionDecisionValue;
+
+  reasonCode: ProspectCollisionReasonCode;
+
+  conflict: ProspectCollisionConflict;
+}
+export type ProspectActivityType = 'call' | 'email' | 'message' | 'visit';
+
+export interface RecordedProspectActivity {
+  id: string;
+
+  type: ProspectActivityType;
+
+  occurredAt: string;
+}

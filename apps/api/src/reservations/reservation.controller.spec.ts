@@ -53,7 +53,15 @@ describe('ReservationController', () => {
     reservationService = {
       acquire: vi.fn().mockResolvedValue(reservation),
 
-      getCurrent: vi.fn().mockResolvedValue(reservation),
+      getCurrent: vi.fn().mockResolvedValue({
+        state: 'owned',
+
+        reservationId,
+
+        acquiredAt: reservation.acquiredAt,
+
+        expiresAt: reservation.expiresAt,
+      }),
 
       release: vi.fn().mockResolvedValue({
         released: true,
@@ -177,7 +185,7 @@ describe('ReservationController', () => {
     );
   });
 
-  it('gets the current reservation using authenticated tenant context', async () => {
+  it('gets sanitized reservation state using authenticated tenant context', async () => {
     const result = await controller.getCurrent(
       {
         tenantId,
@@ -199,7 +207,15 @@ describe('ReservationController', () => {
       campaignProspectId: prospectId,
     });
 
-    expect(result).toEqual(reservation);
+    expect(result).toEqual({
+      state: 'owned',
+
+      reservationId,
+
+      acquiredAt: reservation.acquiredAt,
+
+      expiresAt: reservation.expiresAt,
+    });
   });
 
   it('releases a reservation using authenticated user context', async () => {

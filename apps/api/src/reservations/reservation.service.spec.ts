@@ -1236,7 +1236,7 @@ describe('ReservationService', () => {
     });
   });
   describe('getCurrent', () => {
-    it('returns the current reservation for the authorized prospector', async () => {
+    it('returns owned state for the callers current reservation', async () => {
       reservationRepository.findCurrent.mockResolvedValue(existingReservation);
 
       await expect(
@@ -1249,13 +1249,87 @@ describe('ReservationService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).resolves.toEqual(existingReservation);
+      ).resolves.toEqual({
+        state: 'owned',
+
+        reservationId: existingReservation.reservationId,
+
+        acquiredAt: existingReservation.acquiredAt,
+
+        expiresAt: existingReservation.expiresAt,
+      });
 
       expect(reservationRepository.findCurrent).toHaveBeenCalledWith(
         tenantId,
         campaignId,
         prospectId,
       );
+    });
+
+    it('returns none when no active reservation exists', async () => {
+      reservationRepository.findCurrent.mockResolvedValue(null);
+
+      await expect(
+        service.getCurrent({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        state: 'none',
+      });
+    });
+
+    it('returns reserved without leaking ownership when another eligible prospector owns it', async () => {
+      reservationRepository.findCurrent.mockResolvedValue({
+        ...existingReservation,
+
+        userId: otherUserId,
+      });
+
+      await expect(
+        service.getCurrent({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        state: 'reserved',
+
+        expiresAt: existingReservation.expiresAt,
+      });
+    });
+
+    it('returns reserved when the reservation belongs to stale assignment context', async () => {
+      reservationRepository.findCurrent.mockResolvedValue({
+        ...existingReservation,
+
+        assignmentId: '89898989-8989-4898-8898-898989898989',
+      });
+
+      await expect(
+        service.getCurrent({
+          tenantId,
+
+          userId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        state: 'reserved',
+
+        expiresAt: existingReservation.expiresAt,
+      });
     });
 
     it('returns the masked response when the campaign does not exist', async () => {
