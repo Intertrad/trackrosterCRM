@@ -73,6 +73,12 @@ export default defineConfig([
     rules: {
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
+
+      /*
+       * TrackRoster uses the App Router only.
+       * Disable this legacy Pages Router rule.
+       */
+      '@next/next/no-html-link-for-pages': 'off',
     },
   },
 

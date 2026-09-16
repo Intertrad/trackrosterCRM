@@ -1,26 +1,144 @@
 @import 'tailwindcss';
 
+/*
+ * TrackRoster Design Tokens
+ *
+ * Keep raw brand values here.
+ * Application components should prefer semantic Tailwind tokens
+ * such as bg-primary, text-foreground, border-border, etc.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand */
+  --brand-navy: #05124a;
+  --brand-blue: #0f59fa;
+  --brand-blue-mid: #5f92f6;
+  --brand-blue-soft: #a2c0fa;
+  --brand-lime: #a7dc41;
+
+  /* Surfaces */
+  --background: #f7f9fc;
+  --surface: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --surface-selected: #eef4ff;
+
+  /* Typography */
+  --foreground: #111827;
+  --text-secondary: #667085;
+  --text-muted: #98a2b3;
+  --text-inverse: #ffffff;
+
+  /* Borders */
+  --border: #d7dce7;
+  --border-strong: #c4cad6;
+
+  /* Semantic states */
+  --success: #4d7c0f;
+  --success-background: #f3f8e8;
+
+  --warning: #b45309;
+  --warning-background: #fffbeb;
+
+  --danger: #dc2626;
+  --danger-background: #fef2f2;
+
+  --info: #0f59fa;
+  --info-background: #eff6ff;
+
+  /* Interaction */
+  --primary: #0f59fa;
+  --primary-hover: #0b4bd4;
+  --primary-active: #083fae;
+  --focus-ring: #5f92f6;
+
+  /* Layout */
+  --sidebar-width: 272px;
+  --topbar-height: 72px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* Shadow */
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 4%), 0 1px 3px rgb(16 24 40 / 8%);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-selected: var(--surface-selected);
+
+  --color-navy: var(--brand-navy);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+
+  --color-blue-mid: var(--brand-blue-mid);
+  --color-blue-soft: var(--brand-blue-soft);
+  --color-lime: var(--brand-lime);
+
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-success: var(--success);
+  --color-success-background: var(--success-background);
+
+  --color-warning: var(--warning);
+  --color-warning-background: var(--warning-background);
+
+  --color-danger: var(--danger);
+  --color-danger-background: var(--danger-background);
+
+  --color-info: var(--info);
+  --color-info-background: var(--info-background);
+
+  --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
 }
 
 body {
+  min-height: 100vh;
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--brand-blue-soft);
+  color: var(--brand-navy);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
