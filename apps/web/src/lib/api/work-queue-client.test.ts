@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  AcquiredProspectReservation,
+  ProspectCollisionDecision,
+  ProspectReservationState,
   ProspectTimelinePage,
+  ReleasedProspectReservation,
   WorkQueueProspectDetail,
   WorkQueueResponse,
+  RecordedProspectActivity,
 } from './work-queue-types';
 
 const { browserJsonMock } = vi.hoisted(() => ({
@@ -15,9 +20,14 @@ vi.mock('./browser-json', () => ({
 }));
 
 import {
+  acquireProspectReservation,
+  getProspectCollisionDecision,
+  getProspectReservation,
   getWorkQueueProspectDetail,
   listProspectTimeline,
   listWorkQueue,
+  releaseProspectReservation,
+  recordProspectActivity,
 } from './work-queue-client';
 
 describe('work-queue-client', () => {
@@ -390,6 +400,502 @@ describe('work-queue-client', () => {
           teamId,
         }),
       ).rejects.toBe(error);
+    });
+  });
+
+  describe('getProspectReservation', () => {
+    const reservationResponse: ProspectReservationState = {
+      state: 'owned',
+
+      reservationId: '77777777-7777-4777-8777-777777777777',
+
+      acquiredAt: '2026-09-16T10:00:00.000Z',
+
+      expiresAt: '2026-09-16T10:20:00.000Z',
+    };
+
+    beforeEach(() => {
+      browserJsonMock.mockResolvedValue(reservationResponse);
+    });
+
+    it('requests reservation state through the selected prospector team workspace', async () => {
+      await getProspectReservation({
+        campaignId,
+
+        prospectId,
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        `/api/work-queue/${campaignId}/${prospectId}/reservation` + `?teamId=${teamId}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+        },
+      );
+    });
+
+    it('URL-encodes campaign and prospect reservation route segments', async () => {
+      await getProspectReservation({
+        campaignId: 'campaign/value',
+
+        prospectId: 'prospect value',
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        '/api/work-queue/campaign%2Fvalue/prospect%20value/reservation' + `?teamId=${teamId}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+        },
+      );
+    });
+
+    it('returns the typed reservation state', async () => {
+      await expect(
+        getProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).resolves.toEqual(reservationResponse);
+    });
+
+    it('propagates reservation-state transport errors unchanged', async () => {
+      const error = new Error('reservation request failed');
+
+      browserJsonMock.mockRejectedValue(error);
+
+      await expect(
+        getProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).rejects.toBe(error);
+    });
+  });
+
+  describe('acquireProspectReservation', () => {
+    const reservationId = '77777777-7777-4777-8777-777777777777';
+
+    const acquiredResponse: AcquiredProspectReservation = {
+      reservationId,
+
+      acquiredAt: '2026-09-16T10:00:00.000Z',
+
+      expiresAt: '2026-09-16T10:20:00.000Z',
+    };
+
+    beforeEach(() => {
+      browserJsonMock.mockResolvedValue(acquiredResponse);
+    });
+
+    it('acquires a reservation through the selected prospector team workspace', async () => {
+      await acquireProspectReservation({
+        campaignId,
+
+        prospectId,
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        `/api/work-queue/${campaignId}/${prospectId}/reservation` + `?teamId=${teamId}`,
+        {
+          method: 'POST',
+
+          headers: {
+            'content-type': 'application/json',
+          },
+
+          body: JSON.stringify({}),
+        },
+      );
+    });
+
+    it('forwards only the optional override identifier in the acquisition body', async () => {
+      const overrideId = '88888888-8888-4888-8888-888888888888';
+
+      await acquireProspectReservation({
+        campaignId,
+
+        prospectId,
+
+        teamId,
+
+        overrideId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        `/api/work-queue/${campaignId}/${prospectId}/reservation` + `?teamId=${teamId}`,
+        {
+          method: 'POST',
+
+          headers: {
+            'content-type': 'application/json',
+          },
+
+          body: JSON.stringify({
+            overrideId,
+          }),
+        },
+      );
+    });
+
+    it('URL-encodes campaign and prospect acquisition route segments', async () => {
+      await acquireProspectReservation({
+        campaignId: 'campaign/value',
+
+        prospectId: 'prospect value',
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        '/api/work-queue/campaign%2Fvalue/prospect%20value/reservation' + `?teamId=${teamId}`,
+        {
+          method: 'POST',
+
+          headers: {
+            'content-type': 'application/json',
+          },
+
+          body: JSON.stringify({}),
+        },
+      );
+    });
+
+    it('returns the typed acquired reservation', async () => {
+      await expect(
+        acquireProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).resolves.toEqual(acquiredResponse);
+    });
+
+    it('propagates reservation acquisition errors unchanged', async () => {
+      const error = new Error('reservation acquisition failed');
+
+      browserJsonMock.mockRejectedValue(error);
+
+      await expect(
+        acquireProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).rejects.toBe(error);
+    });
+  });
+
+  describe('releaseProspectReservation', () => {
+    const reservationId = '77777777-7777-4777-8777-777777777777';
+
+    const releasedResponse: ReleasedProspectReservation = {
+      released: true,
+
+      reservationId,
+    };
+
+    beforeEach(() => {
+      browserJsonMock.mockResolvedValue(releasedResponse);
+    });
+
+    it('releases the exact reservation through the selected prospector team workspace', async () => {
+      await releaseProspectReservation({
+        campaignId,
+
+        prospectId,
+
+        teamId,
+
+        reservationId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        `/api/work-queue/${campaignId}/${prospectId}` +
+          `/reservation/${reservationId}` +
+          `?teamId=${teamId}`,
+        {
+          method: 'DELETE',
+        },
+      );
+    });
+
+    it('URL-encodes every reservation release route segment', async () => {
+      await releaseProspectReservation({
+        campaignId: 'campaign/value',
+
+        prospectId: 'prospect value',
+
+        teamId,
+
+        reservationId: 'reservation/value',
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        '/api/work-queue/campaign%2Fvalue/prospect%20value' +
+          '/reservation/reservation%2Fvalue' +
+          `?teamId=${teamId}`,
+        {
+          method: 'DELETE',
+        },
+      );
+    });
+
+    it('returns the typed release response', async () => {
+      await expect(
+        releaseProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+
+          reservationId,
+        }),
+      ).resolves.toEqual(releasedResponse);
+    });
+
+    it('propagates reservation release errors unchanged', async () => {
+      const error = new Error('reservation release failed');
+
+      browserJsonMock.mockRejectedValue(error);
+
+      await expect(
+        releaseProspectReservation({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+
+          reservationId,
+        }),
+      ).rejects.toBe(error);
+    });
+  });
+
+  describe('getProspectCollisionDecision', () => {
+    const collisionResponse: ProspectCollisionDecision = {
+      decision: 'block',
+
+      reasonCode: 'RECENT_CONTACT',
+
+      conflict: {
+        expiresAt: '2026-09-16T11:00:00.000Z',
+      },
+    };
+
+    beforeEach(() => {
+      browserJsonMock.mockResolvedValue(collisionResponse);
+    });
+
+    it('requests the collision decision through the selected prospector team workspace', async () => {
+      await getProspectCollisionDecision({
+        campaignId,
+
+        prospectId,
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        `/api/work-queue/${campaignId}/${prospectId}/collision-decision` + `?teamId=${teamId}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+        },
+      );
+    });
+
+    it('URL-encodes campaign and prospect collision route segments', async () => {
+      await getProspectCollisionDecision({
+        campaignId: 'campaign/value',
+
+        prospectId: 'prospect value',
+
+        teamId,
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        '/api/work-queue/campaign%2Fvalue/prospect%20value/collision-decision' +
+          `?teamId=${teamId}`,
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+        },
+      );
+    });
+
+    it('returns the typed collision decision', async () => {
+      await expect(
+        getProspectCollisionDecision({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).resolves.toEqual(collisionResponse);
+    });
+
+    it('propagates collision-decision transport errors unchanged', async () => {
+      const error = new Error('collision decision request failed');
+
+      browserJsonMock.mockRejectedValue(error);
+
+      await expect(
+        getProspectCollisionDecision({
+          campaignId,
+
+          prospectId,
+
+          teamId,
+        }),
+      ).rejects.toBe(error);
+    });
+
+    describe('recordProspectActivity', () => {
+      const activityId = '77777777-7777-4777-8777-777777777777';
+
+      const activityResponse: RecordedProspectActivity = {
+        id: activityId,
+        type: 'call',
+        occurredAt: '2026-09-16T12:00:00.000Z',
+      };
+
+      beforeEach(() => {
+        browserJsonMock.mockResolvedValue(activityResponse);
+      });
+
+      it('records an activity through the selected prospector team workspace', async () => {
+        const idempotencyKey = 'activity-call-20260916-001';
+
+        await recordProspectActivity({
+          campaignId,
+          prospectId,
+          teamId,
+          type: 'call',
+          idempotencyKey,
+        });
+
+        expect(browserJsonMock).toHaveBeenCalledWith(
+          `/api/work-queue/${campaignId}/${prospectId}/activities` + `?teamId=${teamId}`,
+          {
+            method: 'POST',
+
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': idempotencyKey,
+            },
+
+            body: JSON.stringify({
+              type: 'call',
+            }),
+          },
+        );
+      });
+
+      it('forwards the exact idempotency key unchanged', async () => {
+        const idempotencyKey = 'Case-Sensitive-Key_ABC-123';
+
+        await recordProspectActivity({
+          campaignId,
+          prospectId,
+          teamId,
+          type: 'email',
+          idempotencyKey,
+        });
+
+        expect(browserJsonMock).toHaveBeenCalledWith(
+          `/api/work-queue/${campaignId}/${prospectId}/activities` + `?teamId=${teamId}`,
+          {
+            method: 'POST',
+
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': idempotencyKey,
+            },
+
+            body: JSON.stringify({
+              type: 'email',
+            }),
+          },
+        );
+      });
+
+      it('URL-encodes campaign and prospect route segments', async () => {
+        await recordProspectActivity({
+          campaignId: 'campaign/value',
+          prospectId: 'prospect value',
+          teamId,
+          type: 'visit',
+          idempotencyKey: 'activity-visit-001',
+        });
+
+        expect(browserJsonMock).toHaveBeenCalledWith(
+          '/api/work-queue/campaign%2Fvalue/prospect%20value/activities' + `?teamId=${teamId}`,
+          {
+            method: 'POST',
+
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': 'activity-visit-001',
+            },
+
+            body: JSON.stringify({
+              type: 'visit',
+            }),
+          },
+        );
+      });
+
+      it('returns the typed recorded activity', async () => {
+        await expect(
+          recordProspectActivity({
+            campaignId,
+            prospectId,
+            teamId,
+            type: 'call',
+            idempotencyKey: 'activity-call-001',
+          }),
+        ).resolves.toEqual(activityResponse);
+      });
+
+      it('propagates activity transport errors unchanged', async () => {
+        const error = new Error('activity request failed');
+
+        browserJsonMock.mockRejectedValue(error);
+
+        await expect(
+          recordProspectActivity({
+            campaignId,
+            prospectId,
+            teamId,
+            type: 'message',
+            idempotencyKey: 'activity-message-001',
+          }),
+        ).rejects.toBe(error);
+      });
     });
   });
 });

@@ -8,6 +8,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type { ProspectReservation, ProspectReservationState } from './reservation.types.js';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
@@ -26,7 +27,6 @@ import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
-import type { ProspectReservation } from './reservation.types.js';
 
 const RESERVATION_TTL_SECONDS = 20 * 60;
 
@@ -419,21 +419,16 @@ export class ReservationService {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
   }
-  async getCurrent(input: GetCurrentReservationInput): Promise<ProspectReservation | null> {
+  async getCurrent(input: GetCurrentReservationInput): Promise<ProspectReservationState> {
     /*
-     * Reading the current reservation is an
+     * Reading reservation state is still an
      * operational prospect action.
      *
-     * Authentication alone is insufficient:
-     * the caller must still be the currently
-     * authorized prospector for this exact
-     * campaign prospect/team.
-     *
      * Reuse the same authorization boundary as
-     * reservation acquisition so reads cannot
-     * bypass assignment/team ownership rules.
+     * acquisition so out-of-scope users cannot use
+     * this endpoint as a resource-existence oracle.
      */
-    await this.requireReservationEligibility({
+    const { assignment } = await this.requireReservationEligibility({
       tenantId: input.tenantId,
 
       userId: input.userId,
@@ -443,8 +438,10 @@ export class ReservationService {
       campaignProspectId: input.campaignProspectId,
     });
 
+    let reservation: ProspectReservation | null;
+
     try {
-      return await this.reservationRepository.findCurrent(
+      reservation = await this.reservationRepository.findCurrent(
         input.tenantId,
 
         input.campaignId,
@@ -454,6 +451,45 @@ export class ReservationService {
     } catch {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
+
+    if (!reservation) {
+      return {
+        state: 'none',
+      };
+    }
+
+    /*
+     * Only expose reservation identity when the
+     * authenticated prospector owns the reservation
+     * for the exact current assignment.
+     *
+     * This prevents stale reassignment state and
+     * another eligible team prospector's reservation
+     * metadata from leaking through the read API.
+     */
+    if (reservation.userId === input.userId && reservation.assignmentId === assignment.id) {
+      return {
+        state: 'owned',
+
+        reservationId: reservation.reservationId,
+
+        acquiredAt: reservation.acquiredAt,
+
+        expiresAt: reservation.expiresAt,
+      };
+    }
+
+    /*
+     * Another eligible prospector owns the Redis lock,
+     * or the lock belongs to stale assignment context.
+     *
+     * The caller only needs the blocking expiry.
+     */
+    return {
+      state: 'reserved',
+
+      expiresAt: reservation.expiresAt,
+    };
   }
 
   async release(input: ReleaseReservationInput): Promise<{

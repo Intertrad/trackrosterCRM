@@ -1,10 +1,14 @@
-import { ApiError } from '@/lib/api/api-error';
-
+import { ApiError } from '../api/api-error';
 import { clearAuthCookies, getAccessToken } from './auth-cookies';
 import { refreshAuthSession } from './auth-refresh';
 import { backendJson } from './backend-json';
 
-export async function authenticatedBackendJson<T>(path: string): Promise<T | null> {
+export type AuthenticatedBackendJsonOptions = RequestInit;
+
+export async function authenticatedBackendJson<T>(
+  path: string,
+  options: AuthenticatedBackendJsonOptions = {},
+): Promise<T | null> {
   let accessToken = await getAccessToken();
 
   let alreadyRefreshed = false;
@@ -27,6 +31,8 @@ export async function authenticatedBackendJson<T>(path: string): Promise<T | nul
 
   try {
     return await backendJson<T>(path, {
+      ...options,
+
       accessToken,
     });
   } catch (error) {
@@ -53,7 +59,16 @@ export async function authenticatedBackendJson<T>(path: string): Promise<T | nul
   }
 
   try {
+    /*
+     * Reuse the exact request options after refresh.
+     *
+     * This is important for authenticated mutations:
+     * method, body and headers such as Idempotency-Key
+     * must remain unchanged across the single retry.
+     */
     return await backendJson<T>(path, {
+      ...options,
+
       accessToken: tokens.accessToken,
     });
   } catch (error) {

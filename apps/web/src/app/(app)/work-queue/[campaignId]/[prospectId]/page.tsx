@@ -17,6 +17,7 @@ import {
   RefreshCw,
   ShieldAlert,
 } from 'lucide-react';
+import { ProspectActionPanel } from './prospect-action-panel';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -313,6 +314,13 @@ export default function WorkQueueProspectDetailPage() {
     [campaignId, prospectId, teamId],
   );
 
+  const handleActivityRecorded = useCallback(async (): Promise<void> => {
+    await loadTimeline({
+      requestId: requestSequence.current,
+      append: false,
+    });
+  }, [loadTimeline]);
+
   const loadProspect = useCallback(async (): Promise<void> => {
     if (!campaignId || !prospectId || !teamId) {
       requestSequence.current += 1;
@@ -552,94 +560,103 @@ export default function WorkQueueProspectDetailPage() {
           </header>
 
           <div className={styles.contentGrid}>
-            <section className={styles.infoCard} aria-labelledby="prospect-information-title">
-              <div className={styles.sectionHeader}>
-                <div>
-                  <p className={styles.sectionEyebrow}>Current assignment</p>
-
-                  <h2 id="prospect-information-title">Prospect information</h2>
-                </div>
-              </div>
-
-              <div className={styles.detailList}>
-                {address ? (
-                  <div className={styles.detailRow}>
-                    <div className={styles.detailIcon}>
-                      <MapPin size={18} strokeWidth={1.9} aria-hidden="true" />
-                    </div>
-
-                    <div>
-                      <span className={styles.detailLabel}>Address</span>
-
-                      <span className={styles.detailValue}>{address}</span>
-                    </div>
-                  </div>
-                ) : null}
-
-                {detail.establishment.phone ? (
-                  <div className={styles.detailRow}>
-                    <div className={styles.detailIcon}>
-                      <Phone size={18} strokeWidth={1.9} aria-hidden="true" />
-                    </div>
-
-                    <div>
-                      <span className={styles.detailLabel}>Phone</span>
-
-                      <span className={styles.detailValue}>{detail.establishment.phone}</span>
-                    </div>
-                  </div>
-                ) : null}
-
-                {website ? (
-                  <div className={styles.detailRow}>
-                    <div className={styles.detailIcon}>
-                      <Globe2 size={18} strokeWidth={1.9} aria-hidden="true" />
-                    </div>
-
-                    <div>
-                      <span className={styles.detailLabel}>Website</span>
-
-                      <a
-                        href={website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.websiteLink}
-                      >
-                        {detail.establishment.website}
-
-                        <ExternalLink size={14} strokeWidth={1.9} aria-hidden="true" />
-                      </a>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className={styles.detailRow}>
-                  <div className={styles.detailIcon}>
-                    <CalendarClock size={18} strokeWidth={1.9} aria-hidden="true" />
-                  </div>
-
+            <div className={styles.leftColumn}>
+              <section className={styles.infoCard} aria-labelledby="prospect-information-title">
+                <div className={styles.sectionHeader}>
                   <div>
-                    <span className={styles.detailLabel}>Assigned</span>
+                    <p className={styles.sectionEyebrow}>Current assignment</p>
 
-                    <time className={styles.detailValue} dateTime={detail.assignment.assignedAt}>
-                      {formatDateTime(detail.assignment.assignedAt)}
-                    </time>
+                    <h2 id="prospect-information-title">Prospect information</h2>
                   </div>
                 </div>
 
-                <div className={styles.detailRow}>
-                  <div className={styles.detailIcon}>
-                    <Building2 size={18} strokeWidth={1.9} aria-hidden="true" />
+                <div className={styles.detailList}>
+                  {address ? (
+                    <div className={styles.detailRow}>
+                      <div className={styles.detailIcon}>
+                        <MapPin size={18} strokeWidth={1.9} aria-hidden="true" />
+                      </div>
+
+                      <div>
+                        <span className={styles.detailLabel}>Address</span>
+
+                        <span className={styles.detailValue}>{address}</span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {detail.establishment.phone ? (
+                    <div className={styles.detailRow}>
+                      <div className={styles.detailIcon}>
+                        <Phone size={18} strokeWidth={1.9} aria-hidden="true" />
+                      </div>
+
+                      <div>
+                        <span className={styles.detailLabel}>Phone</span>
+
+                        <span className={styles.detailValue}>{detail.establishment.phone}</span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {website ? (
+                    <div className={styles.detailRow}>
+                      <div className={styles.detailIcon}>
+                        <Globe2 size={18} strokeWidth={1.9} aria-hidden="true" />
+                      </div>
+
+                      <div>
+                        <span className={styles.detailLabel}>Website</span>
+
+                        <a
+                          href={website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.websiteLink}
+                        >
+                          {detail.establishment.website}
+
+                          <ExternalLink size={14} strokeWidth={1.9} aria-hidden="true" />
+                        </a>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className={styles.detailRow}>
+                    <div className={styles.detailIcon}>
+                      <CalendarClock size={18} strokeWidth={1.9} aria-hidden="true" />
+                    </div>
+
+                    <div>
+                      <span className={styles.detailLabel}>Assigned</span>
+
+                      <time className={styles.detailValue} dateTime={detail.assignment.assignedAt}>
+                        {formatDateTime(detail.assignment.assignedAt)}
+                      </time>
+                    </div>
                   </div>
 
-                  <div>
-                    <span className={styles.detailLabel}>Campaign</span>
+                  <div className={styles.detailRow}>
+                    <div className={styles.detailIcon}>
+                      <Building2 size={18} strokeWidth={1.9} aria-hidden="true" />
+                    </div>
 
-                    <span className={styles.detailValue}>{detail.campaign.name}</span>
+                    <div>
+                      <span className={styles.detailLabel}>Campaign</span>
+
+                      <span className={styles.detailValue}>{detail.campaign.name}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </section>
+              </section>
+
+              <ProspectActionPanel
+                campaignId={campaignId}
+                prospectId={prospectId}
+                teamId={teamId}
+                onActivityRecorded={handleActivityRecorded}
+              />
+            </div>
 
             <section className={styles.timelineCard} aria-labelledby="activity-timeline-title">
               <div className={styles.sectionHeader}>

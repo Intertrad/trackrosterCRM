@@ -1,6 +1,13 @@
 import { browserJson } from './browser-json';
+
 import type {
+  AcquiredProspectReservation,
+  ProspectActivityType,
+  ProspectCollisionDecision,
+  ProspectReservationState,
   ProspectTimelinePage,
+  RecordedProspectActivity,
+  ReleasedProspectReservation,
   WorkQueueProspectDetail,
   WorkQueueResponse,
 } from './work-queue-types';
@@ -15,6 +22,26 @@ export interface ListWorkQueueInput {
   cursor?: string;
 
   limit?: number;
+}
+
+export interface RecordProspectActivityInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  teamId: string;
+
+  type: ProspectActivityType;
+
+  idempotencyKey: string;
+}
+
+export interface GetProspectCollisionDecisionInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  teamId: string;
 }
 
 export interface GetWorkQueueProspectDetailInput {
@@ -35,6 +62,34 @@ export interface ListProspectTimelineInput {
   cursor?: string;
 
   limit?: number;
+}
+
+export interface GetProspectReservationInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  teamId: string;
+}
+
+export interface AcquireProspectReservationInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  teamId: string;
+
+  overrideId?: string;
+}
+
+export interface ReleaseProspectReservationInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  teamId: string;
+
+  reservationId: string;
 }
 
 export async function listWorkQueue(input: ListWorkQueueInput): Promise<WorkQueueResponse> {
@@ -88,6 +143,35 @@ export async function getWorkQueueProspectDetail(
   );
 }
 
+export async function recordProspectActivity(
+  input: RecordProspectActivityInput,
+): Promise<RecordedProspectActivity> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  const campaignId = encodeURIComponent(input.campaignId);
+
+  const prospectId = encodeURIComponent(input.prospectId);
+
+  return browserJson<RecordedProspectActivity>(
+    `/api/work-queue/${campaignId}/${prospectId}/activities` + `?${query.toString()}`,
+    {
+      method: 'POST',
+
+      headers: {
+        'content-type': 'application/json',
+
+        'idempotency-key': input.idempotencyKey,
+      },
+
+      body: JSON.stringify({
+        type: input.type,
+      }),
+    },
+  );
+}
+
 export async function listProspectTimeline(
   input: ListProspectTimelineInput,
 ): Promise<ProspectTimelinePage> {
@@ -114,6 +198,103 @@ export async function listProspectTimeline(
 
   return browserJson<ProspectTimelinePage>(
     `/api/work-queue/${campaignId}/${prospectId}/timeline?${query.toString()}`,
+    {
+      method: 'GET',
+
+      cache: 'no-store',
+    },
+  );
+}
+
+export async function getProspectReservation(
+  input: GetProspectReservationInput,
+): Promise<ProspectReservationState> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  const campaignId = encodeURIComponent(input.campaignId);
+
+  const prospectId = encodeURIComponent(input.prospectId);
+
+  return browserJson<ProspectReservationState>(
+    `/api/work-queue/${campaignId}/${prospectId}/reservation` + `?${query.toString()}`,
+    {
+      method: 'GET',
+
+      cache: 'no-store',
+    },
+  );
+}
+
+export async function acquireProspectReservation(
+  input: AcquireProspectReservationInput,
+): Promise<AcquiredProspectReservation> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  const campaignId = encodeURIComponent(input.campaignId);
+
+  const prospectId = encodeURIComponent(input.prospectId);
+
+  const body =
+    input.overrideId === undefined
+      ? {}
+      : {
+          overrideId: input.overrideId,
+        };
+
+  return browserJson<AcquiredProspectReservation>(
+    `/api/work-queue/${campaignId}/${prospectId}/reservation` + `?${query.toString()}`,
+    {
+      method: 'POST',
+
+      headers: {
+        'content-type': 'application/json',
+      },
+
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function releaseProspectReservation(
+  input: ReleaseProspectReservationInput,
+): Promise<ReleasedProspectReservation> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  const campaignId = encodeURIComponent(input.campaignId);
+
+  const prospectId = encodeURIComponent(input.prospectId);
+
+  const reservationId = encodeURIComponent(input.reservationId);
+
+  return browserJson<ReleasedProspectReservation>(
+    `/api/work-queue/${campaignId}/${prospectId}` +
+      `/reservation/${reservationId}` +
+      `?${query.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export async function getProspectCollisionDecision(
+  input: GetProspectCollisionDecisionInput,
+): Promise<ProspectCollisionDecision> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  const campaignId = encodeURIComponent(input.campaignId);
+
+  const prospectId = encodeURIComponent(input.prospectId);
+
+  return browserJson<ProspectCollisionDecision>(
+    `/api/work-queue/${campaignId}/${prospectId}/collision-decision` + `?${query.toString()}`,
     {
       method: 'GET',
 
