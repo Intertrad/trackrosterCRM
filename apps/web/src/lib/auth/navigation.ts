@@ -98,7 +98,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'work_queue',
           label: 'Work Queue',
           href: '/work-queue',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'follow_ups',
