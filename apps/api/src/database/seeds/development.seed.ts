@@ -9,6 +9,9 @@ import { OrganizationService } from '../../organizations/organization.service.js
 import { TeamService } from '../../teams/team.service.js';
 import { TenantService } from '../../tenants/tenant.service.js';
 import { UserRepository } from '../../users/user.repository.js';
+import { DATABASE } from '../database.constants.js';
+import type { Database } from '../database.types.js';
+import { seedDevelopmentWorkQueue } from './development-work-queue.seed.js';
 
 async function seed(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -20,7 +23,7 @@ async function seed(): Promise<void> {
     const passwordService = app.get(PasswordService);
     const userRepository = app.get(UserRepository);
     const grantRepository = app.get(UserAccessGrantRepository);
-
+    const database = app.get<Database>(DATABASE);
     // ----------------------------------------------------------------
     // Tenant
     // ----------------------------------------------------------------
@@ -412,6 +415,42 @@ async function seed(): Promise<void> {
     // ================================================================
 
     const noAccessUser = await ensureRoleUser('noaccess@intertrad.test');
+
+    // ================================================================
+    // TR-031 WORK QUEUE / PROSPECT DETAIL DEVELOPMENT DATA
+    // ================================================================
+
+    const workQueueFixture = await seedDevelopmentWorkQueue({
+      database,
+
+      tenantId,
+
+      organizationId,
+
+      teamId,
+
+      prospectorUserId: prospector.id,
+
+      /*
+       * manager@intertrad.test intentionally also has an exact
+       * Prospector/team grant, making it useful as the second user
+       * for ownership-isolation testing.
+       */
+      otherProspectorUserId: manager.id,
+    });
+
+    console.log('');
+    console.log('TR-031 Work Queue development fixture ready');
+
+    console.log(`Campaign: ${workQueueFixture.campaignId}`);
+
+    for (const prospect of workQueueFixture.prospects) {
+      console.log(
+        `${prospect.name} -> ` +
+          `${prospect.campaignProspectId} ` +
+          `(${prospect.activityCount} activities)`,
+      );
+    }
 
     const noAccessGrants = await grantRepository.findByUser(tenantId, noAccessUser.id);
 

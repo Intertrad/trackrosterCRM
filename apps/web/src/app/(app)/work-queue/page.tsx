@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 
 import { ApiError } from '@/lib/api/api-error';
 import { listWorkQueue } from '@/lib/api/work-queue-client';
@@ -459,49 +460,58 @@ export default function WorkQueuePage() {
               const location = formatLocation(item);
 
               return (
-                <article key={item.assignment.id} className={styles.queueCard}>
-                  <div className={styles.cardPrimary}>
-                    <div className={styles.establishmentIcon}>
-                      <Building2 size={21} strokeWidth={1.8} aria-hidden="true" />
-                    </div>
-
-                    <div className={styles.establishmentContent}>
-                      <div className={styles.cardTitleRow}>
-                        <h2>{item.establishment.name}</h2>
-
-                        <span className={styles.statusBadge}>Assigned</span>
+                <Link
+                  key={item.assignment.id}
+                  href={`/work-queue/${encodeURIComponent(item.campaign.id)}/${encodeURIComponent(
+                    item.campaignProspectId,
+                  )}`}
+                  className={styles.queueCardLink}
+                  aria-label={`Open ${item.establishment.name}`}
+                >
+                  <article className={styles.queueCard}>
+                    <div className={styles.cardPrimary}>
+                      <div className={styles.establishmentIcon}>
+                        <Building2 size={21} strokeWidth={1.8} aria-hidden="true" />
                       </div>
 
-                      <p className={styles.campaignName}>{item.campaign.name}</p>
+                      <div className={styles.establishmentContent}>
+                        <div className={styles.cardTitleRow}>
+                          <h2>{item.establishment.name}</h2>
 
-                      <div className={styles.metadata}>
-                        {location ? (
-                          <span>
-                            <MapPin size={15} strokeWidth={1.9} aria-hidden="true" />
+                          <span className={styles.statusBadge}>Assigned</span>
+                        </div>
 
-                            {location}
-                          </span>
-                        ) : null}
+                        <p className={styles.campaignName}>{item.campaign.name}</p>
 
-                        {item.establishment.phone ? (
-                          <span>
-                            <Phone size={15} strokeWidth={1.9} aria-hidden="true" />
+                        <div className={styles.metadata}>
+                          {location ? (
+                            <span>
+                              <MapPin size={15} strokeWidth={1.9} aria-hidden="true" />
 
-                            {item.establishment.phone}
-                          </span>
-                        ) : null}
+                              {location}
+                            </span>
+                          ) : null}
+
+                          {item.establishment.phone ? (
+                            <span>
+                              <Phone size={15} strokeWidth={1.9} aria-hidden="true" />
+
+                              {item.establishment.phone}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className={styles.cardAside}>
-                    <span className={styles.assignedLabel}>Assigned</span>
+                    <div className={styles.cardAside}>
+                      <span className={styles.assignedLabel}>Assigned</span>
 
-                    <time dateTime={item.assignment.assignedAt}>
-                      {formatAssignedAt(item.assignment.assignedAt)}
-                    </time>
-                  </div>
-                </article>
+                      <time dateTime={item.assignment.assignedAt}>
+                        {formatAssignedAt(item.assignment.assignedAt)}
+                      </time>
+                    </div>
+                  </article>
+                </Link>
               );
             })}
           </section>

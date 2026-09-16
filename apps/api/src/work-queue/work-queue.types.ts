@@ -41,6 +41,54 @@ export interface WorkQueueItem {
   };
 }
 
+/*
+ * Prospect Detail intentionally has its own explicit
+ * contract instead of aliasing WorkQueueItem.
+ *
+ * This prevents future Work Queue list changes from
+ * silently expanding the detail API response.
+ */
+export interface WorkQueueProspectDetail {
+  campaignProspectId: string;
+
+  campaign: {
+    id: string;
+    name: string;
+  };
+
+  assignment: {
+    id: string;
+
+    organizationId: string;
+
+    teamId: string;
+
+    assignedAt: Date;
+  };
+
+  establishment: {
+    id: string;
+
+    regionId: string | null;
+
+    name: string;
+
+    addressLine1: string | null;
+
+    postalCode: string | null;
+
+    city: string | null;
+
+    countryCode: string;
+
+    phone: string | null;
+
+    website: string | null;
+
+    status: EstablishmentStatus;
+  };
+}
+
 export interface WorkQueuePage {
   limit: number;
 
