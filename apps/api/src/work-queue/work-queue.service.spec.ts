@@ -1,10 +1,10 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import { WorkQueueRepository } from './work-queue.repository.js';
 import { WorkQueueService } from './work-queue.service.js';
-import type { WorkQueueItem } from './work-queue.types.js';
+import type { WorkQueueItem, WorkQueueProspectDetail } from './work-queue.types.js';
 
 describe('WorkQueueService', () => {
   let authorizationService: {
@@ -13,6 +13,7 @@ describe('WorkQueueService', () => {
 
   let workQueueRepository: {
     findAssignedProspects: ReturnType<typeof vi.fn>;
+    findAssignedProspectById: ReturnType<typeof vi.fn>;
   };
 
   let service: WorkQueueService;
@@ -34,6 +35,12 @@ describe('WorkQueueService', () => {
   const secondAssignmentId = '88888888-8888-4888-8888-888888888888';
 
   const thirdAssignmentId = '99999999-9999-4999-8999-999999999999';
+
+  const establishmentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  const prospectId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  const detailAssignmentId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 
   function createItem(
     assignmentId: string,
@@ -100,6 +107,47 @@ describe('WorkQueueService', () => {
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   );
 
+  const prospectDetail: WorkQueueProspectDetail = {
+    campaignProspectId: prospectId,
+
+    campaign: {
+      id: campaignId,
+      name: 'Paris Expansion',
+    },
+
+    assignment: {
+      id: detailAssignmentId,
+
+      organizationId,
+
+      teamId,
+
+      assignedAt: new Date('2026-09-16T08:00:00.000Z'),
+    },
+
+    establishment: {
+      id: establishmentId,
+
+      regionId: null,
+
+      name: 'Paris Clinic',
+
+      addressLine1: '10 Rue de Rivoli',
+
+      postalCode: '75001',
+
+      city: 'Paris',
+
+      countryCode: 'FR',
+
+      phone: '+33100000000',
+
+      website: 'https://paris-clinic.example',
+
+      status: 'active',
+    },
+  };
+
   beforeEach(() => {
     authorizationService = {
       getUserGrants: vi.fn().mockResolvedValue([
@@ -117,6 +165,8 @@ describe('WorkQueueService', () => {
 
     workQueueRepository = {
       findAssignedProspects: vi.fn().mockResolvedValue([]),
+
+      findAssignedProspectById: vi.fn().mockResolvedValue(null),
     };
 
     service = new WorkQueueService(
@@ -126,225 +176,176 @@ describe('WorkQueueService', () => {
     );
   });
 
-  it('lists the authenticated prospector work queue for an exact team grant', async () => {
-    workQueueRepository.findAssignedProspects.mockResolvedValue([firstItem]);
+  describe('list', () => {
+    it('lists the authenticated prospector work queue for an exact team grant', async () => {
+      workQueueRepository.findAssignedProspects.mockResolvedValue([firstItem]);
 
-    await expect(
-      service.list({
+      await expect(
+        service.list({
+          tenantId,
+
+          userId,
+
+          teamId,
+        }),
+      ).resolves.toEqual({
+        items: [firstItem],
+
+        page: {
+          limit: 25,
+
+          hasMore: false,
+
+          nextCursor: null,
+        },
+      });
+
+      expect(authorizationService.getUserGrants).toHaveBeenCalledWith(tenantId, userId);
+
+      expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
         tenantId,
 
         userId,
 
         teamId,
-      }),
-    ).resolves.toEqual({
-      items: [firstItem],
 
-      page: {
         limit: 25,
-
-        hasMore: false,
-
-        nextCursor: null,
-      },
+      });
     });
 
-    expect(authorizationService.getUserGrants).toHaveBeenCalledWith(tenantId, userId);
+    it('rejects a user without any prospector team grant', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
 
-    expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
-      tenantId,
+          scopeType: 'team',
 
-      userId,
+          organizationId,
 
-      teamId,
+          teamId,
+        },
+      ]);
 
-      limit: 25,
+      await expect(
+        service.list({
+          tenantId,
+
+          userId,
+
+          teamId,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
     });
-  });
 
-  it('rejects a user without any prospector team grant', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([
-      {
-        role: 'manager',
+    it('rejects a prospector grant for a different team', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'prospector',
 
-        scopeType: 'team',
+          scopeType: 'team',
 
-        organizationId,
+          organizationId,
 
-        teamId,
-      },
-    ]);
+          teamId: otherTeamId,
+        },
+      ]);
 
-    await expect(
-      service.list({
+      await expect(
+        service.list({
+          tenantId,
+
+          userId,
+
+          teamId,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
+    });
+
+    it('forwards campaign, search and explicit limit filters', async () => {
+      await service.list({
         tenantId,
 
         userId,
 
         teamId,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
-  });
+        campaignId,
 
-  it('rejects a prospector grant for a different team', async () => {
-    authorizationService.getUserGrants.mockResolvedValue([
-      {
-        role: 'prospector',
+        search: '  Paris Clinic  ',
 
-        scopeType: 'team',
+        limit: 40,
+      });
 
-        organizationId,
-
-        teamId: otherTeamId,
-      },
-    ]);
-
-    await expect(
-      service.list({
+      expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
         tenantId,
 
         userId,
 
         teamId,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
-  });
+        campaignId,
 
-  it('forwards campaign, search and explicit limit filters', async () => {
-    await service.list({
-      tenantId,
+        search: 'Paris Clinic',
 
-      userId,
-
-      teamId,
-
-      campaignId,
-
-      search: '  Paris Clinic  ',
-
-      limit: 40,
+        limit: 40,
+      });
     });
 
-    expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
-      tenantId,
+    it('uses the extra repository row to create the next page cursor', async () => {
+      workQueueRepository.findAssignedProspects.mockResolvedValue([
+        firstItem,
+        secondItem,
+        thirdItem,
+      ]);
 
-      userId,
+      const result = await service.list({
+        tenantId,
 
-      teamId,
+        userId,
 
-      campaignId,
+        teamId,
 
-      search: 'Paris Clinic',
+        limit: 2,
+      });
 
-      limit: 40,
-    });
-  });
+      expect(result.items).toEqual([firstItem, secondItem]);
 
-  it('uses the extra repository row to create the next page cursor', async () => {
-    workQueueRepository.findAssignedProspects.mockResolvedValue([firstItem, secondItem, thirdItem]);
+      expect(result.page.limit).toBe(2);
 
-    const result = await service.list({
-      tenantId,
+      expect(result.page.hasMore).toBe(true);
 
-      userId,
+      expect(result.page.nextCursor).not.toBeNull();
 
-      teamId,
+      const decoded = JSON.parse(
+        Buffer.from(result.page.nextCursor!, 'base64url').toString('utf8'),
+      ) as {
+        assignedAt: string;
 
-      limit: 2,
-    });
+        assignmentId: string;
+      };
 
-    expect(result.items).toEqual([firstItem, secondItem]);
-
-    expect(result.page.limit).toBe(2);
-
-    expect(result.page.hasMore).toBe(true);
-
-    expect(result.page.nextCursor).not.toBeNull();
-
-    const decoded = JSON.parse(
-      Buffer.from(result.page.nextCursor!, 'base64url').toString('utf8'),
-    ) as {
-      assignedAt: string;
-
-      assignmentId: string;
-    };
-
-    expect(decoded).toEqual({
-      assignedAt: secondItem.assignment.assignedAt.toISOString(),
-
-      assignmentId: secondAssignmentId,
-    });
-  });
-
-  it('decodes a valid cursor before querying the repository', async () => {
-    const cursor = Buffer.from(
-      JSON.stringify({
-        assignedAt: '2026-09-16T09:20:00.000Z',
+      expect(decoded).toEqual({
+        assignedAt: secondItem.assignment.assignedAt.toISOString(),
 
         assignmentId: secondAssignmentId,
-      }),
-      'utf8',
-    ).toString('base64url');
-
-    await service.list({
-      tenantId,
-
-      userId,
-
-      teamId,
-
-      cursor,
+      });
     });
 
-    expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
-      tenantId,
+    it('decodes a valid cursor before querying the repository', async () => {
+      const cursor = Buffer.from(
+        JSON.stringify({
+          assignedAt: '2026-09-16T09:20:00.000Z',
 
-      userId,
+          assignmentId: secondAssignmentId,
+        }),
+        'utf8',
+      ).toString('base64url');
 
-      teamId,
-
-      limit: 25,
-
-      cursor: {
-        assignedAt: new Date('2026-09-16T09:20:00.000Z'),
-
-        assignmentId: secondAssignmentId,
-      },
-    });
-  });
-
-  it('rejects a malformed cursor before querying the repository', async () => {
-    await expect(
-      service.list({
-        tenantId,
-
-        userId,
-
-        teamId,
-
-        cursor: 'this-is-not-a-valid-work-queue-cursor',
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-
-    expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
-  });
-
-  it('rejects a cursor containing an invalid assignment id', async () => {
-    const cursor = Buffer.from(
-      JSON.stringify({
-        assignedAt: '2026-09-16T09:20:00.000Z',
-
-        assignmentId: 'not-a-uuid',
-      }),
-      'utf8',
-    ).toString('base64url');
-
-    await expect(
-      service.list({
+      await service.list({
         tenantId,
 
         userId,
@@ -352,31 +353,210 @@ describe('WorkQueueService', () => {
         teamId,
 
         cursor,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      });
 
-    expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
-  });
+      expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
+        tenantId,
 
-  it('returns an empty final page without a cursor', async () => {
-    const result = await service.list({
-      tenantId,
+        userId,
 
-      userId,
+        teamId,
 
-      teamId,
-    });
-
-    expect(result).toEqual({
-      items: [],
-
-      page: {
         limit: 25,
 
-        hasMore: false,
+        cursor: {
+          assignedAt: new Date('2026-09-16T09:20:00.000Z'),
 
-        nextCursor: null,
-      },
+          assignmentId: secondAssignmentId,
+        },
+      });
+    });
+
+    it('rejects a malformed cursor before querying the repository', async () => {
+      await expect(
+        service.list({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          cursor: 'this-is-not-a-valid-work-queue-cursor',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
+    });
+
+    it('rejects a cursor containing an invalid assignment id', async () => {
+      const cursor = Buffer.from(
+        JSON.stringify({
+          assignedAt: '2026-09-16T09:20:00.000Z',
+
+          assignmentId: 'not-a-uuid',
+        }),
+        'utf8',
+      ).toString('base64url');
+
+      await expect(
+        service.list({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          cursor,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty final page without a cursor', async () => {
+      const result = await service.list({
+        tenantId,
+
+        userId,
+
+        teamId,
+      });
+
+      expect(result).toEqual({
+        items: [],
+
+        page: {
+          limit: 25,
+
+          hasMore: false,
+
+          nextCursor: null,
+        },
+      });
+    });
+  });
+
+  describe('getProspectDetail', () => {
+    it('returns prospect detail for the exact prospector team workspace', async () => {
+      workQueueRepository.findAssignedProspectById.mockResolvedValue(prospectDetail);
+
+      await expect(
+        service.getProspectDetail({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual(prospectDetail);
+
+      expect(authorizationService.getUserGrants).toHaveBeenCalledWith(tenantId, userId);
+
+      expect(workQueueRepository.findAssignedProspectById).toHaveBeenCalledWith({
+        tenantId,
+
+        userId,
+
+        teamId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+      });
+    });
+
+    it('rejects prospect detail before lookup when the user lacks a prospector grant', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+
+          scopeType: 'team',
+
+          organizationId,
+
+          teamId,
+        },
+      ]);
+
+      await expect(
+        service.getProspectDetail({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(workQueueRepository.findAssignedProspectById).not.toHaveBeenCalled();
+    });
+
+    it('rejects prospect detail before lookup when the prospector grant belongs to another team', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'prospector',
+
+          scopeType: 'team',
+
+          organizationId,
+
+          teamId: otherTeamId,
+        },
+      ]);
+
+      await expect(
+        service.getProspectDetail({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(workQueueRepository.findAssignedProspectById).not.toHaveBeenCalled();
+    });
+
+    it('returns masked not found when the scoped prospect detail does not exist', async () => {
+      workQueueRepository.findAssignedProspectById.mockResolvedValue(null);
+
+      await expect(
+        service.getProspectDetail({
+          tenantId,
+
+          userId,
+
+          teamId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(workQueueRepository.findAssignedProspectById).toHaveBeenCalledWith({
+        tenantId,
+
+        userId,
+
+        teamId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+      });
     });
   });
 });

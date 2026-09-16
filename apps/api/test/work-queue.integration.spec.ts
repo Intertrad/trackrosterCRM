@@ -64,6 +64,35 @@ interface WorkQueueHttpResponse {
   };
 }
 
+interface WorkQueueProspectDetailHttpResponse {
+  campaignProspectId: string;
+
+  campaign: {
+    id: string;
+    name: string;
+  };
+
+  assignment: {
+    id: string;
+    organizationId: string;
+    teamId: string;
+    assignedAt: string;
+  };
+
+  establishment: {
+    id: string;
+    regionId: string | null;
+    name: string;
+    addressLine1: string | null;
+    postalCode: string | null;
+    city: string | null;
+    countryCode: string;
+    phone: string | null;
+    website: string | null;
+    status: string;
+  };
+}
+
 describe('Work Queue HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
   let database: Database | undefined;
@@ -608,5 +637,210 @@ describe('Work Queue HTTP integration', () => {
     expect(body.items[0]).not.toHaveProperty('tenantId');
 
     expect(body.items[0]?.assignment).not.toHaveProperty('assignedUserId');
+  });
+
+  it('rejects unauthenticated prospect detail access', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}` + `?teamId=${teamId}`,
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('rejects prospect detail without the required teamId', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects prospect detail with a malformed teamId', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}` + '?teamId=not-a-uuid',
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects prospect detail with a malformed campaignId', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/not-a-uuid/${prospectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects prospect detail with a malformed prospectId', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/not-a-uuid` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects a manager from the prospect detail route when they lack a prospector grant', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${managerAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('rejects a prospector requesting prospect detail through a different team workspace', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}` + `?teamId=${otherTeamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('masks another users assigned prospect as not found', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${otherProspectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('masks a missing campaign prospect as not found', async () => {
+    const missingProspectId = randomUUID();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${missingProspectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('masks a prospect requested through the wrong campaign as not found', async () => {
+    const missingCampaignId = randomUUID();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${missingCampaignId}/${prospectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('returns only the scoped prospect detail assigned to the authenticated prospector', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue/${campaignId}/${prospectId}` + `?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as WorkQueueProspectDetailHttpResponse;
+
+    expect(body).toMatchObject({
+      campaignProspectId: prospectId,
+
+      campaign: {
+        id: campaignId,
+
+        name: 'Work Queue Campaign',
+      },
+
+      assignment: {
+        id: assignmentId,
+
+        organizationId,
+
+        teamId,
+
+        assignedAt: '2026-09-16T08:00:00.000Z',
+      },
+
+      establishment: {
+        name: 'Queue Clinic Paris',
+
+        addressLine1: '10 Rue de Rivoli',
+
+        postalCode: '75001',
+
+        city: 'Paris',
+
+        countryCode: 'FR',
+
+        phone: '+33100000000',
+
+        website: 'https://queue-clinic.example',
+
+        status: 'active',
+      },
+    });
+
+    /*
+     * Internal authorization / persistence fields
+     * must never become part of the public detail
+     * contract.
+     */
+    expect(body).not.toHaveProperty('tenantId');
+
+    expect(body.assignment).not.toHaveProperty('assignedUserId');
+
+    expect(body.establishment).not.toHaveProperty('normalizedName');
   });
 });
