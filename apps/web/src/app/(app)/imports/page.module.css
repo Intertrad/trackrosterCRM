@@ -1,0 +1,796 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pageHeader h1,
+.unavailableCard h1 {
+  margin: 5px 0 0;
+  color: #05124a;
+  font-size: clamp(1.8rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.eyebrow,
+.panelEyebrow {
+  margin: 0;
+  color: #0f59fa;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.pageDescription {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #657084;
+  line-height: 1.6;
+}
+
+.uploadCard,
+.summaryCard,
+.tablePanel,
+.errorCard,
+.unavailableCard,
+.executionCard,
+.executionSummaryCard {
+  border: 1px solid #e2e7ef;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.uploadCard,
+.tablePanel,
+.executionCard {
+  padding: 20px;
+}
+
+/* ---------------------------------------------------------
+ * Upload
+ * ------------------------------------------------------ */
+
+.uploadHeading {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.uploadHeading h2,
+.tableHeader h2 {
+  margin: 0;
+  color: #071548;
+  font-size: 1.05rem;
+}
+
+.uploadHeading p,
+.tableHeader p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: #697386;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.uploadHeading code {
+  color: #33415c;
+  font-size: 0.82rem;
+}
+
+.uploadIcon,
+.fileIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: #eef4ff;
+  color: #0f59fa;
+}
+
+.uploadIcon {
+  width: 44px;
+  height: 44px;
+}
+
+.fileIcon {
+  width: 40px;
+  height: 40px;
+}
+
+.fileControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.filePicker,
+.clearButton,
+.previewButton,
+.errorCard button,
+.executeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 700;
+}
+
+.filePicker {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #0f59fa;
+  background: #0f59fa;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.filePicker:hover {
+  background: #0b4de1;
+}
+
+.filePicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clearButton {
+  border: 1px solid #d7deea;
+  background: #ffffff;
+  color: #071548;
+  cursor: pointer;
+}
+
+.clearButton:hover:not(:disabled) {
+  background: #f7f9fc;
+}
+
+.selectedFile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e1e7ef;
+  border-radius: 12px;
+  background: #f9fbfe;
+}
+
+.selectedFileDetails {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.selectedFileDetails strong {
+  overflow: hidden;
+  color: #071548;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectedFileDetails span {
+  color: #7a8496;
+  font-size: 0.78rem;
+}
+
+.fileReady {
+  flex: 0 0 auto;
+  color: #527414;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.inlineError {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: #b42318;
+  font-size: 0.87rem;
+  font-weight: 650;
+}
+
+.previewActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.previewActions p {
+  margin: 0;
+  color: #7b8596;
+  font-size: 0.8rem;
+}
+
+.previewButton {
+  border: 1px solid #0f59fa;
+  background: #0f59fa;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.previewButton:hover:not(:disabled) {
+  background: #0b4de1;
+}
+
+.previewButton:disabled,
+.clearButton:disabled,
+.errorCard button:disabled,
+.executeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+/* ---------------------------------------------------------
+ * Preview summary
+ * ------------------------------------------------------ */
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryCard {
+  display: grid;
+  gap: 7px;
+  padding: 18px;
+}
+
+.summaryCard span {
+  color: #697386;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.summaryCard strong {
+  color: #05124a;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.validCard {
+  border-color: #d8e9bc;
+  background: #fbfff7;
+}
+
+.validCard strong {
+  color: #527414;
+}
+
+.warningCard {
+  border-color: #f0d18e;
+  background: #fffaf0;
+}
+
+.warningCard strong {
+  color: #9a6200;
+}
+
+.invalidCard {
+  border-color: #f1c7c3;
+  background: #fff8f7;
+}
+
+.invalidCard strong {
+  color: #b42318;
+}
+
+.previewNotice,
+.successNotice,
+.executionSuccessNotice,
+.executionWarningNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 16px 18px;
+  border: 1px solid;
+  border-radius: 13px;
+}
+
+.previewNotice {
+  border-color: #f0d18e;
+  background: #fffaf0;
+  color: #9a6200;
+}
+
+.successNotice {
+  border-color: #d8e9bc;
+  background: #fbfff7;
+  color: #527414;
+}
+
+.previewNotice div,
+.successNotice div,
+.executionSuccessNotice div,
+.executionWarningNotice div {
+  display: grid;
+  gap: 3px;
+}
+
+.previewNotice strong,
+.successNotice strong,
+.executionSuccessNotice strong,
+.executionWarningNotice strong {
+  color: #071548;
+  font-size: 0.88rem;
+}
+
+.previewNotice span,
+.successNotice span,
+.executionSuccessNotice span,
+.executionWarningNotice span {
+  font-size: 0.8rem;
+}
+
+/* ---------------------------------------------------------
+ * Tables
+ * ------------------------------------------------------ */
+
+.tableHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.rowCount {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #0f59fa;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.tableScroller {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.tableScroller table {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+}
+
+.tableScroller th,
+.tableScroller td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tableScroller th {
+  background: #f8fafd;
+  color: #657084;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.tableScroller td {
+  color: #263247;
+  font-size: 0.85rem;
+}
+
+.tableScroller td small {
+  display: block;
+  margin-top: 4px;
+  color: #8490a3;
+  font-size: 0.72rem;
+}
+
+.tableScroller code {
+  color: #47556d;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.statusValid {
+  background: #edf8df;
+  color: #527414;
+}
+
+.statusWarning {
+  background: #fff2d7;
+  color: #946000;
+}
+
+.statusInvalid {
+  background: #fde9e7;
+  color: #b42318;
+}
+
+.issueList {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 17px;
+}
+
+.issueList li {
+  line-height: 1.4;
+}
+
+.issueError {
+  color: #b42318;
+}
+
+.issueWarning {
+  color: #9a6200;
+}
+
+.noIssues {
+  color: #758094;
+}
+
+.renderLimitNotice {
+  margin: 16px 0 0;
+  color: #707b8e;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------
+ * Preview error
+ * ------------------------------------------------------ */
+
+.errorCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px;
+  border-color: #f3c5c1;
+  background: #fff8f7;
+  color: #b42318;
+}
+
+.errorCard h2 {
+  margin: 0;
+  color: #071548;
+  font-size: 1rem;
+}
+
+.errorCard p {
+  margin: 6px 0 0;
+  color: #697386;
+  line-height: 1.5;
+}
+
+.errorCard button {
+  margin-top: 13px;
+  border: 1px solid #b42318;
+  background: #ffffff;
+  color: #b42318;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------
+ * Execution
+ * ------------------------------------------------------ */
+
+.executionCard {
+  padding: 20px;
+  border-color: #dce4ef;
+}
+
+.executionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.executionHeading h2 {
+  margin: 4px 0 0;
+  color: #071548;
+  font-size: 1.05rem;
+}
+
+.executionHeading p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: #697386;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.executeButton {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 1px solid #0f59fa;
+  background: #0f59fa;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.executeButton:hover:not(:disabled) {
+  background: #0b4de1;
+}
+
+.executionGuidance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: #946000;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.executionError {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #f1c7c3;
+  border-radius: 11px;
+  background: #fff8f7;
+  color: #b42318;
+}
+
+.executionError div {
+  display: grid;
+  gap: 3px;
+}
+
+.executionError strong {
+  color: #8f1d14;
+  font-size: 0.87rem;
+}
+
+.executionError span {
+  font-size: 0.82rem;
+}
+
+.executionSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.executionSummaryCard {
+  display: grid;
+  gap: 7px;
+  padding: 17px;
+  border-radius: 14px;
+}
+
+.executionSummaryCard span {
+  color: #697386;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.executionSummaryCard strong {
+  color: #05124a;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.createdCard {
+  border-color: #d8e9bc;
+  background: #fbfff7;
+}
+
+.createdCard strong {
+  color: #527414;
+}
+
+.reusedCard {
+  border-color: #cfdcff;
+  background: #f8faff;
+}
+
+.reusedCard strong {
+  color: #0f59fa;
+}
+
+.skippedCard {
+  border-color: #f0d18e;
+  background: #fffaf0;
+}
+
+.skippedCard strong {
+  color: #946000;
+}
+
+.failedCard {
+  border-color: #f1c7c3;
+  background: #fff8f7;
+}
+
+.failedCard strong {
+  color: #b42318;
+}
+
+.executionSuccessNotice {
+  border-color: #d8e9bc;
+  background: #fbfff7;
+  color: #527414;
+}
+
+.executionWarningNotice {
+  border-color: #f0d18e;
+  background: #fffaf0;
+  color: #946000;
+}
+
+.executionCreated {
+  background: #edf8df;
+  color: #527414;
+}
+
+.executionReused {
+  background: #eaf0ff;
+  color: #0f59fa;
+}
+
+.executionSkipped {
+  background: #fff2d7;
+  color: #946000;
+}
+
+.executionFailed {
+  background: #fde9e7;
+  color: #b42318;
+}
+
+/* ---------------------------------------------------------
+ * Workspace restriction
+ * ------------------------------------------------------ */
+
+.unavailableCard {
+  max-width: 720px;
+  padding: 28px;
+}
+
+.unavailableIcon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  border-radius: 13px;
+  background: #fff2ee;
+  color: #b42318;
+}
+
+.unavailableCard p:last-child {
+  margin: 12px 0 0;
+  color: #697386;
+  line-height: 1.6;
+}
+
+/* ---------------------------------------------------------
+ * Loading
+ * ------------------------------------------------------ */
+
+.spinner,
+.buttonSpinner {
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgb(255 255 255 / 45%);
+  border-top-color: #ffffff;
+}
+
+.buttonSpinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgb(255 255 255 / 45%);
+  border-top-color: #ffffff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------------------------------------------------
+ * Responsive
+ * ------------------------------------------------------ */
+
+@media (max-width: 1100px) {
+  .executionSummaryGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .page {
+    padding: 24px;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: 18px;
+    padding: 18px;
+  }
+
+  .pageHeader,
+  .tableHeader,
+  .executionHeading {
+    flex-direction: column;
+  }
+
+  .executionHeading {
+    align-items: stretch;
+  }
+
+  .summaryGrid,
+  .executionSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .selectedFile {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .fileReady {
+    width: 100%;
+    padding-left: 52px;
+  }
+
+  .fileControls,
+  .previewActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filePicker,
+  .clearButton,
+  .previewButton,
+  .executeButton {
+    width: 100%;
+  }
+}
