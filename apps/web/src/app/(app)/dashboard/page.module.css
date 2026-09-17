@@ -1,0 +1,531 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pageHeader h1,
+.unavailableCard h1 {
+  margin: 5px 0 0;
+  color: #05124a;
+  font-size: clamp(1.8rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.eyebrow,
+.panelEyebrow {
+  margin: 0;
+  color: #0f59fa;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.pageDescription {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #657084;
+  line-height: 1.6;
+}
+
+.refreshButton,
+.applyButton,
+.resetButton,
+.errorCard button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.refreshButton {
+  border: 1px solid #d9e1ed;
+  background: #ffffff;
+  color: #071548;
+  padding: 0 16px;
+}
+
+.refreshButton:hover:not(:disabled),
+.resetButton:hover:not(:disabled) {
+  background: #f7f9fc;
+}
+
+.refreshButton:disabled,
+.applyButton:disabled,
+.resetButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.rangeCard,
+.scopeBar,
+.kpiCard,
+.panel,
+.tablePanel,
+.stateCard,
+.errorCard,
+.unavailableCard,
+.emptyNotice {
+  border: 1px solid #e2e7ef;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.rangeCard {
+  padding: 20px;
+}
+
+.rangeHeading {
+  display: flex;
+  gap: 12px;
+  color: #071548;
+}
+
+.rangeHeading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.rangeHeading p {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: #6a7487;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.rangeForm {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.rangeForm label {
+  display: grid;
+  gap: 7px;
+  min-width: 190px;
+  color: #3c4659;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rangeForm input {
+  min-height: 42px;
+  border: 1px solid #ccd5e2;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #071548;
+  padding: 0 11px;
+  font: inherit;
+}
+
+.rangeForm input:focus {
+  border-color: #0f59fa;
+  outline: 3px solid rgb(15 89 250 / 12%);
+}
+
+.rangeActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.applyButton {
+  border: 1px solid #0f59fa;
+  background: #0f59fa;
+  color: #ffffff;
+  padding: 0 16px;
+}
+
+.resetButton {
+  border: 1px solid #d7deea;
+  background: #ffffff;
+  color: #071548;
+  padding: 0 16px;
+}
+
+.rangeError {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 14px 0 0;
+  color: #b42318;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.scopeBar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  overflow-x: auto;
+  padding: 16px 18px;
+}
+
+.scopeBar > div {
+  display: grid;
+  gap: 3px;
+  min-width: max-content;
+}
+
+.scopeLabel {
+  color: #7a8496;
+  font-size: 0.71rem;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.scopeBar strong,
+.scopeBar code {
+  color: #071548;
+  font-size: 0.84rem;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpiCard {
+  display: flex;
+  gap: 13px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.kpiIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: #eef4ff;
+  color: #0f59fa;
+}
+
+.kpiCard > div:last-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.kpiCard span {
+  color: #697386;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.kpiCard strong {
+  color: #05124a;
+  font-size: 1.7rem;
+  line-height: 1.15;
+}
+
+.kpiCard small {
+  color: #8a93a3;
+  font-size: 0.72rem;
+}
+
+.warningCard {
+  border-color: #f0c77d;
+  background: #fffaf0;
+}
+
+.warningCard .kpiIcon {
+  background: #fff1d4;
+  color: #b76e00;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.panel,
+.tablePanel {
+  padding: 20px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  color: #0f59fa;
+}
+
+.panelHeader h2 {
+  margin: 4px 0 0;
+  color: #071548;
+  font-size: 1.05rem;
+}
+
+.metricRows {
+  display: grid;
+  margin-top: 18px;
+}
+
+.metricRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 0;
+  border-top: 1px solid #edf0f5;
+}
+
+.metricRow:first-child {
+  border-top: 0;
+}
+
+.metricRow span {
+  color: #5f697b;
+  font-size: 0.88rem;
+}
+
+.metricRow strong {
+  color: #071548;
+  font-size: 1rem;
+}
+
+.tableDescription {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: #778194;
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.tableScroller {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.tableScroller table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.tableScroller th,
+.tableScroller td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: left;
+}
+
+.tableScroller th {
+  background: #f8fafd;
+  color: #657084;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.tableScroller td {
+  color: #263247;
+  font-size: 0.87rem;
+}
+
+.tableScroller code {
+  color: #47556d;
+  font-size: 0.76rem;
+}
+
+.overdueValue {
+  color: #b42318;
+  font-weight: 800;
+}
+
+.stateCard,
+.errorCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px;
+}
+
+.stateCard h2,
+.errorCard h2 {
+  margin: 0;
+  color: #071548;
+  font-size: 1rem;
+}
+
+.stateCard p,
+.errorCard p {
+  margin: 6px 0 0;
+  color: #697386;
+  line-height: 1.5;
+}
+
+.errorCard {
+  border-color: #f3c5c1;
+  background: #fff8f7;
+  color: #b42318;
+}
+
+.errorCard button {
+  margin-top: 13px;
+  border: 1px solid #b42318;
+  background: #ffffff;
+  color: #b42318;
+  padding: 0 15px;
+}
+
+.spinner {
+  flex: 0 0 auto;
+  width: 23px;
+  height: 23px;
+  border: 3px solid #dce6fa;
+  border-top-color: #0f59fa;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.emptyNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 17px 19px;
+  border-color: #dcebc3;
+  background: #fbfff6;
+  color: #527414;
+}
+
+.emptyNotice strong {
+  color: #334d0d;
+}
+
+.emptyNotice p {
+  margin: 3px 0 0;
+  font-size: 0.84rem;
+}
+
+.panelEmpty {
+  margin: 18px 0 0;
+  color: #798396;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.unavailableCard {
+  max-width: 660px;
+  margin: 60px auto;
+  padding: 34px;
+  text-align: center;
+}
+
+.unavailableIcon {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 17px;
+  border-radius: 14px;
+  background: #eef4ff;
+  color: #0f59fa;
+}
+
+.unavailableCard p:last-child {
+  margin: 14px auto 0;
+  color: #697386;
+  line-height: 1.6;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1180px) {
+  .kpiGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .detailGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .page {
+    padding: 22px;
+  }
+
+  .pageHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .refreshButton {
+    align-self: flex-start;
+  }
+
+  .kpiGrid,
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rangeForm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rangeForm label {
+    width: 100%;
+  }
+
+  .rangeActions {
+    width: 100%;
+  }
+
+  .applyButton,
+  .resetButton {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    gap: 18px;
+    padding: 16px;
+  }
+
+  .rangeCard,
+  .panel,
+  .tablePanel {
+    padding: 16px;
+  }
+
+  .kpiGrid {
+    gap: 10px;
+  }
+
+  .scopeBar {
+    gap: 20px;
+  }
+}

@@ -193,7 +193,21 @@ async function seed(): Promise<void> {
 
       console.log(`Created development user: ${admin.email}`);
     } else {
-      console.log(`Development user already exists: ${admin.email}`);
+      const passwordHash = await getAdminPasswordHash();
+
+      const updatedAdmin = await userRepository.updatePasswordHash(
+        tenantId,
+        admin.id,
+        passwordHash,
+      );
+
+      if (!updatedAdmin) {
+        throw new Error(`Failed to synchronize development password for ${adminEmail}`);
+      }
+
+      admin = updatedAdmin;
+
+      console.log(`Synchronized development password: ${admin.email}`);
     }
 
     const adminGrants = await grantRepository.findByUser(tenantId, admin.id);
