@@ -35,7 +35,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'dashboard',
           label: 'Manager Dashboard',
           href: '/dashboard',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'imports',
@@ -64,7 +64,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'dashboard',
           label: 'Manager Dashboard',
           href: '/dashboard',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'overrides',
@@ -81,7 +81,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'dashboard',
           label: 'Manager Dashboard',
           href: '/dashboard',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'overrides',
