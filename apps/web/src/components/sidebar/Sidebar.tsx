@@ -1,42 +1,206 @@
 'use client';
 
-import { ChevronDown, ChevronLeft, ChevronRight, Gauge, LogOut, Menu } from 'lucide-react';
+import {
+  BarChart3,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Gauge,
+  ListTodo,
+  LogOut,
+  Map,
+  Menu,
+  MessageSquare,
+  Users,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
 
-import type { AuthenticatedUser } from '@/lib/auth-types';
+import type { AuthenticatedUser, WorkspaceMode, WorkspaceOption } from '@/lib/auth-types';
 
 import './Sidebar.css';
 
 interface SidebarProps {
   user: AuthenticatedUser;
+  availableWorkspaces: WorkspaceOption[];
+  activeWorkspace: WorkspaceOption | null;
+  onSelectWorkspace: (workspaceKey: string) => void;
   onLogout: () => Promise<void>;
 }
 
-const navigation = [
-  {
-    href: '/',
-    label: 'Overview',
-    icon: Gauge,
-  },
-];
+interface NavigationItem {
+  href: string;
+  label: string;
+  icon: ComponentType<{ size?: number }>;
+  enabled: boolean;
+}
+
+const COMMON_OVERVIEW: NavigationItem = {
+  href: '/',
+  label: 'Overview',
+  icon: Gauge,
+  enabled: true,
+};
+
+const NAVIGATION_BY_MODE: Record<WorkspaceMode, NavigationItem[]> = {
+  admin: [
+    COMMON_OVERVIEW,
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: BarChart3,
+      enabled: false,
+    },
+    {
+      href: '/team',
+      label: 'Administration',
+      icon: Users,
+      enabled: false,
+    },
+  ],
+
+  director: [
+    COMMON_OVERVIEW,
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: BarChart3,
+      enabled: false,
+    },
+    {
+      href: '/reports',
+      label: 'Reports',
+      icon: ClipboardList,
+      enabled: false,
+    },
+  ],
+
+  manager: [
+    COMMON_OVERVIEW,
+    {
+      href: '/dashboard',
+      label: 'Dashboard',
+      icon: BarChart3,
+      enabled: false,
+    },
+    {
+      href: '/team',
+      label: 'Team',
+      icon: Users,
+      enabled: false,
+    },
+    {
+      href: '/assignments',
+      label: 'Assignments',
+      icon: BriefcaseBusiness,
+      enabled: false,
+    },
+    {
+      href: '/campaigns',
+      label: 'Campaigns',
+      icon: CalendarDays,
+      enabled: false,
+    },
+    {
+      href: '/reports',
+      label: 'Reports',
+      icon: ClipboardList,
+      enabled: false,
+    },
+    {
+      href: '/messages',
+      label: 'Messages',
+      icon: MessageSquare,
+      enabled: false,
+    },
+  ],
+
+  prospector: [
+    COMMON_OVERVIEW,
+    {
+      href: '/today',
+      label: 'Today',
+      icon: CalendarDays,
+      enabled: false,
+    },
+    {
+      href: '/prospects',
+      label: 'My Prospects',
+      icon: Users,
+      enabled: false,
+    },
+    {
+      href: '/map',
+      label: 'Map',
+      icon: Map,
+      enabled: false,
+    },
+    {
+      href: '/actions',
+      label: 'Actions',
+      icon: ListTodo,
+      enabled: false,
+    },
+    {
+      href: '/messages',
+      label: 'Messages',
+      icon: MessageSquare,
+      enabled: false,
+    },
+  ],
+
+  observer: [COMMON_OVERVIEW],
+};
 
 function getInitials(userId: string): string {
   return userId.slice(0, 2).toUpperCase();
 }
 
-export default function Sidebar({ user, onLogout }: SidebarProps) {
+function formatWorkspaceLabel(workspace: WorkspaceOption): string {
+  const roleLabels: Record<WorkspaceMode, string> = {
+    admin: 'Client Admin',
+    director: 'Director',
+    manager: 'Manager',
+    prospector: 'Prospector',
+    observer: 'Observer',
+  };
+
+  const scopeId = workspace.teamId ?? workspace.organizationId;
+
+  if (!scopeId) {
+    return roleLabels[workspace.mode];
+  }
+
+  return `${roleLabels[workspace.mode]} · ${scopeId.slice(0, 8)}`;
+}
+
+export default function Sidebar({
+  user,
+  availableWorkspaces,
+  activeWorkspace,
+  onSelectWorkspace,
+  onLogout,
+}: SidebarProps) {
   const pathname = usePathname();
 
   const [collapsed, setCollapsed] = useState(false);
+
   const [menuOpen, setMenuOpen] = useState(false);
+
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const menuRef = useRef<HTMLDivElement>(null);
+
   const burgerRef = useRef<HTMLButtonElement>(null);
+
   const mobileNavRef = useRef<HTMLDivElement>(null);
+
+  const navigation = activeWorkspace ? NAVIGATION_BY_MODE[activeWorkspace.mode] : [COMMON_OVERVIEW];
 
   useEffect(() => {
     if (!menuOpen) {
@@ -108,6 +272,24 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
         <Menu size={22} />
       </button>
 
+      {availableWorkspaces.length > 1 ? (
+        <div className="sidebar-workspace">
+          <label htmlFor="workspace-select">Workspace</label>
+
+          <select
+            id="workspace-select"
+            value={activeWorkspace?.key ?? ''}
+            onChange={(event) => onSelectWorkspace(event.target.value)}
+          >
+            {availableWorkspaces.map((workspace) => (
+              <option key={workspace.key} value={workspace.key}>
+                {formatWorkspaceLabel(workspace)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
       <div
         ref={mobileNavRef}
         className={`sidebar-links${mobileNavOpen ? ' sidebar-links--open' : ''}`}
@@ -116,6 +298,20 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
           const Icon = item.icon;
 
           const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+
+          if (!item.enabled) {
+            return (
+              <div key={item.href} className="nav-link nav-link--disabled">
+                <Icon size={18} />
+
+                <span className="nav-label">{item.label}</span>
+
+                <span className="nav-soon">Soon</span>
+
+                <span className="nav-tooltip">{item.label}</span>
+              </div>
+            );
+          }
 
           return (
             <Link
@@ -144,7 +340,9 @@ export default function Sidebar({ user, onLogout }: SidebarProps) {
         <div className="sidebar-user-info">
           <p className="sidebar-user-name">TrackRoster user</p>
 
-          <p className="sidebar-user-role">Authenticated</p>
+          <p className="sidebar-user-role">
+            {activeWorkspace ? formatWorkspaceLabel(activeWorkspace) : 'Authenticated'}
+          </p>
         </div>
 
         <div className="sidebar-user-actions" ref={menuRef}>

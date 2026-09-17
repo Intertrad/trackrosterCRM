@@ -1,16 +1,26 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
+import { LogOut, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '@/components/sidebar/Sidebar';
 import { useEffect, type ReactNode } from 'react';
+
+import Sidebar from '@/components/sidebar/Sidebar';
 
 import { useAuth } from './AuthProvider';
 
 export default function ProtectedShell({ children }: { children: ReactNode }) {
   const router = useRouter();
 
-  const { user, status, sessionError, refreshSession, signOut } = useAuth();
+  const {
+    user,
+    status,
+    sessionError,
+    availableWorkspaces,
+    activeWorkspace,
+    refreshSession,
+    selectWorkspace,
+    signOut,
+  } = useAuth();
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -57,9 +67,43 @@ export default function ProtectedShell({ children }: { children: ReactNode }) {
     );
   }
 
+  if (status === 'authenticated' && availableWorkspaces.length === 0) {
+    return (
+      <main className="session-screen">
+        <div className="session-card">
+          <h1>Access Required</h1>
+
+          <p>
+            Your account is authenticated, but you do not currently have access to a TrackRoster
+            workspace.
+          </p>
+
+          <button
+            type="button"
+            className="session-retry-button"
+            onClick={() => void handleLogout()}
+          >
+            <LogOut size={17} />
+            Log out
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="trackroster-layout">
-      <Sidebar user={user!} onLogout={handleLogout} />
+      <Sidebar
+        user={user}
+        availableWorkspaces={availableWorkspaces}
+        activeWorkspace={activeWorkspace}
+        onSelectWorkspace={selectWorkspace}
+        onLogout={handleLogout}
+      />
 
       <div className="trackroster-content">{children}</div>
     </div>
