@@ -11,11 +11,12 @@ import { AccessGrantService } from './access-grant.service.js';
 import { AuthorizationService } from './authorization.service.js';
 import { ClientAdminGuard } from './client-admin.guard.js';
 import { UserAccessGrantRepository } from './user-access-grant.repository.js';
+import { SelfAccessController } from './self-access.controller.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, AuditModule, OrganizationModule, TeamModule, UserModule],
 
-  controllers: [AccessGrantController],
+  controllers: [AccessGrantController, SelfAccessController],
 
   providers: [
     AccessGrantService,
