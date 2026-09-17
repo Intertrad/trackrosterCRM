@@ -1,0 +1,831 @@
+.page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  margin: 0 0 7px;
+  color: #1769ff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  color: #07164f;
+  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.pageDescription {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: #64708d;
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.refreshButton {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #07164f;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.refreshButton:hover:not(:disabled) {
+  border-color: #1769ff;
+  box-shadow: 0 6px 18px rgb(23 105 255 / 10%);
+  transform: translateY(-1px);
+}
+
+.refreshButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.controls {
+  margin-bottom: 18px;
+}
+
+.filterGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 5px;
+}
+
+.filterButton {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #66718b;
+  padding: 0 15px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.filterButton:hover:not(:disabled) {
+  background: #f3f6fb;
+  color: #07164f;
+}
+
+.filterButtonActive {
+  background: #071548;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgb(7 21 72 / 14%);
+}
+
+.filterButtonActive:hover:not(:disabled) {
+  background: #10266c;
+  color: #ffffff;
+}
+
+.filterButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.filterButton:focus-visible,
+.refreshButton:focus-visible,
+.prospectLink:focus-visible,
+.actionButton:focus-visible,
+.rescheduleSubmitButton:focus-visible,
+.keepButton:focus-visible,
+.confirmCancelButton:focus-visible,
+.dateTimeInput:focus-visible {
+  outline: 3px solid rgb(23 105 255 / 22%);
+  outline-offset: 3px;
+}
+
+.summaryBar {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 20px;
+  border: 1px solid #dbe3f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 15px 18px;
+}
+
+.summaryIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #eef4ff;
+  color: #1769ff;
+}
+
+.summaryBar > div:last-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.summaryValue {
+  color: #07164f;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.summaryLabel {
+  color: #6a7692;
+  font-size: 0.88rem;
+}
+
+.successBanner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 18px;
+  border: 1px solid #cfe4a0;
+  border-radius: 12px;
+  background: #f8fde9;
+  padding: 12px 14px;
+  color: #466000;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.followUpList {
+  display: grid;
+  gap: 14px;
+}
+
+.followUpCard {
+  overflow: hidden;
+  border: 1px solid #dbe3f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgb(7 22 79 / 4%);
+}
+
+.followUpCardOverdue {
+  border-color: #efcbd1;
+}
+
+.prospectLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cardOverview {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px;
+  transition: background 140ms ease;
+}
+
+.prospectLink:hover .cardOverview {
+  background: #fafcff;
+}
+
+.cardPrimary {
+  min-width: 0;
+  display: flex;
+  gap: 15px;
+}
+
+.establishmentIcon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #f1f5ff;
+  color: #1769ff;
+}
+
+.establishmentIconOverdue {
+  background: #fff0f2;
+  color: #b42338;
+}
+
+.establishmentContent {
+  min-width: 0;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cardTitleRow h2 {
+  margin: 0;
+  color: #07164f;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.dueBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.dueBadgeUpcoming {
+  background: #f1fbd3;
+  color: #4b6500;
+}
+
+.dueBadgeOverdue {
+  background: #fff0f2;
+  color: #a82438;
+}
+
+.campaignName {
+  margin: 5px 0 0;
+  color: #66718b;
+  font-size: 0.88rem;
+}
+
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 13px;
+}
+
+.metadata span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #65718d;
+  font-size: 0.82rem;
+}
+
+.cardAside {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  text-align: right;
+}
+
+.dueLabel {
+  color: #8a94aa;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cardAside time {
+  color: #07164f;
+  font-size: 0.83rem;
+  font-weight: 700;
+}
+
+.overdueHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: #a82438;
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  border-top: 1px solid #edf1f7;
+  background: #fbfcfe;
+  padding: 13px 20px;
+}
+
+.actionButton {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 10px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.actionButton:disabled,
+.rescheduleSubmitButton:disabled,
+.keepButton:disabled,
+.confirmCancelButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.completeButton {
+  border: 1px solid #bad77d;
+  background: #f7fce8;
+  color: #466000;
+}
+
+.completeButton:hover:not(:disabled) {
+  border-color: #8eba38;
+  background: #f0fad5;
+}
+
+.rescheduleButton {
+  border: 1px solid #bfd0f3;
+  background: #f4f7ff;
+  color: #164fae;
+}
+
+.rescheduleButton:hover:not(:disabled) {
+  border-color: #1769ff;
+  background: #edf3ff;
+}
+
+.cancelButton {
+  border: 1px solid #efcbd1;
+  background: #fffafb;
+  color: #a82438;
+}
+
+.cancelButton:hover:not(:disabled) {
+  border-color: #d99aa5;
+  background: #fff2f4;
+}
+
+.buttonSpinner {
+  animation: spin 700ms linear infinite;
+}
+
+.reschedulePanel {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 0.8fr)
+    minmax(280px, 1.2fr);
+  gap: 20px;
+  align-items: end;
+  border-top: 1px solid #dce6f7;
+  background: #f7faff;
+  padding: 18px 20px;
+}
+
+.fieldLabel {
+  display: block;
+  color: #07164f;
+  font-size: 0.87rem;
+  font-weight: 800;
+}
+
+.fieldDescription {
+  margin: 5px 0 0;
+  color: #68748f;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.rescheduleControls {
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.dateTimeInput {
+  min-width: 0;
+  flex: 1;
+  min-height: 42px;
+  border: 1px solid #ccd7e7;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #07164f;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.dateTimeInput:hover:not(:disabled) {
+  border-color: #aebdd1;
+}
+
+.dateTimeInput:disabled {
+  background: #f1f4f8;
+  color: #7f899d;
+}
+
+.rescheduleSubmitButton {
+  min-height: 42px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 10px;
+  background: #1769ff;
+  color: #ffffff;
+  padding: 0 15px;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rescheduleSubmitButton:hover:not(:disabled) {
+  background: #0f5bea;
+}
+
+.cancelConfirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid #f0ced3;
+  background: #fffafb;
+  padding: 17px 20px;
+}
+
+.cancelConfirmation strong {
+  color: #8f2234;
+  font-size: 0.88rem;
+}
+
+.cancelConfirmation p {
+  max-width: 640px;
+  margin: 4px 0 0;
+  color: #775965;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.confirmationActions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.keepButton,
+.confirmCancelButton {
+  min-height: 40px;
+  border-radius: 10px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.keepButton {
+  border: 1px solid #d5deeb;
+  background: #ffffff;
+  color: #59657e;
+}
+
+.keepButton:hover:not(:disabled) {
+  border-color: #abb9cd;
+  color: #07164f;
+}
+
+.confirmCancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #b42338;
+  background: #b42338;
+  color: #ffffff;
+}
+
+.confirmCancelButton:hover:not(:disabled) {
+  background: #991f31;
+}
+
+.actionError {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid #f0ced3;
+  background: #fff4f5;
+  padding: 12px 20px;
+  color: #98263a;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.actionError svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.stateCard,
+.emptyCard,
+.errorCard,
+.unavailableCard {
+  border: 1px solid #dbe3f0;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.stateCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 28px;
+}
+
+.stateCard h2,
+.emptyCard h2,
+.errorCard h2,
+.unavailableCard h1 {
+  margin: 0;
+  color: #07164f;
+}
+
+.stateCard h2,
+.emptyCard h2,
+.errorCard h2 {
+  font-size: 1rem;
+}
+
+.stateCard p,
+.emptyCard p,
+.errorCard p,
+.unavailableMessage {
+  color: #68748f;
+  line-height: 1.55;
+}
+
+.stateCard p,
+.errorCard p {
+  margin: 5px 0 0;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 3px solid #dce6f7;
+  border-top-color: #1769ff;
+  border-radius: 50%;
+  animation: spin 750ms linear infinite;
+}
+
+.emptyCard {
+  padding: 48px 28px;
+  text-align: center;
+}
+
+.emptyIcon,
+.unavailableIcon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  background: #f1f5ff;
+  color: #1769ff;
+}
+
+.emptyCard p {
+  max-width: 510px;
+  margin: 8px auto 0;
+}
+
+.errorCard {
+  display: flex;
+  gap: 15px;
+  padding: 22px;
+  border-color: #f0ced3;
+  background: #fffafb;
+}
+
+.errorIcon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #fff0f2;
+  color: #b42338;
+}
+
+.errorContent {
+  min-width: 0;
+}
+
+.errorContent button {
+  min-height: 40px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #071548;
+  color: #ffffff;
+  padding: 0 15px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.errorContent button:hover {
+  background: #10266c;
+}
+
+.unavailableCard {
+  max-width: 650px;
+  margin: 80px auto;
+  padding: 40px;
+  text-align: center;
+}
+
+.unavailableCard h1 {
+  font-size: clamp(1.45rem, 3vw, 1.9rem);
+}
+
+.unavailableMessage {
+  max-width: 520px;
+  margin: 12px auto 0;
+}
+
+.limitNotice {
+  margin: 22px 0 0;
+  color: #8a94aa;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 22px 18px;
+  }
+
+  .pageHeader {
+    flex-direction: column;
+  }
+
+  .refreshButton {
+    width: 100%;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+
+  .filterButton {
+    flex: 1;
+  }
+
+  .cardOverview {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .cardAside {
+    align-items: flex-start;
+    padding-top: 14px;
+    border-top: 1px solid #edf1f7;
+    text-align: left;
+  }
+
+  .reschedulePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .cancelConfirmation {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .confirmationActions {
+    width: 100%;
+  }
+
+  .keepButton,
+  .confirmCancelButton {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 18px 14px;
+  }
+
+  .cardOverview {
+    padding: 16px;
+  }
+
+  .cardPrimary {
+    gap: 11px;
+  }
+
+  .establishmentIcon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .metadata {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cardActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 12px 16px;
+  }
+
+  .actionButton {
+    width: 100%;
+  }
+
+  .reschedulePanel {
+    padding: 16px;
+  }
+
+  .rescheduleControls {
+    flex-direction: column;
+  }
+
+  .rescheduleSubmitButton {
+    width: 100%;
+  }
+
+  .cancelConfirmation {
+    padding: 16px;
+  }
+
+  .confirmationActions {
+    flex-direction: column;
+  }
+
+  .unavailableCard {
+    margin: 40px auto;
+    padding: 28px 20px;
+  }
+
+  .filterGroup {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .filterButton {
+    padding: 0 9px;
+  }
+}

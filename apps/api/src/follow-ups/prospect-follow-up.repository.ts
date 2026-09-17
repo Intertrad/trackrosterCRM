@@ -5,6 +5,7 @@ import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import { campaignProspectAssignments } from '../database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../database/schema/campaign-prospects.js';
 import { campaigns } from '../database/schema/campaigns.js';
+import { establishments } from '../database/schema/establishments.js';
 import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
 import type { ProspectFollowUpQueueOptions } from './prospect-follow-up.types.js';
 import {
@@ -17,6 +18,12 @@ export type ProspectFollowUpCollisionCandidate = ProspectFollowUp & {
   organizationId: string;
 };
 
+export type ProspectFollowUpQueueRow = ProspectFollowUp & {
+  campaignName: string;
+
+  establishmentName: string;
+};
+
 @Injectable()
 export class ProspectFollowUpRepository {
   constructor(
@@ -27,7 +34,7 @@ export class ProspectFollowUpRepository {
   async findActionableQueue(
     tenantId: string,
     options: ProspectFollowUpQueueOptions,
-  ): Promise<ProspectFollowUp[]> {
+  ): Promise<ProspectFollowUpQueueRow[]> {
     /*
      * Team-owned work is visible only through an
      * exact prospector team grant supplied by the
@@ -92,6 +99,10 @@ export class ProspectFollowUpRepository {
         createdAt: prospectFollowUps.createdAt,
 
         updatedAt: prospectFollowUps.updatedAt,
+
+        campaignName: campaigns.name,
+
+        establishmentName: establishments.name,
       })
       .from(prospectFollowUps)
       .innerJoin(
@@ -114,6 +125,14 @@ export class ProspectFollowUpRepository {
           eq(prospectFollowUps.campaignId, campaignProspects.campaignId),
 
           eq(prospectFollowUps.campaignProspectId, campaignProspects.id),
+        ),
+      )
+      .innerJoin(
+        establishments,
+        and(
+          eq(prospectFollowUps.tenantId, establishments.tenantId),
+
+          eq(prospectFollowUps.establishmentId, establishments.id),
         ),
       )
       .innerJoin(

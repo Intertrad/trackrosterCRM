@@ -1,7 +1,10 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class ListFollowUpQueueQueryDto {
+  @IsUUID()
+  teamId!: string;
+
   @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true') {

@@ -79,6 +79,12 @@ export interface ProspectFollowUpQueueOptions {
   limit: number;
 }
 
+export interface ProspectFollowUpQueueItem extends PublicProspectFollowUp {
+  campaignName: string;
+
+  establishmentName: string;
+}
+
 export interface ProspectFollowUpQueueResponse {
-  items: PublicProspectFollowUp[];
+  items: ProspectFollowUpQueueItem[];
 }

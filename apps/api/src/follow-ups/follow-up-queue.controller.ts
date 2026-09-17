@@ -29,6 +29,8 @@ export class FollowUpQueueController {
 
       userId: auth.userId,
 
+      teamId: query.teamId,
+
       overdue: query.overdue,
 
       limit: query.limit,

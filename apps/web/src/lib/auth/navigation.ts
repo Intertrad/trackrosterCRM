@@ -104,7 +104,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'follow_ups',
           label: 'Follow-ups',
           href: '/follow-ups',
-          availability: 'planned',
+          availability: 'ready',
         },
       ];
 

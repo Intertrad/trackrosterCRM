@@ -31,6 +31,8 @@ export interface ListFollowUpQueueInput {
 
   userId: string;
 
+  teamId: string;
+
   overdue?: boolean;
 
   limit?: number;
@@ -70,7 +72,7 @@ export class ProspectFollowUpQueryService {
           grant.role === 'prospector' &&
           grant.scopeType === 'team' &&
           grant.organizationId !== null &&
-          grant.teamId !== null,
+          grant.teamId === input.teamId,
       )
       .map((grant) => ({
         organizationId: grant.organizationId as string,
@@ -79,7 +81,7 @@ export class ProspectFollowUpQueryService {
       }));
 
     if (teamScopes.length === 0) {
-      throw new ForbiddenException('User does not have a prospector team scope');
+      throw new ForbiddenException('User does not have access to this prospector team');
     }
 
     try {
@@ -96,7 +98,13 @@ export class ProspectFollowUpQueryService {
       });
 
       return {
-        items: followUps.map(toPublicProspectFollowUp),
+        items: followUps.map((followUp) => ({
+          ...toPublicProspectFollowUp(followUp),
+
+          campaignName: followUp.campaignName,
+
+          establishmentName: followUp.establishmentName,
+        })),
       };
     } catch {
       throw new ServiceUnavailableException('Follow-up service is unavailable');
