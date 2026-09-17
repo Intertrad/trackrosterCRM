@@ -41,7 +41,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'imports',
           label: 'Imports',
           href: '/imports',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'administration',
