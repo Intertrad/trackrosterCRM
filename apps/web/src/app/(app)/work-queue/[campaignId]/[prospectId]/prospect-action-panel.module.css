@@ -367,3 +367,62 @@
     grid-template-columns: 1fr;
   }
 }
+
+.followUpField {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.followUpLabel {
+  color: #05124a;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.followUpInput {
+  width: 100%;
+  min-height: 44px;
+
+  border: 1px solid #d8dfeb;
+  border-radius: 10px;
+
+  background: #ffffff;
+
+  color: #05124a;
+
+  font: inherit;
+
+  padding: 0.7rem 0.8rem;
+
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.followUpInput:hover:not(:disabled) {
+  border-color: #aebbd0;
+}
+
+.followUpInput:focus-visible {
+  border-color: #0f59fa;
+
+  outline: none;
+
+  box-shadow: 0 0 0 3px rgb(15 89 250 / 14%);
+}
+
+.followUpInput:disabled {
+  cursor: not-allowed;
+
+  background: #f3f5f8;
+
+  color: #7b8496;
+}
+
+.followUpDescription {
+  color: #68738a;
+
+  font-size: 0.8rem;
+
+  line-height: 1.45;
+}

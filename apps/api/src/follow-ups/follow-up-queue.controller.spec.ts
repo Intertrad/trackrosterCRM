@@ -14,6 +14,8 @@ describe('FollowUpQueueController', () => {
 
   const userId = '22222222-2222-4222-8222-222222222222';
 
+  const teamId = '33333333-3333-4333-8333-333333333333';
+
   beforeEach(() => {
     queryService = {
       listQueue: vi.fn().mockResolvedValue({
@@ -26,7 +28,7 @@ describe('FollowUpQueueController', () => {
     );
   });
 
-  it('passes authenticated identity and queue filters to the query service', async () => {
+  it('passes authenticated identity, selected team, and queue filters to the query service', async () => {
     await controller.list(
       {
         tenantId,
@@ -35,6 +37,8 @@ describe('FollowUpQueueController', () => {
       },
 
       {
+        teamId,
+
         overdue: true,
 
         limit: 25,
@@ -46,13 +50,15 @@ describe('FollowUpQueueController', () => {
 
       userId,
 
+      teamId,
+
       overdue: true,
 
       limit: 25,
     });
   });
 
-  it('passes default query values', async () => {
+  it('passes selected team with default query values', async () => {
     await controller.list(
       {
         tenantId,
@@ -61,6 +67,8 @@ describe('FollowUpQueueController', () => {
       },
 
       {
+        teamId,
+
         limit: 50,
       },
     );
@@ -69,6 +77,8 @@ describe('FollowUpQueueController', () => {
       tenantId,
 
       userId,
+
+      teamId,
 
       overdue: undefined,
 
