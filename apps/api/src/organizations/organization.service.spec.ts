@@ -37,6 +37,7 @@ describe('OrganizationService', () => {
       findById: vi.fn(),
       findBySlug: vi.fn(),
       findByTenant: vi.fn(),
+      updateStatus: vi.fn(),
     } as unknown as OrganizationRepository;
 
     tenantRepository = {
@@ -96,5 +97,33 @@ describe('OrganizationService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(organizationRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('updates organization status inside the tenant', async () => {
+    const inactiveOrganization: Organization = {
+      ...organization,
+      status: 'inactive',
+      updatedAt: new Date(),
+    };
+
+    vi.mocked(organizationRepository.updateStatus).mockResolvedValue(inactiveOrganization);
+
+    const result = await service.updateStatus(tenant.id, organization.id, 'inactive');
+
+    expect(organizationRepository.updateStatus).toHaveBeenCalledWith(
+      tenant.id,
+      organization.id,
+      'inactive',
+    );
+
+    expect(result).toBe(inactiveOrganization);
+  });
+
+  it('rejects status update when organization does not belong to tenant', async () => {
+    vi.mocked(organizationRepository.updateStatus).mockResolvedValue(null);
+
+    await expect(
+      service.updateStatus(tenant.id, organization.id, 'inactive'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -29,6 +29,7 @@ import { ApiErrorModule } from './errors/api-error.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { RegionModule } from './regions/region.module.js';
 import { WorkQueueModule } from './work-queue/work-queue.module.js';
+import { AdminManagementModule } from './admin-management/admin-management.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -66,6 +67,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
     IdempotencyModule,
     RegionModule,
     WorkQueueModule,
+    AdminManagementModule,
   ],
 })
 export class AppModule {}

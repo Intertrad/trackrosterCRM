@@ -1,0 +1,572 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.pageHeader h1,
+.unavailableCard h1,
+.loadingCard h1 {
+  margin: 5px 0 0;
+  color: #05124a;
+  font-size: clamp(1.8rem, 3vw, 2.35rem);
+  line-height: 1.1;
+}
+
+.eyebrow,
+.panelEyebrow {
+  margin: 0;
+  color: #0f59fa;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.pageDescription {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #657084;
+  line-height: 1.6;
+}
+
+.headerBadge {
+  flex: 0 0 auto;
+  border: 1px solid #cfdcff;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #0f59fa;
+  padding: 8px 12px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.summaryCard,
+.createCard,
+.tablePanel,
+.errorCard,
+.unavailableCard,
+.loadingCard {
+  border: 1px solid #e2e7ef;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryCard {
+  display: grid;
+  gap: 7px;
+  padding: 18px;
+}
+
+.summaryCard span {
+  color: #697386;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.summaryCard strong {
+  color: #05124a;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.activeSummary {
+  border-color: #d8e9bc;
+  background: #fbfff7;
+}
+
+.activeSummary strong {
+  color: #527414;
+}
+
+.inactiveSummary {
+  border-color: #e2e7ef;
+  background: #f8fafd;
+}
+
+.inactiveSummary strong {
+  color: #697386;
+}
+
+.successNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 16px 18px;
+  border: 1px solid #d8e9bc;
+  border-radius: 13px;
+  background: #fbfff7;
+  color: #527414;
+}
+
+.successNotice div {
+  display: grid;
+  gap: 3px;
+}
+
+.successNotice strong {
+  color: #071548;
+  font-size: 0.88rem;
+}
+
+.successNotice span {
+  font-size: 0.82rem;
+}
+
+.noticeIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #edf8df;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.createCard,
+.tablePanel {
+  padding: 20px;
+}
+
+.sectionHeader,
+.tableHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.sectionHeader h2,
+.tableHeader h2 {
+  margin: 4px 0 0;
+  color: #071548;
+  font-size: 1.05rem;
+}
+
+.sectionHeader p:not(.panelEyebrow),
+.tableHeader p:not(.panelEyebrow) {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: #697386;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.createForm {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.4fr)
+    minmax(0, 1fr)
+    auto;
+  align-items: start;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.formField {
+  display: grid;
+  gap: 7px;
+}
+
+.formField label {
+  color: #263247;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.formField input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d7deea;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #071548;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.formField input::placeholder {
+  color: #9aa4b5;
+}
+
+.formField input:focus {
+  border-color: #0f59fa;
+  box-shadow: 0 0 0 3px rgb(15 89 250 / 10%);
+}
+
+.formField input:disabled {
+  cursor: not-allowed;
+  background: #f7f9fc;
+  opacity: 0.7;
+}
+
+.fieldHint {
+  color: #8490a3;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.formActions {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 25px;
+}
+
+.primaryButton,
+.activateButton,
+.deactivateButton,
+.errorCard button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 16px;
+  font: inherit;
+  font-weight: 750;
+}
+
+.primaryButton {
+  border: 1px solid #0f59fa;
+  background: #0f59fa;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: #0b4de1;
+}
+
+.primaryButton:disabled,
+.activateButton:disabled,
+.deactivateButton:disabled,
+.errorCard button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.inlineError,
+.tableError {
+  color: #b42318;
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.inlineError {
+  margin-top: 14px;
+}
+
+.tableError {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #f1c7c3;
+  border-radius: 10px;
+  background: #fff8f7;
+}
+
+.rowCount {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #0f59fa;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.tableScroller {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.tableScroller table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+.tableScroller th,
+.tableScroller td {
+  padding: 13px 14px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.tableScroller th {
+  background: #f8fafd;
+  color: #657084;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.tableScroller td {
+  color: #263247;
+  font-size: 0.85rem;
+}
+
+.tableScroller td small {
+  display: block;
+  max-width: 250px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #8490a3;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tableScroller code {
+  color: #47556d;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.organizationName {
+  color: #071548;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.statusActive {
+  background: #edf8df;
+  color: #527414;
+}
+
+.statusInactive {
+  background: #edf0f5;
+  color: #657084;
+}
+
+.activateButton {
+  border: 1px solid #84b52c;
+  background: #fbfff7;
+  color: #527414;
+  cursor: pointer;
+}
+
+.activateButton:hover:not(:disabled) {
+  background: #f2fae8;
+}
+
+.deactivateButton {
+  border: 1px solid #d7deea;
+  background: #ffffff;
+  color: #47556d;
+  cursor: pointer;
+}
+
+.deactivateButton:hover:not(:disabled) {
+  border-color: #f0d18e;
+  background: #fffaf0;
+  color: #946000;
+}
+
+.tableState,
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  min-height: 190px;
+  margin-top: 18px;
+  border: 1px dashed #dce3ed;
+  border-radius: 13px;
+  background: #fafbfd;
+  text-align: left;
+}
+
+.tableState div:last-child,
+.emptyState {
+  color: #697386;
+}
+
+.tableState div:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.tableState strong,
+.emptyState strong {
+  color: #071548;
+  font-size: 0.9rem;
+}
+
+.tableState span,
+.emptyState span {
+  font-size: 0.8rem;
+}
+
+.emptyState {
+  flex-direction: column;
+  gap: 7px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 3px;
+  border-radius: 12px;
+  background: #eef4ff;
+  color: #0f59fa;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.errorCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 18px;
+  border-color: #f3c5c1;
+  background: #fff8f7;
+}
+
+.errorCard div {
+  display: grid;
+  gap: 5px;
+}
+
+.errorCard strong {
+  color: #8f1d14;
+  font-size: 0.88rem;
+}
+
+.errorCard span {
+  color: #b42318;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.errorCard button {
+  flex: 0 0 auto;
+  border: 1px solid #b42318;
+  background: #ffffff;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.errorCard button:hover:not(:disabled) {
+  background: #fff3f1;
+}
+
+.unavailableCard,
+.loadingCard {
+  padding: 28px;
+}
+
+.unavailableCard {
+  max-width: 760px;
+}
+
+.unavailableCard p:not(.eyebrow),
+.loadingCard p:not(.eyebrow) {
+  max-width: 650px;
+  margin: 10px 0 0;
+  color: #697386;
+  line-height: 1.6;
+}
+
+.unavailableCard .primaryButton {
+  margin-top: 20px;
+}
+
+.loadingCard {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.loadingIndicator {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 3px solid #dce5f5;
+  border-top-color: #0f59fa;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 920px) {
+  .createForm {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formActions {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 22px;
+  }
+
+  .pageHeader,
+  .sectionHeader,
+  .tableHeader {
+    flex-direction: column;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .createForm {
+    grid-template-columns: 1fr;
+  }
+
+  .formActions {
+    grid-column: auto;
+  }
+
+  .primaryButton {
+    width: 100%;
+  }
+
+  .errorCard {
+    flex-direction: column;
+  }
+}

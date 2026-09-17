@@ -47,7 +47,7 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           id: 'administration',
           label: 'Administration',
           href: '/admin',
-          availability: 'planned',
+          availability: 'ready',
         },
         {
           id: 'overrides',

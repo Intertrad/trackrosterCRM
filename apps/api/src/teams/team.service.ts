@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { NewTeam, Team } from '../database/schema/teams.js';
+import type { NewTeam, Team } from '../database/schema/teams.js';
 import { OrganizationRepository } from '../organizations/organization.repository.js';
 import { TeamRepository } from './team.repository.js';
 
@@ -63,6 +63,33 @@ export class TeamService {
   }
 
   async findByOrganization(tenantId: string, organizationId: string): Promise<Team[]> {
+    const organization = await this.organizationRepository.findById(tenantId, organizationId);
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
     return this.teamRepository.findByOrganization(tenantId, organizationId);
+  }
+
+  async updateStatus(
+    tenantId: string,
+    organizationId: string,
+    teamId: string,
+    status: Team['status'],
+  ): Promise<Team> {
+    const organization = await this.organizationRepository.findById(tenantId, organizationId);
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const team = await this.teamRepository.updateStatus(tenantId, organizationId, teamId, status);
+
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    return team;
   }
 }

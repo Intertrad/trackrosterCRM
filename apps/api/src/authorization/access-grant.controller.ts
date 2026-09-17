@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
@@ -42,67 +51,52 @@ export class AccessGrantController {
   ): Promise<UserAccessGrant> {
     if (input.scopeType === 'tenant') {
       if (input.role !== 'client_admin' && input.role !== 'observer') {
-        throw new Error('Invalid tenant access role');
+        throw new BadRequestException('Invalid tenant access role');
       }
 
       return this.accessGrantService.create({
         tenantId: auth.tenantId,
-
         actorUserId: auth.userId,
-
         userId,
-
         role: input.role,
-
         scopeType: 'tenant',
       });
     }
 
     if (input.scopeType === 'organization') {
       if (input.role !== 'director' && input.role !== 'observer') {
-        throw new Error('Invalid organization access role');
+        throw new BadRequestException('Invalid organization access role');
       }
 
       if (!input.organizationId) {
-        throw new Error('organizationId is required');
+        throw new BadRequestException('organizationId is required');
       }
 
       return this.accessGrantService.create({
         tenantId: auth.tenantId,
-
         actorUserId: auth.userId,
-
         userId,
-
         role: input.role,
-
         scopeType: 'organization',
-
         organizationId: input.organizationId,
       });
     }
 
     if (input.role !== 'manager' && input.role !== 'prospector' && input.role !== 'observer') {
-      throw new Error('Invalid team access role');
+      throw new BadRequestException('Invalid team access role');
     }
 
     if (!input.organizationId || !input.teamId) {
-      throw new Error('organizationId and teamId are required');
+      throw new BadRequestException('organizationId and teamId are required');
     }
 
     return this.accessGrantService.create({
       tenantId: auth.tenantId,
-
       actorUserId: auth.userId,
-
       userId,
-
       role: input.role,
-
       scopeType: 'team',
-
       organizationId: input.organizationId,
-
       teamId: input.teamId,
     });
   }
@@ -120,11 +114,8 @@ export class AccessGrantController {
   ): Promise<void> {
     await this.accessGrantService.revoke({
       tenantId: auth.tenantId,
-
       actorUserId: auth.userId,
-
       userId,
-
       grantId,
     });
   }

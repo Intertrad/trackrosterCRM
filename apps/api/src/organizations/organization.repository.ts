@@ -2,8 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
-import { NewOrganization, Organization, organizations } from '../database/schema/organizations.js';
-import { Database } from '../database/database.types.js';
+import {
+  type NewOrganization,
+  type Organization,
+  organizations,
+} from '../database/schema/organizations.js';
+import type { Database } from '../database/database.types.js';
 
 @Injectable()
 export class OrganizationRepository {
@@ -44,5 +48,22 @@ export class OrganizationRepository {
 
   async findByTenant(tenantId: string): Promise<Organization[]> {
     return this.database.select().from(organizations).where(eq(organizations.tenantId, tenantId));
+  }
+
+  async updateStatus(
+    tenantId: string,
+    organizationId: string,
+    status: Organization['status'],
+  ): Promise<Organization | null> {
+    const [organization] = await this.database
+      .update(organizations)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(organizations.tenantId, tenantId), eq(organizations.id, organizationId)))
+      .returning();
+
+    return organization ?? null;
   }
 }

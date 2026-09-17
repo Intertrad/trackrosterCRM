@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { NewOrganization, Organization } from '../database/schema/organizations.js';
+import type { NewOrganization, Organization } from '../database/schema/organizations.js';
 import { TenantRepository } from '../tenants/tenant.repository.js';
 import { OrganizationRepository } from './organization.repository.js';
 
@@ -55,5 +55,23 @@ export class OrganizationService {
 
   async findByTenant(tenantId: string): Promise<Organization[]> {
     return this.organizationRepository.findByTenant(tenantId);
+  }
+
+  async updateStatus(
+    tenantId: string,
+    organizationId: string,
+    status: Organization['status'],
+  ): Promise<Organization> {
+    const organization = await this.organizationRepository.updateStatus(
+      tenantId,
+      organizationId,
+      status,
+    );
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    return organization;
   }
 }

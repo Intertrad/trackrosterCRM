@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
-import { NewTeam, Team, teams } from '../database/schema/teams.js';
-import { Database } from '../database/database.types.js';
+import { type NewTeam, type Team, teams } from '../database/schema/teams.js';
+import type { Database } from '../database/database.types.js';
 
 @Injectable()
 export class TeamRepository {
@@ -53,5 +53,29 @@ export class TeamRepository {
       .select()
       .from(teams)
       .where(and(eq(teams.tenantId, tenantId), eq(teams.organizationId, organizationId)));
+  }
+
+  async updateStatus(
+    tenantId: string,
+    organizationId: string,
+    teamId: string,
+    status: Team['status'],
+  ): Promise<Team | null> {
+    const [team] = await this.database
+      .update(teams)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(teams.tenantId, tenantId),
+          eq(teams.organizationId, organizationId),
+          eq(teams.id, teamId),
+        ),
+      )
+      .returning();
+
+    return team ?? null;
   }
 }

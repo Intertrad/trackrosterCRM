@@ -41,6 +41,7 @@ describe('TeamService', () => {
       findById: vi.fn(),
       findBySlug: vi.fn(),
       findByOrganization: vi.fn(),
+      updateStatus: vi.fn(),
     } as unknown as TeamRepository;
 
     organizationRepository = {
@@ -48,6 +49,7 @@ describe('TeamService', () => {
       findById: vi.fn(),
       findBySlug: vi.fn(),
       findByTenant: vi.fn(),
+      updateStatus: vi.fn(),
     } as unknown as OrganizationRepository;
 
     service = new TeamService(teamRepository, organizationRepository);
@@ -107,5 +109,72 @@ describe('TeamService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(teamRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('lists teams only after validating the organization belongs to the tenant', async () => {
+    vi.mocked(organizationRepository.findById).mockResolvedValue(organization);
+
+    vi.mocked(teamRepository.findByOrganization).mockResolvedValue([team]);
+
+    const result = await service.findByOrganization(tenantId, organization.id);
+
+    expect(organizationRepository.findById).toHaveBeenCalledWith(tenantId, organization.id);
+
+    expect(teamRepository.findByOrganization).toHaveBeenCalledWith(tenantId, organization.id);
+
+    expect(result).toEqual([team]);
+  });
+
+  it('rejects team listing when organization does not belong to tenant', async () => {
+    vi.mocked(organizationRepository.findById).mockResolvedValue(null);
+
+    await expect(service.findByOrganization(tenantId, organization.id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    expect(teamRepository.findByOrganization).not.toHaveBeenCalled();
+  });
+
+  it('updates team status inside the tenant and organization', async () => {
+    const inactiveTeam: Team = {
+      ...team,
+      status: 'inactive',
+      updatedAt: new Date(),
+    };
+
+    vi.mocked(organizationRepository.findById).mockResolvedValue(organization);
+
+    vi.mocked(teamRepository.updateStatus).mockResolvedValue(inactiveTeam);
+
+    const result = await service.updateStatus(tenantId, organization.id, team.id, 'inactive');
+
+    expect(teamRepository.updateStatus).toHaveBeenCalledWith(
+      tenantId,
+      organization.id,
+      team.id,
+      'inactive',
+    );
+
+    expect(result).toBe(inactiveTeam);
+  });
+
+  it('rejects team status update when organization does not belong to tenant', async () => {
+    vi.mocked(organizationRepository.findById).mockResolvedValue(null);
+
+    await expect(
+      service.updateStatus(tenantId, organization.id, team.id, 'inactive'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(teamRepository.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejects team status update when team does not belong to the organization', async () => {
+    vi.mocked(organizationRepository.findById).mockResolvedValue(organization);
+
+    vi.mocked(teamRepository.updateStatus).mockResolvedValue(null);
+
+    await expect(
+      service.updateStatus(tenantId, organization.id, team.id, 'inactive'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
