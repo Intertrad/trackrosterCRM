@@ -123,10 +123,10 @@ const NAVIGATION_BY_MODE: Record<WorkspaceMode, NavigationItem[]> = {
   prospector: [
     COMMON_OVERVIEW,
     {
-      href: '/today',
-      label: 'Today',
-      icon: CalendarDays,
-      enabled: false,
+      href: '/work-queue',
+      label: 'Work Queue',
+      icon: ClipboardList,
+      enabled: true,
     },
     {
       href: '/prospects',
