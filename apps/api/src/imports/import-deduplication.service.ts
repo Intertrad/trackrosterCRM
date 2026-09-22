@@ -62,6 +62,8 @@ export class ImportDeduplicationService {
     input: ImportPreviewEstablishment,
     transaction: DatabaseTransaction,
   ): Promise<void> {
+    // Serialize staged atomic commits with legacy per-row import execution.
+    await transaction.execute(sql`SELECT id FROM tenants WHERE id=${tenantId} FOR NO KEY UPDATE`);
     const identity = input.externalReference
       ? `external:${input.externalReference.trim().toLowerCase()}`
       : [

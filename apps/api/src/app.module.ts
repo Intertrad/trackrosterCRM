@@ -1,3 +1,4 @@
+import { DataJobsModule } from './data-jobs/data-jobs.module.js';
 import { ReservationLifecycleModule } from './reservations/reservation-lifecycle.module.js';
 import { CollisionWorkflowModule } from './collisions/collision-workflow.module.js';
 import { ActionModule } from './actions/action.module.js';
@@ -45,6 +46,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
 import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
 @Module({
   imports: [
+    DataJobsModule,
     ReservationLifecycleModule,
     CollisionWorkflowModule,
     ActionModule,

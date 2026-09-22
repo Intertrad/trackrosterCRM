@@ -179,7 +179,7 @@ export class ControlledExportService {
    * Keep export range behavior aligned with the
    * manager reporting contract.
    */
-  private resolveRange(
+  resolveRange(
     query: ControlledExportQueryDto,
     generatedAt: Date,
   ): {
@@ -225,7 +225,7 @@ export class ControlledExportService {
     };
   }
 
-  private buildFilters(query: ControlledExportQueryDto): ManagerDashboardFilters {
+  buildFilters(query: ControlledExportQueryDto): ManagerDashboardFilters {
     return {
       ...(query.organizationId
         ? {

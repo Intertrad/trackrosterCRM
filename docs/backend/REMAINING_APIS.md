@@ -1,12 +1,12 @@
 # Remaining API contract checklist
 
-Snapshot: 2026-09-22, after skill/proximity allocation and ranked suggestions.
+Snapshot: 2026-09-22, after staged imports and asynchronous exports.
 
 For APIs usable in frontend integration now, see the [frontend API handoff](FRONTEND_API_HANDOFF.md). Verified does not yet mean production deployment is signed off.
 
-The ledger contains 125 verified operations, 13 partially completed operations, and 243 operations awaiting verification. The two implemented geographic-allocation extension routes are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
+The ledger contains 144 verified operations, 13 partially completed operations, and 224 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
 
-The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Next: import/deduplication/export completion.
+The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Next: configurable activity outcomes and canonical follow-up/dashboard reconciliation; general prospect merge remains pending.
 
 ## 2. Authentication and personal account — P0
 
@@ -86,20 +86,8 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 8. Imports — P0
 
-| Method | Endpoint                       | Required behavior                           | Ledger status        |
-| ------ | ------------------------------ | ------------------------------------------- | -------------------- |
-| GET    | `/imports`                     | List import jobs.                           | Pending verification |
-| POST   | `/imports`                     | Create import job/upload session.           | Pending verification |
-| GET    | `/imports/{importId}`          | Read step, mapping and counts.              | Pending verification |
-| POST   | `/imports/{importId}/file`     | Attach uploaded CSV/XLSX.                   | Pending verification |
-| PUT    | `/imports/{importId}/mapping`  | Save column mapping/normalization.          | Pending verification |
-| POST   | `/imports/{importId}/validate` | Parse, normalize, deduplicate and validate. | Pending verification |
-| GET    | `/imports/{importId}/rows`     | Paginate staged rows.                       | Pending verification |
-| GET    | `/imports/{importId}/issues`   | List errors/warnings/duplicates.            | Pending verification |
-| PATCH  | `/import-issues/{issueId}`     | Save manual resolution.                     | Pending verification |
-| POST   | `/imports/{importId}/commit`   | Atomically import valid/resolved rows.      | Pending verification |
-| POST   | `/imports/{importId}/cancel`   | Cancel unfinished import.                   | Pending verification |
-| GET    | `/imports/{importId}/report`   | Download final processing report.           | Pending verification |
+| Method | Endpoint | Required behavior | Ledger status |
+| ------ | -------- | ----------------- | ------------- |
 
 ## 9. Assignments and workload — P0
 
@@ -199,19 +187,12 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 16. Saved views and exports — P0/P1
 
-| Method | Endpoint                       | Required behavior                                        | Ledger status        |
-| ------ | ------------------------------ | -------------------------------------------------------- | -------------------- |
-| GET    | `/saved-views`                 | List personal/shared views.                              | Pending verification |
-| POST   | `/saved-views`                 | Save filters, sort and columns.                          | Pending verification |
-| PATCH  | `/saved-views/{viewId}`        | Rename/update/default view.                              | Pending verification |
-| DELETE | `/saved-views/{viewId}`        | Delete owned view.                                       | Pending verification |
-| POST   | `/exports/preview`             | Validate scope, fields, estimate rows and show warnings. | Pending verification |
-| GET    | `/exports`                     | List authorized export jobs.                             | Pending verification |
-| POST   | `/exports`                     | Request audited asynchronous CSV/XLSX export.            | Pending verification |
-| GET    | `/exports/{exportId}`          | Poll status/expiry.                                      | Pending verification |
-| POST   | `/exports/{exportId}/cancel`   | Cancel queued export.                                    | Pending verification |
-| GET    | `/exports/{exportId}/download` | Issue short-lived authorized download.                   | Pending verification |
-| GET    | `/exports/{exportId}/audit`    | Read requester, scope and download evidence.             | Pending verification |
+| Method | Endpoint                | Required behavior               | Ledger status        |
+| ------ | ----------------------- | ------------------------------- | -------------------- |
+| GET    | `/saved-views`          | List personal/shared views.     | Pending verification |
+| POST   | `/saved-views`          | Save filters, sort and columns. | Pending verification |
+| PATCH  | `/saved-views/{viewId}` | Rename/update/default view.     | Pending verification |
+| DELETE | `/saved-views/{viewId}` | Delete owned view.              | Pending verification |
 
 ## 17. Audit, Observer/Auditor and compliance — P1
 

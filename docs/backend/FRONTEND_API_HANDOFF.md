@@ -1,21 +1,21 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-22, after skill/proximity allocation and ranked suggestions. Base path: `/api/v1`.
+Snapshot: 2026-09-22, after staged imports and asynchronous exports. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 125 verified product-contract operations plus 2 verified geographic-allocation extensions. All 125 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 144 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 144 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0045`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0046`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 649 API unit tests, 498 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 46 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 651 API unit tests, 515 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 47 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
-| Classification                   | Product-contract operations | Frontend guidance                                                           |
-| -------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                         |                         125 | Integrate the documented supported behavior                                 |
-| Partial                          |                          13 | Use only the implemented subset described below                             |
-| Pending verification/completion  |                         243 | Do not assume the target contract is ready; consult the remaining checklist |
-| Geographic-allocation extensions |                           2 | Verified additions outside the 381-operation product ledger                 |
+| Classification                  | Product-contract operations | Frontend guidance                                                           |
+| ------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
+| Verified                        |                         144 | Integrate the documented supported behavior                                 |
+| Partial                         |                          13 | Use only the implemented subset described below                             |
+| Pending verification/completion |                         224 | Do not assume the target contract is ready; consult the remaining checklist |
+| Verified extensions             |                           3 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
 
@@ -254,6 +254,33 @@ See [configuration, distance semantics and suggestions](ALLOCATION_STRATEGIES.md
 | POST   | `/assignment-rules`       | Verified: capacity/round-robin/skill/proximity rule configuration with authority, audit and validation |
 | GET    | `/assignment-suggestions` | Verified: scoped live capacity/skill/proximity ranked candidates using an explicit active rule         |
 
+### Staged imports and asynchronous exports
+
+Contract reference: [workflow, payloads and operational limits](IMPORT_EXPORT_JOBS.md).
+
+| Method | Endpoint                       | Supported behavior                                                   |
+| ------ | ------------------------------ | -------------------------------------------------------------------- |
+| GET    | `/imports`                     | List import jobs.                                                    |
+| POST   | `/imports`                     | Create import job/upload session.                                    |
+| GET    | `/imports/{importId}`          | Read step, mapping and counts.                                       |
+| POST   | `/imports/{importId}/file`     | Attach uploaded CSV/XLSX.                                            |
+| PUT    | `/imports/{importId}/mapping`  | Save column mapping/normalization.                                   |
+| POST   | `/imports/{importId}/validate` | Parse, normalize, deduplicate and validate.                          |
+| GET    | `/imports/{importId}/rows`     | Paginate staged rows.                                                |
+| GET    | `/imports/{importId}/issues`   | List errors/warnings/duplicates.                                     |
+| PATCH  | `/import-issues/{issueId}`     | Save manual resolution.                                              |
+| POST   | `/imports/{importId}/commit`   | Atomically import valid/resolved rows.                               |
+| POST   | `/imports/{importId}/cancel`   | Cancel unfinished import.                                            |
+| GET    | `/imports/{importId}/report`   | Download final processing report.                                    |
+| POST   | `/exports/preview`             | Validate scope, fields, estimate rows and show warnings.             |
+| GET    | `/exports`                     | List authorized export jobs.                                         |
+| POST   | `/exports`                     | Request audited asynchronous CSV/XLSX export.                        |
+| GET    | `/exports/{exportId}`          | Poll status/expiry.                                                  |
+| POST   | `/exports/{exportId}/cancel`   | Cancel queued export.                                                |
+| GET    | `/exports/{exportId}/download` | Issue short-lived authorized download.                               |
+| GET    | `/exports/{exportId}/audit`    | Read requester, scope and download evidence.                         |
+| GET    | `/exports/{exportId}/file`     | Extension: bearer-authenticated content with expiring download token |
+
 ## Partial APIs: usable subsets, unfinished contracts
 
 These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
@@ -276,9 +303,9 @@ These routes exist, but do not advertise their full planned behavior in the fron
 
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 243 pending-verification product contracts. Pending verification is not the same as nonexistent code: imports, exports, work queues, assignment/reservation operations and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 224 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Immediate next group: import/deduplication/export completion. Later groups include configurable outcomes and follow-up/dashboard reconciliation, map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Immediate next group: configurable outcomes and follow-up/dashboard reconciliation. Later groups include map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 

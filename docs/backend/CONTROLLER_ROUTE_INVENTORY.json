@@ -634,10 +634,80 @@
     },
     {
       "method": "GET",
-      "path": "/api/v1/exports/:type",
+      "path": "/api/v1/exports",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 49,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 52,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 58,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/audit",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 76,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports/:exportId/cancel",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 64,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/download",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 70,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/file",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 83,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/activities",
+      "source": "apps/api/src/exports/controlled-export.controller.ts",
+      "line": 26,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/assignments",
       "source": "apps/api/src/exports/controlled-export.controller.ts",
       "line": 20,
-      "ledgerStatus": "Pending verification"
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/follow_ups",
+      "source": "apps/api/src/exports/controlled-export.controller.ts",
+      "line": 32,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports/preview",
+      "source": "apps/api/src/data-jobs/export-job.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Verified: scoped durable export jobs and authenticated expiring downloads"
     },
     {
       "method": "GET",
@@ -666,6 +736,90 @@
       "source": "apps/api/src/health/readiness.controller.ts",
       "line": 18,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/import-issues/:issueId",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 138,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 49,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 52,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/cancel",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 115,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/commit",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 108,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/file",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 58,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/issues",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 101,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/imports/:importId/mapping",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 79,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/report",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 122,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/rows",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 94,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/validate",
+      "source": "apps/api/src/data-jobs/import-job.controller.ts",
+      "line": 87,
+      "ledgerStatus": "Verified: staged CSV/XLSX import, explicit resolution and atomic commit"
     },
     {
       "method": "POST",

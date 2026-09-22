@@ -11,6 +11,7 @@ const env = {
   ...process.env,
   // Integration suites explicitly drain action effects for deterministic assertions.
   ACTION_EFFECTS_POLLING: 'off',
+  DATA_JOBS_POLLING: 'off',
   RESERVATION_RECONCILIATION: 'off',
   DATABASE_URL:
     'postgresql://backend_test:local-backend-test-only@127.0.0.1:55439/trackroster_backend_test',

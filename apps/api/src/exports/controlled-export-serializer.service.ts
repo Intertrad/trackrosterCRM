@@ -23,6 +23,7 @@ interface SerializeControlledExportInput {
   generatedAt: Date;
 
   rows: ExportRow[];
+  fields?: string[];
 }
 
 const CSV_CONTENT_TYPE = 'text/csv; charset=utf-8';
@@ -32,7 +33,9 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 @Injectable()
 export class ControlledExportSerializerService {
   async serialize(input: SerializeControlledExportInput): Promise<GeneratedExportFile> {
-    const columns = CONTROLLED_EXPORT_COLUMNS[input.type];
+    const columns = input.fields
+      ? input.fields.map((key) => CONTROLLED_EXPORT_COLUMNS[input.type].find((c) => c.key === key)!)
+      : CONTROLLED_EXPORT_COLUMNS[input.type];
 
     const filename = this.buildFilename(input.type, input.format, input.generatedAt);
 
