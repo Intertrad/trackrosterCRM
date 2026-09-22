@@ -266,7 +266,7 @@ and operational decisions.
 
 Start here:
 
-- [Documentation Index](./docs/README.md)
+- [Documentation Index](./docs/readme.md)
 - [Product Scope](./docs/PRODUCT_SCOPE.md)
 - [Requirements](./docs/REQUIREMENTS.md)
 - [Business Rules](./docs/BUSINESS_RULES.md)
