@@ -468,7 +468,7 @@ describe('Bulk assignment and saved rules', () => {
       { targets: [] },
       { targets: [{ teamId: team }, { teamId: team.toUpperCase() }] },
       { targets: [{ teamId: outsideTeam }] },
-      { strategy: 'skill' },
+      { strategy: 'unsupported' },
       { targets: [{ teamId: team, assignedUserId: director }] },
     ]) {
       const result = await createRule(options);
@@ -629,5 +629,128 @@ describe('Bulk assignment and saved rules', () => {
     expect(
       (await call('GET', `/assignment-rules?campaignId=${campaign}`)).json().items[0].nextTarget,
     ).toBe(0);
+  });
+  it('allocates skill rules only to targets matching every configured skill', async () => {
+    const created = await createRule({
+      strategy: 'skill',
+      requiredSkills: ['French', 'B2B'],
+      targets: [
+        { teamId: team, skills: ['french'] },
+        { teamId: otherTeam, skills: ['FRENCH', 'b2b'] },
+      ],
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const rule = created.json();
+    expect(rule.requiredSkills).toEqual(['french', 'b2b']);
+    const result = await batch([await prospect()], { ruleId: rule.id });
+    expect(result.statusCode, result.body).toBe(201);
+    expect(result.json().decisions[0].teamId).toBe(otherTeam);
+    expect((await createRule({ strategy: 'skill', requiredSkills: [] })).statusCode).toBe(400);
+    const missing = (await createRule({ strategy: 'skill', requiredSkills: ['technical'] })).json();
+    expect(
+      (await batch([await prospect()], { ruleId: missing.id }, admin, 'preview')).json()
+        .decisions[0].outcome,
+    ).toBe('no_skill_match');
+  });
+  it('allocates proximity rules by configured dispatch distance and falls back when the nearest is full', async () => {
+    const rule = (
+      await createRule({
+        strategy: 'proximity',
+        targets: [
+          { teamId: team, location: { longitude: 2.5, latitude: 48.5 } },
+          { teamId: otherTeam, location: { longitude: 2.6, latitude: 48.5 } },
+        ],
+        maxDistanceKm: 20,
+      })
+    ).json();
+    await db
+      .insert(teamSettings)
+      .values({ tenantId, organizationId: org, teamId: team, capacity: 1 });
+    const ids = [await prospect(), await prospect()].sort();
+    const result = await batch(ids, { ruleId: rule.id });
+    expect(result.statusCode, result.body).toBe(201);
+    expect(result.json().decisions.map((d: { teamId: string }) => d.teamId)).toEqual([
+      team,
+      otherTeam,
+    ]);
+    expect(result.json().decisions[0].distanceKm).toBe(0);
+    expect(result.json().decisions[1].distanceKm).toBeGreaterThan(7);
+  });
+  it('reports missing coordinates and radius exclusions without partial allocation', async () => {
+    const rule = (
+      await createRule({
+        strategy: 'proximity',
+        targets: [{ teamId: team, location: { longitude: 2.5, latitude: 48.5 } }],
+        maxDistanceKm: 1,
+      })
+    ).json();
+    const near = await prospect(),
+      far = await prospect(4, 48.5),
+      missing = await prospect(null, null);
+    const preview = await batch([near, far, missing], { ruleId: rule.id }, admin, 'preview');
+    expect(preview.statusCode, preview.body).toBe(200);
+    expect(
+      preview
+        .json()
+        .decisions.map((d: { outcome: string }) => d.outcome)
+        .sort(),
+    ).toEqual(['missing_coordinates', 'no_proximity_match', 'proposed']);
+    expect((await batch([near, far], { ruleId: rule.id })).statusCode).toBe(409);
+    expect(await assignments()).toHaveLength(0);
+    expect(
+      (await call('PATCH', `/assignment-rules/${rule.id}`, { maxDistanceKm: null })).statusCode,
+    ).toBe(200);
+    expect((await batch([far], { ruleId: rule.id })).statusCode).toBe(201);
+  });
+  it('returns scoped ranked suggestions without allocating or advancing round robin', async () => {
+    const rule = (
+        await createRule({
+          strategy: 'proximity',
+          targets: [
+            { teamId: otherTeam, location: { longitude: 3, latitude: 48.5 } },
+            { teamId: team, location: { longitude: 2.5, latitude: 48.5 } },
+          ],
+        })
+      ).json(),
+      p = await prospect();
+    const path = `/assignment-suggestions?ruleId=${rule.id}&campaignProspectId=${p}`;
+    const result = await call('GET', path);
+    expect(result.statusCode, result.body).toBe(200);
+    expect(result.json().candidates.map((c: { teamId: string }) => c.teamId)).toEqual([
+      team,
+      otherTeam,
+    ]);
+    expect(result.json().candidates[0]).toMatchObject({
+      distanceKm: 0,
+      availableTeamCapacity: 100,
+    });
+    expect(await assignments()).toHaveLength(0);
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { email: `${member}@example.test`, password: 'GeographicAllocation123!' },
+    });
+    expect(login.statusCode, login.body).toBe(200);
+    tokens.set(member, login.json().accessToken);
+    expect((await call('GET', path, undefined, member)).statusCode).toBe(403);
+    expect((await call('GET', path, undefined, foreign)).statusCode).toBe(404);
+    await db.insert(tenantRolePermissions).values({ tenantId, role: 'director', permissions: [] });
+    expect((await call('GET', path, undefined, director)).statusCode).toBe(403);
+  });
+  it('validates strategy configuration, bounded coordinates and skill tag syntax', async () => {
+    for (const options of [
+      { strategy: 'proximity' },
+      { strategy: 'skill', requiredSkills: [] },
+      { strategy: 'skill', requiredSkills: ['invalid tag'] },
+      {
+        strategy: 'proximity',
+        targets: [{ teamId: team, location: { longitude: 200, latitude: 48 } }],
+      },
+      { strategy: 'proximity', targets: [{ teamId: team, location: { longitude: 2 } }] },
+      { maxDistanceKm: -1 },
+    ]) {
+      const result = await createRule(options);
+      expect(result.statusCode, result.body).toBe(400);
+    }
   });
 });

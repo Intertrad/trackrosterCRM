@@ -1,20 +1,20 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-22, after canonical assignment lifecycle APIs. Base path: `/api/v1`.
+Snapshot: 2026-09-22, after skill/proximity allocation and ranked suggestions. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 123 verified product-contract operations plus 2 verified geographic-allocation extensions. All 123 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 125 verified product-contract operations plus 2 verified geographic-allocation extensions. All 125 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0044`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0045`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 647 API unit tests, 493 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 45 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 649 API unit tests, 498 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 46 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                   | Product-contract operations | Frontend guidance                                                           |
 | -------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                         |                         123 | Integrate the documented supported behavior                                 |
-| Partial                          |                          14 | Use only the implemented subset described below                             |
-| Pending verification/completion  |                         244 | Do not assume the target contract is ready; consult the remaining checklist |
+| Verified                         |                         125 | Integrate the documented supported behavior                                 |
+| Partial                          |                          13 | Use only the implemented subset described below                             |
+| Pending verification/completion  |                         243 | Do not assume the target contract is ready; consult the remaining checklist |
 | Geographic-allocation extensions |                           2 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
@@ -219,7 +219,7 @@ See [geographic allocation](GEOGRAPHIC_ALLOCATION.md).
 
 ### Bulk assignment and saved rules
 
-Contract reference: [payloads, response examples and limits](BULK_ASSIGNMENTS.md). Apply migration 0042. Rules currently support capacity balancing and round robin; explicit rule selection is required.
+Contract reference: [payloads, response examples and limits](BULK_ASSIGNMENTS.md). Apply migration 0042. Rules support capacity, round robin, skill and proximity; explicit rule selection is required. See [strategy configuration](ALLOCATION_STRATEGIES.md).
 
 | Method | Endpoint                              | Supported behavior / limits                                                                                |
 | ------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -245,32 +245,40 @@ Contract reference: [payloads, states, history and permissions](ASSIGNMENT_LIFEC
 | POST   | `/assignments/{assignmentId}/complete` | Verified: reasoned terminal completion, immutable ownership history and audit                     |
 | POST   | `/assignments/{assignmentId}/revoke`   | Verified: reasoned terminal revocation, immutable ownership history and audit                     |
 
+### Allocation strategy extensions
+
+See [configuration, distance semantics and suggestions](ALLOCATION_STRATEGIES.md).
+
+| Method | Endpoint                  | Supported behavior / limits                                                                            |
+| ------ | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| POST   | `/assignment-rules`       | Verified: capacity/round-robin/skill/proximity rule configuration with authority, audit and validation |
+| GET    | `/assignment-suggestions` | Verified: scoped live capacity/skill/proximity ranked candidates using an explicit active rule         |
+
 ## Partial APIs: usable subsets, unfinished contracts
 
 These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
 
-| Method | Endpoint                                     | Supported subset / remaining work                                                                                      |
-| ------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/assignment-rules`                          | Partial: verified capacity/round-robin creation; skill/proximity strategies pending. See the bulk assignment contract. |
-| PATCH  | `/me`                                        | Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending                                     |
-| GET    | `/memberships/{membershipId}`                | Partial: identity, capacity, current team grants and effective permissions; roster history pending                     |
-| GET    | `/permissions`                               | Partial: nine published permissions; remaining domains pending                                                         |
-| PUT    | `/roles/{role}/permissions`                  | Partial: four restriction-only configurable management capabilities                                                    |
-| POST   | `/memberships/{membershipId}/scopes`         | Partial: positive grants at all five scopes; explicit deny rules pending                                               |
-| GET    | `/memberships/{membershipId}/access-history` | Partial: cursor-paginated append-only API audit; DB tamper protection pending                                          |
-| GET    | `/organizations/{organizationId}`            | Partial: authorized metadata; expanded summary pending                                                                 |
-| GET    | `/teams/{teamId}/capacity`                   | Partial: assignment count/capacity/availability; richer allocation constraints pending                                 |
-| GET    | `/campaigns`                                 | Partial: scope-filtered metadata list; advanced list filters pending                                                   |
-| GET    | `/campaigns/{campaignId}`                    | Partial: scoped campaign metadata; richer summary pending                                                              |
-| GET    | `/notifications`                             | Partial: owned cursor inbox/unread filtering; severity model pending                                                   |
-| GET    | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                                           |
-| PATCH  | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                                           |
+| Method | Endpoint                                     | Supported subset / remaining work                                                                  |
+| ------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| PATCH  | `/me`                                        | Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending                 |
+| GET    | `/memberships/{membershipId}`                | Partial: identity, capacity, current team grants and effective permissions; roster history pending |
+| GET    | `/permissions`                               | Partial: nine published permissions; remaining domains pending                                     |
+| PUT    | `/roles/{role}/permissions`                  | Partial: four restriction-only configurable management capabilities                                |
+| POST   | `/memberships/{membershipId}/scopes`         | Partial: positive grants at all five scopes; explicit deny rules pending                           |
+| GET    | `/memberships/{membershipId}/access-history` | Partial: cursor-paginated append-only API audit; DB tamper protection pending                      |
+| GET    | `/organizations/{organizationId}`            | Partial: authorized metadata; expanded summary pending                                             |
+| GET    | `/teams/{teamId}/capacity`                   | Partial: assignment count/capacity/availability; richer allocation constraints pending             |
+| GET    | `/campaigns`                                 | Partial: scope-filtered metadata list; advanced list filters pending                               |
+| GET    | `/campaigns/{campaignId}`                    | Partial: scoped campaign metadata; richer summary pending                                          |
+| GET    | `/notifications`                             | Partial: owned cursor inbox/unread filtering; severity model pending                               |
+| GET    | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
+| PATCH  | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
 
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 14 partial and 244 pending-verification product contracts. Pending verification is not the same as nonexistent code: imports, exports, work queues, assignment/reservation operations and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 243 pending-verification product contracts. Pending verification is not the same as nonexistent code: imports, exports, work queues, assignment/reservation operations and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Immediate next group: remaining allocation strategies and assignment suggestions, then import/deduplication/export completion. Later groups include configurable outcomes and follow-up/dashboard reconciliation, map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Immediate next group: import/deduplication/export completion. Later groups include configurable outcomes and follow-up/dashboard reconciliation, map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 

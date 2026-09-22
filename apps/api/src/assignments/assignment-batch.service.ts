@@ -1,3 +1,4 @@
+import { distanceKm } from './allocation-distance.js';
 import {
   BadRequestException,
   ConflictException,
@@ -35,10 +36,21 @@ type Decision = {
     | 'already_assigned'
     | 'inactive_prospect'
     | 'capacity_exhausted'
-    | 'ineligible_target';
+    | 'ineligible_target'
+    | 'missing_coordinates'
+    | 'no_skill_match'
+    | 'no_proximity_match';
   teamId?: string;
   assignedUserId?: string | null;
   assignmentId?: string;
+  distanceKm?: number;
+  candidates?: Array<{
+    teamId: string;
+    assignedUserId: string | null;
+    distanceKm: number | null;
+    availableTeamCapacity: number;
+    availableMemberCapacity: number | null;
+  }>;
 };
 @Injectable()
 export class AssignmentBatchService {
@@ -95,10 +107,19 @@ export class AssignmentBatchService {
     if (!input.teamId) throw new BadRequestException('A teamId or ruleId is required');
     return this.authorize(a, input.campaignId, [input.teamId], tx);
   }
-  normalize(targets: { teamId: string; assignedUserId?: string | null }[]): AssignmentRuleTarget[] {
+  normalize(
+    targets: {
+      teamId: string;
+      assignedUserId?: string | null;
+      skills?: string[];
+      location?: { longitude: number; latitude: number };
+    }[],
+  ): AssignmentRuleTarget[] {
     const normalized = targets.map((t) => ({
       teamId: t.teamId.toLowerCase(),
       assignedUserId: t.assignedUserId?.toLowerCase() ?? null,
+      skills: [...new Set((t.skills ?? []).map((s) => s.toLowerCase()))],
+      ...(t.location ? { location: t.location } : {}),
     }));
     if (new Set(normalized.map((t) => `${t.teamId}:${t.assignedUserId}`)).size !== targets.length)
       throw new BadRequestException('Rule targets must be unique');
@@ -160,7 +181,12 @@ export class AssignmentBatchService {
     }
     return states;
   }
-  async run(a: AuthenticatedPrincipal, input: AssignmentBatchDto, apply: boolean) {
+  async run(
+    a: AuthenticatedPrincipal,
+    input: AssignmentBatchDto,
+    apply: boolean,
+    includeCandidates = false,
+  ) {
     try {
       return await this.db.transaction(async (tx) => {
         await this.lock(a, tx);
@@ -182,8 +208,10 @@ export class AssignmentBatchService {
           id: string;
           status: string;
           establishment_status: string;
+          longitude: number | null;
+          latitude: number | null;
         }>(sql`
-          SELECT cp.id,cp.status,e.status AS establishment_status FROM campaign_prospects cp
+          SELECT cp.id,cp.status,e.status AS establishment_status,e.longitude,e.latitude FROM campaign_prospects cp
           JOIN establishments e ON e.tenant_id=cp.tenant_id AND e.id=cp.establishment_id
           WHERE cp.tenant_id=${a.tenantId} AND cp.campaign_id=${input.campaignId} AND cp.id=ANY(${sql.param(ids)}::uuid[])
           ORDER BY cp.id FOR NO KEY UPDATE OF cp FOR SHARE OF e`);
@@ -208,13 +236,43 @@ export class AssignmentBatchService {
             decisions.push({ prospectId: p.id, outcome: 'inactive_prospect' });
             continue;
           }
-          const candidates = states
-            .map((state, index) => ({ state, index }))
-            .filter((c) => available(c.state));
+          if (rule?.strategy === 'proximity' && (p.longitude === null || p.latitude === null)) {
+            decisions.push({ prospectId: p.id, outcome: 'missing_coordinates' });
+            continue;
+          }
+          const skilled = states
+            .map((state, index) => ({
+              state,
+              index,
+              distance:
+                state.location && p.longitude !== null && p.latitude !== null
+                  ? distanceKm(state.location, { longitude: p.longitude, latitude: p.latitude })
+                  : null,
+            }))
+            .filter(
+              (c) =>
+                c.state.eligible &&
+                (rule?.requiredSkills ?? []).every((skill) =>
+                  (c.state.skills ?? []).includes(skill),
+                ),
+            );
+          const matching = skilled.filter(
+            (c) =>
+              rule?.strategy !== 'proximity' ||
+              (c.distance !== null &&
+                (rule.maxDistanceKm === null || c.distance <= rule.maxDistanceKm)),
+          );
+          const candidates = matching.filter((c) => available(c.state));
           if (!candidates.length) {
             decisions.push({
               prospectId: p.id,
-              outcome: states.some((s) => s.eligible) ? 'capacity_exhausted' : 'ineligible_target',
+              outcome: matching.length
+                ? 'capacity_exhausted'
+                : !states.some((s) => s.eligible)
+                  ? 'ineligible_target'
+                  : !skilled.length
+                    ? 'no_skill_match'
+                    : 'no_proximity_match',
             });
             continue;
           }
@@ -233,6 +291,7 @@ export class AssignmentBatchService {
                   s.assignedUserId && s.memberCapacity ? s.memberWorkload / s.memberCapacity : 0,
                 );
               return (
+                (rule?.strategy === 'proximity' ? l.distance! - r.distance! : 0) ||
                 score(l.state) - score(r.state) ||
                 l.state.memberWorkload - r.state.memberWorkload ||
                 l.index - r.index
@@ -244,6 +303,21 @@ export class AssignmentBatchService {
             outcome: 'proposed',
             teamId: chosen.teamId,
             assignedUserId: chosen.assignedUserId,
+            ...(rule?.strategy === 'proximity' ? { distanceKm: candidates[0]!.distance! } : {}),
+            ...(includeCandidates
+              ? {
+                  candidates: candidates.map((c) => ({
+                    teamId: c.state.teamId,
+                    assignedUserId: c.state.assignedUserId,
+                    distanceKm: c.distance,
+                    availableTeamCapacity: c.state.teamCapacity - c.state.teamWorkload,
+                    availableMemberCapacity:
+                      c.state.assignedUserId && c.state.memberCapacity !== null
+                        ? c.state.memberCapacity - c.state.memberWorkload
+                        : null,
+                  })),
+                }
+              : {}),
           });
           // All targets referencing a shared team/member consume the same running capacity.
           for (const s of states) {

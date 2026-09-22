@@ -4,15 +4,15 @@ Implemented and locally verified on the backend branch. Apply migration `0042_as
 
 ## Routes
 
-| Method | Path                                  | Contract                                                                                                                                                                               |
-| ------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/assignments/preview`                | Read-only preview of a selected lot, with proposed targets and per-prospect conflict reasons.                                                                                          |
-| POST   | `/assignments/bulk`                   | Assign the whole lot in one transaction, or return 409 without writing any assignments. Requires `Idempotency-Key`. Returns 201.                                                       |
-| GET    | `/assignment-rules?campaignId={id}`   | List saved campaign rules, including inactive rules, ordered by priority then ID. `limit` 1–100 (default 25); `offset` default 0; response `{items,nextOffset}`. Items contain `etag`. |
-| POST   | `/assignment-rules`                   | Create a capacity or round-robin rule. Requires `Idempotency-Key`. Returns 201. Skill and proximity strategies are not yet implemented.                                                |
-| PATCH  | `/assignment-rules/{ruleId}`          | Change name, targets, strategy, priority or active state. Requires `Idempotency-Key`; supports optional `If-Match`. Campaign cannot change.                                            |
-| DELETE | `/assignment-rules/{ruleId}`          | Audit and deactivate a rule, retaining its definition and history. Requires `Idempotency-Key`; supports optional `If-Match`.                                                           |
-| POST   | `/assignment-rules/{ruleId}/simulate` | Read-only simulation using the current rule and live workloads. Takes `{ "prospectIds": [...] }`. Does not advance round robin.                                                        |
+| Method | Path                                  | Contract                                                                                                                                                                                                             |
+| ------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/assignments/preview`                | Read-only preview of a selected lot, with proposed targets and per-prospect conflict reasons.                                                                                                                        |
+| POST   | `/assignments/bulk`                   | Assign the whole lot in one transaction, or return 409 without writing any assignments. Requires `Idempotency-Key`. Returns 201.                                                                                     |
+| GET    | `/assignment-rules?campaignId={id}`   | List saved campaign rules, including inactive rules, ordered by priority then ID. `limit` 1–100 (default 25); `offset` default 0; response `{items,nextOffset}`. Items contain `etag`.                               |
+| POST   | `/assignment-rules`                   | Create a capacity, round-robin, skill or proximity rule. Requires `Idempotency-Key`. Returns 201. Skill/proximity strategies are also supported after migration 0045; see [configuration](ALLOCATION_STRATEGIES.md). |
+| PATCH  | `/assignment-rules/{ruleId}`          | Change name, targets, strategy, priority or active state. Requires `Idempotency-Key`; supports optional `If-Match`. Campaign cannot change.                                                                          |
+| DELETE | `/assignment-rules/{ruleId}`          | Audit and deactivate a rule, retaining its definition and history. Requires `Idempotency-Key`; supports optional `If-Match`.                                                                                         |
+| POST   | `/assignment-rules/{ruleId}/simulate` | Read-only simulation using the current rule and live workloads. Takes `{ "prospectIds": [...] }`. Does not advance round robin.                                                                                      |
 
 Previews and simulations return 200 and do not require an idempotency key. Mutation retries must use the original key and unchanged payload. Guards check current authority before replay. A permission revocation returns 403 even if the original request succeeded.
 
@@ -103,4 +103,4 @@ Assignment does not grant permission to contact an opposed prospect or bypass re
 
 The integration suite covers atomic batches, validation, tenant/team/member authority, pre-replay and in-transaction permission revocation, capacity races against manual assignment, unchanged existing ownership, inactive resources, rule CRUD/ETags, round-robin continuity, shared capacities, simulation purity, rule isolation, and rollback after the second audit write fails.
 
-Skill matching, proximity-based rules/suggestions, implicit priority rule chains, import-triggered allocation, canonical assignment list/detail/lifecycle contracts, import/deduplication/export completion, and production readiness remain separate work. Geographic territory allocation remains available through its existing explicit endpoints.
+Skill/proximity rules and suggestions are implemented; see ALLOCATION_STRATEGIES.md. Canonical assignment lifecycle is implemented; see ASSIGNMENT_LIFECYCLE.md. Implicit rule chains, import-triggered allocation, import/deduplication/export completion and production readiness remain separate work. Geographic territory allocation remains available through its existing explicit endpoints.

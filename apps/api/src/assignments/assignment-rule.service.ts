@@ -40,7 +40,7 @@ export class AssignmentRuleService {
     id?: string,
     version?: string,
   ) {
-    if (Object.values(input).some((v) => v === null))
+    if (Object.entries(input).some(([key, v]) => key !== 'maxDistanceKm' && v === null))
       throw new BadRequestException('Rule fields cannot be null');
     return this.db.transaction(async (tx) => {
       await this.batches.lock(a, tx);
@@ -55,11 +55,24 @@ export class AssignmentRuleService {
         targets: old?.targets,
         priority: old?.priority ?? 100,
         isActive: old?.isActive ?? true,
+        requiredSkills: old?.requiredSkills ?? [],
+        maxDistanceKm: old?.maxDistanceKm ?? null,
         ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)),
       };
       if (!values.name?.trim() || !values.strategy || !values.targets?.length)
         throw new BadRequestException('Name, strategy and targets required');
       const targets = this.batches.normalize(values.targets);
+      const requiredSkills = [
+        ...new Set(values.requiredSkills.map((s: string) => s.toLowerCase())),
+      ];
+      if (op !== 'deactivate' && values.strategy === 'skill' && !requiredSkills.length)
+        throw new BadRequestException('Skill rules require at least one required skill');
+      if (
+        op !== 'deactivate' &&
+        values.strategy === 'proximity' &&
+        !targets.some((t) => t.location)
+      )
+        throw new BadRequestException('Proximity rules require a configured dispatch location');
       // Deactivation must remain possible after a target loses eligibility or is removed.
       if (op !== 'deactivate') {
         const states = await this.batches.targets(a, authority.organization_id, targets, tx);
@@ -72,6 +85,8 @@ export class AssignmentRuleService {
         name: values.name.trim(),
         strategy: values.strategy,
         targets,
+        requiredSkills,
+        maxDistanceKm: values.maxDistanceKm,
         priority: values.priority,
         isActive: op === 'deactivate' ? false : values.isActive,
       };

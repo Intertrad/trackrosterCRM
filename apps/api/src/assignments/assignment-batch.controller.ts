@@ -23,6 +23,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import {
   AssignmentBatchDto,
+  AssignmentSuggestionDto,
   AssignmentRuleListDto,
   AssignmentRulePatchDto,
   AssignmentSelectionDto,
@@ -126,5 +127,30 @@ export class AssignmentRuleController {
   ) {
     const rule = await this.batches.rule(a, id);
     return this.batches.run(a, { ...b, campaignId: rule.campaignId, ruleId: id }, false);
+  }
+}
+
+@Controller('assignment-suggestions')
+@UseGuards(AuthGuard)
+export class AssignmentSuggestionController {
+  constructor(private readonly batches: AssignmentBatchService) {}
+  @Get() async suggest(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: AssignmentSuggestionDto,
+  ) {
+    const rule = await this.batches.rule(a, q.ruleId);
+    const result = await this.batches.run(
+      a,
+      { campaignId: rule.campaignId, ruleId: rule.id, prospectIds: [q.campaignProspectId] },
+      false,
+      true,
+    );
+    return {
+      ruleId: rule.id,
+      strategy: rule.strategy,
+      requiredSkills: rule.requiredSkills,
+      candidates: [],
+      ...result.decisions[0],
+    };
   }
 }

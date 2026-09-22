@@ -6,6 +6,7 @@ import { AssignmentLifecycleService } from './assignment-lifecycle.service.js';
 import { Module } from '@nestjs/common';
 import {
   AssignmentBatchController,
+  AssignmentSuggestionController,
   AssignmentRuleController,
   AssignmentBatchGuard,
   AssignmentRuleGuard,
@@ -45,6 +46,7 @@ import { CampaignProspectAssignmentService } from './campaign-prospect-assignmen
     AssignmentLifecycleController,
     CampaignProspectAssignmentController,
     AssignmentBatchController,
+    AssignmentSuggestionController,
     AssignmentRuleController,
   ],
 
