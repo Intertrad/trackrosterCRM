@@ -30,6 +30,10 @@ describe('ClientAdminGuard', () => {
     const request: AuthenticatedRequest = {
       headers: {},
       auth: {
+        identityId: 'identity-id',
+        membershipId: 'user-id',
+        sessionId: 'session-id',
+        tokenId: 'token-id',
         userId: 'user-id',
         tenantId: 'tenant-id',
       },
@@ -44,6 +48,10 @@ describe('ClientAdminGuard', () => {
     const request: AuthenticatedRequest = {
       headers: {},
       auth: {
+        identityId: 'identity-id',
+        membershipId: 'user-id',
+        sessionId: 'session-id',
+        tokenId: 'token-id',
         userId: 'user-id',
         tenantId: 'tenant-id',
       },

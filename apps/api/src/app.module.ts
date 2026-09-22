@@ -1,4 +1,17 @@
+import { ReservationLifecycleModule } from './reservations/reservation-lifecycle.module.js';
+import { CollisionWorkflowModule } from './collisions/collision-workflow.module.js';
+import { ActionModule } from './actions/action.module.js';
+import { ConsentModule } from './consents/consent.module.js';
+import { GeographicAllocationModule } from './geographic-allocation/allocation.module.js';
+import { CampaignOrganizationModule } from './campaign-organizations/campaign-organization.module.js';
+import { StructureModule } from './organization-structure/structure.module.js';
+import { ParticipationModule } from './participation/participation.module.js';
+import { TerritoryModule } from './territories/territory.module.js';
+import { MembershipModule } from './memberships/membership.module.js';
+import { SecurityAdministrationModule } from './security-administration/security-administration.module.js';
 import { Module } from '@nestjs/common';
+import { AccountModule } from './account/account.module.js';
+import { WorkspaceAdministrationModule } from './workspace-administration/workspace-administration.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { TenantModule } from './tenants/tenant.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -29,8 +42,15 @@ import { ApiErrorModule } from './errors/api-error.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { RegionModule } from './regions/region.module.js';
 import { WorkQueueModule } from './work-queue/work-queue.module.js';
+import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
 @Module({
   imports: [
+    ReservationLifecycleModule,
+    CollisionWorkflowModule,
+    ActionModule,
+    ConsentModule,
+    GeographicAllocationModule,
+    CampaignOrganizationModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
@@ -38,6 +58,13 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
     }),
 
     DatabaseModule,
+    AccountModule,
+    MembershipModule,
+    TerritoryModule,
+    ParticipationModule,
+    StructureModule,
+    SecurityAdministrationModule,
+    WorkspaceAdministrationModule,
     TenantModule,
     HealthModule,
     OrganizationModule,
@@ -66,6 +93,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
     IdempotencyModule,
     RegionModule,
     WorkQueueModule,
+    ProspectorTodayModule,
   ],
 })
 export class AppModule {}

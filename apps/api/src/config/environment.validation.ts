@@ -70,6 +70,17 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateJwtTtl(config, 'JWT_REFRESH_TTL');
 
   validatePositiveInteger(config, 'PROSPECT_COOLING_OFF_MINUTES');
+  for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
+    if (config[key] !== undefined) validatePositiveInteger(config, key);
+  }
+
+  if (
+    config.MFA_ENCRYPTION_KEY !== undefined &&
+    (typeof config.MFA_ENCRYPTION_KEY !== 'string' ||
+      !/^[0-9a-f]{64}$/i.test(config.MFA_ENCRYPTION_KEY))
+  ) {
+    throw new Error('MFA_ENCRYPTION_KEY must be a 32-byte hex key');
+  }
 
   return config;
 }

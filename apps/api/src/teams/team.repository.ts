@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import { NewTeam, Team, teams } from '../database/schema/teams.js';
-import { Database } from '../database/database.types.js';
+import { Database, DatabaseExecutor } from '../database/database.types.js';
 
 @Injectable()
 export class TeamRepository {
@@ -11,6 +11,19 @@ export class TeamRepository {
     @Inject(DATABASE)
     private readonly database: Database,
   ) {}
+
+  async findByIdForShare(
+    tenantId: string,
+    teamId: string,
+    executor: DatabaseExecutor,
+  ): Promise<Team | null> {
+    const [team] = await executor
+      .select()
+      .from(teams)
+      .where(and(eq(teams.tenantId, tenantId), eq(teams.id, teamId)))
+      .for('share');
+    return team ?? null;
+  }
 
   async create(input: NewTeam): Promise<Team> {
     const [team] = await this.database.insert(teams).values(input).returning();

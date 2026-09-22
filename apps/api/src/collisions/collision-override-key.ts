@@ -28,6 +28,13 @@ export function buildCollisionOverrideConflictKey(result: CollisionDecisionResul
 
   switch (result.reasonCode) {
     case 'PLANNED_ACTION': {
+      if ('actionId' in result.conflict)
+        return [
+          'scheduled_action',
+          result.conflict.actionId,
+          result.conflict.updatedAt,
+          result.conflict.dueAt ?? 'unscheduled',
+        ].join(':');
       if (!('followUpId' in result.conflict) || !('dueAt' in result.conflict)) {
         throw new Error('PLANNED_ACTION collision has invalid conflict shape');
       }

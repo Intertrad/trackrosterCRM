@@ -1,3 +1,5 @@
+import { ReservationPolicyService } from '../reservations/reservation-policy.service.js';
+import { PlannedActionCollisionRepository } from './planned-action-collision.repository.js';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 
 import { ProspectActivityRepository } from '../activities/prospect-activity.repository.js';
@@ -51,6 +53,9 @@ export class CollisionBusinessDecisionService {
     private readonly prospectActivityRepository: ProspectActivityRepository,
 
     private readonly coordinationCollisionPolicyService: CoordinationCollisionPolicyService,
+
+    private readonly plannedActions: PlannedActionCollisionRepository,
+    private readonly rules?: ReservationPolicyService,
   ) {}
 
   async evaluate(input: EvaluateBusinessCollisionInput): Promise<CollisionDecisionResult> {
@@ -99,6 +104,43 @@ export class CollisionBusinessDecisionService {
       };
     }
 
+    // Planned contact actions use the same coordination policy as scheduled follow-ups.
+    // Tasks/notes and actions owned by ended assignments cannot block prospecting.
+    let plannedActions;
+    try {
+      plannedActions = await this.plannedActions.candidates(
+        input.tenantId,
+        input.establishmentId,
+        input.campaignProspectId,
+        input.userId,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Collision service is unavailable');
+    }
+    for (const action of plannedActions) {
+      const policy = await this.coordinationCollisionPolicyService.evaluate({
+        tenantId: input.tenantId,
+        targetOrganizationId: input.targetOrganizationId,
+        conflictingOrganizationId: action.organizationId,
+        collisionType: 'planned_action',
+      });
+      if (policy.action === 'ignore') continue;
+      return {
+        decision: 'block',
+        reasonCode: 'PLANNED_ACTION',
+        establishmentId: input.establishmentId,
+        conflict: {
+          actionId: action.id,
+          campaignId: action.campaignId,
+          campaignProspectId: action.campaignProspectId,
+          assignmentId: action.assignmentId,
+          assignedUserId: action.assigneeMembershipId,
+          dueAt: action.dueAt?.toISOString() ?? null,
+          updatedAt: action.updatedAt.toISOString(),
+        },
+      };
+    }
+
     /*
      * Priority 2:
      * RECENT_CONTACT
@@ -122,6 +164,7 @@ export class CollisionBusinessDecisionService {
     }
 
     const now = new Date();
+    const reservationRule = await this.rules?.resolve(input.tenantId, input.campaignId);
 
     let strongestRecentContact: {
       activity: (typeof activities)[number];
@@ -157,7 +200,9 @@ export class CollisionBusinessDecisionService {
           coordination.delayMinutes,
         );
       } else {
-        coolingOff = this.coolingOffService.evaluateActivity(activity, now);
+        coolingOff = reservationRule
+          ? this.coolingOffService.evaluateActivity(activity, now, reservationRule.cooldownMinutes)
+          : this.coolingOffService.evaluateActivity(activity, now);
       }
 
       if (!coolingOff.active || !coolingOff.expiresAt) {

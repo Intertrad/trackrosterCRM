@@ -135,6 +135,74 @@ describe('AuthorizationService', () => {
     });
   });
 
+  describe('resolveViewScope', () => {
+    it('prefers tenant authority over narrower grants', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        }),
+        createGrant({
+          id: '88888888-8888-4888-8888-888888888888',
+          role: 'observer',
+          scopeType: 'tenant',
+        }),
+      ]);
+
+      await expect(
+        service.resolveViewScope(tenantId, userId, organizationId, teamId),
+      ).resolves.toEqual({
+        scopeType: 'tenant',
+
+        organizationId: null,
+
+        teamId: null,
+      });
+    });
+
+    it('returns organization authority before an exact team grant', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        }),
+        createGrant({
+          id: '88888888-8888-4888-8888-888888888888',
+          role: 'director',
+          scopeType: 'organization',
+          organizationId,
+        }),
+      ]);
+
+      await expect(
+        service.resolveViewScope(tenantId, userId, organizationId, teamId),
+      ).resolves.toEqual({
+        scopeType: 'organization',
+
+        organizationId,
+
+        teamId: null,
+      });
+    });
+
+    it('does not promote a team grant to organization authority', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        }),
+      ]);
+
+      await expect(service.resolveViewScope(tenantId, userId, organizationId)).resolves.toBeNull();
+    });
+  });
+
   describe('canOverrideTeam', () => {
     it('allows a tenant client admin to approve an override', async () => {
       vi.mocked(repository.findByUser).mockResolvedValue([
@@ -248,6 +316,72 @@ describe('AuthorizationService', () => {
       await expect(service.canOverrideTeam(tenantId, userId, organizationId, teamId)).resolves.toBe(
         false,
       );
+    });
+  });
+
+  describe('getAssignmentAuthority', () => {
+    it('returns manager only for the exact team scope', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        }),
+      ]);
+
+      await expect(
+        service.getAssignmentAuthority(tenantId, userId, organizationId, teamId),
+      ).resolves.toBe('manager');
+
+      await expect(
+        service.getAssignmentAuthority(tenantId, userId, organizationId, otherTeamId),
+      ).resolves.toBeNull();
+    });
+
+    it('allows organization directors and tenant client admins', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'director',
+          scopeType: 'organization',
+          organizationId,
+        }),
+      ]);
+
+      await expect(
+        service.getAssignmentAuthority(tenantId, userId, organizationId, teamId),
+      ).resolves.toBe('director');
+
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'client_admin',
+          scopeType: 'tenant',
+        }),
+      ]);
+
+      await expect(
+        service.getAssignmentAuthority(tenantId, userId, organizationId, teamId),
+      ).resolves.toBe('client_admin');
+    });
+
+    it('rejects prospectors and observers', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        }),
+        createGrant({
+          id: '88888888-8888-4888-8888-888888888888',
+          role: 'observer',
+          scopeType: 'tenant',
+        }),
+      ]);
+
+      await expect(
+        service.getAssignmentAuthority(tenantId, userId, organizationId, teamId),
+      ).resolves.toBeNull();
     });
   });
 });

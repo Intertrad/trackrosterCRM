@@ -1,3 +1,7 @@
+import { ReservationPolicyModule } from './reservation-policy.module.js';
+import { ReservationLedgerService } from './reservation-ledger.service.js';
+import { ReservationHistoryInterceptor } from './reservation-history.interceptor.js';
+import { DatabaseModule } from '../database/database.module.js';
 import { Module } from '@nestjs/common';
 
 import { AssignmentModule } from '../assignments/assignment.module.js';
@@ -19,6 +23,8 @@ import { ReservationService } from './reservation.service.js';
 
 @Module({
   imports: [
+    DatabaseModule,
+    ReservationPolicyModule,
     RedisModule,
 
     AuthModule,
@@ -58,8 +64,19 @@ import { ReservationService } from './reservation.service.js';
 
   controllers: [ReservationController],
 
-  providers: [ReservationRepository, ReservationExpirySchedulerService, ReservationService],
+  providers: [
+    ReservationHistoryInterceptor,
+    ReservationLedgerService,
+    ReservationRepository,
+    ReservationExpirySchedulerService,
+    ReservationService,
+  ],
 
-  exports: [ReservationRepository, ReservationService],
+  exports: [
+    ReservationRepository,
+    ReservationService,
+    ReservationLedgerService,
+    ReservationExpirySchedulerService,
+  ],
 })
 export class ReservationModule {}

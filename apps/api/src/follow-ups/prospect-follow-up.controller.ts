@@ -82,6 +82,10 @@ export class ProspectFollowUpController {
       dueAt: body.dueAt,
 
       assignedUserId: body.assignedUserId,
+
+      category: body.category,
+
+      channel: body.channel,
     });
   }
   @Idempotent('follow_up.reschedule')

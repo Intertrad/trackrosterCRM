@@ -23,7 +23,7 @@ interface AuthContext {
 }
 
 @Controller('campaigns/:campaignId/prospects/:prospectId')
-@UseGuards(AuthGuard, ClientAdminGuard)
+@UseGuards(AuthGuard)
 export class CampaignProspectAssignmentController {
   constructor(private readonly assignmentService: CampaignProspectAssignmentService) {}
 
@@ -117,6 +117,7 @@ export class CampaignProspectAssignmentController {
   }
 
   @Get('assignment')
+  @UseGuards(ClientAdminGuard)
   getCurrent(
     @CurrentAuth()
     auth: AuthContext,
@@ -131,6 +132,7 @@ export class CampaignProspectAssignmentController {
   }
 
   @Get('assignment-history')
+  @UseGuards(ClientAdminGuard)
   getHistory(
     @CurrentAuth()
     auth: AuthContext,

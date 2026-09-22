@@ -8,6 +8,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
+    "db:migrations:check": "node scripts/check-migration-integrity.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "build": "turbo run build",

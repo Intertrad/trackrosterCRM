@@ -1,6 +1,7 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
+import { configureHttpApplication } from '../src/config/http-application.js';
 import { randomUUID } from 'node:crypto';
 
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq } from 'drizzle-orm';
@@ -17,7 +18,11 @@ import { campaigns } from '../src/database/schema/campaigns.js';
 import { establishments } from '../src/database/schema/establishments.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { notifications } from '../src/database/schema/notifications.js';
-import { prospectFollowUps } from '../src/database/schema/prospect-follow-ups.js';
+import {
+  prospectFollowUps,
+  type ProspectFollowUpCategory,
+  type ProspectFollowUpChannel,
+} from '../src/database/schema/prospect-follow-ups.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
@@ -31,6 +36,7 @@ describe('Follow-up HTTP integration', () => {
   let tenantId = '';
   let organizationId = '';
   let teamId = '';
+  let otherTeamId = '';
   let establishmentId = '';
 
   let campaignId = '';
@@ -41,12 +47,21 @@ describe('Follow-up HTTP integration', () => {
   let secondProspectId = '';
   let secondAssignmentId = '';
 
+  let reassignedCampaignId = '';
+  let reassignedProspectId = '';
+  let formerTeamAssignmentId = '';
+  let currentOtherTeamAssignmentId = '';
+
   let prospectorAId = '';
   let prospectorBId = '';
+  let otherTeamProspectorId = '';
+  let organizationDirectorId = '';
   let noScopeUserId = '';
 
   let prospectorAToken = '';
   let prospectorBToken = '';
+  let otherTeamProspectorToken = '';
+  let organizationDirectorToken = '';
   let noScopeToken = '';
 
   const password = 'FollowUpProspector123!';
@@ -134,6 +149,10 @@ describe('Follow-up HTTP integration', () => {
     dueAt?: Date;
 
     assignedUserId?: string | null;
+
+    category?: ProspectFollowUpCategory;
+
+    channel?: ProspectFollowUpChannel | null;
   }): Promise<{
     statusCode: number;
 
@@ -153,6 +172,14 @@ describe('Follow-up HTTP integration', () => {
       payload.assignedUserId = input.assignedUserId;
     }
 
+    if (input && 'category' in input) {
+      payload.category = input.category;
+    }
+
+    if (input && 'channel' in input) {
+      payload.channel = input.channel;
+    }
+
     const response = await getApp().inject({
       method: 'POST',
 
@@ -170,6 +197,73 @@ describe('Follow-up HTTP integration', () => {
     };
   }
 
+  async function seedReassignedProspectHistory(): Promise<{
+    formerTeamFollowUpId: string;
+
+    currentTeamFollowUpId: string;
+  }> {
+    const formerTeamFollowUpId = randomUUID();
+
+    const currentTeamFollowUpId = randomUUID();
+
+    const now = Date.now();
+
+    await getDatabase()
+      .insert(prospectFollowUps)
+      .values([
+        {
+          id: formerTeamFollowUpId,
+
+          tenantId,
+
+          campaignId: reassignedCampaignId,
+
+          campaignProspectId: reassignedProspectId,
+
+          establishmentId,
+
+          assignmentId: formerTeamAssignmentId,
+
+          assignedUserId: prospectorAId,
+
+          createdBy: prospectorAId,
+
+          dueAt: new Date(now - 3_600_000),
+
+          status: 'completed',
+
+          completedAt: new Date(now - 1_800_000),
+        },
+        {
+          id: currentTeamFollowUpId,
+
+          tenantId,
+
+          campaignId: reassignedCampaignId,
+
+          campaignProspectId: reassignedProspectId,
+
+          establishmentId,
+
+          assignmentId: currentOtherTeamAssignmentId,
+
+          assignedUserId: otherTeamProspectorId,
+
+          createdBy: otherTeamProspectorId,
+
+          dueAt: new Date(now + 3_600_000),
+
+          status: 'pending',
+        },
+      ]);
+
+    return {
+      formerTeamFollowUpId,
+
+      currentTeamFollowUpId,
+    };
+  }
+
   beforeAll(async () => {
     const application = await NestFactory.create<NestFastifyApplication>(
       AppModule,
@@ -183,15 +277,7 @@ describe('Follow-up HTTP integration', () => {
       },
     );
 
-    application.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-
-        forbidNonWhitelisted: true,
-
-        transform: true,
-      }),
-    );
+    await configureHttpApplication(application);
 
     await application.init();
 
@@ -265,6 +351,27 @@ describe('Follow-up HTTP integration', () => {
     }
 
     teamId = team.id;
+
+    const [otherTeam] = await getDatabase()
+      .insert(teams)
+      .values({
+        tenantId,
+
+        organizationId,
+
+        name: 'Lyon Follow-up Team',
+
+        slug: `follow-up-lyon-${suffix}`,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!otherTeam) {
+      throw new Error('Failed to create second team');
+    }
+
+    otherTeamId = otherTeam.id;
 
     /*
      * Canonical establishment shared by both
@@ -431,14 +538,111 @@ describe('Follow-up HTTP integration', () => {
     secondAssignmentId = secondAssignment.id;
 
     /*
-     * Two exact-team prospectors and one active
-     * user without a prospector grant.
+     * Dedicated A -> B reassignment fixture used to
+     * prove that current-team access cannot reveal
+     * another team's historical follow-ups.
+     */
+    const [reassignedCampaign] = await getDatabase()
+      .insert(campaigns)
+      .values({
+        tenantId,
+
+        organizationId,
+
+        name: 'Reassigned Follow-up Campaign',
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!reassignedCampaign) {
+      throw new Error('Failed to create reassigned campaign');
+    }
+
+    reassignedCampaignId = reassignedCampaign.id;
+
+    const [reassignedProspect] = await getDatabase()
+      .insert(campaignProspects)
+      .values({
+        tenantId,
+
+        campaignId: reassignedCampaignId,
+
+        establishmentId,
+
+        status: 'active',
+      })
+      .returning();
+
+    if (!reassignedProspect) {
+      throw new Error('Failed to create reassigned prospect');
+    }
+
+    reassignedProspectId = reassignedProspect.id;
+
+    const transferAt = new Date(Date.now() - 60_000);
+
+    const [formerTeamAssignment] = await getDatabase()
+      .insert(campaignProspectAssignments)
+      .values({
+        tenantId,
+
+        campaignId: reassignedCampaignId,
+
+        campaignProspectId: reassignedProspectId,
+
+        organizationId,
+
+        teamId,
+
+        assignedUserId: null,
+
+        assignedAt: new Date(transferAt.getTime() - 60_000),
+
+        endedAt: transferAt,
+      })
+      .returning();
+
+    const [currentOtherTeamAssignment] = await getDatabase()
+      .insert(campaignProspectAssignments)
+      .values({
+        tenantId,
+
+        campaignId: reassignedCampaignId,
+
+        campaignProspectId: reassignedProspectId,
+
+        organizationId,
+
+        teamId: otherTeamId,
+
+        assignedUserId: null,
+
+        assignedAt: transferAt,
+      })
+      .returning();
+
+    if (!formerTeamAssignment || !currentOtherTeamAssignment) {
+      throw new Error('Failed to create reassignment history');
+    }
+
+    formerTeamAssignmentId = formerTeamAssignment.id;
+
+    currentOtherTeamAssignmentId = currentOtherTeamAssignment.id;
+
+    /*
+     * Prospectors in both teams, an organization
+     * director, and one active user without a grant.
      */
     const passwordHash = await passwordService.hash(password);
 
     const prospectorAEmail = `follow-up-a-${suffix}@trackroster.test`;
 
     const prospectorBEmail = `follow-up-b-${suffix}@trackroster.test`;
+
+    const otherTeamProspectorEmail = `follow-up-other-team-${suffix}@trackroster.test`;
+
+    const organizationDirectorEmail = `follow-up-director-${suffix}@trackroster.test`;
 
     const noScopeEmail = `follow-up-no-scope-${suffix}@trackroster.test`;
 
@@ -462,6 +666,26 @@ describe('Follow-up HTTP integration', () => {
       status: 'active',
     });
 
+    const otherTeamProspector = await userRepository.create({
+      tenantId,
+
+      email: otherTeamProspectorEmail,
+
+      passwordHash,
+
+      status: 'active',
+    });
+
+    const organizationDirector = await userRepository.create({
+      tenantId,
+
+      email: organizationDirectorEmail,
+
+      passwordHash,
+
+      status: 'active',
+    });
+
     const noScopeUser = await userRepository.create({
       tenantId,
 
@@ -475,6 +699,10 @@ describe('Follow-up HTTP integration', () => {
     prospectorAId = prospectorA.id;
 
     prospectorBId = prospectorB.id;
+
+    otherTeamProspectorId = otherTeamProspector.id;
+
+    organizationDirectorId = organizationDirector.id;
 
     noScopeUserId = noScopeUser.id;
 
@@ -494,9 +722,61 @@ describe('Follow-up HTTP integration', () => {
       });
     }
 
+    await grantRepository.create({
+      tenantId,
+
+      userId: otherTeamProspectorId,
+
+      role: 'prospector',
+
+      scopeType: 'team',
+
+      organizationId,
+
+      teamId: otherTeamId,
+    });
+
+    /*
+     * The same user also has a legitimate grant for
+     * the former team. Prospect history still uses
+     * the exact current-team scope rather than the
+     * union of every team the user can access.
+     */
+    await grantRepository.create({
+      tenantId,
+
+      userId: otherTeamProspectorId,
+
+      role: 'prospector',
+
+      scopeType: 'team',
+
+      organizationId,
+
+      teamId,
+    });
+
+    await grantRepository.create({
+      tenantId,
+
+      userId: organizationDirectorId,
+
+      role: 'director',
+
+      scopeType: 'organization',
+
+      organizationId,
+
+      teamId: null,
+    });
+
     prospectorAToken = (await login(prospectorAEmail)).accessToken;
 
     prospectorBToken = (await login(prospectorBEmail)).accessToken;
+
+    otherTeamProspectorToken = (await login(otherTeamProspectorEmail)).accessToken;
+
+    organizationDirectorToken = (await login(organizationDirectorEmail)).accessToken;
 
     noScopeToken = (await login(noScopeEmail)).accessToken;
 
@@ -524,6 +804,7 @@ describe('Follow-up HTTP integration', () => {
 
         await database.delete(teams).where(eq(teams.tenantId, tenantId));
 
+        await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantId));
         await database.delete(users).where(eq(users.tenantId, tenantId));
 
         await database.delete(organizations).where(eq(organizations.tenantId, tenantId));
@@ -535,6 +816,38 @@ describe('Follow-up HTTP integration', () => {
         await app.close();
       }
     }
+  });
+
+  it('rejects a follow-up tied to another campaign prospect assignment', async () => {
+    await expect(
+      getDatabase()
+        .insert(prospectFollowUps)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId: secondAssignmentId,
+
+          assignedUserId: null,
+
+          createdBy: prospectorAId,
+
+          dueAt: new Date(Date.now() + 86_400_000),
+
+          status: 'pending',
+        }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+
+        constraint: 'prospect_follow_ups_tenant_prospect_assignment_fk',
+      },
+    });
   });
 
   it('rejects follow-up creation without authentication', async () => {
@@ -573,6 +886,10 @@ describe('Follow-up HTTP integration', () => {
 
       status: 'pending',
 
+      category: 'follow_up',
+
+      channel: null,
+
       completedAt: null,
 
       cancelledAt: null,
@@ -600,6 +917,106 @@ describe('Follow-up HTTP integration', () => {
     expect(persisted?.createdBy).toBe(prospectorAId);
 
     expect(persisted?.assignedUserId).toBe(prospectorAId);
+
+    expect(persisted?.category).toBe('follow_up');
+
+    expect(persisted?.channel).toBeNull();
+  });
+
+  it('round-trips an explicit follow-up category and channel', async () => {
+    const created = await createFollowUpViaApi({
+      category: 'meeting',
+
+      channel: 'visit',
+    });
+
+    expect(created.statusCode).toBe(201);
+
+    expect(created.body).toMatchObject({
+      category: 'meeting',
+
+      channel: 'visit',
+    });
+
+    const [persisted] = await getDatabase()
+      .select({
+        category: prospectFollowUps.category,
+
+        channel: prospectFollowUps.channel,
+      })
+      .from(prospectFollowUps)
+      .where(eq(prospectFollowUps.id, created.body.id as string));
+
+    expect(persisted).toEqual({
+      category: 'meeting',
+
+      channel: 'visit',
+    });
+  });
+
+  it('accepts an explicit null follow-up channel', async () => {
+    const created = await createFollowUpViaApi({
+      category: 'todo',
+
+      channel: null,
+    });
+
+    expect(created.statusCode).toBe(201);
+
+    expect(created.body).toMatchObject({
+      category: 'todo',
+
+      channel: null,
+    });
+
+    const [persisted] = await getDatabase()
+      .select({
+        category: prospectFollowUps.category,
+
+        channel: prospectFollowUps.channel,
+      })
+      .from(prospectFollowUps)
+      .where(eq(prospectFollowUps.id, created.body.id as string));
+
+    expect(persisted).toEqual({
+      category: 'todo',
+
+      channel: null,
+    });
+  });
+
+  it.each([
+    {
+      description: 'an unsupported category',
+
+      fields: { category: 'reminder' },
+    },
+    {
+      description: 'a null category',
+
+      fields: { category: null },
+    },
+    {
+      description: 'an unsupported channel',
+
+      fields: { channel: 'sms' },
+    },
+  ])('rejects $description', async ({ fields }) => {
+    const response = await getApp().inject({
+      method: 'POST',
+
+      url: followUpUrl(),
+
+      headers: idempotentHeaders(prospectorAToken),
+
+      payload: {
+        dueAt: new Date(Date.now() + 86_400_000).toISOString(),
+
+        ...fields,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it('isolates notification inbox and mark-read access by authenticated recipient', async () => {
@@ -842,6 +1259,74 @@ describe('Follow-up HTTP integration', () => {
     expect(persistedB).toBeDefined();
 
     expect(persistedB?.readAt).toBeNull();
+
+    await getDatabase()
+      .insert(notifications)
+      .values({
+        ...notificationA,
+        id: randomUUID(),
+        readAt: null,
+        scheduledFor: new Date(Date.now() + 1000),
+      });
+    const versioned = await getApp().inject({
+      method: 'GET',
+      url: '/api/v1/notifications?limit=1',
+      headers: { authorization: `Bearer ${prospectorAToken}` },
+    });
+    expect(versioned.statusCode).toBe(200);
+    expect(versioned.json().items).toHaveLength(1);
+    expect(versioned.json().nextCursor).toBeTruthy();
+    const nextPage = await getApp().inject({
+      method: 'GET',
+      url: `/api/v1/notifications?limit=1&cursor=${versioned.json().nextCursor}`,
+      headers: { authorization: `Bearer ${prospectorAToken}` },
+    });
+    expect(nextPage.json().items).toHaveLength(1);
+    expect(nextPage.json().items[0].id).not.toBe(versioned.json().items[0].id);
+    const unread = await getApp().inject({
+      method: 'GET',
+      url: '/api/v1/notifications/unread-count',
+      headers: { authorization: `Bearer ${prospectorAToken}` },
+    });
+    expect(unread.json().count).toBeGreaterThan(0);
+    const readHeaders = {
+      authorization: `Bearer ${prospectorAToken}`,
+      'idempotency-key': randomUUID(),
+    };
+    const readAll = await getApp().inject({
+      method: 'POST',
+      url: '/api/v1/notifications/read-all',
+      headers: readHeaders,
+    });
+    expect(readAll.statusCode).toBe(200);
+    expect(readAll.json().updated).toBeGreaterThan(0);
+    const replay = await getApp().inject({
+      method: 'POST',
+      url: '/api/v1/notifications/read-all',
+      headers: readHeaders,
+    });
+    expect(replay.json()).toEqual(readAll.json());
+    expect(replay.headers['idempotency-replayed']).toBe('true');
+    expect(
+      (
+        await getApp().inject({
+          method: 'GET',
+          url: '/api/v1/notifications/unread-count',
+          headers: readHeaders,
+        })
+      ).json().count,
+    ).toBe(0);
+    const foreignRead = await getApp().inject({
+      method: 'POST',
+      url: `/api/v1/notifications/${notificationB.id}/read`,
+      headers: { ...readHeaders, 'idempotency-key': randomUUID() },
+    });
+    expect(foreignRead.statusCode).toBe(404);
+    const [unchangedB] = await getDatabase()
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationB.id));
+    expect(unchangedB?.readAt).toBeNull();
   });
 
   it('rejects a past due date', async () => {
@@ -1082,6 +1567,96 @@ describe('Follow-up HTTP integration', () => {
     });
   });
 
+  it('does not expose former-team history through the current team even with both grants', async () => {
+    const { formerTeamFollowUpId, currentTeamFollowUpId } = await seedReassignedProspectHistory();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: followUpUrl(reassignedCampaignId, reassignedProspectId),
+
+      headers: {
+        authorization: `Bearer ${otherTeamProspectorToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      items: Array<{
+        id: string;
+
+        assignedUserId: string | null;
+
+        createdBy: string;
+      }>;
+    };
+
+    const ids = body.items.map((item) => item.id);
+
+    expect(ids).toContain(currentTeamFollowUpId);
+
+    expect(ids).not.toContain(formerTeamFollowUpId);
+
+    expect(body.items).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          createdBy: prospectorAId,
+        }),
+      ]),
+    );
+  });
+
+  it('keeps broader organization history available to an authorized director', async () => {
+    const { formerTeamFollowUpId, currentTeamFollowUpId } = await seedReassignedProspectHistory();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: followUpUrl(reassignedCampaignId, reassignedProspectId),
+
+      headers: {
+        authorization: `Bearer ${organizationDirectorToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      items: Array<{
+        id: string;
+      }>;
+    };
+
+    const ids = body.items.map((item) => item.id);
+
+    expect(ids).toContain(formerTeamFollowUpId);
+
+    expect(ids).toContain(currentTeamFollowUpId);
+  });
+
+  it('masks reassigned prospect history from the former team', async () => {
+    await seedReassignedProspectHistory();
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: followUpUrl(reassignedCampaignId, reassignedProspectId),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+
+    expect(JSON.parse(response.payload)).toMatchObject({
+      statusCode: 404,
+
+      message: 'Campaign prospect not found',
+    });
+  });
+
   it('returns only actionable overdue work owned by the caller or their team', async () => {
     const overdueSelfId = randomUUID();
 
@@ -1214,7 +1789,7 @@ describe('Follow-up HTTP integration', () => {
     const overdueResponse = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups?overdue=true',
+      url: `/follow-ups?teamId=${teamId}&overdue=true`,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -1246,7 +1821,7 @@ describe('Follow-up HTTP integration', () => {
     const upcomingResponse = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups?overdue=false',
+      url: `/follow-ups?teamId=${teamId}&overdue=false`,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -1268,11 +1843,106 @@ describe('Follow-up HTTP integration', () => {
     expect(upcomingIds).not.toContain(overdueSelfId);
   });
 
+  it('does not leak a personal follow-up from another team into the selected team queue', async () => {
+    const selectedTeamFollowUpId = randomUUID();
+
+    const foreignTeamFollowUpId = randomUUID();
+
+    const dueAt = new Date(Date.now() + 3_600_000);
+
+    await getDatabase()
+      .insert(prospectFollowUps)
+      .values([
+        {
+          id: selectedTeamFollowUpId,
+
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospectId,
+
+          establishmentId,
+
+          assignmentId,
+
+          assignedUserId: prospectorAId,
+
+          createdBy: prospectorAId,
+
+          dueAt,
+
+          status: 'pending',
+        },
+        {
+          id: foreignTeamFollowUpId,
+
+          tenantId,
+
+          campaignId: reassignedCampaignId,
+
+          campaignProspectId: reassignedProspectId,
+
+          establishmentId,
+
+          assignmentId: currentOtherTeamAssignmentId,
+
+          /*
+           * Models a stale personal assignment after
+           * the caller's other-team grant was revoked.
+           */
+          assignedUserId: prospectorAId,
+
+          createdBy: prospectorAId,
+
+          dueAt,
+
+          status: 'pending',
+        },
+      ]);
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/follow-ups?teamId=${teamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as {
+      items: Array<{
+        id: string;
+      }>;
+    };
+
+    const ids = body.items.map((item) => item.id);
+
+    expect(ids).toContain(selectedTeamFollowUpId);
+
+    expect(ids).not.toContain(foreignTeamFollowUpId);
+
+    const foreignWorkspaceResponse = await getApp().inject({
+      method: 'GET',
+
+      url: `/follow-ups?teamId=${otherTeamId}`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(foreignWorkspaceResponse.statusCode).toBe(403);
+  });
+
   it('rejects the operational queue for a user without a prospector team grant', async () => {
     const response = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups',
+      url: `/follow-ups?teamId=${teamId}`,
 
       headers: {
         authorization: `Bearer ${noScopeToken}`,
@@ -1538,7 +2208,7 @@ describe('Follow-up HTTP integration', () => {
       const queueResponse = await getApp().inject({
         method: 'GET',
 
-        url: '/follow-ups',
+        url: `/follow-ups?teamId=${teamId}`,
 
         headers: {
           authorization: `Bearer ${prospectorBToken}`,
@@ -1595,7 +2265,7 @@ describe('Follow-up HTTP integration', () => {
     const response = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups?limit=2',
+      url: `/follow-ups?teamId=${teamId}&limit=2`,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -1612,10 +2282,22 @@ describe('Follow-up HTTP integration', () => {
   });
 
   it('rejects invalid queue filters', async () => {
+    const missingTeam = await getApp().inject({
+      method: 'GET',
+
+      url: '/follow-ups',
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(missingTeam.statusCode).toBe(400);
+
     const invalidLimit = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups?limit=101',
+      url: `/follow-ups?teamId=${teamId}&limit=101`,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,
@@ -1627,7 +2309,7 @@ describe('Follow-up HTTP integration', () => {
     const invalidOverdue = await getApp().inject({
       method: 'GET',
 
-      url: '/follow-ups?overdue=maybe',
+      url: `/follow-ups?teamId=${teamId}&overdue=maybe`,
 
       headers: {
         authorization: `Bearer ${prospectorAToken}`,

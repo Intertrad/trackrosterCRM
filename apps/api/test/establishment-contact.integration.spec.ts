@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -186,6 +187,7 @@ describe('Establishment contact HTTP integration', () => {
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantAId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantAId));
           await database.delete(users).where(eq(users.tenantId, tenantAId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantAId));
@@ -198,6 +200,7 @@ describe('Establishment contact HTTP integration', () => {
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantBId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantBId));
           await database.delete(users).where(eq(users.tenantId, tenantBId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantBId));

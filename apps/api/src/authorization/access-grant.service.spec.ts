@@ -94,6 +94,7 @@ describe('AccessGrantService', () => {
   beforeEach(() => {
     transaction = {
       transaction: true,
+      execute: vi.fn().mockResolvedValue({ rows: [{ target_is_admin: true, other_admins: 1 }] }),
     };
 
     database = {

@@ -14,7 +14,7 @@ import { campaignProspects } from './campaign-prospects.js';
 import { campaigns } from './campaigns.js';
 import { teams } from './teams.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const campaignProspectAssignments = pgTable(
   'campaign_prospect_assignments',
@@ -76,6 +76,17 @@ export const campaignProspectAssignments = pgTable(
     unique('campaign_prospect_assignments_tenant_id_id_unique').on(table.tenantId, table.id),
 
     /*
+     * Allows child history rows to prove that an
+     * assignment belongs to the exact campaign
+     * prospect they record.
+     */
+    unique('campaign_prospect_assignments_tenant_prospect_id_unique').on(
+      table.tenantId,
+      table.campaignProspectId,
+      table.id,
+    ),
+
+    /*
      * Campaign + prospect must represent the
      * same campaign membership.
      */
@@ -133,7 +144,7 @@ export const campaignProspectAssignments = pgTable(
 
       columns: [table.tenantId, table.assignedUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

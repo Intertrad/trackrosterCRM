@@ -1,3 +1,4 @@
+import { rethrowConsentBlock } from '../consents/consent-error.js';
 import {
   ConflictException,
   ForbiddenException,
@@ -175,6 +176,7 @@ export class ProspectActivityService {
         );
       });
     } catch (error: unknown) {
+      rethrowConsentBlock(error);
       /*
        * Assignment movement is an expected domain
        * conflict and must not be disguised as an

@@ -764,6 +764,54 @@ describe('Manager override HTTP integration', () => {
     }
   });
 
+  it('rejects an override tied to another campaign prospect assignment', async () => {
+    await resetState();
+
+    await expect(
+      getDatabase()
+        .insert(collisionOverrides)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId,
+
+          establishmentId,
+
+          assignmentId: secondAssignmentId,
+
+          organizationId,
+
+          teamId,
+
+          prospectorUserId: prospectorAId,
+
+          approvedByUserId: managerId,
+
+          approvedByRole: 'manager',
+
+          reasonCode: 'PLANNED_ACTION',
+
+          conflictKey: `planned_action:${randomUUID()}`,
+
+          conflictSnapshot: {
+            source: 'assignment-context-integration-test',
+          },
+
+          reason: 'Approved only to verify assignment-context database enforcement.',
+
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+
+        constraint: 'collision_overrides_tenant_prospect_assignment_fk',
+      },
+    });
+  });
+
   it('rejects override creation without authentication', async () => {
     await resetState();
 

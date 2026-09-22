@@ -1,4 +1,5 @@
 export interface ProspectReservation {
+  overrideId?: string;
   reservationId: string;
 
   tenantId: string;

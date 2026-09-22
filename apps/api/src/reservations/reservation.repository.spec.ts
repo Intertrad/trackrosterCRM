@@ -129,7 +129,12 @@ describe('ReservationRepository', () => {
       repository.buildOrganizationCollisionKey(tenantId, organizationCId, establishmentId),
     );
 
-    expect(options.arguments).toEqual([JSON.stringify(reservation), '1200']);
+    expect(options.arguments).toEqual([
+      JSON.stringify(reservation),
+      '1200',
+      String(Date.parse(reservation.expiresAt)),
+    ]);
+    expect(options.keys).toContain(repository.buildCollisionKey(tenantId, establishmentId));
   });
 
   it('writes only the target organization lock while checking the whole coordination scope', async () => {
@@ -176,7 +181,7 @@ describe('ReservationRepository', () => {
      * +
      * organization B collision key
      */
-    expect(options.keys).toHaveLength(3);
+    expect(options.keys).toHaveLength(4);
 
     expect(new Set(options.keys).size).toBe(options.keys.length);
   });

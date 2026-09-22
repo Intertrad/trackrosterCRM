@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 /*
  * Audit actors are intentionally limited to
@@ -117,7 +117,7 @@ export const auditEvents = pgTable(
 
       columns: [table.tenantId, table.actorUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

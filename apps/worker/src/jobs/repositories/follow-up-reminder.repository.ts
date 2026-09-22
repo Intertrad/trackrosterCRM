@@ -185,6 +185,8 @@ export class FollowUpReminderRepository {
 
             AND
             follow_up.id = $4
+            AND NOT trackroster_consent_blocked(follow_up.tenant_id,follow_up.establishment_id,
+              CASE follow_up.channel::text WHEN 'call' THEN 'phone' WHEN 'message' THEN 'sms' ELSE follow_up.channel::text END)
 
           LIMIT 1
         `,
@@ -211,28 +213,32 @@ export class FollowUpReminderRepository {
       const result = await this.pool.query<RecipientRow>(
         `
             SELECT DISTINCT
-              users.id
+              membership.id
                 AS "userId"
 
-            FROM users
+            FROM tenant_memberships AS membership
+            INNER JOIN identities AS identity
+              ON identity.id = membership.identity_id AND identity.status = 'active'
+            INNER JOIN tenants AS tenant
+              ON tenant.id = membership.tenant_id AND tenant.status = 'active'
 
             INNER JOIN user_access_grants
               AS access_grant
               ON
                 access_grant.tenant_id =
-                  users.tenant_id
+                  membership.tenant_id
                 AND
                 access_grant.user_id =
-                  users.id
+                  membership.id
 
             WHERE
-              users.tenant_id = $1
+              membership.tenant_id = $1
 
               AND
-              users.id = $2
+              membership.id = $2
 
               AND
-              users.status = 'active'
+              membership.status = 'active'
 
               AND
               access_grant.role = 'prospector'
@@ -255,25 +261,29 @@ export class FollowUpReminderRepository {
     const result = await this.pool.query<RecipientRow>(
       `
           SELECT DISTINCT
-            users.id
+            membership.id
               AS "userId"
 
-          FROM users
+          FROM tenant_memberships AS membership
+            INNER JOIN identities AS identity
+              ON identity.id = membership.identity_id AND identity.status = 'active'
+            INNER JOIN tenants AS tenant
+              ON tenant.id = membership.tenant_id AND tenant.status = 'active'
 
           INNER JOIN user_access_grants
             AS access_grant
             ON
               access_grant.tenant_id =
-                users.tenant_id
+                membership.tenant_id
               AND
               access_grant.user_id =
-                users.id
+                membership.id
 
           WHERE
-            users.tenant_id = $1
+            membership.tenant_id = $1
 
             AND
-            users.status = 'active'
+            membership.status = 'active'
 
             AND
             access_grant.role = 'prospector'
@@ -288,7 +298,7 @@ export class FollowUpReminderRepository {
             access_grant.team_id = $3
 
           ORDER BY
-            users.id
+            membership.id
         `,
       [context.tenantId, context.organizationId, context.teamId],
     );
@@ -339,6 +349,9 @@ export class FollowUpReminderRepository {
           FROM unnest(
             $6::uuid[]
           ) AS recipient(user_id)
+          WHERE EXISTS (SELECT 1 FROM prospect_follow_ups f WHERE f.tenant_id=$1 AND f.id=$2
+            AND NOT trackroster_consent_blocked(f.tenant_id,f.establishment_id,
+              CASE f.channel::text WHEN 'call' THEN 'phone' WHEN 'message' THEN 'sms' ELSE f.channel::text END))
 
           ON CONFLICT (
             tenant_id,

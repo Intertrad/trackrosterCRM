@@ -19,7 +19,7 @@ import { campaigns } from './campaigns.js';
 import { teams } from './teams.js';
 import { tenants } from './tenants.js';
 import { userRoleEnum } from './user-access-grants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 /*
  * Only collisions that may legitimately be
@@ -207,18 +207,19 @@ export const collisionOverrides = pgTable(
 
     /*
      * Assignment referenced by the override must
-     * belong to the same tenant.
-     *
-     * The service will additionally verify that
-     * this assignment is still the current exact
-     * prospect assignment during consumption.
+     * belong to the same tenant and exact campaign
+     * prospect.
      */
     foreignKey({
-      name: 'collision_overrides_tenant_assignment_fk',
+      name: 'collision_overrides_tenant_prospect_assignment_fk',
 
-      columns: [table.tenantId, table.assignmentId],
+      columns: [table.tenantId, table.campaignProspectId, table.assignmentId],
 
-      foreignColumns: [campaignProspectAssignments.tenantId, campaignProspectAssignments.id],
+      foreignColumns: [
+        campaignProspectAssignments.tenantId,
+        campaignProspectAssignments.campaignProspectId,
+        campaignProspectAssignments.id,
+      ],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -232,7 +233,7 @@ export const collisionOverrides = pgTable(
 
       columns: [table.tenantId, table.prospectorUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -245,7 +246,7 @@ export const collisionOverrides = pgTable(
 
       columns: [table.tenantId, table.approvedByUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -311,6 +312,16 @@ export const collisionOverrides = pgTable(
       table.tenantId,
       table.campaignProspectId,
       table.prospectorUserId,
+    ),
+
+    /*
+     * Supports assignment-scoped joins and the
+     * composite assignment-context foreign key.
+     */
+    index('collision_overrides_tenant_assignment_prospect_idx').on(
+      table.tenantId,
+      table.assignmentId,
+      table.campaignProspectId,
     ),
 
     /*

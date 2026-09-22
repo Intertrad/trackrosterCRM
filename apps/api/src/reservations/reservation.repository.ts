@@ -125,11 +125,19 @@ export class ReservationRepository {
         ),
       );
 
-    const keys = [reservationKey, targetCollisionKey, ...otherBlockingCollisionKeys];
+    const keys = [
+      reservationKey,
+      targetCollisionKey,
+      ...otherBlockingCollisionKeys,
+      this.buildCollisionKey(reservation.tenantId, reservation.establishmentId),
+    ];
 
     const value = JSON.stringify(reservation);
 
     const script = `
+      local now=redis.call('TIME')
+      local nowMillis=tonumber(now[1])*1000+math.floor(tonumber(now[2])/1000)
+      if tonumber(ARGV[3])<=nowMillis then return 0 end
       if redis.call('EXISTS', KEYS[1]) == 1 then
         return 0
       end
@@ -144,16 +152,16 @@ export class ReservationRepository {
         'SET',
         KEYS[1],
         ARGV[1],
-        'EX',
-        ARGV[2]
+        'PXAT',
+        ARGV[3]
       )
 
       redis.call(
         'SET',
         KEYS[2],
         ARGV[1],
-        'EX',
-        ARGV[2]
+        'PXAT',
+        ARGV[3]
       )
 
       return 1
@@ -162,7 +170,7 @@ export class ReservationRepository {
     const result = await client.eval(script, {
       keys,
 
-      arguments: [value, String(ttlSeconds)],
+      arguments: [value, String(ttlSeconds), String(Date.parse(reservation.expiresAt))],
     });
 
     return Number(result) === 1;
@@ -392,6 +400,60 @@ export class ReservationRepository {
       arguments: [reservationId, organizationId],
     });
 
+    return Number(result) === 1;
+  }
+
+  async renewOrganizationScoped(
+    current: ProspectReservation,
+    next: ProspectReservation,
+    blockingOrganizationIds: string[],
+  ): Promise<boolean> {
+    const keys = [
+      this.buildKey(current.tenantId, current.campaignId, current.campaignProspectId),
+      this.buildOrganizationCollisionKey(
+        current.tenantId,
+        current.organizationId,
+        current.establishmentId,
+      ),
+      this.buildCollisionKey(current.tenantId, current.establishmentId),
+      ...[...new Set(blockingOrganizationIds)]
+        .filter((id) => id !== current.organizationId)
+        .sort()
+        .map((id) =>
+          this.buildOrganizationCollisionKey(current.tenantId, id, current.establishmentId),
+        ),
+    ];
+    const result = await this.redisService.getClient().eval(
+      `
+      local exact=redis.call('GET',KEYS[1])
+      local own=redis.call('GET',KEYS[2])
+      if not exact or not own then return 0 end
+      local lease=cjson.decode(exact)
+      local collision=cjson.decode(own)
+      if lease.reservationId~=ARGV[1] or collision.reservationId~=ARGV[1] or lease.userId~=ARGV[2] or lease.expiresAt~=ARGV[3] then return 0 end
+      for i=3,#KEYS do
+        local other=redis.call('GET',KEYS[i])
+        if other and cjson.decode(other).reservationId~=ARGV[1] then return 0 end
+      end
+      local now=redis.call('TIME')
+      local nowMillis=tonumber(now[1])*1000+math.floor(tonumber(now[2])/1000)
+      if tonumber(ARGV[6])<=nowMillis or tonumber(ARGV[5])<=tonumber(ARGV[6]) then return 0 end
+      redis.call('SET',KEYS[1],ARGV[4],'PXAT',ARGV[5])
+      redis.call('SET',KEYS[2],ARGV[4],'PXAT',ARGV[5])
+      return 1
+    `,
+      {
+        keys,
+        arguments: [
+          current.reservationId,
+          current.userId,
+          current.expiresAt,
+          JSON.stringify(next),
+          String(Date.parse(next.expiresAt)),
+          String(Date.parse(current.expiresAt)),
+        ],
+      },
+    );
     return Number(result) === 1;
   }
 

@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -402,6 +403,7 @@ describe('Region and PostGIS integration', () => {
 
           await getDatabase().delete(regions).where(eq(regions.tenantId, tenantAId));
 
+          await clearSessionEvidenceForUsers(getDatabase(), eq(users.tenantId, tenantAId));
           await getDatabase().delete(users).where(eq(users.tenantId, tenantAId));
 
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantAId));
@@ -412,6 +414,7 @@ describe('Region and PostGIS integration', () => {
 
           await getDatabase().delete(regions).where(eq(regions.tenantId, tenantBId));
 
+          await clearSessionEvidenceForUsers(getDatabase(), eq(users.tenantId, tenantBId));
           await getDatabase().delete(users).where(eq(users.tenantId, tenantBId));
 
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantBId));

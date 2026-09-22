@@ -1,3 +1,5 @@
+import { auditEvents } from '../src/database/schema/audit-events.js';
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -551,6 +553,8 @@ describe('Reservation HTTP integration', () => {
 
         await database.delete(teams).where(eq(teams.tenantId, tenantId));
 
+        await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
+        await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantId));
         await database.delete(users).where(eq(users.tenantId, tenantId));
 
         await database.delete(organizations).where(eq(organizations.tenantId, tenantId));
@@ -1788,6 +1792,36 @@ describe('Reservation HTTP integration', () => {
    * Immutable contact history requires
    * active reservation ownership.
    */
+  it('rejects activity evidence tied to another campaign prospect assignment', async () => {
+    await clearActivityHistory();
+
+    await expect(
+      getDatabase().insert(prospectActivities).values({
+        tenantId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+
+        establishmentId,
+
+        assignmentId: secondAssignmentId,
+
+        userId: prospectorAId,
+
+        reservationId: randomUUID(),
+
+        type: 'call',
+      }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+
+        constraint: 'prospect_activities_tenant_prospect_assignment_fk',
+      },
+    });
+  });
+
   it('rejects activity recording without an active reservation', async () => {
     await clearReservation();
 

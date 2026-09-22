@@ -62,7 +62,7 @@ Important technical decisions are documented using ADRs.
 - ADR-002 — PostgreSQL and PostGIS
 - ADR-003 — Multi-Tenancy
 - ADR-004 — Reservation Concurrency
-- ADR-005 — Monorepo
+- [ADR-005 — Identity, Tenant Membership, and Support Access](./decisions/ADR-005-identity-tenancy-and-support-access.md)
 
 ---
 
@@ -80,6 +80,18 @@ Important technical decisions are documented using ADRs.
 - [Environments](./operations/ENVIRONMENTS.md)
 - [Backup & Restore](./operations/BACKUP_RESTORE.md)
 - [Incident Response](./operations/INCIDENT_RESPONSE.md)
+
+---
+
+## Production Readiness
+
+- [Production readiness index](./production/README.md)
+- [Schema source of truth](./production/SCHEMA_SOURCE_OF_TRUTH.md)
+- [Implemented API inventory](./production/API_INVENTORY.md)
+- [Product/backend coverage](./production/PRODUCT_BACKEND_COVERAGE.md)
+- [Identity and access migration plan](./production/IDENTITY_ACCESS_MIGRATION_PLAN.md)
+- [Identity Phase A deployment runbook](./production/IDENTITY_PHASE_A_RUNBOOK.md)
+- [Identity Phase B deployment runbook](./production/IDENTITY_PHASE_B_RUNBOOK.md)
 
 ---
 

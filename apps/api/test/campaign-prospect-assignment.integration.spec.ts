@@ -403,7 +403,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it('rejects assignment for a non-admin user', async () => {
+  it('rejects assignment for a user without assignment authority', async () => {
     const response = await getApp().inject({
       method: 'POST',
 
@@ -411,6 +411,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${regularAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {

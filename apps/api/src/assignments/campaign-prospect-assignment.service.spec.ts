@@ -20,6 +20,8 @@ describe('CampaignProspectAssignmentService', () => {
 
     findCurrent: ReturnType<typeof vi.fn>;
 
+    findCurrentForUpdate: ReturnType<typeof vi.fn>;
+
     findHistory: ReturnType<typeof vi.fn>;
 
     endCurrent: ReturnType<typeof vi.fn>;
@@ -34,7 +36,8 @@ describe('CampaignProspectAssignmentService', () => {
   };
 
   let teamRepository: {
-    findById: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
+    findByIdForShare: ReturnType<typeof vi.fn>;
   };
 
   let userRepository: {
@@ -43,6 +46,8 @@ describe('CampaignProspectAssignmentService', () => {
 
   let authorizationService: {
     getUserGrants: ReturnType<typeof vi.fn>;
+
+    getAssignmentAuthority: ReturnType<typeof vi.fn>;
   };
 
   let auditService: {
@@ -131,6 +136,9 @@ describe('CampaignProspectAssignmentService', () => {
     database.transaction.mockImplementation(async (callback: (transaction: object) => unknown) =>
       callback({
         transaction: true,
+        execute: vi
+          .fn()
+          .mockResolvedValue({ rows: [{ eligible: true, capacity: null, workload: 0 }] }),
       }),
     );
 
@@ -138,6 +146,8 @@ describe('CampaignProspectAssignmentService', () => {
       create: vi.fn(),
 
       findCurrent: vi.fn(),
+
+      findCurrentForUpdate: vi.fn(),
 
       findHistory: vi.fn(),
 
@@ -153,6 +163,9 @@ describe('CampaignProspectAssignmentService', () => {
     };
 
     teamRepository = {
+      findByIdForShare: vi
+        .fn()
+        .mockImplementation((tenantId, teamId) => teamRepository.findById(tenantId, teamId)),
       findById: vi.fn(),
     };
 
@@ -162,6 +175,8 @@ describe('CampaignProspectAssignmentService', () => {
 
     authorizationService = {
       getUserGrants: vi.fn(),
+
+      getAssignmentAuthority: vi.fn().mockResolvedValue('client_admin'),
     };
 
     auditService = {
@@ -459,6 +474,73 @@ describe('CampaignProspectAssignmentService', () => {
     expect(assignmentRepository.create).not.toHaveBeenCalled();
   });
 
+  it('allows a manager to assign within their exact team scope', async () => {
+    mockValidContext();
+
+    authorizationService.getAssignmentAuthority.mockResolvedValue('manager');
+
+    assignmentRepository.findCurrent.mockResolvedValue(null);
+
+    assignmentRepository.create.mockResolvedValue({
+      ...assignment,
+      assignedUserId: null,
+    });
+
+    await service.assign({
+      tenantId,
+      actorUserId: userId,
+      campaignId,
+      campaignProspectId: prospectId,
+      teamId,
+    });
+
+    expect(authorizationService.getAssignmentAuthority).toHaveBeenCalledWith(
+      tenantId,
+      userId,
+      organizationId,
+      teamId,
+    );
+  });
+
+  it('rejects assignment when the actor cannot manage the target team', async () => {
+    mockValidContext();
+
+    authorizationService.getAssignmentAuthority.mockResolvedValue(null);
+
+    await expect(
+      service.assign({
+        tenantId,
+        actorUserId: userId,
+        campaignId,
+        campaignProspectId: prospectId,
+        teamId,
+      }),
+    ).rejects.toThrow('Assignment management access required for selected team');
+
+    expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
+    expect(assignmentRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a target team deactivated after validation but before the write lock', async () => {
+    mockValidContext();
+    teamRepository.findByIdForShare.mockResolvedValue({
+      id: teamId,
+      tenantId,
+      organizationId,
+      status: 'inactive',
+    });
+    await expect(
+      service.assign({
+        tenantId,
+        actorUserId: userId,
+        campaignId,
+        campaignProspectId: prospectId,
+        teamId,
+      }),
+    ).rejects.toThrow('Team is not active');
+    expect(assignmentRepository.create).not.toHaveBeenCalled();
+  });
+
   it('reassigns by ending the current assignment and creating another inside one transaction', async () => {
     mockValidContext();
 
@@ -483,7 +565,7 @@ describe('CampaignProspectAssignmentService', () => {
       },
     ]);
 
-    assignmentRepository.findCurrent.mockResolvedValue(assignment);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(assignment);
 
     assignmentRepository.endCurrent.mockResolvedValue({
       ...assignment,
@@ -531,6 +613,8 @@ describe('CampaignProspectAssignmentService', () => {
 
       endedAt: new Date('2026-09-14T12:00:00.000Z'),
     };
+
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(assignment);
 
     assignmentRepository.endCurrent.mockResolvedValue(endedAssignment);
 
@@ -594,11 +678,7 @@ describe('CampaignProspectAssignmentService', () => {
   });
 
   it('rejects concurrent or repeated unassignment without writing audit evidence', async () => {
-    campaignRepository.findById.mockResolvedValue(campaign);
-
-    campaignProspectRepository.findById.mockResolvedValue(prospect);
-
-    assignmentRepository.endCurrent.mockResolvedValue(null);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(null);
 
     await expect(
       service.unassign({

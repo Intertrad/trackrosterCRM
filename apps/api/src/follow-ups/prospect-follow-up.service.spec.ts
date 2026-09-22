@@ -78,6 +78,10 @@ describe('ProspectFollowUpService', () => {
 
     dueAt: futureDueAt,
 
+    category: 'follow_up' as const,
+
+    channel: null,
+
     status: 'pending' as const,
 
     completedAt: null,
@@ -204,6 +208,10 @@ describe('ProspectFollowUpService', () => {
 
         dueAt: futureDueAt,
 
+        category: 'follow_up',
+
+        channel: null,
+
         status: 'pending',
 
         completedAt: null,
@@ -246,6 +254,10 @@ describe('ProspectFollowUpService', () => {
       assignedUserId: userId,
 
       createdBy: userId,
+
+      category: 'follow_up',
+
+      channel: null,
 
       status: 'pending',
     });
@@ -361,6 +373,46 @@ describe('ProspectFollowUpService', () => {
     });
   });
 
+  it('persists and returns an explicit category and channel', async () => {
+    followUpRepository.create.mockResolvedValue({
+      ...followUp,
+
+      category: 'meeting',
+
+      channel: 'call',
+    });
+
+    const result = await service.create({
+      tenantId,
+
+      userId,
+
+      campaignId,
+
+      campaignProspectId,
+
+      dueAt: futureDueAt,
+
+      category: 'meeting',
+
+      channel: 'call',
+    });
+
+    expect(followUpRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'meeting',
+
+        channel: 'call',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      category: 'meeting',
+
+      channel: 'call',
+    });
+  });
+
   it('rejects assigning a follow-up to another user', async () => {
     await expect(
       service.create({
@@ -453,6 +505,10 @@ describe('ProspectFollowUpService', () => {
     expect(result.dueAt).toBe(laterDueAt.toISOString());
 
     expect(result.status).toBe('pending');
+
+    expect(result.category).toBe('follow_up');
+
+    expect(result.channel).toBeNull();
   });
 
   it('fails closed when reminder scheduling fails during create', async () => {
@@ -529,6 +585,10 @@ describe('ProspectFollowUpService', () => {
     expect(result.completedAt).toEqual(expect.any(String));
 
     expect(result.cancelledAt).toBeNull();
+
+    expect(result.category).toBe('follow_up');
+
+    expect(result.channel).toBeNull();
   });
 
   it('cancels a pending follow-up without scheduling another reminder', async () => {
@@ -563,6 +623,10 @@ describe('ProspectFollowUpService', () => {
     expect(result.cancelledAt).toEqual(expect.any(String));
 
     expect(result.completedAt).toBeNull();
+
+    expect(result.category).toBe('follow_up');
+
+    expect(result.channel).toBeNull();
   });
 
   it('allows an eligible prospector to mutate a team-owned follow-up', async () => {
@@ -632,7 +696,7 @@ describe('ProspectFollowUpService', () => {
 
         followUpId,
       }),
-    ).rejects.toBeInstanceOf(ConflictException);
+    ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(followUpRepository.cancelPending).not.toHaveBeenCalled();
   });

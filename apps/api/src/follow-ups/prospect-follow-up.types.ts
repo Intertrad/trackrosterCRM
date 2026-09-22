@@ -1,5 +1,7 @@
 import type {
   ProspectFollowUp,
+  ProspectFollowUpCategory,
+  ProspectFollowUpChannel,
   ProspectFollowUpStatus,
 } from '../database/schema/prospect-follow-ups.js';
 
@@ -17,6 +19,10 @@ export interface PublicProspectFollowUp {
   createdBy: string;
 
   dueAt: string;
+
+  category: ProspectFollowUpCategory;
+
+  channel: ProspectFollowUpChannel | null;
 
   status: ProspectFollowUpStatus;
 
@@ -48,6 +54,10 @@ export function toPublicProspectFollowUp(followUp: ProspectFollowUp): PublicPros
     createdBy: followUp.createdBy,
 
     dueAt: followUp.dueAt.toISOString(),
+
+    category: followUp.category,
+
+    channel: followUp.channel,
 
     status: followUp.status,
 

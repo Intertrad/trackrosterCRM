@@ -1,3 +1,6 @@
+import { ReservationPolicyModule } from '../reservations/reservation-policy.module.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { PlannedActionCollisionRepository } from './planned-action-collision.repository.js';
 import { Module } from '@nestjs/common';
 
 import { ActivityRepositoryModule } from '../activities/activity-repository.module.js';
@@ -9,6 +12,8 @@ import { CollisionBusinessDecisionService } from './collision-business-decision.
 
 @Module({
   imports: [
+    DatabaseModule,
+    ReservationPolicyModule,
     CoolingOffModule,
 
     FollowUpRepositoryModule,
@@ -20,7 +25,7 @@ import { CollisionBusinessDecisionService } from './collision-business-decision.
     CoordinationPolicyModule,
   ],
 
-  providers: [CollisionBusinessDecisionService],
+  providers: [CollisionBusinessDecisionService, PlannedActionCollisionRepository],
 
   exports: [CollisionBusinessDecisionService],
 })

@@ -3,7 +3,7 @@ import { foreignKey, index, pgEnum, pgTable, timestamp, unique, uuid } from 'dri
 import { campaignProspectAssignments } from './campaign-prospect-assignments.js';
 import { campaignProspects } from './campaign-prospects.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const prospectActivityTypeEnum = pgEnum('prospect_activity_type', [
   'call',
@@ -120,19 +120,19 @@ export const prospectActivities = pgTable(
       .onUpdate('cascade'),
 
     /*
-     * Assignment must belong to the same tenant.
-     *
-     * The service will also verify that this is
-     * the current assignment for the exact
-     * campaign prospect before recording an
-     * activity.
+     * Assignment must belong to the same tenant
+     * and exact campaign prospect.
      */
     foreignKey({
-      name: 'prospect_activities_tenant_assignment_fk',
+      name: 'prospect_activities_tenant_prospect_assignment_fk',
 
-      columns: [table.tenantId, table.assignmentId],
+      columns: [table.tenantId, table.campaignProspectId, table.assignmentId],
 
-      foreignColumns: [campaignProspectAssignments.tenantId, campaignProspectAssignments.id],
+      foreignColumns: [
+        campaignProspectAssignments.tenantId,
+        campaignProspectAssignments.campaignProspectId,
+        campaignProspectAssignments.id,
+      ],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -145,7 +145,7 @@ export const prospectActivities = pgTable(
 
       columns: [table.tenantId, table.userId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -169,6 +169,16 @@ export const prospectActivities = pgTable(
       table.tenantId,
       table.campaignProspectId,
       table.occurredAt,
+    ),
+
+    /*
+     * Supports assignment-scoped joins and the
+     * composite assignment-context foreign key.
+     */
+    index('prospect_activities_tenant_assignment_prospect_idx').on(
+      table.tenantId,
+      table.assignmentId,
+      table.campaignProspectId,
     ),
 
     /*

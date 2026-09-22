@@ -1,7 +1,36 @@
 import type { EstablishmentStatus } from '../database/schema/establishments.js';
+import type { CampaignProspectLifecycleStage } from '../database/schema/campaign-prospects.js';
+import type { ProspectActivityType } from '../database/schema/prospect-activities.js';
 
+export interface WorkQueueLatestActivity {
+  type: ProspectActivityType;
+
+  occurredAt: Date;
+}
+
+export interface WorkQueueNextFollowUp {
+  id: string;
+
+  dueAt: Date;
+}
+
+export interface WorkQueueCampaignOption {
+  id: string;
+
+  name: string;
+}
+
+export interface WorkQueueOptionsResponse {
+  campaigns: WorkQueueCampaignOption[];
+}
 export interface WorkQueueItem {
   campaignProspectId: string;
+
+  lifecycleStage: CampaignProspectLifecycleStage;
+
+  latestActivity: WorkQueueLatestActivity | null;
+
+  nextFollowUp: WorkQueueNextFollowUp | null;
 
   campaign: {
     id: string;
@@ -32,6 +61,10 @@ export interface WorkQueueItem {
     city: string | null;
 
     countryCode: string;
+
+    latitude: number | null;
+
+    longitude: number | null;
 
     phone: string | null;
 
@@ -51,6 +84,10 @@ export interface WorkQueueItem {
 export interface WorkQueueProspectDetail {
   campaignProspectId: string;
 
+  lifecycleStage: CampaignProspectLifecycleStage;
+
+  latestActivity: WorkQueueLatestActivity | null;
+
   campaign: {
     id: string;
     name: string;
@@ -80,6 +117,10 @@ export interface WorkQueueProspectDetail {
     city: string | null;
 
     countryCode: string;
+
+    latitude: number | null;
+
+    longitude: number | null;
 
     phone: string | null;
 

@@ -6,6 +6,24 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { AccessTokenPayload, AuthenticationTokens, RefreshTokenPayload } from './auth.types.js';
 
 type JwtExpiresIn = NonNullable<JwtSignOptions['expiresIn']>;
+
+const TENANT_TOKEN_ISSUER = 'trackroster-api';
+const TENANT_ACCESS_AUDIENCE = 'trackroster-tenant-access';
+const TENANT_REFRESH_AUDIENCE = 'trackroster-tenant-refresh';
+const TENANT_KEY_ID = 'tenant-hs256-v2';
+const TENANT_TOKEN_ALGORITHM = 'HS256';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export interface CreateAuthenticationTokensInput {
+  identityId: string;
+
+  membershipId: string;
+
+  tenantId: string;
+
+  sessionId: string;
+}
+
 @Injectable()
 export class TokenService {
   constructor(
@@ -13,11 +31,7 @@ export class TokenService {
     private readonly configService: ConfigService,
   ) {}
 
-  async createTokens(
-    userId: string,
-    tenantId: string,
-    sessionId: string,
-  ): Promise<AuthenticationTokens> {
+  async createTokens(input: CreateAuthenticationTokensInput): Promise<AuthenticationTokens> {
     const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
 
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -31,16 +45,22 @@ export class TokenService {
     }
 
     const accessPayload: AccessTokenPayload = {
-      sub: userId,
-      tenantId,
+      sub: input.identityId,
+      membershipId: input.membershipId,
+      tenantId: input.tenantId,
+      sid: input.sessionId,
+      jti: randomUUID(),
+      ver: 2,
       type: 'access',
     };
 
     const refreshPayload: RefreshTokenPayload = {
-      sub: userId,
-      tenantId,
-      sid: sessionId,
+      sub: input.identityId,
+      membershipId: input.membershipId,
+      tenantId: input.tenantId,
+      sid: input.sessionId,
       jti: randomUUID(),
+      ver: 2,
       type: 'refresh',
     };
 
@@ -48,10 +68,18 @@ export class TokenService {
       this.jwtService.signAsync(accessPayload, {
         secret: accessSecret,
         expiresIn: accessTtl,
+        algorithm: TENANT_TOKEN_ALGORITHM,
+        issuer: TENANT_TOKEN_ISSUER,
+        audience: TENANT_ACCESS_AUDIENCE,
+        keyid: TENANT_KEY_ID,
       }),
       this.jwtService.signAsync(refreshPayload, {
         secret: refreshSecret,
         expiresIn: refreshTtl,
+        algorithm: TENANT_TOKEN_ALGORITHM,
+        issuer: TENANT_TOKEN_ISSUER,
+        audience: TENANT_REFRESH_AUDIENCE,
+        keyid: TENANT_KEY_ID,
       }),
     ]);
 
@@ -72,13 +100,16 @@ export class TokenService {
       throw new Error('JWT_ACCESS_SECRET is required');
     }
 
+    this.assertProtectedHeader(token);
+
     const payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token, {
       secret,
+      algorithms: [TENANT_TOKEN_ALGORITHM],
+      issuer: TENANT_TOKEN_ISSUER,
+      audience: TENANT_ACCESS_AUDIENCE,
     });
 
-    if (payload.type !== 'access') {
-      throw new Error('Invalid access token type');
-    }
+    this.assertTenantPayload(payload, 'access');
 
     return payload;
   }
@@ -90,13 +121,16 @@ export class TokenService {
       throw new Error('JWT_REFRESH_SECRET is required');
     }
 
+    this.assertProtectedHeader(token);
+
     const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(token, {
       secret,
+      algorithms: [TENANT_TOKEN_ALGORITHM],
+      issuer: TENANT_TOKEN_ISSUER,
+      audience: TENANT_REFRESH_AUDIENCE,
     });
 
-    if (payload.type !== 'refresh') {
-      throw new Error('Invalid refresh token type');
-    }
+    this.assertTenantPayload(payload, 'refresh');
 
     return payload;
   }
@@ -123,5 +157,41 @@ export class TokenService {
     }
 
     return new Date(payload.exp * 1000);
+  }
+
+  private assertProtectedHeader(token: string): void {
+    const decoded = this.jwtService.decode(token, {
+      complete: true,
+    }) as {
+      header?: {
+        alg?: unknown;
+        kid?: unknown;
+      };
+    } | null;
+
+    if (
+      !decoded?.header ||
+      decoded.header.alg !== TENANT_TOKEN_ALGORITHM ||
+      decoded.header.kid !== TENANT_KEY_ID
+    ) {
+      throw new Error('Invalid tenant token header');
+    }
+  }
+
+  private assertTenantPayload(
+    payload: AccessTokenPayload | RefreshTokenPayload,
+    expectedType: AccessTokenPayload['type'] | RefreshTokenPayload['type'],
+  ): void {
+    if (
+      payload.ver !== 2 ||
+      payload.type !== expectedType ||
+      !UUID_PATTERN.test(payload.sub) ||
+      !UUID_PATTERN.test(payload.membershipId) ||
+      !UUID_PATTERN.test(payload.tenantId) ||
+      !UUID_PATTERN.test(payload.sid) ||
+      !UUID_PATTERN.test(payload.jti)
+    ) {
+      throw new Error('Invalid tenant token claims');
+    }
   }
 }

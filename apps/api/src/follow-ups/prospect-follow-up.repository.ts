@@ -6,7 +6,20 @@ import { campaignProspectAssignments } from '../database/schema/campaign-prospec
 import { campaignProspects } from '../database/schema/campaign-prospects.js';
 import { campaigns } from '../database/schema/campaigns.js';
 import { establishments } from '../database/schema/establishments.js';
-import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
+import type { ResolvedViewScope } from '../authorization/access-grant.types.js';
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  or,
+  type SQL,
+} from 'drizzle-orm';
 import type { ProspectFollowUpQueueOptions } from './prospect-follow-up.types.js';
 import {
   prospectFollowUps,
@@ -35,32 +48,37 @@ export class ProspectFollowUpRepository {
     tenantId: string,
     options: ProspectFollowUpQueueOptions,
   ): Promise<ProspectFollowUpQueueRow[]> {
+    if (options.teamScopes.length === 0) {
+      return [];
+    }
+
     /*
-     * Team-owned work is visible only through an
-     * exact prospector team grant supplied by the
-     * service.
+     * Every row, including personally assigned work,
+     * must belong to an exact prospector team grant
+     * supplied by the service.
+     *
+     * Without this outer assignment predicate, a
+     * personal follow-up from Team B could leak into
+     * a queue explicitly requested for Team A.
      */
-    const teamOwnedConditions = options.teamScopes.map((scope) =>
-      and(
-        isNull(prospectFollowUps.assignedUserId),
+    const assignmentScopeCondition = or(
+      ...options.teamScopes.map((scope) =>
+        and(
+          eq(campaignProspectAssignments.organizationId, scope.organizationId),
 
-        eq(campaignProspectAssignments.organizationId, scope.organizationId),
-
-        eq(campaignProspectAssignments.teamId, scope.teamId),
+          eq(campaignProspectAssignments.teamId, scope.teamId),
+        ),
       ),
     );
 
     const ownershipCondition = or(
-      /*
-       * Personally assigned follow-up.
-       */
       eq(prospectFollowUps.assignedUserId, options.userId),
 
       /*
-       * Team-owned follow-up for one of the
-       * caller's exact prospector teams.
+       * Team-owned work is actionable by an eligible
+       * prospector in the selected team.
        */
-      ...teamOwnedConditions,
+      isNull(prospectFollowUps.assignedUserId),
     );
 
     const dueCondition =
@@ -89,6 +107,10 @@ export class ProspectFollowUpRepository {
         createdBy: prospectFollowUps.createdBy,
 
         dueAt: prospectFollowUps.dueAt,
+
+        category: prospectFollowUps.category,
+
+        channel: prospectFollowUps.channel,
 
         status: prospectFollowUps.status,
 
@@ -159,6 +181,8 @@ export class ProspectFollowUpRepository {
 
           eq(campaigns.status, 'active'),
 
+          assignmentScopeCondition,
+
           ownershipCondition,
 
           dueCondition,
@@ -225,6 +249,10 @@ export class ProspectFollowUpRepository {
         createdBy: prospectFollowUps.createdBy,
 
         dueAt: prospectFollowUps.dueAt,
+
+        category: prospectFollowUps.category,
+
+        channel: prospectFollowUps.channel,
 
         status: prospectFollowUps.status,
 
@@ -350,6 +378,10 @@ export class ProspectFollowUpRepository {
 
         dueAt: prospectFollowUps.dueAt,
 
+        category: prospectFollowUps.category,
+
+        channel: prospectFollowUps.channel,
+
         status: prospectFollowUps.status,
 
         completedAt: prospectFollowUps.completedAt,
@@ -456,24 +488,52 @@ export class ProspectFollowUpRepository {
     return followUp ?? null;
   }
 
-  async findByCampaignProspect(
+  async findByCampaignProspectWithinScope(
     tenantId: string,
     campaignId: string,
     campaignProspectId: string,
+    scope: ResolvedViewScope,
   ): Promise<ProspectFollowUp[]> {
+    const conditions: SQL[] = [
+      eq(prospectFollowUps.tenantId, tenantId),
+
+      eq(prospectFollowUps.campaignId, campaignId),
+
+      eq(prospectFollowUps.campaignProspectId, campaignProspectId),
+    ];
+
+    /*
+     * Follow-up ownership is inherited from the
+     * immutable assignment generation under which
+     * the row was created.
+     */
+    if (scope.scopeType !== 'tenant') {
+      conditions.push(eq(campaignProspectAssignments.organizationId, scope.organizationId));
+    }
+
+    if (scope.scopeType === 'team') {
+      conditions.push(eq(campaignProspectAssignments.teamId, scope.teamId));
+    }
+
     return this.database
-      .select()
+      .select({
+        ...getTableColumns(prospectFollowUps),
+      })
       .from(prospectFollowUps)
-      .where(
+      .innerJoin(
+        campaignProspectAssignments,
         and(
-          eq(prospectFollowUps.tenantId, tenantId),
+          eq(prospectFollowUps.tenantId, campaignProspectAssignments.tenantId),
 
-          eq(prospectFollowUps.campaignId, campaignId),
+          eq(prospectFollowUps.assignmentId, campaignProspectAssignments.id),
 
-          eq(prospectFollowUps.campaignProspectId, campaignProspectId),
+          eq(prospectFollowUps.campaignId, campaignProspectAssignments.campaignId),
+
+          eq(prospectFollowUps.campaignProspectId, campaignProspectAssignments.campaignProspectId),
         ),
       )
-      .orderBy(asc(prospectFollowUps.dueAt));
+      .where(and(...conditions))
+      .orderBy(asc(prospectFollowUps.dueAt), asc(prospectFollowUps.id));
   }
 
   /*

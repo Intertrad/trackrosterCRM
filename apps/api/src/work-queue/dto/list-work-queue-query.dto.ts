@@ -1,5 +1,10 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+
+import {
+  campaignProspectLifecycleStageEnum,
+  type CampaignProspectLifecycleStage,
+} from '../../database/schema/campaign-prospects.js';
 
 export class ListWorkQueueQueryDto {
   @IsUUID()
@@ -8,6 +13,10 @@ export class ListWorkQueueQueryDto {
   @IsOptional()
   @IsUUID()
   campaignId?: string;
+
+  @IsOptional()
+  @IsIn(campaignProspectLifecycleStageEnum.enumValues)
+  lifecycleStage?: CampaignProspectLifecycleStage;
 
   @IsOptional()
   @IsString()

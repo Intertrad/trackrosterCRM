@@ -320,6 +320,25 @@ describe('idempotency record repository integration', () => {
     ).toHaveLength(4);
   });
 
+  it.each(['activityXrecord', 'activity-record', 'activity_record'])(
+    'rejects idempotency operation %s without a literal domain separator',
+    async (operation) => {
+      await expect(
+        getRepository().tryClaim(
+          createClaimInput({
+            operation,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        cause: {
+          code: '23514',
+
+          constraint: 'idempotency_records_operation_check',
+        },
+      });
+    },
+  );
+
   it('transitions processing to completed exactly once and preserves the stored response', async () => {
     const claimed = await getRepository().tryClaim(createClaimInput());
 

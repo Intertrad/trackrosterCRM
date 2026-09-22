@@ -9,7 +9,7 @@ import type { ProspectReservation } from './reservation.types.js';
 export class ReservationExpirySchedulerService {
   constructor(private readonly jobProducerService: JobProducerService) {}
 
-  async schedule(reservation: ProspectReservation): Promise<void> {
+  async schedule(reservation: ProspectReservation, renewal = false): Promise<void> {
     const requestedAt = new Date();
 
     const expiresAt = new Date(reservation.expiresAt);
@@ -18,7 +18,8 @@ export class ReservationExpirySchedulerService {
       throw new Error('Reservation expiresAt must be a valid timestamp');
     }
 
-    const jobId = buildReservationExpiryJobId(reservation.reservationId);
+    const baseId = buildReservationExpiryJobId(reservation.reservationId);
+    const jobId = renewal ? `${baseId}-${Date.parse(reservation.expiresAt)}` : baseId;
 
     const delayMs = Math.max(0, expiresAt.getTime() - requestedAt.getTime());
 

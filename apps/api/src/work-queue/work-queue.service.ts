@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 
 import { AuthorizationService } from '../authorization/authorization.service.js';
+import type { CampaignProspectLifecycleStage } from '../database/schema/campaign-prospects.js';
 import { WorkQueueRepository, type FindWorkQueueInput } from './work-queue.repository.js';
 import type {
   WorkQueueCursor,
+  WorkQueueOptionsResponse,
   WorkQueueProspectDetail,
   WorkQueueResponse,
 } from './work-queue.types.js';
@@ -24,6 +26,8 @@ export interface ListWorkQueueInput {
 
   campaignId?: string;
 
+  lifecycleStage?: CampaignProspectLifecycleStage;
+
   search?: string;
 
   cursor?: string;
@@ -31,6 +35,13 @@ export interface ListWorkQueueInput {
   limit?: number;
 }
 
+export interface GetWorkQueueOptionsInput {
+  tenantId: string;
+
+  userId: string;
+
+  teamId: string;
+}
 export interface GetWorkQueueProspectDetailInput {
   tenantId: string;
 
@@ -112,6 +123,21 @@ export class WorkQueueService {
     return detail;
   }
 
+  async getOptions(input: GetWorkQueueOptionsInput): Promise<WorkQueueOptionsResponse> {
+    await this.requireProspectorWorkspaceAccess(input.tenantId, input.userId, input.teamId);
+
+    const campaigns = await this.workQueueRepository.findCampaignOptions({
+      tenantId: input.tenantId,
+
+      userId: input.userId,
+
+      teamId: input.teamId,
+    });
+
+    return {
+      campaigns,
+    };
+  }
   async list(input: ListWorkQueueInput): Promise<WorkQueueResponse> {
     /*
      * Authorization is derived from durable backend
@@ -139,6 +165,10 @@ export class WorkQueueService {
 
     if (input.campaignId) {
       repositoryInput.campaignId = input.campaignId;
+    }
+
+    if (input.lifecycleStage) {
+      repositoryInput.lifecycleStage = input.lifecycleStage;
     }
 
     const search = input.search?.trim();

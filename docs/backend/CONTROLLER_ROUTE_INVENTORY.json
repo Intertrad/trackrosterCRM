@@ -1,0 +1,1280 @@
+{
+  "snapshot": "2026-09-22",
+  "scope": "Static controller declarations, not runtime registration or production certification",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/actions",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 64,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/actions/:actionId",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 74,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/actions/:actionId",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 87,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/cancel",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 122,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/complete",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 110,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/corrections",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 134,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/actions/:actionId/events",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 80,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/start",
+      "source": "apps/api/src/actions/action.controller.ts",
+      "line": 98,
+      "ledgerStatus": "Verified: scoped lifecycle, atomic database completion, durable delivery intents and append-only evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/config",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 29,
+      "ledgerStatus": "Verified: non-secret capabilities; SSO explicitly disabled"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Verified: password, MFA, required enrollment, workspace selection and throttling"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Verified: revocation and audit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 73,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me/access-grants",
+      "source": "apps/api/src/authorization/self-access.controller.ts",
+      "line": 14,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/mfa",
+      "source": "apps/api/src/auth/mfa.controller.ts",
+      "line": 44,
+      "ledgerStatus": "Verified: step-up, workspace policy check and session revocation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/enroll",
+      "source": "apps/api/src/auth/mfa.controller.ts",
+      "line": 18,
+      "ledgerStatus": "Verified: password step-up, encrypted secret and expiring enrollment challenge"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/recovery",
+      "source": "apps/api/src/auth/mfa.controller.ts",
+      "line": 31,
+      "ledgerStatus": "Verified: single-use recovery codes tied to password-authenticated login"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/recovery-codes/regenerate",
+      "source": "apps/api/src/auth/mfa.controller.ts",
+      "line": 37,
+      "ledgerStatus": "Verified: password/TOTP step-up, replacement and session revocation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/verify",
+      "source": "apps/api/src/auth/mfa.controller.ts",
+      "line": 25,
+      "ledgerStatus": "Verified: TOTP enrollment/login, bounded attempts, drift and replay checks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/password-reset/:token/status",
+      "source": "apps/api/src/auth/password-recovery.controller.ts",
+      "line": 30,
+      "ledgerStatus": "Verified: validity only, without consuming token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password/forgot",
+      "source": "apps/api/src/auth/password-recovery.controller.ts",
+      "line": 24,
+      "ledgerStatus": "Verified locally: private acknowledgement and encrypted durable email outbox"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password/reset",
+      "source": "apps/api/src/auth/password-recovery.controller.ts",
+      "line": 36,
+      "ledgerStatus": "Verified: one-time reset, tenant password policy, session revocation; MFA retained"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/refresh",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Verified: rotating refresh tokens and throttling"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/select-tenant",
+      "source": "apps/api/src/auth/auth.controller.ts",
+      "line": 51,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaign-members/:id",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 111,
+      "ledgerStatus": "Verified: terminal cancellation and live access revocation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaign-members/:id",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 99,
+      "ledgerStatus": "Verified: role/date changes without administrative privilege escalation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 49,
+      "ledgerStatus": "Partial: scope-filtered metadata list; advanced list filters pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 33,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 57,
+      "ledgerStatus": "Partial: scoped campaign metadata; richer summary pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 68,
+      "ledgerStatus": "Verified: metadata/lifecycle authority and transaction recheck; optional legacy idempotency"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/geographic-allocation/apply",
+      "source": "apps/api/src/geographic-allocation/allocation.controller.ts",
+      "line": 47,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/geographic-allocation/preview",
+      "source": "apps/api/src/geographic-allocation/allocation.controller.ts",
+      "line": 38,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/members",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 75,
+      "ledgerStatus": "Verified: visible user/team roster with effective dates and history"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/members",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Verified: member/team participation, dated read access and overlap protection"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/organizations",
+      "source": "apps/api/src/campaign-organizations/campaign-organization.controller.ts",
+      "line": 50,
+      "ledgerStatus": "Verified: mode-aware access, fixed owner, retained history and transactional authorization; see campaign organization contracts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/organizations",
+      "source": "apps/api/src/campaign-organizations/campaign-organization.controller.ts",
+      "line": 57,
+      "ledgerStatus": "Verified: mode-aware access, fixed owner, retained history and transactional authorization; see campaign organization contracts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/organizations/:organizationId",
+      "source": "apps/api/src/campaign-organizations/campaign-organization.controller.ts",
+      "line": 79,
+      "ledgerStatus": "Verified: mode-aware access, fixed owner, retained history and transactional authorization; see campaign organization contracts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/organizations/:organizationId",
+      "source": "apps/api/src/campaign-organizations/campaign-organization.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Verified: mode-aware access, fixed owner, retained history and transactional authorization; see campaign organization contracts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects",
+      "source": "apps/api/src/campaigns/campaign-prospect.controller.ts",
+      "line": 48,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects",
+      "source": "apps/api/src/campaigns/campaign-prospect.controller.ts",
+      "line": 29,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId",
+      "source": "apps/api/src/campaigns/campaign-prospect.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId",
+      "source": "apps/api/src/campaigns/campaign-prospect.controller.ts",
+      "line": 73,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/activities",
+      "source": "apps/api/src/activities/prospect-activity.controller.ts",
+      "line": 18,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
+      "line": 96,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
+      "line": 119,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
+      "line": 30,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
+      "line": 60,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment-history",
+      "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
+      "line": 134,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/collision-decision",
+      "source": "apps/api/src/collisions/collision-decision.controller.ts",
+      "line": 18,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/collision-overrides",
+      "source": "apps/api/src/collisions/manager-override.controller.ts",
+      "line": 18,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups",
+      "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
+      "line": 37,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups",
+      "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
+      "line": 58,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/cancel",
+      "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
+      "line": 150,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/complete",
+      "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
+      "line": 123,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/reschedule",
+      "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
+      "line": 91,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation",
+      "source": "apps/api/src/reservations/reservation.controller.ts",
+      "line": 57,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation",
+      "source": "apps/api/src/reservations/reservation.controller.ts",
+      "line": 30,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation/:reservationId",
+      "source": "apps/api/src/reservations/reservation.controller.ts",
+      "line": 79,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/timeline",
+      "source": "apps/api/src/activities/prospect-timeline.controller.ts",
+      "line": 19,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/territories",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 76,
+      "ledgerStatus": "Verified: both campaign and territory visibility enforced"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/territories",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Verified: manage/read authority, tenant-safe link, audit and idempotency"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/territories/:territoryId",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 93,
+      "ledgerStatus": "Verified: authority on both resources, audit and idempotency"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collision-events",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 65,
+      "ledgerStatus": "Verified: current-scope filtered cursor list of new check-workflow evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collision-events/:collisionId",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 69,
+      "ledgerStatus": "Verified: immutable evaluation/policy context with conflicting identifiers redacted"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/collision-events/:collisionId/override-request",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 76,
+      "ledgerStatus": "Verified: fresh exact-context own request, one pending request and transactional audit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments",
+      "source": "apps/api/src/establishments/establishment.controller.ts",
+      "line": 48,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/establishments",
+      "source": "apps/api/src/establishments/establishment.controller.ts",
+      "line": 31,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId",
+      "source": "apps/api/src/establishments/establishment.controller.ts",
+      "line": 81,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/establishments/:establishmentId",
+      "source": "apps/api/src/establishments/establishment.controller.ts",
+      "line": 96,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId/contacts",
+      "source": "apps/api/src/establishment-contacts/establishment-contact.controller.ts",
+      "line": 48,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/establishments/:establishmentId/contacts",
+      "source": "apps/api/src/establishment-contacts/establishment-contact.controller.ts",
+      "line": 29,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId/contacts/:contactId",
+      "source": "apps/api/src/establishment-contacts/establishment-contact.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/establishments/:establishmentId/contacts/:contactId",
+      "source": "apps/api/src/establishment-contacts/establishment-contact.controller.ts",
+      "line": 73,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/nearby",
+      "source": "apps/api/src/establishments/establishment.controller.ts",
+      "line": 60,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:type",
+      "source": "apps/api/src/exports/controlled-export.controller.ts",
+      "line": 20,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow-ups",
+      "source": "apps/api/src/follow-ups/follow-up-queue.controller.ts",
+      "line": 19,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "source": "apps/api/src/health/health.controller.ts",
+      "line": 5,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health/live",
+      "source": "apps/api/src/health/readiness.controller.ts",
+      "line": 13,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health/ready",
+      "source": "apps/api/src/health/readiness.controller.ts",
+      "line": 18,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/execute",
+      "source": "apps/api/src/imports/import-execution.controller.ts",
+      "line": 41,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/preview",
+      "source": "apps/api/src/imports/import-preview.controller.ts",
+      "line": 35,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/invitations/:token",
+      "source": "apps/api/src/security-administration/invitation.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Verified: safe workspace information and masked email"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/invitations/:token/accept",
+      "source": "apps/api/src/security-administration/invitation.controller.ts",
+      "line": 49,
+      "ledgerStatus": "Verified: one-time acceptance; existing password/MFA preserved"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/manager/dashboard",
+      "source": "apps/api/src/reporting/manager-dashboard.controller.ts",
+      "line": 15,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 41,
+      "ledgerStatus": "Verified: identity, membership, public role names, workspace and settings"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/me",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/me/active-membership",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 66,
+      "ledgerStatus": "Verified: atomic switch and source-session revocation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/memberships",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 56,
+      "ledgerStatus": "Verified: available active workspaces and roles"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/permissions",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 61,
+      "ledgerStatus": "Verified for published catalogue: effective scoped capabilities and grants"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/preferences",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 75,
+      "ledgerStatus": "Verified: theme/density/accessibility preferences"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/me/preferences",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 80,
+      "ledgerStatus": "Verified: validated partial updates and conditional writes"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/sessions",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 90,
+      "ledgerStatus": "Verified: cursor-paginated current-workspace sessions without token hashes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/me/sessions/:sessionId",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 101,
+      "ledgerStatus": "Verified: ownership-checked revocation and audit"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/me/sessions/others",
+      "source": "apps/api/src/account/account.controller.ts",
+      "line": 95,
+      "ledgerStatus": "Verified: other current-workspace sessions only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/membership-scopes/:scopeId",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 118,
+      "ledgerStatus": "Verified for supported grants: continuity/workload checks and audit"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/membership-scopes/:scopeId",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 108,
+      "ledgerStatus": "Verified: conditional replacement within structural or resource grant families"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 34,
+      "ledgerStatus": "Verified: tenant-scoped filtered cursor list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships",
+      "source": "apps/api/src/security-administration/invitation.controller.ts",
+      "line": 24,
+      "ledgerStatus": "Verified locally: scoped admin invitation, initial grant and email outbox"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 37,
+      "ledgerStatus": "Partial: identity, capacity, current team grants and effective permissions; roster history pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/memberships/:membershipId",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Verified: audited role/status/capacity changes, concurrency and lifecycle protection"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId/access-history",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 95,
+      "ledgerStatus": "Partial: cursor-paginated append-only API audit; DB tamper protection pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/reactivate",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 69,
+      "ledgerStatus": "Verified: suspended-only reactivation with reason; fresh login required"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/resend-invite",
+      "source": "apps/api/src/security-administration/invitation.controller.ts",
+      "line": 29,
+      "ledgerStatus": "Verified locally: replacement token, cooldown, audit and idempotency"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId/scopes",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 80,
+      "ledgerStatus": "Verified: tenant/organization/team and explicit territory/campaign resource grants"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/scopes",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 86,
+      "ledgerStatus": "Partial: positive grants at all five scopes; explicit deny rules pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/suspend",
+      "source": "apps/api/src/memberships/membership.controller.ts",
+      "line": 53,
+      "ledgerStatus": "Verified: reason, workspace session revocation and audit"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications",
+      "source": "apps/api/src/notifications/notification.controller.ts",
+      "line": 31,
+      "ledgerStatus": "Partial: owned cursor inbox/unread filtering; severity model pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/notifications/:notificationId/read",
+      "source": "apps/api/src/notifications/notification.controller.ts",
+      "line": 84,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/:notificationId/read",
+      "source": "apps/api/src/notifications/notification.controller.ts",
+      "line": 70,
+      "ledgerStatus": "Verified: recipient ownership and idempotency"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/read-all",
+      "source": "apps/api/src/notifications/notification.controller.ts",
+      "line": 63,
+      "ledgerStatus": "Verified: recipient-only atomic read-all and replay"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/unread-count",
+      "source": "apps/api/src/notifications/notification.controller.ts",
+      "line": 58,
+      "ledgerStatus": "Verified: authenticated recipient count"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organization-relationships",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 37,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organization-relationships",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 40,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organization-relationships/:id",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organizations",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Verified: tenant/scope filters, search and cursor pagination"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organizations",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 63,
+      "ledgerStatus": "Verified: admin-only create with audit/idempotency"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organizations/:organizationId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 87,
+      "ledgerStatus": "Verified: soft deactivation and active-child checks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organizations/:organizationId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 69,
+      "ledgerStatus": "Partial: authorized metadata; expanded summary pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/organizations/:organizationId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 76,
+      "ledgerStatus": "Verified: audited conditional mutable metadata"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/override-requests",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 86,
+      "ledgerStatus": "Verified: scoped filtered cursor list of pending/final requests"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/override-requests/:requestId",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 90,
+      "ledgerStatus": "Verified: scoped request, collision context, decision and approval expiry"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/approve",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 97,
+      "ledgerStatus": "Verified: independent scoped approval, current conflict checks and atomic exception/decision/audit; requester claims separately"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/cancel",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 121,
+      "ledgerStatus": "Verified: own pending request cancellation, retained reason and history"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/reject",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 109,
+      "ledgerStatus": "Verified: immutable reasoned management decision, ETag and idempotency"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/permissions",
+      "source": "apps/api/src/permissions/permission.controller.ts",
+      "line": 142,
+      "ledgerStatus": "Partial: nine published permissions; remaining domains pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospector/today",
+      "source": "apps/api/src/prospector-today/prospector-today.controller.ts",
+      "line": 15,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/consents",
+      "source": "apps/api/src/consents/consent.controller.ts",
+      "line": 39,
+      "ledgerStatus": "Verified: scoped append-only evidence, channel/global restriction resolution and workflow enforcement"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/consents",
+      "source": "apps/api/src/consents/consent.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Verified: scoped append-only evidence, channel/global restriction resolution and workflow enforcement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/timeline",
+      "source": "apps/api/src/actions/unified-timeline.controller.ts",
+      "line": 16,
+      "ledgerStatus": "Verified: permission-filtered unified available history; pre-existing unrecorded reservation/expiry history is not fabricated"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions",
+      "source": "apps/api/src/regions/region.controller.ts",
+      "line": 48,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/regions",
+      "source": "apps/api/src/regions/region.controller.ts",
+      "line": 30,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions/:regionId",
+      "source": "apps/api/src/regions/region.controller.ts",
+      "line": 56,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/regions/:regionId",
+      "source": "apps/api/src/regions/region.controller.ts",
+      "line": 78,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions/:regionId/children",
+      "source": "apps/api/src/regions/region.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservation-rules",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 74,
+      "ledgerStatus": "Verified: tenant-admin scoped rule list with retained inactive history"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservation-rules",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 83,
+      "ledgerStatus": "Verified: tenant/campaign rules, bounded policy values, one active rule per scope and audit"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 97,
+      "ledgerStatus": "Verified: audited soft deactivation with deterministic fallback"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 77,
+      "ledgerStatus": "Verified: tenant-admin rule detail and record ETag"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 89,
+      "ledgerStatus": "Verified: conditional duration/cooldown/renewal/exception-policy update and shared enforcement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservations",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 109,
+      "ledgerStatus": "Verified: scoped registry list, bounded live reconciliation, cursor/status filtering"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservations/:reservationId",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 118,
+      "ledgerStatus": "Verified: current-scope reconciled owner/lease/expiry and latest 50 evidence events"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/extend",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 134,
+      "ledgerStatus": "Verified: bounded explicit extension, current eligibility, atomic lock pair and durable evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/heartbeat",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 124,
+      "ledgerStatus": "Verified: owned atomic renewal, current policies/conflicts and absolute hold bound"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/release",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 145,
+      "ledgerStatus": "Verified: exact owned-token release with reason, including after scope/consent changes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/check",
+      "source": "apps/api/src/collisions/collision-workflow.controller.ts",
+      "line": 58,
+      "ledgerStatus": "Verified: fresh scoped evaluation, persisted collision evidence, consent guard and idempotency; no claim"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/claim",
+      "source": "apps/api/src/reservations/reservation-lifecycle.controller.ts",
+      "line": 112,
+      "ledgerStatus": "Verified: current eligibility/consent, durable intent and atomic Redis lock pair; confirmation recovery"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/roles",
+      "source": "apps/api/src/permissions/permission.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Verified: six public roles; platform role cannot be tenant-granted"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/roles/:role/permissions",
+      "source": "apps/api/src/permissions/permission.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Verified for published catalogue: defaults and tenant restrictions"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/roles/:role/permissions",
+      "source": "apps/api/src/permissions/permission.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Partial: four restriction-only configurable management capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/security",
+      "source": "apps/api/src/security-administration/security-policy.controller.ts",
+      "line": 39,
+      "ledgerStatus": "Partial: enforced MFA/password/session policies; SSO pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/settings/security",
+      "source": "apps/api/src/security-administration/security-policy.controller.ts",
+      "line": 47,
+      "ledgerStatus": "Partial: enforced MFA/password/session policies; SSO pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 104,
+      "ledgerStatus": "Verified: scoped filtered cursor pagination"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teams",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 108,
+      "ledgerStatus": "Verified: tenant-safe team/settings creation and audited manager grants"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/teams/:teamId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 139,
+      "ledgerStatus": "Verified: admin deactivation with active-assignment protection"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 114,
+      "ledgerStatus": "Verified: scoped metadata, manager and capacity"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/teams/:teamId",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 128,
+      "ledgerStatus": "Verified: scoped management, conditional updates and audited manager grants"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId/capacity",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 121,
+      "ledgerStatus": "Partial: assignment count/capacity/availability; richer allocation constraints pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId/members",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 63,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teams/:teamId/members",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 70,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/teams/:teamId/members/:membershipId",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 93,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/teams/:teamId/members/:membershipId",
+      "source": "apps/api/src/organization-structure/structure.controller.ts",
+      "line": 80,
+      "ledgerStatus": "Verified: tenant-scoped, authorized, audited and history-preserving; see organization structure contracts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenant",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 38,
+      "ledgerStatus": "Verified: current tenant metadata/locale/timezone"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenant",
+      "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
+      "line": 42,
+      "ledgerStatus": "Verified: admin-only audited conditional settings update"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 29,
+      "ledgerStatus": "Verified: tenant-isolated list filtered by effective resource read authority"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/territories",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 41,
+      "ledgerStatus": "Verified: admin creation, tenant-safe parent, validated PostGIS boundary and audit"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/territories/:territoryId",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Verified: soft deactivation; active children and campaign links protected"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories/:territoryId",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 35,
+      "ledgerStatus": "Verified: resource-scoped metadata, GeoJSON boundary and center"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/territories/:territoryId",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 47,
+      "ledgerStatus": "Verified: scoped metadata/manage checks, ETags and cycle prevention"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories/map",
+      "source": "apps/api/src/territories/territory.controller.ts",
+      "line": 32,
+      "ledgerStatus": "Verified: visible active GeoJSON features and centers"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territory-assignments",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 35,
+      "ledgerStatus": "Verified: resource-filtered cursor list, subject/state filters and history"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/territory-assignments",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 38,
+      "ledgerStatus": "Verified: member/team responsibility, dated read access, overlap protection and audit"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/territory-assignments/:id",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 57,
+      "ledgerStatus": "Verified: terminal cancellation with retained history and read-access revocation"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/territory-assignments/:id",
+      "source": "apps/api/src/participation/participation.controller.ts",
+      "line": 45,
+      "ledgerStatus": "Verified: conditional priority/date changes; authorization and overlap rechecked"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "source": "apps/api/src/user-management/user-management.controller.ts",
+      "line": 17,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "source": "apps/api/src/user-management/user-management.controller.ts",
+      "line": 25,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/:userId/access-grants",
+      "source": "apps/api/src/authorization/access-grant.controller.ts",
+      "line": 21,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/:userId/access-grants",
+      "source": "apps/api/src/authorization/access-grant.controller.ts",
+      "line": 32,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/:userId/access-grants/:grantId",
+      "source": "apps/api/src/authorization/access-grant.controller.ts",
+      "line": 110,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/:userId/status",
+      "source": "apps/api/src/user-management/user-management.controller.ts",
+      "line": 40,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue",
+      "source": "apps/api/src/work-queue/work-queue.controller.ts",
+      "line": 35,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue/:campaignId/:prospectId",
+      "source": "apps/api/src/work-queue/work-queue.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue/options",
+      "source": "apps/api/src/work-queue/work-queue.controller.ts",
+      "line": 19,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    }
+  ]
+}

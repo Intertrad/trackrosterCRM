@@ -18,12 +18,14 @@ import type { AuthenticatedRequest } from '../auth/auth.types.js';
 import {
   IDEMPOTENCY_HEADER,
   IDEMPOTENCY_OPERATION_METADATA,
+  IDEMPOTENCY_OPTIONAL_METADATA,
   IDEMPOTENCY_REPLAY_HEADER,
 } from './idempotency.constants.js';
 
 import { IdempotencyService } from './idempotency.service.js';
 
 import type { IdempotencyLifecycleIdentity } from './idempotency.types.js';
+import { resourceETag } from '../http/resource-etag.js';
 
 interface IdempotencyHttpRequest extends AuthenticatedRequest {
   method: string;
@@ -80,6 +82,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const headerValue = request.headers[IDEMPOTENCY_HEADER];
+    if (
+      headerValue === undefined &&
+      this.reflector.getAllAndOverride<boolean>(IDEMPOTENCY_OPTIONAL_METADATA, [
+        context.getHandler(),
+        context.getClass(),
+      ]) === true
+    ) {
+      return next.handle();
+    }
 
     /*
      * Duplicate header values are rejected by the
@@ -105,6 +116,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
         query: request.query ?? {},
 
         body: request.body ?? null,
+        ...(typeof request.headers['if-match'] === 'string'
+          ? { ifMatch: request.headers['if-match'] }
+          : {}),
       },
     });
 
@@ -112,6 +126,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       reply.status(decision.responseStatus);
 
       reply.header(IDEMPOTENCY_REPLAY_HEADER, 'true');
+      reply.header('ETag', resourceETag(decision.responseBody));
 
       return of(decision.responseBody);
     }

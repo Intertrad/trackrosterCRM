@@ -1,3 +1,4 @@
+import { rethrowConsentBlock } from '../consents/consent-error.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -9,7 +10,11 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import type { ProspectFollowUp } from '../database/schema/prospect-follow-ups.js';
+import type {
+  ProspectFollowUp,
+  ProspectFollowUpCategory,
+  ProspectFollowUpChannel,
+} from '../database/schema/prospect-follow-ups.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 
 import { FollowUpReminderSchedulerService } from './follow-up-reminder-scheduler.service.js';
@@ -31,6 +36,10 @@ export interface CreateProspectFollowUpInput {
   dueAt: Date;
 
   assignedUserId?: string | null;
+
+  category?: ProspectFollowUpCategory;
+
+  channel?: ProspectFollowUpChannel | null;
 }
 
 export interface FollowUpCommandInput {
@@ -104,7 +113,8 @@ export class ProspectFollowUpService {
 
         dueAt: input.dueAt,
       });
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -130,13 +140,18 @@ export class ProspectFollowUpService {
 
         dueAt: input.dueAt,
 
+        category: input.category ?? 'follow_up',
+
+        channel: input.channel ?? null,
+
         status: 'pending',
 
         completedAt: null,
 
         cancelledAt: null,
       });
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       /*
        * The already queued job is harmless.
        *
@@ -178,7 +193,8 @@ export class ProspectFollowUpService {
 
         dueAt: input.dueAt,
       });
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -200,7 +216,8 @@ export class ProspectFollowUpService {
 
         now,
       );
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -241,7 +258,8 @@ export class ProspectFollowUpService {
 
         completedAt,
       );
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -278,7 +296,8 @@ export class ProspectFollowUpService {
 
         cancelledAt,
       );
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -333,7 +352,8 @@ export class ProspectFollowUpService {
 
         input.followUpId,
       );
-    } catch {
+    } catch (error) {
+      rethrowConsentBlock(error);
       throw new ServiceUnavailableException('Follow-up service is unavailable');
     }
 
@@ -342,13 +362,19 @@ export class ProspectFollowUpService {
     }
 
     /*
-     * An existing follow-up owned by another user
-     * must be indistinguishable from a nonexistent
-     * follow-up.
+     * Foreign and stale-assignment follow-ups must
+     * both be indistinguishable from a nonexistent
+     * row.
      *
-     * Check ownership before exposing mutable state.
+     * Reassignment invalidates the old row as an
+     * actionable workflow item. Mask that fact before
+     * exposing its lifecycle state, otherwise a known
+     * UUID could become a cross-team existence oracle.
      */
-    if (followUp.assignedUserId !== null && followUp.assignedUserId !== input.userId) {
+    if (
+      (followUp.assignedUserId !== null && followUp.assignedUserId !== input.userId) ||
+      followUp.assignmentId !== assignment.id
+    ) {
       throw new NotFoundException('Follow-up not found');
     }
 
@@ -359,16 +385,6 @@ export class ProspectFollowUpService {
      */
     if (followUp.status !== 'pending') {
       throw new ConflictException('Follow-up is no longer pending');
-    }
-
-    /*
-     * Reassignment invalidates the old follow-up as
-     * an actionable workflow item.
-     *
-     * The row remains stored as historical data.
-     */
-    if (followUp.assignmentId !== assignment.id) {
-      throw new ConflictException('Follow-up does not belong to current assignment');
     }
 
     /*

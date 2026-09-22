@@ -1,5 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 
+import { UserRepository } from '../users/user.repository.js';
 import { AuthorizationService } from './authorization.service.js';
 import type { SelfAccessContext, SelfAccessGrant } from './self-access.types.js';
 
@@ -14,9 +15,18 @@ export class SelfAccessService {
   constructor(
     @Inject(AuthorizationService)
     private readonly authorizationService: AuthorizationService,
+
+    @Inject(UserRepository)
+    private readonly userRepository: UserRepository,
   ) {}
 
   async getContext(input: GetSelfAccessContextInput): Promise<SelfAccessContext> {
+    const user = await this.userRepository.findById(input.tenantId, input.userId);
+
+    if (!user) {
+      throw new UnauthorizedException('Authenticated user no longer exists');
+    }
+
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
     const responseGrants: SelfAccessGrant[] = grants
@@ -41,6 +51,10 @@ export class SelfAccessService {
       userId: input.userId,
 
       tenantId: input.tenantId,
+
+      email: user.email,
+
+      displayName: user.displayName,
 
       grants: responseGrants,
     };

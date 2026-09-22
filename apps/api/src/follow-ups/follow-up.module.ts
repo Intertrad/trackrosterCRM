@@ -33,6 +33,10 @@ import { ProspectFollowUpService } from './prospect-follow-up.service.js';
     FollowUpReminderSchedulerService,
   ],
 
-  exports: [ProspectFollowUpService, ProspectFollowUpQueryService],
+  exports: [
+    ProspectFollowUpService,
+    ProspectFollowUpQueryService,
+    FollowUpReminderSchedulerService,
+  ],
 })
 export class FollowUpModule {}

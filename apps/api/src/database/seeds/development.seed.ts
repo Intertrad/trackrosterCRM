@@ -134,7 +134,7 @@ async function seed(): Promise<void> {
     // ----------------------------------------------------------------
     // User helper
     // ----------------------------------------------------------------
-    async function ensureRoleUser(email: string) {
+    async function ensureRoleUser(email: string, displayName: string) {
       const passwordHash = await getRolePasswordHash();
 
       let roleUser = await userRepository.findByEmail(email);
@@ -143,6 +143,7 @@ async function seed(): Promise<void> {
         roleUser = await userRepository.create({
           tenantId,
           email,
+          displayName,
           passwordHash,
           status: 'active',
         });
@@ -164,7 +165,23 @@ async function seed(): Promise<void> {
 
       console.log(`Synchronized development password: ${updatedUser.email}`);
 
-      return updatedUser;
+      if (updatedUser.displayName === displayName) {
+        return updatedUser;
+      }
+
+      const updatedProfile = await userRepository.updateDisplayName(
+        tenantId,
+        updatedUser.id,
+        displayName,
+      );
+
+      if (!updatedProfile) {
+        throw new Error(`Failed to synchronize development display name for ${email}`);
+      }
+
+      console.log(`Synchronized development display name: ${updatedProfile.email}`);
+
+      return updatedProfile;
     }
 
     // ================================================================
@@ -178,6 +195,7 @@ async function seed(): Promise<void> {
     // ================================================================
 
     const adminEmail = 'admin@intertrad.test';
+    const adminDisplayName = 'Sophie Laurent';
 
     let admin = await userRepository.findByEmail(adminEmail);
 
@@ -187,6 +205,7 @@ async function seed(): Promise<void> {
       admin = await userRepository.create({
         tenantId,
         email: adminEmail,
+        displayName: adminDisplayName,
         passwordHash,
         status: 'active',
       });
@@ -206,6 +225,22 @@ async function seed(): Promise<void> {
       }
 
       admin = updatedAdmin;
+
+      if (admin.displayName !== adminDisplayName) {
+        const updatedProfile = await userRepository.updateDisplayName(
+          tenantId,
+          admin.id,
+          adminDisplayName,
+        );
+
+        if (!updatedProfile) {
+          throw new Error(`Failed to synchronize development display name for ${adminEmail}`);
+        }
+
+        admin = updatedProfile;
+
+        console.log(`Synchronized development display name: ${admin.email}`);
+      }
 
       console.log(`Synchronized development password: ${admin.email}`);
     }
@@ -239,7 +274,7 @@ async function seed(): Promise<void> {
     //   France Sales organization
     // ================================================================
 
-    const director = await ensureRoleUser('director@intertrad.test');
+    const director = await ensureRoleUser('director@intertrad.test', 'Claire Dubois');
 
     const directorGrants = await grantRepository.findByUser(tenantId, director.id);
 
@@ -274,7 +309,7 @@ async function seed(): Promise<void> {
     //   Paris Prospecting team
     // ================================================================
 
-    const manager = await ensureRoleUser('manager@intertrad.test');
+    const manager = await ensureRoleUser('manager@intertrad.test', 'Marie Garnier');
 
     const managerGrants = await grantRepository.findByUser(tenantId, manager.id);
 
@@ -350,7 +385,7 @@ async function seed(): Promise<void> {
     //   Paris Prospecting team
     // ================================================================
 
-    const prospector = await ensureRoleUser('prospector@intertrad.test');
+    const prospector = await ensureRoleUser('prospector@intertrad.test', 'Nabil Benali');
 
     const prospectorGrants = await grantRepository.findByUser(tenantId, prospector.id);
 
@@ -391,7 +426,7 @@ async function seed(): Promise<void> {
     // administrator behavior.
     // ================================================================
 
-    const observer = await ensureRoleUser('observer@intertrad.test');
+    const observer = await ensureRoleUser('observer@intertrad.test', 'Camille Moreau');
 
     const observerGrants = await grantRepository.findByUser(tenantId, observer.id);
 
@@ -428,7 +463,7 @@ async function seed(): Promise<void> {
     // access-denied state instead of an application workspace.
     // ================================================================
 
-    const noAccessUser = await ensureRoleUser('noaccess@intertrad.test');
+    const noAccessUser = await ensureRoleUser('noaccess@intertrad.test', 'Alex Martin');
 
     // ================================================================
     // TR-031 WORK QUEUE / PROSPECT DETAIL DEVELOPMENT DATA
@@ -456,12 +491,16 @@ async function seed(): Promise<void> {
     console.log('');
     console.log('TR-031 Work Queue development fixture ready');
 
-    console.log(`Campaign: ${workQueueFixture.campaignId}`);
+    console.log(
+      `Frontend campaigns: ${workQueueFixture.campaigns
+        .map((campaign) => `${campaign.name} (${campaign.id})`)
+        .join(', ')}`,
+    );
 
     for (const prospect of workQueueFixture.prospects) {
       console.log(
         `${prospect.name} -> ` +
-          `${prospect.campaignProspectId} ` +
+          `${prospect.campaignName} / ${prospect.campaignProspectId} ` +
           `(${prospect.activityCount} activities)`,
       );
     }

@@ -24,6 +24,27 @@ export interface MarkNotificationReadInput {
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
+  async listPage(input: ListNotificationInboxInput & { cursor?: string }) {
+    const limit = input.limit ?? 50;
+    const rows = await this.notificationRepository.findInboxPage(input.tenantId, input.userId, {
+      limit,
+      unreadOnly: input.unreadOnly,
+      cursor: input.cursor,
+    });
+    return {
+      items: rows.slice(0, limit),
+      nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
+    };
+  }
+
+  async unreadCount(tenantId: string, userId: string) {
+    return { count: await this.notificationRepository.countUnread(tenantId, userId) };
+  }
+
+  async markAllRead(tenantId: string, userId: string) {
+    return { updated: await this.notificationRepository.markAllRead(tenantId, userId) };
+  }
+
   listInbox(input: ListNotificationInboxInput) {
     return this.notificationRepository.findInbox(
       input.tenantId,

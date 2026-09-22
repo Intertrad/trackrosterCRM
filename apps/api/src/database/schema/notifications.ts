@@ -11,7 +11,7 @@ import {
 
 import { prospectFollowUps } from './prospect-follow-ups.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const notificationTypeEnum = pgEnum('notification_type', ['follow_up_reminder']);
 
@@ -88,7 +88,7 @@ export const notifications = pgTable(
 
       columns: [table.tenantId, table.recipientUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

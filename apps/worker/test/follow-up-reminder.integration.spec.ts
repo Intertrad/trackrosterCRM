@@ -566,4 +566,27 @@ describe('Follow-up reminder PostgreSQL integration', () => {
 
     expect(notification?.scheduledFor.toISOString()).toBe(scheduledFor.toISOString());
   });
+  it('suppresses reminders while prospect opposition is effective', async () => {
+    const staleContext = await repository.findContext(
+      tenantId,
+      campaignId,
+      campaignProspectId,
+      followUpId,
+    );
+    expect(staleContext).not.toBeNull();
+    await pool.query(
+      `INSERT INTO contact_consents (tenant_id,prospect_id,channel,status,reason,recorded_by) VALUES ($1,$2,'all','blocked','Opposition evidence',$3)`,
+      [tenantId, establishmentId, userId],
+    );
+    try {
+      expect(
+        await repository.findContext(tenantId, campaignId, campaignProspectId, followUpId),
+      ).toBeNull();
+      expect(
+        await repository.createNotificationsIfAbsent(staleContext!, [userId], new Date()),
+      ).toBe(0);
+    } finally {
+      await pool.query('DELETE FROM contact_consents WHERE tenant_id=$1', [tenantId]);
+    }
+  });
 });

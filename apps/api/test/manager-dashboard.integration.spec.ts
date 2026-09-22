@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -564,6 +565,7 @@ describe('Manager dashboard HTTP integration', () => {
 
     await getDatabase().delete(teams).where(eq(teams.tenantId, targetTenantId));
 
+    await clearSessionEvidenceForUsers(getDatabase(), eq(users.tenantId, targetTenantId));
     await getDatabase().delete(users).where(eq(users.tenantId, targetTenantId));
 
     await getDatabase().delete(organizations).where(eq(organizations.tenantId, targetTenantId));

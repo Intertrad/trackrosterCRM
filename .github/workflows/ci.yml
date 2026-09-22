@@ -71,6 +71,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify migration integrity
+        run: pnpm db:migrations:check
+
       - name: Run database migrations
         run: pnpm --filter api db:migrate
 

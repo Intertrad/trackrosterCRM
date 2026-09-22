@@ -1,3 +1,4 @@
+import { ReservationPolicyModule } from '../reservations/reservation-policy.module.js';
 import { Module } from '@nestjs/common';
 
 import { ActivityRepositoryModule } from '../activities/activity-repository.module.js';
@@ -21,6 +22,7 @@ import { DatabaseModule } from '../database/database.module.js';
 
 @Module({
   imports: [
+    ReservationPolicyModule,
     AuthModule,
 
     AuthorizationModule,

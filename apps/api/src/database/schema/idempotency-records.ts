@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const idempotencyRecordStatusEnum = pgEnum('idempotency_record_status', [
   'processing',
@@ -142,7 +142,7 @@ export const idempotencyRecords = pgTable(
 
       columns: [table.tenantId, table.userId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
@@ -191,7 +191,7 @@ export const idempotencyRecords = pgTable(
       'idempotency_records_operation_check',
       sql`
           ${table.operation}
-          ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'
+          ~ '^[a-z][a-z0-9_]*[.][a-z][a-z0-9_]*$'
         `,
     ),
 

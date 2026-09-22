@@ -21,6 +21,7 @@ export const databaseProviders: Provider[] = [
 
       const pool = new Pool({
         connectionString,
+        connectionTimeoutMillis: 3000,
       });
 
       await pool.query('SELECT 1');

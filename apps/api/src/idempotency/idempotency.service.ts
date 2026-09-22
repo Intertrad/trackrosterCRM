@@ -331,6 +331,7 @@ export class IdempotencyService {
       query: request.query ?? {},
 
       body: request.body ?? null,
+      ...(request.ifMatch !== undefined ? { ifMatch: request.ifMatch } : {}),
     };
   }
 

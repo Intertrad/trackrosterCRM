@@ -12,6 +12,7 @@ describe('WorkQueueService', () => {
   };
 
   let workQueueRepository: {
+    findCampaignOptions: ReturnType<typeof vi.fn>;
     findAssignedProspects: ReturnType<typeof vi.fn>;
     findAssignedProspectById: ReturnType<typeof vi.fn>;
   };
@@ -50,6 +51,26 @@ describe('WorkQueueService', () => {
     return {
       campaignProspectId,
 
+      lifecycleStage: 'to_contact',
+
+      latestActivity:
+        campaignProspectId === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          ? {
+              type: 'call',
+
+              occurredAt: new Date('2026-09-15T14:00:00.000Z'),
+            }
+          : null,
+
+      nextFollowUp:
+        campaignProspectId === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+          ? {
+              id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+
+              dueAt: new Date('2026-09-18T09:00:00.000Z'),
+            }
+          : null,
+
       campaign: {
         id: campaignId,
         name: 'Paris Expansion',
@@ -79,6 +100,10 @@ describe('WorkQueueService', () => {
         city: 'Paris',
 
         countryCode: 'FR',
+
+        latitude: 49.1596,
+
+        longitude: 5.3828,
 
         phone: null,
 
@@ -110,6 +135,14 @@ describe('WorkQueueService', () => {
   const prospectDetail: WorkQueueProspectDetail = {
     campaignProspectId: prospectId,
 
+    lifecycleStage: 'in_progress',
+
+    latestActivity: {
+      type: 'visit',
+
+      occurredAt: new Date('2026-09-15T10:00:00.000Z'),
+    },
+
     campaign: {
       id: campaignId,
       name: 'Paris Expansion',
@@ -140,6 +173,10 @@ describe('WorkQueueService', () => {
 
       countryCode: 'FR',
 
+      latitude: 49.1596,
+
+      longitude: 5.3828,
+
       phone: '+33100000000',
 
       website: 'https://paris-clinic.example',
@@ -164,6 +201,7 @@ describe('WorkQueueService', () => {
     };
 
     workQueueRepository = {
+      findCampaignOptions: vi.fn().mockResolvedValue([]),
       findAssignedProspects: vi.fn().mockResolvedValue([]),
 
       findAssignedProspectById: vi.fn().mockResolvedValue(null),
@@ -265,7 +303,7 @@ describe('WorkQueueService', () => {
       expect(workQueueRepository.findAssignedProspects).not.toHaveBeenCalled();
     });
 
-    it('forwards campaign, search and explicit limit filters', async () => {
+    it('forwards campaign, lifecycle, search and explicit limit filters', async () => {
       await service.list({
         tenantId,
 
@@ -274,6 +312,8 @@ describe('WorkQueueService', () => {
         teamId,
 
         campaignId,
+
+        lifecycleStage: 'follow_up',
 
         search: '  Paris Clinic  ',
 
@@ -288,6 +328,8 @@ describe('WorkQueueService', () => {
         teamId,
 
         campaignId,
+
+        lifecycleStage: 'follow_up',
 
         search: 'Paris Clinic',
 
@@ -432,6 +474,67 @@ describe('WorkQueueService', () => {
 
           nextCursor: null,
         },
+      });
+    });
+
+    describe('getOptions', () => {
+      it('returns campaign options for the exact Prospector team workspace', async () => {
+        const campaigns = [
+          {
+            id: campaignId,
+            name: 'Paris Expansion',
+          },
+        ];
+
+        workQueueRepository.findCampaignOptions.mockResolvedValue(campaigns);
+
+        await expect(
+          service.getOptions({
+            tenantId,
+
+            userId,
+
+            teamId,
+          }),
+        ).resolves.toEqual({
+          campaigns,
+        });
+
+        expect(authorizationService.getUserGrants).toHaveBeenCalledWith(tenantId, userId);
+
+        expect(workQueueRepository.findCampaignOptions).toHaveBeenCalledWith({
+          tenantId,
+
+          userId,
+
+          teamId,
+        });
+      });
+
+      it('rejects campaign options when the user lacks a Prospector grant', async () => {
+        authorizationService.getUserGrants.mockResolvedValue([
+          {
+            role: 'manager',
+
+            scopeType: 'team',
+
+            organizationId,
+
+            teamId,
+          },
+        ]);
+
+        await expect(
+          service.getOptions({
+            tenantId,
+
+            userId,
+
+            teamId,
+          }),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(workQueueRepository.findCampaignOptions).not.toHaveBeenCalled();
       });
     });
   });

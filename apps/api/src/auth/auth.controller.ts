@@ -1,25 +1,66 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 
 import { AuthService } from './auth.service.js';
-import { AuthenticatedUser, AuthenticationTokens } from './auth.types.js';
+import { AuthenticatedPrincipal, AuthenticatedUser, AuthenticationResult } from './auth.types.js';
 import { AuthGuard } from './auth.guard.js';
 import { CurrentAuth } from './current-auth.decorator.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { SelectWorkspaceDto } from './dto/select-workspace.dto.js';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
+  @Get('config')
+  @Header('Cache-Control', 'no-store')
+  configuration() {
+    return {
+      password: true,
+      mfa: {
+        totp: !!this.config.get('MFA_ENCRYPTION_KEY'),
+        recoveryCodes: !!this.config.get('MFA_ENCRYPTION_KEY'),
+      },
+      passwordRecovery: !!this.config.get('MAILPIT_URL'),
+      sso: { enabled: false },
+    };
+  }
+
+  @Header('Cache-Control', 'no-store')
   @Post('login')
+  @UseGuards(AuthRateLimitGuard)
   @HttpCode(HttpStatus.OK)
-  async login(@Body() input: LoginDto): Promise<AuthenticationTokens> {
+  async login(@Body() input: LoginDto): Promise<AuthenticationResult> {
     return this.authService.login(input);
   }
 
-  @Post('refresh')
+  @Header('Cache-Control', 'no-store')
+  @Post('select-tenant')
+  @UseGuards(AuthRateLimitGuard)
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() input: RefreshTokenDto): Promise<AuthenticationTokens> {
+  selectTenant(@Body() input: SelectWorkspaceDto) {
+    return this.authService.selectMembership(input.selectionToken, input.membershipId);
+  }
+
+  @Header('Cache-Control', 'no-store')
+  @Post('refresh')
+  @UseGuards(AuthRateLimitGuard)
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() input: RefreshTokenDto) {
     return this.authService.refresh(input.refreshToken);
   }
 
@@ -33,8 +74,11 @@ export class AuthController {
   @UseGuards(AuthGuard)
   getCurrentUser(
     @CurrentAuth()
-    auth: AuthenticatedUser,
+    auth: AuthenticatedPrincipal,
   ): AuthenticatedUser {
-    return auth;
+    return {
+      userId: auth.userId,
+      tenantId: auth.tenantId,
+    };
   }
 }

@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -30,6 +31,8 @@ import { UserRepository } from '../src/users/user.repository.js';
 interface WorkQueueHttpResponse {
   items: Array<{
     campaignProspectId: string;
+
+    lifecycleStage: string;
 
     campaign: {
       id: string;
@@ -401,6 +404,8 @@ describe('Work Queue HTTP integration', () => {
         establishmentId: establishment.id,
 
         status: 'active',
+
+        lifecycleStage: 'in_progress',
       })
       .returning();
 
@@ -414,6 +419,8 @@ describe('Work Queue HTTP integration', () => {
         establishmentId: otherEstablishment.id,
 
         status: 'active',
+
+        lifecycleStage: 'follow_up',
       })
       .returning();
 
@@ -494,6 +501,7 @@ describe('Work Queue HTTP integration', () => {
 
         await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantId));
 
+        await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantId));
         await database.delete(users).where(eq(users.tenantId, tenantId));
 
         await database.delete(teams).where(eq(teams.tenantId, tenantId));
@@ -589,6 +597,8 @@ describe('Work Queue HTTP integration', () => {
     expect(body.items[0]).toMatchObject({
       campaignProspectId: prospectId,
 
+      lifecycleStage: 'in_progress',
+
       campaign: {
         id: campaignId,
 
@@ -637,6 +647,54 @@ describe('Work Queue HTTP integration', () => {
     expect(body.items[0]).not.toHaveProperty('tenantId');
 
     expect(body.items[0]?.assignment).not.toHaveProperty('assignedUserId');
+  });
+
+  it('filters assigned prospects by lifecycle stage without escaping ownership', async () => {
+    const matchingResponse = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue?teamId=${teamId}&lifecycleStage=in_progress`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(matchingResponse.statusCode).toBe(200);
+
+    const matchingBody = JSON.parse(matchingResponse.payload) as WorkQueueHttpResponse;
+
+    expect(matchingBody.items.map((item) => item.campaignProspectId)).toEqual([prospectId]);
+
+    const maskedResponse = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue?teamId=${teamId}&lifecycleStage=follow_up`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(maskedResponse.statusCode).toBe(200);
+
+    const maskedBody = JSON.parse(maskedResponse.payload) as WorkQueueHttpResponse;
+
+    expect(maskedBody.items).toEqual([]);
+  });
+
+  it('rejects an invalid lifecycle stage', async () => {
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: `/work-queue?teamId=${teamId}&lifecycleStage=active`,
+
+      headers: {
+        authorization: `Bearer ${prospectorAccessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 
   it('rejects unauthenticated prospect detail access', async () => {

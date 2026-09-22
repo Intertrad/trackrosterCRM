@@ -15,5 +15,9 @@ export interface SelfAccessContext {
 
   tenantId: string;
 
+  email: string;
+
+  displayName: string | null;
+
   grants: SelfAccessGrant[];
 }

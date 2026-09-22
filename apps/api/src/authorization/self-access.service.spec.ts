@@ -1,12 +1,18 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UserAccessGrant } from '../database/schema/user-access-grants.js';
+import { UserRepository } from '../users/user.repository.js';
 import { AuthorizationService } from './authorization.service.js';
 import { SelfAccessService } from './self-access.service.js';
 
 describe('SelfAccessService', () => {
   let authorizationService: {
     getUserGrants: ReturnType<typeof vi.fn>;
+  };
+
+  let userRepository: {
+    findById: ReturnType<typeof vi.fn>;
   };
 
   let service: SelfAccessService;
@@ -20,7 +26,31 @@ describe('SelfAccessService', () => {
       getUserGrants: vi.fn(),
     };
 
-    service = new SelfAccessService(authorizationService as unknown as AuthorizationService);
+    userRepository = {
+      findById: vi.fn().mockResolvedValue({
+        id: userId,
+
+        tenantId,
+
+        email: 'prospector@intertrad.test',
+
+        displayName: 'Nabil Benali',
+
+        passwordHash: 'test-password-hash',
+
+        status: 'active',
+
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }),
+    };
+
+    service = new SelfAccessService(
+      authorizationService as unknown as AuthorizationService,
+
+      userRepository as unknown as UserRepository,
+    );
   });
 
   it('returns authenticated identity with sanitized access grants', async () => {
@@ -61,6 +91,10 @@ describe('SelfAccessService', () => {
 
       tenantId,
 
+      email: 'prospector@intertrad.test',
+
+      displayName: 'Nabil Benali',
+
       grants: [
         {
           role: 'manager',
@@ -75,9 +109,28 @@ describe('SelfAccessService', () => {
     });
 
     expect(authorizationService.getUserGrants).toHaveBeenCalledWith(tenantId, userId);
+    expect(userRepository.findById).toHaveBeenCalledWith(tenantId, userId);
   });
 
-  it('returns an empty grant list when the user has no grants', async () => {
+  it('returns a nullable display name and an empty grant list', async () => {
+    userRepository.findById.mockResolvedValue({
+      id: userId,
+
+      tenantId,
+
+      email: 'prospector@intertrad.test',
+
+      displayName: null,
+
+      passwordHash: 'test-password-hash',
+
+      status: 'active',
+
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
     authorizationService.getUserGrants.mockResolvedValue([]);
 
     await expect(
@@ -91,8 +144,26 @@ describe('SelfAccessService', () => {
 
       tenantId,
 
+      email: 'prospector@intertrad.test',
+
+      displayName: null,
+
       grants: [],
     });
+  });
+
+  it('rejects a session whose authenticated user no longer exists', async () => {
+    userRepository.findById.mockResolvedValue(null);
+
+    await expect(
+      service.getContext({
+        tenantId,
+
+        userId,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(authorizationService.getUserGrants).not.toHaveBeenCalled();
   });
 
   it('returns grants in deterministic order', async () => {
