@@ -85,7 +85,7 @@ export class CampaignProspectAssignmentService {
 
     try {
       return await this.database.transaction(async (transaction) => {
-        const team = await this.teamRepository.findByIdForShare(
+        const team = await this.teamRepository.findByIdForUpdate(
           input.tenantId,
           input.teamId,
           transaction,
@@ -173,7 +173,7 @@ export class CampaignProspectAssignmentService {
 
     try {
       return await this.database.transaction(async (transaction) => {
-        const team = await this.teamRepository.findByIdForShare(
+        const team = await this.teamRepository.findByIdForUpdate(
           input.tenantId,
           input.teamId,
           transaction,

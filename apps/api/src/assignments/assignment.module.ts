@@ -1,4 +1,12 @@
 import { Module } from '@nestjs/common';
+import {
+  AssignmentBatchController,
+  AssignmentRuleController,
+  AssignmentBatchGuard,
+  AssignmentRuleGuard,
+} from './assignment-batch.controller.js';
+import { AssignmentBatchService } from './assignment-batch.service.js';
+import { AssignmentRuleService } from './assignment-rule.service.js';
 
 import { AuditModule } from '../audit/audit.module.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -28,9 +36,20 @@ import { CampaignProspectAssignmentService } from './campaign-prospect-assignmen
     UserModule,
   ],
 
-  controllers: [CampaignProspectAssignmentController],
+  controllers: [
+    CampaignProspectAssignmentController,
+    AssignmentBatchController,
+    AssignmentRuleController,
+  ],
 
-  providers: [CampaignProspectAssignmentRepository, CampaignProspectAssignmentService],
+  providers: [
+    CampaignProspectAssignmentRepository,
+    CampaignProspectAssignmentService,
+    AssignmentBatchService,
+    AssignmentRuleService,
+    AssignmentBatchGuard,
+    AssignmentRuleGuard,
+  ],
 
   exports: [CampaignProspectAssignmentRepository, CampaignProspectAssignmentService],
 })

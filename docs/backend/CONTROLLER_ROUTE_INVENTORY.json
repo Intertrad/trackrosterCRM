@@ -67,6 +67,55 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/assignment-rules",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 95,
+      "ledgerStatus": "Verified: campaign-authorized paginated rules ordered by priority and ID"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignment-rules",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 98,
+      "ledgerStatus": "Partial: verified capacity/round-robin rules; skill/proximity strategies pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/assignment-rules/:ruleId",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 113,
+      "ledgerStatus": "Verified: audited soft deactivation with current authority"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/assignment-rules/:ruleId",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 103,
+      "ledgerStatus": "Verified: conditional rule/target/strategy/order/active-state updates for supported strategies"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignment-rules/:ruleId/simulate",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 122,
+      "ledgerStatus": "Verified: live eligibility/ownership/capacity simulation without writes or cursor movement"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/bulk",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Verified: all-or-nothing capacity-aware assignment, current authority, idempotency and transactional audit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/preview",
+      "source": "apps/api/src/assignments/assignment-batch.controller.ts",
+      "line": 77,
+      "ledgerStatus": "Verified: scoped bounded selection, ownership/eligibility conflicts and live capacity preview"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/auth/config",
       "source": "apps/api/src/auth/auth.controller.ts",
       "line": 29,
@@ -76,7 +125,7 @@
       "method": "POST",
       "path": "/api/v1/auth/login",
       "source": "apps/api/src/auth/auth.controller.ts",
-      "line": 43,
+      "line": 44,
       "ledgerStatus": "Verified: password, MFA, required enrollment, workspace selection and throttling"
     },
     {
@@ -160,14 +209,14 @@
       "method": "POST",
       "path": "/api/v1/auth/refresh",
       "source": "apps/api/src/auth/auth.controller.ts",
-      "line": 59,
+      "line": 60,
       "ledgerStatus": "Verified: rotating refresh tokens and throttling"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/select-tenant",
       "source": "apps/api/src/auth/auth.controller.ts",
-      "line": 51,
+      "line": 52,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -300,14 +349,14 @@
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/activities",
       "source": "apps/api/src/activities/prospect-activity.controller.ts",
-      "line": 18,
+      "line": 19,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
       "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
-      "line": 96,
+      "line": 97,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -321,14 +370,14 @@
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
       "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
-      "line": 30,
+      "line": 31,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "PUT",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
       "source": "apps/api/src/assignments/campaign-prospect-assignment.controller.ts",
-      "line": 60,
+      "line": 61,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -349,7 +398,7 @@
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/collision-overrides",
       "source": "apps/api/src/collisions/manager-override.controller.ts",
-      "line": 18,
+      "line": 19,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -363,28 +412,28 @@
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups",
       "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
-      "line": 58,
+      "line": 59,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/cancel",
       "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
-      "line": 150,
+      "line": 151,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "POST",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/complete",
       "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
-      "line": 123,
+      "line": 124,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/reschedule",
       "source": "apps/api/src/follow-ups/prospect-follow-up.controller.ts",
-      "line": 91,
+      "line": 92,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -874,7 +923,7 @@
       "method": "GET",
       "path": "/api/v1/permissions",
       "source": "apps/api/src/permissions/permission.controller.ts",
-      "line": 142,
+      "line": 140,
       "ledgerStatus": "Partial: nine published permissions; remaining domains pending"
     },
     {
@@ -916,7 +965,7 @@
       "method": "POST",
       "path": "/api/v1/regions",
       "source": "apps/api/src/regions/region.controller.ts",
-      "line": 30,
+      "line": 31,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
@@ -930,7 +979,7 @@
       "method": "PATCH",
       "path": "/api/v1/regions/:regionId",
       "source": "apps/api/src/regions/region.controller.ts",
-      "line": 78,
+      "line": 79,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {

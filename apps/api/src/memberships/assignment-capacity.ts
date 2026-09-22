@@ -8,6 +8,17 @@ export async function assertAssignmentCapacity(
   teamId: string,
   prospectId: string,
 ) {
+  // Caller holds the team update lock. All assignment writers share this boundary,
+  // including unassigned-to-user team queues and cross-route concurrent batches.
+  const team = await executor.execute<{ team_capacity: number; team_workload: number }>(sql`
+    SELECT COALESCE(s.capacity,100) AS team_capacity,
+      (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=t.tenant_id
+        AND a.team_id=t.id AND a.ended_at IS NULL AND a.campaign_prospect_id <> ${prospectId}) AS team_workload
+    FROM teams t LEFT JOIN team_settings s ON s.tenant_id=t.tenant_id AND s.team_id=t.id
+    WHERE t.tenant_id=${tenantId} AND t.id=${teamId}
+  `);
+  if (!team.rows[0] || team.rows[0].team_workload >= team.rows[0].team_capacity)
+    throw new ConflictException('Assigned team has reached capacity');
   if (!membershipId) return;
   await executor.execute(
     sql`SELECT id FROM tenant_memberships WHERE tenant_id = ${tenantId} AND id = ${membershipId} FOR UPDATE`,

@@ -39,7 +39,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
 
   let teamRepository: {
     findById: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
-    findByIdForShare: ReturnType<typeof vi.fn>;
+    findByIdForUpdate: ReturnType<typeof vi.fn>;
   };
 
   let userRepository: {
@@ -138,9 +138,11 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   beforeEach(() => {
     transaction = {
       transaction: true,
-      execute: vi
-        .fn()
-        .mockResolvedValue({ rows: [{ eligible: true, capacity: null, workload: 0 }] }),
+      execute: vi.fn().mockResolvedValue({
+        rows: [
+          { eligible: true, capacity: null, workload: 0, team_capacity: 100, team_workload: 0 },
+        ],
+      }),
     };
 
     database = {
@@ -172,7 +174,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
     };
 
     teamRepository = {
-      findByIdForShare: vi
+      findByIdForUpdate: vi
         .fn()
         .mockImplementation((tenantId, teamId) => teamRepository.findById(tenantId, teamId)),
       findById: vi.fn().mockResolvedValue({

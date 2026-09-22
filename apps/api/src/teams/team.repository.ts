@@ -12,7 +12,7 @@ export class TeamRepository {
     private readonly database: Database,
   ) {}
 
-  async findByIdForShare(
+  async findByIdForUpdate(
     tenantId: string,
     teamId: string,
     executor: DatabaseExecutor,
@@ -21,7 +21,7 @@ export class TeamRepository {
       .select()
       .from(teams)
       .where(and(eq(teams.tenantId, tenantId), eq(teams.id, teamId)))
-      .for('share');
+      .for('update');
     return team ?? null;
   }
 
