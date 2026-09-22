@@ -257,6 +257,12 @@ export class PermissionService {
       // Scope the check to the canonical prospect, without exposing restrictions
       // for someone else's individual assignment.
       if (blocked.rows.length) {
+        if (method === 'POST' && /\/(reservation|activities)$/.test(path)) {
+          const paused = await this.db.execute(
+            sql`SELECT id FROM campaign_prospect_assignments WHERE tenant_id=${auth.tenantId} AND campaign_prospect_id=${consentProspect} AND ended_at IS NULL AND status='paused'`,
+          );
+          if (paused.rows.length) throw new ConflictException('Assignment is paused');
+        }
         const restriction = await this.db.execute(
           sql`SELECT cp.id FROM campaign_prospects cp WHERE cp.tenant_id=${auth.tenantId} AND cp.id=${consentProspect} AND trackroster_consent_blocked(cp.tenant_id,cp.establishment_id,${channel})`,
         );

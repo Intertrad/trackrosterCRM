@@ -193,6 +193,20 @@ describe('Actions, outcomes and unified timelines', () => {
       await db.delete(t).where(eq(t.tenantId, tenantId));
     for (const t of [contactConsents, prospectActivities, prospectFollowUps])
       await db.delete(t).where(eq(t.tenantId, tenantId));
+    // Ended ownership is immutable. Recreate this disposable fixture only after
+    // all test-owned dependent rows have been deleted; never reopen history.
+    const [base] = await db
+      .select()
+      .from(campaignProspectAssignments)
+      .where(eq(campaignProspectAssignments.id, assignment));
+    if (base?.endedAt) {
+      await db
+        .delete(campaignProspectAssignments)
+        .where(eq(campaignProspectAssignments.id, assignment));
+      await db
+        .insert(campaignProspectAssignments)
+        .values({ ...base, endedAt: null, status: 'active', endReason: null });
+    }
   });
   afterAll(async () => {
     if (db) {
@@ -567,10 +581,6 @@ describe('Actions, outcomes and unified timelines', () => {
       await db
         .delete(campaignProspectAssignments)
         .where(eq(campaignProspectAssignments.id, replacement!.id));
-      await db
-        .update(campaignProspectAssignments)
-        .set({ endedAt: null })
-        .where(eq(campaignProspectAssignments.id, assignment));
     }
   });
   it('filters another campaign ownership from the same canonical prospect timeline', async () => {

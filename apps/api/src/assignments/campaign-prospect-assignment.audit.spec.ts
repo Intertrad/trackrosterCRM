@@ -116,6 +116,10 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   };
 
   const currentAssignment: CampaignProspectAssignment = {
+    status: 'active',
+    priority: 'normal',
+    endReason: null,
+    updatedAt: new Date(),
     id: oldAssignmentId,
 
     tenantId,

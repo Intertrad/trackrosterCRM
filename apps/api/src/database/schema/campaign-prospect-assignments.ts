@@ -8,6 +8,8 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
+  text,
 } from 'drizzle-orm/pg-core';
 
 import { campaignProspects } from './campaign-prospects.js';
@@ -63,6 +65,17 @@ export const campaignProspectAssignments = pgTable(
      * A timestamp means the assignment belongs
      * to assignment history.
      */
+    status: varchar('status', { length: 16 })
+      .$type<'active' | 'paused' | 'completed' | 'revoked'>()
+      .notNull()
+      .default('active'),
+    priority: varchar('priority', { length: 16 })
+      .$type<'low' | 'normal' | 'high' | 'critical'>()
+      .notNull()
+      .default('normal'),
+    endReason: text('end_reason'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+
     endedAt: timestamp('ended_at', {
       withTimezone: true,
       mode: 'date',
@@ -70,6 +83,18 @@ export const campaignProspectAssignments = pgTable(
   },
 
   (table) => [
+    check(
+      'assignment_status_check',
+      sql`${table.status} IN ('active','paused','completed','revoked')`,
+    ),
+    check(
+      'assignment_priority_check',
+      sql`${table.priority} IN ('low','normal','high','critical')`,
+    ),
+    check(
+      'assignment_ended_status_check',
+      sql`(${table.endedAt} IS NULL AND ${table.status} IN ('active','paused')) OR (${table.endedAt} IS NOT NULL AND ${table.status} IN ('completed','revoked'))`,
+    ),
     /*
      * Useful for future tenant-safe references.
      */

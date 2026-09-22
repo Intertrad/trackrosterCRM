@@ -109,6 +109,10 @@ describe('CampaignProspectAssignmentService', () => {
   };
 
   const assignment: CampaignProspectAssignment = {
+    status: 'active',
+    priority: 'normal',
+    endReason: null,
+    updatedAt: new Date(),
     id: assignmentId,
 
     tenantId,

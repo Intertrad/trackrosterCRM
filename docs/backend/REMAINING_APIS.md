@@ -1,12 +1,12 @@
 # Remaining API contract checklist
 
-Snapshot: 2026-09-22, after transactional bulk assignment and saved capacity/round-robin rules.
+Snapshot: 2026-09-22, after canonical assignment lifecycle APIs.
 
 For APIs usable in frontend integration now, see the [frontend API handoff](FRONTEND_API_HANDOFF.md). Verified does not yet mean production deployment is signed off.
 
-The ledger contains 115 verified operations, 14 partially completed operations, and 252 operations awaiting verification. The two implemented geographic-allocation extension routes are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
+The ledger contains 123 verified operations, 14 partially completed operations, and 244 operations awaiting verification. The two implemented geographic-allocation extension routes are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
 
-The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; skill/proximity strategies and implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Next: canonical assignment list/detail/lifecycle reconciliation, remaining allocation strategies, then import/deduplication/export completion.
+The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; skill/proximity strategies and implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. Next: remaining allocation strategies and assignment suggestions, then import/deduplication/export completion.
 
 ## 2. Authentication and personal account — P0
 
@@ -103,17 +103,9 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 9. Assignments and workload — P0
 
-| Method | Endpoint                               | Required behavior                                | Ledger status        |
-| ------ | -------------------------------------- | ------------------------------------------------ | -------------------- |
-| GET    | `/assignments`                         | List assignments by campaign/team/user/status.   | Pending verification |
-| GET    | `/assignments/unassigned`              | Return scoped unassigned prospect queue.         | Pending verification |
-| POST   | `/assignments`                         | Assign one prospect.                             | Pending verification |
-| GET    | `/assignments/{assignmentId}`          | Read ownership and history.                      | Pending verification |
-| PATCH  | `/assignments/{assignmentId}`          | Change priority or open status.                  | Pending verification |
-| POST   | `/assignments/{assignmentId}/reassign` | End current ownership and create replacement.    | Pending verification |
-| POST   | `/assignments/{assignmentId}/complete` | Complete assignment.                             | Pending verification |
-| POST   | `/assignments/{assignmentId}/revoke`   | Revoke with reason.                              | Pending verification |
-| GET    | `/assignment-suggestions`              | Return capacity/proximity/skill recommendations. | Pending verification |
+| Method | Endpoint                  | Required behavior                                | Ledger status        |
+| ------ | ------------------------- | ------------------------------------------------ | -------------------- |
+| GET    | `/assignment-suggestions` | Return capacity/proximity/skill recommendations. | Pending verification |
 
 ## 11. Actions, outcomes and follow-ups — P0
 

@@ -69,50 +69,106 @@
       "method": "GET",
       "path": "/api/v1/assignment-rules",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 95,
+      "line": 93,
       "ledgerStatus": "Verified: campaign-authorized paginated rules ordered by priority and ID"
     },
     {
       "method": "POST",
       "path": "/api/v1/assignment-rules",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 98,
+      "line": 96,
       "ledgerStatus": "Partial: verified capacity/round-robin rules; skill/proximity strategies pending"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/assignment-rules/:ruleId",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 113,
+      "line": 111,
       "ledgerStatus": "Verified: audited soft deactivation with current authority"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/assignment-rules/:ruleId",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 103,
+      "line": 101,
       "ledgerStatus": "Verified: conditional rule/target/strategy/order/active-state updates for supported strategies"
     },
     {
       "method": "POST",
       "path": "/api/v1/assignment-rules/:ruleId/simulate",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 122,
+      "line": 120,
       "ledgerStatus": "Verified: live eligibility/ownership/capacity simulation without writes or cursor movement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 68,
+      "ledgerStatus": "Verified: current-grant scoped history list with campaign/team/user/status filters and pagination"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 77,
+      "ledgerStatus": "Verified: canonical single assignment using transactional capacity/authority checks"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments/:assignmentId",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 83,
+      "ledgerStatus": "Verified: scoped ownership record, bounded history/events and record ETag"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/assignments/:assignmentId",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 89,
+      "ledgerStatus": "Verified: conditional priority and active/paused state changes with contact enforcement"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/complete",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 112,
+      "ledgerStatus": "Verified: reasoned terminal completion, immutable ownership history and audit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/reassign",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 100,
+      "ledgerStatus": "Verified: atomic source end/replacement/audit with source and target authority and capacity"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/revoke",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 124,
+      "ledgerStatus": "Verified: reasoned terminal revocation, immutable ownership history and audit"
     },
     {
       "method": "POST",
       "path": "/api/v1/assignments/bulk",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 82,
+      "line": 80,
       "ledgerStatus": "Verified: all-or-nothing capacity-aware assignment, current authority, idempotency and transactional audit"
     },
     {
       "method": "POST",
       "path": "/api/v1/assignments/preview",
       "source": "apps/api/src/assignments/assignment-batch.controller.ts",
-      "line": 77,
+      "line": 75,
       "ledgerStatus": "Verified: scoped bounded selection, ownership/eligibility conflicts and live capacity preview"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments/unassigned",
+      "source": "apps/api/src/assignments/assignment-lifecycle.controller.ts",
+      "line": 71,
+      "ledgerStatus": "Verified: assignment-authorized campaign queue without current ownership"
     },
     {
       "method": "GET",

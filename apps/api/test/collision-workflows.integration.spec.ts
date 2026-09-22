@@ -219,10 +219,20 @@ describe('Collision evidence and override request workflows', () => {
     await db
       .delete(campaignProspectAssignments)
       .where(eq(campaignProspectAssignments.id, extraAssignment));
-    await db
-      .update(campaignProspectAssignments)
-      .set({ endedAt: null })
+    // Ended ownership is immutable. Recreate this disposable fixture only after
+    // all test-owned dependent rows have been deleted; never reopen history.
+    const [base] = await db
+      .select()
+      .from(campaignProspectAssignments)
       .where(eq(campaignProspectAssignments.id, assignment));
+    if (base?.endedAt) {
+      await db
+        .delete(campaignProspectAssignments)
+        .where(eq(campaignProspectAssignments.id, assignment));
+      await db
+        .insert(campaignProspectAssignments)
+        .values({ ...base, endedAt: null, status: 'active', endReason: null });
+    }
   });
   afterAll(async () => {
     if (db) {

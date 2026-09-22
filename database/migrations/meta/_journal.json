@@ -302,6 +302,20 @@
       "when": 1790109101289,
       "tag": "0042_assignment_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790110128975,
+      "tag": "0043_assignment_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790110378923,
+      "tag": "0044_assignment_contact_guard",
+      "breakpoints": true
     }
   ]
 }

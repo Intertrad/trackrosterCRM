@@ -66,7 +66,19 @@ export class ActionService {
       );
     if (!row || (execute && row.assigneeMembershipId !== auth.membershipId))
       throw new NotFoundException('Action not found');
-    if (execute && this.contact(row.type)) await this.checkConsent(auth, row, tx);
+    if (execute && this.contact(row.type)) {
+      const [assignment] = await tx
+        .select()
+        .from(campaignProspectAssignments)
+        .where(
+          and(
+            eq(campaignProspectAssignments.tenantId, auth.tenantId),
+            eq(campaignProspectAssignments.id, row.assignmentId),
+          ),
+        );
+      if (assignment?.status === 'paused') throw new ConflictException('Assignment is paused');
+      await this.checkConsent(auth, row, tx);
+    }
     return row;
   }
   private contact(type: string) {
@@ -277,6 +289,12 @@ export class ActionService {
             ),
           )
           .for('update');
+        if (
+          assignment?.status === 'paused' &&
+          !['cancel', 'correction'].includes(operation) &&
+          !['task', 'note'].includes(row.type)
+        )
+          throw new ConflictException('Assignment is paused');
         if (!['cancel', 'correction'].includes(operation) && assignment?.id !== row.assignmentId)
           throw new ConflictException('Assignment changed; create a new action');
         if (operation === 'correction') {

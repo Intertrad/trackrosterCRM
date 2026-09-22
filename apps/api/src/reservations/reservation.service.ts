@@ -835,6 +835,8 @@ export class ReservationService {
      * Do not reveal that another user's assignment
      * exists.
      */
+    if (assignment.status === 'paused') throw new ConflictException('Assignment is paused');
+
     if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
       throw new NotFoundException('Campaign prospect not found');
     }

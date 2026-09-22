@@ -1,20 +1,20 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-22, after transactional bulk assignment and saved capacity/round-robin rules. Base path: `/api/v1`.
+Snapshot: 2026-09-22, after canonical assignment lifecycle APIs. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 115 verified product-contract operations plus 2 verified geographic-allocation extensions. All 115 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 123 verified product-contract operations plus 2 verified geographic-allocation extensions. All 123 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0042`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0044`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 647 API unit tests, 484 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 43 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 647 API unit tests, 493 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 45 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                   | Product-contract operations | Frontend guidance                                                           |
 | -------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                         |                         115 | Integrate the documented supported behavior                                 |
+| Verified                         |                         123 | Integrate the documented supported behavior                                 |
 | Partial                          |                          14 | Use only the implemented subset described below                             |
-| Pending verification/completion  |                         252 | Do not assume the target contract is ready; consult the remaining checklist |
+| Pending verification/completion  |                         244 | Do not assume the target contract is ready; consult the remaining checklist |
 | Geographic-allocation extensions |                           2 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
@@ -230,6 +230,21 @@ Contract reference: [payloads, response examples and limits](BULK_ASSIGNMENTS.md
 | DELETE | `/assignment-rules/{ruleId}`          | Verified: audited soft deactivation with current authority                                                 |
 | POST   | `/assignment-rules/{ruleId}/simulate` | Verified: live eligibility/ownership/capacity simulation without writes or cursor movement                 |
 
+### Canonical assignment lifecycle
+
+Contract reference: [payloads, states, history and permissions](ASSIGNMENT_LIFECYCLE.md). Apply migrations 0043–0044.
+
+| Method | Endpoint                               | Supported behavior / limits                                                                       |
+| ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| GET    | `/assignments`                         | Verified: current-grant scoped history list with campaign/team/user/status filters and pagination |
+| GET    | `/assignments/unassigned`              | Verified: assignment-authorized campaign queue without current ownership                          |
+| POST   | `/assignments`                         | Verified: canonical single assignment using transactional capacity/authority checks               |
+| GET    | `/assignments/{assignmentId}`          | Verified: scoped ownership record, bounded history/events and record ETag                         |
+| PATCH  | `/assignments/{assignmentId}`          | Verified: conditional priority and active/paused state changes with contact enforcement           |
+| POST   | `/assignments/{assignmentId}/reassign` | Verified: atomic source end/replacement/audit with source and target authority and capacity       |
+| POST   | `/assignments/{assignmentId}/complete` | Verified: reasoned terminal completion, immutable ownership history and audit                     |
+| POST   | `/assignments/{assignmentId}/revoke`   | Verified: reasoned terminal revocation, immutable ownership history and audit                     |
+
 ## Partial APIs: usable subsets, unfinished contracts
 
 These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
@@ -253,9 +268,9 @@ These routes exist, but do not advertise their full planned behavior in the fron
 
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 14 partial and 252 pending-verification product contracts. Pending verification is not the same as nonexistent code: imports, exports, work queues, assignment/reservation operations and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 14 partial and 244 pending-verification product contracts. Pending verification is not the same as nonexistent code: imports, exports, work queues, assignment/reservation operations and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Immediate next group: canonical assignment list/detail/lifecycle reconciliation and remaining allocation strategies, then import/deduplication/export completion. Later groups include configurable outcomes and follow-up/dashboard reconciliation, map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Immediate next group: remaining allocation strategies and assignment suggestions, then import/deduplication/export completion. Later groups include configurable outcomes and follow-up/dashboard reconciliation, map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 
