@@ -46,3 +46,4 @@ export * from './membership-access-evidence.js';
 export * from './membership-scope-denials.js';
 
 export * from './prospect-master.js';
+export * from './prospect-enrichment.js';

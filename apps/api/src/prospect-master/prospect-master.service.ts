@@ -1,3 +1,11 @@
+import { visibleField } from '../prospect-enrichment/field-visibility.js';
+import {
+  customFieldDefinitions as fields,
+  customFieldValues as values,
+  prospectTags as tags,
+  prospectTagLinks as links,
+  prospectMerges as merges,
+} from '../database/schema/index.js';
 import {
   BadRequestException,
   ConflictException,
@@ -122,8 +130,49 @@ export class ProspectMasterService {
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
     };
   }
-  get(a: AuthenticatedPrincipal, id: string) {
-    return this.access.prospect(a, id);
+  async get(a: AuthenticatedPrincipal, id: string, tx: DatabaseExecutor = this.db) {
+    const record = await this.access.prospect(a, id, false, tx);
+    const tagRows = await tx
+      .select({ id: tags.id, name: tags.name, color: tags.color })
+      .from(links)
+      .innerJoin(tags, and(eq(tags.tenantId, links.tenantId), eq(tags.id, links.tagId)))
+      .where(and(eq(links.tenantId, a.tenantId), eq(links.prospectId, id)))
+      .orderBy(tags.id);
+    const fieldRows = await tx
+      .select({ key: fields.fieldKey, value: values.value })
+      .from(values)
+      .innerJoin(
+        fields,
+        and(eq(fields.tenantId, values.tenantId), eq(fields.id, values.definitionId)),
+      )
+      .where(
+        and(
+          eq(values.tenantId, a.tenantId),
+          eq(values.prospectId, id),
+          eq(fields.isActive, true),
+          visibleField(a),
+        ),
+      )
+      .orderBy(fields.fieldKey);
+    const merged = await tx
+      .select()
+      .from(merges)
+      .where(
+        and(
+          eq(merges.tenantId, a.tenantId),
+          sql`(${merges.sourceId}=${id}::uuid OR ${merges.targetId}=${id}::uuid)`,
+        ),
+      );
+    return {
+      ...record,
+      tags: tagRows,
+      customFields: Object.fromEntries(fieldRows.map((r) => [r.key, r.value])),
+      mergedIntoId: merged.find((r) => r.sourceId === id)?.targetId ?? null,
+      mergedSourceIds: merged
+        .filter((r) => r.targetId === id)
+        .map((r) => r.sourceId)
+        .sort(),
+    };
   }
   create(a: AuthenticatedPrincipal, input: CreateProspectDto) {
     return this.transaction(a, async (tx) => {
@@ -142,7 +191,7 @@ export class ProspectMasterService {
           isPrimary: true,
         });
       await this.record(tx, a, r.id, 'prospect.created');
-      return r;
+      return this.get(a, r.id, tx);
     });
   }
   async update(
@@ -159,7 +208,7 @@ export class ProspectMasterService {
         .where(and(eq(establishments.tenantId, a.tenantId), eq(establishments.id, id)))
         .for('update');
       const current = await this.access.prospect(a, id, true, tx);
-      assertResourceMatches(version, current);
+      assertResourceMatches(version, await this.get(a, id, tx));
       if (!transition && input.status !== undefined)
         throw new BadRequestException('Use archive or restore for prospect status changes');
       if (!transition && current.status === 'archived')
@@ -219,7 +268,7 @@ export class ProspectMasterService {
             ? 'prospect.restored'
             : 'prospect.updated',
       );
-      return this.access.prospect(a, id, false, tx);
+      return this.get(a, id, tx);
     });
   }
   async childParent(

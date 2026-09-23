@@ -61,7 +61,7 @@ export function requestDomainPermission(
   if (/^\/(organizations|organization-relationships|teams)(\/|$)/.test(path))
     return read ? 'organizations.read' : 'organizations.manage';
   if (
-    /^\/(establishments|prospects|prospect-addresses|prospect-contacts|work-queue)(\/|$)/.test(
+    /^\/(establishments|prospects|prospect-addresses|prospect-contacts|tags|custom-fields|prospect-duplicates|data-quality|work-queue)(\/|$)/.test(
       path,
     ) ||
     /\/prospects(\/|$)/.test(path)
