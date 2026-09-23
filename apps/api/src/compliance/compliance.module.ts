@@ -12,6 +12,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { createHmac } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
@@ -155,6 +156,20 @@ export class ComplianceService {
     if (!r) throw new BadRequestException('Compliance report not found');
     return r;
   }
+  async download(a: Auth, id: string) {
+    const r = await this.report(a, id);
+    const expires = Math.floor(Date.now() / 1000) + 300;
+    const secret = process.env.COMPLIANCE_DOWNLOAD_SECRET ?? process.env.JWT_ACCESS_SECRET;
+    if (!secret) throw new BadRequestException('Download signing is not configured');
+    const signature = createHmac('sha256', secret)
+      .update(`${a.tenantId}:${r.id}:${expires}`)
+      .digest('hex');
+    return {
+      reportId: r.id,
+      downloadUrl: `/api/v1/compliance-reports/${r.id}/download?expires=${expires}&signature=${signature}`,
+      expiresInSeconds: 300,
+    };
+  }
 }
 @Controller()
 @UseGuards(AuthGuard)
@@ -210,14 +225,7 @@ export class ComplianceController {
     @CurrentAuth() a: Auth,
     @Param('reportId', ParseUUIDPipe) id: string,
   ) {
-    return this.s
-      .report(a, id)
-      .then((r) => ({
-        reportId: r.id,
-        status: r.status,
-        downloadUrl: `/api/v1/compliance-reports/${r.id}/download`,
-        expiresInSeconds: 300,
-      }));
+    return this.s.download(a, id);
   }
 }
 @Module({ controllers: [ComplianceController], providers: [ComplianceService] })
