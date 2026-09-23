@@ -16,6 +16,7 @@ describe('TenantService', () => {
     status: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
+    platformConfig: {},
   };
 
   beforeEach(() => {
@@ -43,6 +44,7 @@ describe('TenantService', () => {
       name: 'Intertrad',
       slug: 'intertrad',
       status: 'active',
+      platformConfig: {},
     });
   });
 

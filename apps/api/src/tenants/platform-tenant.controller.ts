@@ -59,6 +59,40 @@ export class PlatformTenantController {
     };
   }
 
+  @Get(':tenantId/config')
+  async config(@Param('tenantId') tenantId: string) {
+    const [tenant] = await this.db
+      .select({ platformConfig: tenants.platformConfig })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
+    return tenant?.platformConfig ?? {};
+  }
+
+  @Patch(':tenantId/config')
+  async updateConfig(
+    @Param('tenantId') tenantId: string,
+    @Body() body: Record<string, unknown>,
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+  ) {
+    const [tenant] = await this.db
+      .update(tenants)
+      .set({ platformConfig: body, updatedAt: new Date() })
+      .where(eq(tenants.id, tenantId))
+      .returning();
+    if (tenant)
+      await this.audit.record({
+        tenantId,
+        actorType: 'user',
+        actorUserId: auth.userId,
+        action: 'platform.tenant_configured',
+        resourceType: 'tenant',
+        resourceId: tenantId,
+        metadata: { keys: Object.keys(body) },
+      });
+    return tenant?.platformConfig ?? {};
+  }
+
   @Patch(':tenantId/status')
   async setStatus(
     @Param('tenantId') tenantId: string,

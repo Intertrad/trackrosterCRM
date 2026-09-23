@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { desc, eq, isNull } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -6,11 +6,17 @@ import { PlatformAdminGuard } from '../authorization/platform-admin.guard.js';
 import { DATABASE } from '../database/database.constants.js';
 import { Database } from '../database/database.types.js';
 import { identities, platformAccessGrants } from '../database/schema/index.js';
+import { AuditService } from '../audit/audit.service.js';
+import { CurrentAuth } from '../auth/current-auth.decorator.js';
+import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 
 @Controller('platform/users')
 @UseGuards(AuthGuard, PlatformAdminGuard)
 export class PlatformUserController {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
   @Get()
   async list() {
     return {
@@ -27,5 +33,64 @@ export class PlatformUserController {
         .where(isNull(platformAccessGrants.revokedAt))
         .orderBy(desc(platformAccessGrants.grantedAt)),
     };
+  }
+
+  @Post(':identityId/grants')
+  async grant(
+    @Param('identityId') identityId: string,
+    @Body() body: { role: 'super_admin' | 'support_operator'; reason: string },
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+  ) {
+    const [grant] = await this.db
+      .insert(platformAccessGrants)
+      .values({
+        identityId,
+        role: body.role,
+        grantSource: 'platform_admin',
+        grantedByIdentityId: auth.identityId,
+        grantReason: body.reason,
+        externalReference: `manual:${Date.now()}`,
+      })
+      .returning();
+    await this.audit.record({
+      tenantId: auth.tenantId,
+      actorType: 'user',
+      actorUserId: auth.userId,
+      action: 'platform.user_granted',
+      resourceType: 'identity',
+      resourceId: identityId,
+      metadata: { role: body.role },
+    });
+    return grant;
+  }
+
+  @Post(':identityId/grants/:grantId/revoke')
+  async revoke(
+    @Param('identityId') identityId: string,
+    @Param('grantId') grantId: string,
+    @Body() body: { reason: string },
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+  ) {
+    const [grant] = await this.db
+      .update(platformAccessGrants)
+      .set({
+        revokedAt: new Date(),
+        revokedByIdentityId: auth.identityId,
+        revocationReason: body.reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(platformAccessGrants.id, grantId))
+      .returning();
+    if (grant)
+      await this.audit.record({
+        tenantId: auth.tenantId,
+        actorType: 'user',
+        actorUserId: auth.userId,
+        action: 'platform.user_revoked',
+        resourceType: 'identity',
+        resourceId: identityId,
+        metadata: { grantId },
+      });
+    return grant ?? null;
   }
 }

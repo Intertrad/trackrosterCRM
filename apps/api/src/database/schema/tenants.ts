@@ -1,4 +1,4 @@
-import { pgEnum, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { jsonb, pgEnum, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const tenantStatusEnum = pgEnum('tenant_status', ['active', 'suspended', 'inactive']);
 
@@ -16,6 +16,8 @@ export const tenants = pgTable('tenants', {
     .unique(),
 
   status: tenantStatusEnum('status').default('active').notNull(),
+
+  platformConfig: jsonb('platform_config').$type<Record<string, unknown>>().default({}).notNull(),
 
   createdAt: timestamp('created_at', {
     withTimezone: true,

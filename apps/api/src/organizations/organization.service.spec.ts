@@ -19,6 +19,7 @@ describe('OrganizationService', () => {
     status: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
+    platformConfig: {},
   };
 
   const organization: Organization = {
@@ -66,6 +67,7 @@ describe('OrganizationService', () => {
       name: 'France Sales',
       slug: 'france-sales',
       status: 'active',
+      platformConfig: {},
     });
   });
 
