@@ -1,5 +1,6 @@
+import type { StoredSsoSettings } from '../../security-administration/sso-settings.js';
 import { sql } from 'drizzle-orm';
-import { boolean, check, integer, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, integer, jsonb, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 export const tenantSecurityPolicies = pgTable(
   'tenant_security_policies',
@@ -7,6 +8,7 @@ export const tenantSecurityPolicies = pgTable(
     tenantId: uuid('tenant_id')
       .primaryKey()
       .references(() => tenants.id, { onDelete: 'cascade' }),
+    sso: jsonb('sso').$type<StoredSsoSettings>(),
     requireMfa: boolean('require_mfa').default(false).notNull(),
     passwordMinLength: integer('password_min_length').default(12).notNull(),
     sessionMaxHours: integer('session_max_hours').default(168).notNull(),

@@ -32,11 +32,15 @@ export class MembershipReasonDto {
   reason!: string;
 }
 export class MembershipScopeDto {
+  @IsOptional() @IsIn(['allow', 'deny']) effect?: 'allow' | 'deny';
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(1000) reason?: string;
   @IsOptional() @IsUUID() territoryId?: string;
   @IsOptional() @IsUUID() campaignId?: string;
   @IsOptional() @IsIn(['read', 'read_write', 'manage']) accessLevel?:
     'read' | 'read_write' | 'manage';
-  @IsIn(TENANT_ROLES) role!: TenantRole;
+  @ValidateIf((input: MembershipScopeDto) => input.effect !== 'deny')
+  @IsIn(TENANT_ROLES)
+  role!: TenantRole;
   @IsIn(['tenant', 'organization', 'team', 'territory', 'campaign']) scopeType!:
     'tenant' | 'organization' | 'team' | 'territory' | 'campaign';
   @IsOptional() @IsUUID() organizationId?: string;

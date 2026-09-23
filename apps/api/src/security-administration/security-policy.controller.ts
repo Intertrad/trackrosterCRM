@@ -1,3 +1,5 @@
+import { ConfigService } from '@nestjs/config';
+import { publicSso, storeSso, SsoPatchDto } from './sso-settings.js';
 import {
   Body,
   ConflictException,
@@ -26,7 +28,7 @@ import {
 } from '../database/schema/index.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { ResourceETagInterceptor, assertResourceMatches } from '../http/resource-etag.js';
-class UpdateSecurityPolicyDto {
+class UpdateSecurityPolicyDto extends SsoPatchDto {
   @IsOptional() @IsBoolean() requireMfa?: boolean;
   @IsOptional() @IsInt() @Min(12) @Max(128) passwordMinLength?: number;
   @IsOptional() @IsInt() @Min(1) @Max(168) sessionMaxHours?: number;
@@ -35,14 +37,20 @@ class UpdateSecurityPolicyDto {
 @UseGuards(AuthGuard, ClientAdminGuard)
 @UseInterceptors(ResourceETagInterceptor)
 export class SecurityPolicyController {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly config: ConfigService,
+  ) {}
   @Get()
   async get(@CurrentAuth() auth: AuthenticatedPrincipal) {
     const [row] = await this.db
       .select()
       .from(tenantSecurityPolicies)
       .where(eq(tenantSecurityPolicies.tenantId, auth.tenantId));
-    return row ?? { tenantId: auth.tenantId, ...DEFAULT_SECURITY_POLICY, updatedAt: null };
+    return {
+      ...(row ?? { tenantId: auth.tenantId, ...DEFAULT_SECURITY_POLICY, updatedAt: null }),
+      sso: publicSso(row?.sso),
+    };
   }
   @Patch()
   @Idempotent('security_policy.update')
@@ -61,10 +69,10 @@ export class SecurityPolicyController {
         .select()
         .from(tenantSecurityPolicies)
         .where(eq(tenantSecurityPolicies.tenantId, auth.tenantId));
-      assertResourceMatches(
-        ifMatch,
-        current ?? { tenantId: auth.tenantId, ...DEFAULT_SECURITY_POLICY, updatedAt: null },
-      );
+      assertResourceMatches(ifMatch, {
+        ...(current ?? { tenantId: auth.tenantId, ...DEFAULT_SECURITY_POLICY, updatedAt: null }),
+        sso: publicSso(current?.sso),
+      });
       if (input.requireMfa) {
         const [actor] = await tx
           .select({ enrolled: identities.mfaEnrolledAt })
@@ -73,10 +81,26 @@ export class SecurityPolicyController {
         if (!actor?.enrolled)
           throw new ConflictException('Enroll in MFA before requiring it for this workspace');
       }
+      const { sso, ...policyInput } = input;
+      const patch = {
+        ...policyInput,
+        ...(sso
+          ? {
+              sso: storeSso(
+                sso,
+                current?.sso,
+                this.config.get<string>('SSO_ENCRYPTION_KEY'),
+                auth.tenantId,
+              ),
+            }
+          : sso === null
+            ? { sso: null }
+            : {}),
+      };
       const values = {
         tenantId: auth.tenantId,
         ...(current ?? DEFAULT_SECURITY_POLICY),
-        ...input,
+        ...patch,
         updatedAt: sql`clock_timestamp()`,
       };
       const [result] = await tx
@@ -84,7 +108,7 @@ export class SecurityPolicyController {
         .values(values)
         .onConflictDoUpdate({
           target: tenantSecurityPolicies.tenantId,
-          set: { ...input, updatedAt: sql`clock_timestamp()` },
+          set: { ...patch, updatedAt: sql`clock_timestamp()` },
         })
         .returning();
       await tx.insert(auditEvents).values({
@@ -94,9 +118,12 @@ export class SecurityPolicyController {
         action: 'security.policy_updated',
         resourceType: 'tenant_security_policy',
         resourceId: auth.tenantId,
-        metadata: { before: current ?? DEFAULT_SECURITY_POLICY, after: result },
+        metadata: {
+          before: { ...(current ?? DEFAULT_SECURITY_POLICY), sso: publicSso(current?.sso) },
+          after: { ...result, sso: publicSso(result?.sso) },
+        },
       });
-      return result;
+      return { ...result, sso: publicSso(result?.sso) };
     });
   }
 }

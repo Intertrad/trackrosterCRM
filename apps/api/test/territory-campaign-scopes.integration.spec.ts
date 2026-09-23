@@ -234,6 +234,25 @@ describe('Territory and campaign resource scopes', () => {
       scope: 'visible_prospects',
     });
   });
+  it('applies explicit territory deny before positive grants and retains disjoint detail access', async () => {
+    await grant(reader, 'territory', territory, 'read', 'auditor');
+    await grant(reader, 'territory', hiddenTerritory, 'read', 'auditor');
+    const denied = await call('POST', `/memberships/${reader}/scopes`, {
+      effect: 'deny',
+      scopeType: 'territory',
+      territoryId: territory,
+      reason: 'Territory restriction',
+    });
+    expect(denied.statusCode, denied.body).toBe(201);
+    expect((await call('GET', `/territories/${territory}`, undefined, reader)).statusCode).toBe(
+      403,
+    );
+    expect(
+      (await call('GET', `/territories/${hiddenTerritory}`, undefined, reader)).statusCode,
+    ).toBe(200);
+    expect((await call('GET', '/territories/map', undefined, reader)).statusCode).toBe(403);
+    expect((await call('DELETE', `/membership-scopes/${denied.json().id}`)).statusCode).toBe(204);
+  });
   it('restricts campaign list/detail to explicit grants and never grants organization or assignment authority', async () => {
     await grant(reader, 'campaign', campaign, 'read', 'prospector');
     expect(

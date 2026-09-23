@@ -385,6 +385,196 @@ describe('Membership administration and enforced role permissions', () => {
       (await call('PATCH', `/teams/${teamId}`, { name: 'Admin retains management' })).statusCode,
     ).toBe(200);
   });
+  it('supports wider role restrictions without granting resource authority', async () => {
+    const catalogue = (await call('GET', '/permissions')).json().items;
+    expect(catalogue.map((p: { permission: string }) => p.permission)).toEqual(
+      expect.arrayContaining([
+        'campaigns.read',
+        'routes.manage',
+        'reports.read',
+        'imports.manage',
+        'consents.manage',
+      ]),
+    );
+    const defaults = (await call('GET', '/roles/prospector/permissions')).json()
+      .configurablePermissions as string[];
+    const result = await call('PUT', '/roles/prospector/permissions', {
+      permissions: defaults.filter((p) => p !== 'notifications.read'),
+    });
+    expect(result.statusCode).toBe(200);
+    expect((await call('GET', '/notifications', undefined, prospectorId)).statusCode).toBe(403);
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/notifications',
+          headers: { authorization: `Bearer ${tokens.get(prospectorId)}` },
+        })
+      ).statusCode,
+    ).toBe(403);
+    expect((await call('GET', '/notifications')).statusCode).toBe(200);
+    expect(
+      (await call('PUT', '/roles/prospector/permissions', { permissions: defaults })).statusCode,
+    ).toBe(200);
+    expect((await call('GET', '/notifications', undefined, prospectorId)).statusCode).toBe(200);
+  });
+  it('gives explicit denials precedence, rejects foreign targets and audits removal', async () => {
+    const input = {
+      effect: 'deny',
+      scopeType: 'team',
+      teamId,
+      reason: 'Restricted team information',
+    };
+    expect((await call('POST', `/memberships/${adminId}/scopes`, input)).statusCode).toBe(409);
+    expect(
+      (
+        await call('POST', `/memberships/${prospectorId}/scopes`, {
+          ...input,
+          teamId: randomUUID(),
+        })
+      ).statusCode,
+    ).toBe(404);
+    const denied = await call('POST', `/memberships/${prospectorId}/scopes`, input);
+    expect(denied.statusCode, denied.body).toBe(201);
+    expect(denied.json()).toMatchObject({ effect: 'deny', scopeType: 'team', resourceId: teamId });
+    expect((await call('POST', `/memberships/${prospectorId}/scopes`, input)).statusCode).toBe(409);
+    expect(
+      (await call('GET', `/campaigns/${campaignId}`, undefined, prospectorId)).statusCode,
+    ).toBe(403);
+    expect((await call('GET', '/notifications', undefined, prospectorId)).statusCode).toBe(403);
+    expect((await call('GET', '/me', undefined, prospectorId)).statusCode).toBe(200);
+    const rules = (await call('GET', `/memberships/${prospectorId}/scopes`)).json();
+    const rule = rules.find((r: { id: string }) => r.id === denied.json().id);
+    const removed = await call(
+      'DELETE',
+      `/membership-scopes/${rule.id}`,
+      undefined,
+      adminId,
+      randomUUID(),
+      { 'if-match': rule.etag },
+    );
+    expect(removed.statusCode, removed.body).toBe(204);
+    expect((await call('GET', '/notifications', undefined, prospectorId)).statusCode).toBe(200);
+    const history = (await call('GET', `/memberships/${prospectorId}/access-history`)).json().items;
+    expect(history.some((r: { action: string }) => r.action === 'membership.deny_removed')).toBe(
+      true,
+    );
+  });
+  it('enforces tenant, organization and campaign deny scopes and stale versions', async () => {
+    for (const rule of [
+      { scopeType: 'tenant' },
+      { scopeType: 'organization', organizationId: orgId },
+      { scopeType: 'campaign', campaignId },
+    ]) {
+      const added = await call('POST', `/memberships/${prospectorId}/scopes`, {
+        ...rule,
+        effect: 'deny',
+        reason: 'Temporary restriction',
+      });
+      expect(added.statusCode, added.body).toBe(201);
+      expect(
+        (await call('GET', `/campaigns/${campaignId}`, undefined, prospectorId)).statusCode,
+      ).toBe(403);
+      const path = `/membership-scopes/${added.json().id}`;
+      expect(
+        (await call('DELETE', path, undefined, adminId, randomUUID(), { 'if-match': '"stale"' }))
+          .statusCode,
+      ).toBe(412);
+      expect(
+        (
+          await call('DELETE', path, undefined, adminId, randomUUID(), {
+            'if-match': String(added.headers.etag),
+          })
+        ).statusCode,
+      ).toBe(204);
+    }
+    const added = await call('POST', `/memberships/${prospectorId}/scopes`, {
+      scopeType: 'organization',
+      organizationId: otherOrgId,
+      effect: 'deny',
+      reason: 'Other organization denied',
+    });
+    expect(added.statusCode).toBe(201);
+    // A bounded resource disconnected from the denied organization remains readable.
+    expect((await call('GET', `/teams/${teamId}`, undefined, prospectorId)).statusCode).toBe(200);
+    expect((await call('DELETE', `/membership-scopes/${added.json().id}`)).statusCode).toBe(204);
+  });
+  it('stores tenant OIDC configuration with encrypted and redacted client secrets', async () => {
+    const before = await call('GET', '/settings/security');
+    expect(before.statusCode).toBe(200);
+    expect(before.json().sso).toMatchObject({ mode: 'disabled', loginAvailable: false });
+    const sso = {
+      provider: 'oidc',
+      mode: 'configured',
+      issuer: 'https://identity.example.test/tenant',
+      clientId: 'trackroster',
+      clientSecret: 'local-oidc-test-client-secret',
+      allowedDomains: ['Example.Test'],
+    };
+    const response = await call('PATCH', '/settings/security', { sso }, adminId, randomUUID(), {
+      'if-match': String(before.headers.etag),
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().sso).toMatchObject({
+      mode: 'configured',
+      clientSecretConfigured: true,
+      allowedDomains: ['example.test'],
+      loginAvailable: false,
+    });
+    expect(response.body).not.toContain(sso.clientSecret);
+    const stored = await db.execute(
+      sql`SELECT sso FROM tenant_security_policies WHERE tenant_id=${tenantId}`,
+    );
+    expect(JSON.stringify(stored.rows)).not.toContain(sso.clientSecret);
+    expect(
+      (stored.rows[0]!.sso as { encryptedClientSecret: string }).encryptedClientSecret,
+    ).toMatch(/^v1\./);
+    const audits = await db.select().from(auditEvents).where(eq(auditEvents.tenantId, tenantId));
+    expect(JSON.stringify(audits)).not.toContain(sso.clientSecret);
+    expect(JSON.stringify(audits)).not.toContain('encryptedClientSecret');
+    expect((await call('GET', '/settings/security', undefined, prospectorId)).statusCode).toBe(403);
+    expect(
+      (
+        await call('PATCH', '/settings/security', { sso }, adminId, randomUUID(), {
+          'if-match': String(before.headers.etag),
+        })
+      ).statusCode,
+    ).toBe(412);
+    expect(
+      (
+        await call('PATCH', '/settings/security', {
+          sso: { ...sso, issuer: 'http://identity.example.test' },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await call('PATCH', '/settings/security', {
+          sso: { ...sso, issuer: 'https://identity.example.test?secret=value' },
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await call('PATCH', '/settings/security', { sso: { ...sso, mode: 'enabled' } })).statusCode,
+    ).toBe(400);
+    const fresh = await call('GET', '/settings/security');
+    expect(fresh.json().sso.clientSecretConfigured).toBe(true);
+    const { clientSecret: ignored, ...withoutSecret } = sso;
+    void ignored;
+    const disabled = await call(
+      'PATCH',
+      '/settings/security',
+      { sso: { ...withoutSecret, mode: 'disabled' } },
+      adminId,
+      randomUUID(),
+      { 'if-match': String(fresh.headers.etag) },
+    );
+    expect(disabled.statusCode, disabled.body).toBe(200);
+    expect(disabled.json().sso).toMatchObject({ mode: 'disabled', clientSecretConfigured: true });
+    const cleared = await call('PATCH', '/settings/security', { sso: null });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().sso.clientSecretConfigured).toBe(false);
+  });
   it('replaces a membership role explicitly and rejects replay after its authority is removed', async () => {
     expect(
       (

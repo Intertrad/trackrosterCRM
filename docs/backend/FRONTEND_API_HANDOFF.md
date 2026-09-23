@@ -1,19 +1,19 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-23, after field rounds and objective-risk calculations. Base path: `/api/v1`.
+Snapshot: 2026-09-23, after profile, permission, summary and security-configuration completion. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 172 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 172 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 185 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 185 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0049`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0054`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 655 API unit tests, 539 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 50 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 657 API unit tests, 548 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 55 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                  | Product-contract operations | Frontend guidance                                                           |
 | ------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                        |                         172 | Integrate the documented supported behavior                                 |
-| Partial                         |                          13 | Use only the implemented subset described below                             |
+| Verified                        |                         185 | Integrate the documented supported behavior                                 |
+| Partial                         |                           0 | Use only the implemented subset described below                             |
 | Pending verification/completion |                         196 | Do not assume the target contract is ready; consult the remaining checklist |
 | Verified extensions             |                           3 | Verified additions outside the 381-operation product ledger                 |
 
@@ -323,29 +323,29 @@ Contract reference: [payloads, lifecycle, scope and calculation details](ROUTES_
 | PATCH  | `/objectives/{objectiveId}`    | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
 | GET    | `/objectives/at-risk`          | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
 
-## Partial APIs: usable subsets, unfinished contracts
+## Newly completed endpoint contracts
 
-These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
+See [payloads and limits](API_COMPLETION_DETAILS.md) before integration. Denials intentionally block compound/aggregate operations when their scope cannot be proven safe. OIDC configuration is saved securely; SSO start/callback remain pending and `loginAvailable` is false.
 
-| Method | Endpoint                                     | Supported subset / remaining work                                                                  |
-| ------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| PATCH  | `/me`                                        | Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending                 |
-| GET    | `/memberships/{membershipId}`                | Partial: identity, capacity, current team grants and effective permissions; roster history pending |
-| GET    | `/permissions`                               | Partial: nine published permissions; remaining domains pending                                     |
-| PUT    | `/roles/{role}/permissions`                  | Partial: four restriction-only configurable management capabilities                                |
-| POST   | `/memberships/{membershipId}/scopes`         | Partial: positive grants at all five scopes; explicit deny rules pending                           |
-| GET    | `/memberships/{membershipId}/access-history` | Partial: cursor-paginated append-only API audit; DB tamper protection pending                      |
-| GET    | `/organizations/{organizationId}`            | Partial: authorized metadata; expanded summary pending                                             |
-| GET    | `/teams/{teamId}/capacity`                   | Partial: assignment count/capacity/availability; richer allocation constraints pending             |
-| GET    | `/campaigns`                                 | Partial: scope-filtered metadata list; advanced list filters pending                               |
-| GET    | `/campaigns/{campaignId}`                    | Partial: scoped campaign metadata; richer summary pending                                          |
-| GET    | `/notifications`                             | Partial: owned cursor inbox/unread filtering; severity model pending                               |
-| GET    | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
-| PATCH  | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
+| Method | Endpoint                                     | Supported behavior                                                                                                |
+| ------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| PATCH  | `/me`                                        | Verified: HTTPS avatar metadata, profile fields, audit and conditional updates                                    |
+| GET    | `/memberships/{membershipId}`                | Verified: identity, capacity, effective access and bounded dated roster history                                   |
+| GET    | `/permissions`                               | Verified: 33 implemented-domain capabilities, including 28 configurable restrictions                              |
+| PUT    | `/roles/{role}/permissions`                  | Verified: restriction-only replacement, mixed-role deny precedence and protected administrators                   |
+| POST   | `/memberships/{membershipId}/scopes`         | Verified: five-scope grants and explicit denials; conservative aggregate/write blocking (see completion contract) |
+| GET    | `/memberships/{membershipId}/access-history` | Verified: cursor history from database-protected immutable evidence with digest verification                      |
+| GET    | `/organizations/{organizationId}`            | Verified: authorized metadata, scoped teams/work summary and consistent conditional updates                       |
+| GET    | `/teams/{teamId}/capacity`                   | Verified: workload, paused/team-owned work, global member capacity and eligibility constraints                    |
+| GET    | `/campaigns`                                 | Verified: scoped advanced filters, stable cursor sorting and legacy no-query compatibility                        |
+| GET    | `/campaigns/{campaignId}`                    | Verified: campaign metadata and prospect-authorized operational summary                                           |
+| GET    | `/notifications`                             | Verified: recipient-scoped severity/read-state filtering and cursor pagination                                    |
+| GET    | `/settings/security`                         | Verified: enforced local policies and redacted OIDC configuration; SSO sign-in remains separate                   |
+| PATCH  | `/settings/security`                         | Verified: conditional policy updates and encrypted OIDC configuration; no SSO activation                          |
 
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 196 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 0 partial and 196 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
 Next groups include map/search/data quality, saved views/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 

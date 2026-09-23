@@ -1,3 +1,4 @@
+import { DOMAIN_PERMISSIONS } from './domain-permissions.js';
 export const TENANT_ROLES = [
   'tenant_admin',
   'director',
@@ -27,6 +28,12 @@ export const ROLES = [
   },
 ];
 export const PERMISSIONS = [
+  ...DOMAIN_PERMISSIONS.map((permission) => ({
+    permission,
+    description: `Restrict ${permission.replaceAll('.', ' ').replaceAll('_', ' ')} within existing resource authority`,
+    configurable: true as const,
+    roles: [...TENANT_ROLES],
+  })),
   {
     permission: 'scope.read',
     description: 'Read resources within existing grants',

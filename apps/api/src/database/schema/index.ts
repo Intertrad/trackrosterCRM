@@ -43,3 +43,4 @@ export * from './outcome-settings.js';
 export * from './field-routes.js';
 export * from './objectives.js';
 export * from './membership-access-evidence.js';
+export * from './membership-scope-denials.js';

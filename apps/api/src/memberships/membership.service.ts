@@ -10,6 +10,7 @@ import { and, asc, eq, gt, ilike, isNull, or, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
+  membershipScopeDenials,
   auditEvents,
   campaignProspectAssignments,
   identities,
@@ -333,12 +334,29 @@ export class MembershipService {
         ),
       )
       .orderBy(asc(membershipResourceScopes.id));
-    return [...grants, ...resources].map((grant) => {
-      const resource = { ...grant, role: publicRole(grant.role) };
-      return { ...resource, etag: resourceETag(resource) };
-    });
+    const denials = await this.db
+      .select()
+      .from(membershipScopeDenials)
+      .where(
+        and(
+          eq(membershipScopeDenials.tenantId, auth.tenantId),
+          eq(membershipScopeDenials.userId, id),
+        ),
+      )
+      .orderBy(asc(membershipScopeDenials.id));
+    return [
+      ...denials.map((row) => {
+        const resource = { ...row, effect: 'deny' };
+        return { ...resource, etag: resourceETag(resource) };
+      }),
+      ...[...grants, ...resources].map((grant) => {
+        const resource = { ...grant, role: publicRole(grant.role) };
+        return { ...resource, etag: resourceETag(resource) };
+      }),
+    ];
   }
   async addScope(auth: AuthenticatedPrincipal, id: string, input: MembershipScopeDto) {
+    if (input.effect === 'deny') return this.mutateDenial(auth, id, null, input);
     if (input.scopeType === 'campaign' || input.scopeType === 'territory')
       return this.resourceScopes.mutate(auth, id, null, input);
     return this.scopeMutation(async (tx) => {
@@ -360,6 +378,20 @@ export class MembershipService {
     input: MembershipScopeDto | null,
     ifMatch?: string,
   ) {
+    const [denial] = await this.db
+      .select()
+      .from(membershipScopeDenials)
+      .where(
+        and(
+          eq(membershipScopeDenials.tenantId, auth.tenantId),
+          eq(membershipScopeDenials.id, scopeId),
+        ),
+      );
+    if (denial) return this.mutateDenial(auth, denial.userId, scopeId, input, ifMatch);
+    if (input?.effect === 'deny')
+      throw new BadRequestException(
+        'Create a separate deny rule; an allow grant cannot be converted',
+      );
     const [resource] = await this.db
       .select({ id: membershipResourceScopes.id })
       .from(membershipResourceScopes)
@@ -407,6 +439,88 @@ export class MembershipService {
         .returning();
       await this.audit(auth, before.userId, 'membership.scope_changed', { before, after }, tx);
       return { ...after!, role: publicRole(after!.role) };
+    });
+  }
+  private async mutateDenial(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    scopeId: string | null,
+    input: MembershipScopeDto | null,
+    ifMatch?: string,
+  ) {
+    return this.scopeMutation(async (tx) => {
+      await this.lock(auth, id, tx);
+      const admin = await tx.execute(
+        sql`SELECT 1 FROM user_access_grants WHERE tenant_id=${auth.tenantId} AND user_id=${id} AND role='client_admin' AND scope_type='tenant'`,
+      );
+      if (input && admin.rows.length)
+        throw new ConflictException(
+          'Tenant administrator access cannot be denied; change the role first',
+        );
+      const [before] = scopeId
+        ? await tx
+            .select()
+            .from(membershipScopeDenials)
+            .where(
+              and(
+                eq(membershipScopeDenials.tenantId, auth.tenantId),
+                eq(membershipScopeDenials.id, scopeId),
+              ),
+            )
+        : [];
+      if (scopeId && !before) throw new NotFoundException('Scope not found');
+      if (before) assertResourceMatches(ifMatch, { ...before, effect: 'deny' });
+      if (!input) {
+        await tx.delete(membershipScopeDenials).where(eq(membershipScopeDenials.id, scopeId!));
+        await this.audit(auth, id, 'membership.deny_removed', { before }, tx);
+        return;
+      }
+      if (input.effect !== 'deny' || !input.reason?.trim() || input.role || input.accessLevel)
+        throw new BadRequestException(
+          'Deny rules require effect=deny and a reason, without role or accessLevel',
+        );
+      const resourceId =
+        input.scopeType === 'tenant'
+          ? auth.tenantId
+          : input[
+              `${input.scopeType}Id` as 'organizationId' | 'teamId' | 'campaignId' | 'territoryId'
+            ];
+      const keys = ['organizationId', 'teamId', 'campaignId', 'territoryId'] as const;
+      if (!resourceId || keys.some((key) => input[key] && key !== `${input.scopeType}Id`))
+        throw new BadRequestException('Supply only the identifier matching the deny scope');
+      const table = {
+        tenant: 'tenants',
+        organization: 'organizations',
+        team: 'teams',
+        campaign: 'campaigns',
+        territory: 'territories',
+      }[input.scopeType];
+      const exists = await tx.execute(
+        sql`SELECT id FROM ${sql.identifier(table)} WHERE id=${resourceId} ${input.scopeType === 'tenant' ? sql`` : sql`AND tenant_id=${auth.tenantId}`}`,
+      );
+      if (!exists.rows.length) throw new NotFoundException('Scope resource not found');
+      const values = {
+        tenantId: auth.tenantId,
+        userId: id,
+        scopeType: input.scopeType,
+        resourceId,
+        reason: input.reason.trim(),
+      };
+      const [after] = before
+        ? await tx
+            .update(membershipScopeDenials)
+            .set({ ...values, updatedAt: sql`clock_timestamp()` })
+            .where(eq(membershipScopeDenials.id, scopeId!))
+            .returning()
+        : await tx.insert(membershipScopeDenials).values(values).returning();
+      await this.audit(
+        auth,
+        id,
+        before ? 'membership.deny_changed' : 'membership.deny_added',
+        { before, after },
+        tx,
+      );
+      return { ...after!, effect: 'deny' };
     });
   }
   private async scopeMutation<T>(callback: (executor: DatabaseExecutor) => Promise<T>) {

@@ -1,0 +1,1 @@
+ALTER TABLE "tenant_security_policies" ADD COLUMN "sso" jsonb;

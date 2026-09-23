@@ -300,28 +300,28 @@
       "method": "GET",
       "path": "/api/v1/campaigns",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 49,
-      "ledgerStatus": "Partial: scope-filtered metadata list; advanced list filters pending"
+      "line": 51,
+      "ledgerStatus": "Verified: scoped advanced filters, stable cursor sorting and legacy no-query compatibility"
     },
     {
       "method": "POST",
       "path": "/api/v1/campaigns",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 33,
+      "line": 35,
       "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",
       "path": "/api/v1/campaigns/:campaignId",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 57,
-      "ledgerStatus": "Partial: scoped campaign metadata; richer summary pending"
+      "line": 60,
+      "ledgerStatus": "Verified: campaign metadata and prospect-authorized operational summary"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/campaigns/:campaignId",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 68,
+      "line": 71,
       "ledgerStatus": "Verified: metadata/lifecycle authority and transaction recheck; optional legacy idempotency"
     },
     {
@@ -924,7 +924,7 @@
       "path": "/api/v1/me",
       "source": "apps/api/src/account/account.controller.ts",
       "line": 46,
-      "ledgerStatus": "Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending"
+      "ledgerStatus": "Verified: HTTPS avatar metadata, profile fields, audit and conditional updates"
     },
     {
       "method": "POST",
@@ -1015,7 +1015,7 @@
       "path": "/api/v1/memberships/:membershipId",
       "source": "apps/api/src/memberships/membership.controller.ts",
       "line": 37,
-      "ledgerStatus": "Partial: identity, capacity, current team grants and effective permissions; roster history pending"
+      "ledgerStatus": "Verified: identity, capacity, effective access and bounded dated roster history"
     },
     {
       "method": "PATCH",
@@ -1029,7 +1029,7 @@
       "path": "/api/v1/memberships/:membershipId/access-history",
       "source": "apps/api/src/memberships/membership.controller.ts",
       "line": 95,
-      "ledgerStatus": "Partial: cursor-paginated append-only API audit; DB tamper protection pending"
+      "ledgerStatus": "Verified: cursor history from database-protected immutable evidence with digest verification"
     },
     {
       "method": "POST",
@@ -1057,7 +1057,7 @@
       "path": "/api/v1/memberships/:membershipId/scopes",
       "source": "apps/api/src/memberships/membership.controller.ts",
       "line": 86,
-      "ledgerStatus": "Partial: positive grants at all five scopes; explicit deny rules pending"
+      "ledgerStatus": "Verified: five-scope grants and explicit denials; conservative aggregate/write blocking (see completion contract)"
     },
     {
       "method": "POST",
@@ -1071,34 +1071,34 @@
       "path": "/api/v1/notifications",
       "source": "apps/api/src/notifications/notification.controller.ts",
       "line": 31,
-      "ledgerStatus": "Partial: owned cursor inbox/unread filtering; severity model pending"
+      "ledgerStatus": "Verified: recipient-scoped severity/read-state filtering and cursor pagination"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/notifications/:notificationId/read",
       "source": "apps/api/src/notifications/notification.controller.ts",
-      "line": 84,
+      "line": 86,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "POST",
       "path": "/api/v1/notifications/:notificationId/read",
       "source": "apps/api/src/notifications/notification.controller.ts",
-      "line": 70,
+      "line": 72,
       "ledgerStatus": "Verified: recipient ownership and idempotency"
     },
     {
       "method": "POST",
       "path": "/api/v1/notifications/read-all",
       "source": "apps/api/src/notifications/notification.controller.ts",
-      "line": 63,
+      "line": 65,
       "ledgerStatus": "Verified: recipient-only atomic read-all and replay"
     },
     {
       "method": "GET",
       "path": "/api/v1/notifications/unread-count",
       "source": "apps/api/src/notifications/notification.controller.ts",
-      "line": 58,
+      "line": 60,
       "ledgerStatus": "Verified: authenticated recipient count"
     },
     {
@@ -1183,7 +1183,7 @@
       "path": "/api/v1/organizations/:organizationId",
       "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
       "line": 69,
-      "ledgerStatus": "Partial: authorized metadata; expanded summary pending"
+      "ledgerStatus": "Verified: authorized metadata, scoped teams/work summary and consistent conditional updates"
     },
     {
       "method": "PATCH",
@@ -1232,7 +1232,7 @@
       "path": "/api/v1/permissions",
       "source": "apps/api/src/permissions/permission.controller.ts",
       "line": 140,
-      "ledgerStatus": "Partial: nine published permissions; remaining domains pending"
+      "ledgerStatus": "Verified: 33 implemented-domain capabilities, including 28 configurable restrictions"
     },
     {
       "method": "GET",
@@ -1400,7 +1400,7 @@
       "path": "/api/v1/roles/:role/permissions",
       "source": "apps/api/src/permissions/permission.controller.ts",
       "line": 82,
-      "ledgerStatus": "Partial: four restriction-only configurable management capabilities"
+      "ledgerStatus": "Verified: restriction-only replacement, mixed-role deny precedence and protected administrators"
     },
     {
       "method": "DELETE",
@@ -1504,15 +1504,15 @@
       "method": "GET",
       "path": "/api/v1/settings/security",
       "source": "apps/api/src/security-administration/security-policy.controller.ts",
-      "line": 39,
-      "ledgerStatus": "Partial: enforced MFA/password/session policies; SSO pending"
+      "line": 44,
+      "ledgerStatus": "Verified: enforced local policies and redacted OIDC configuration; SSO sign-in remains separate"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/settings/security",
       "source": "apps/api/src/security-administration/security-policy.controller.ts",
-      "line": 47,
-      "ledgerStatus": "Partial: enforced MFA/password/session policies; SSO pending"
+      "line": 55,
+      "ledgerStatus": "Verified: conditional policy updates and encrypted OIDC configuration; no SSO activation"
     },
     {
       "method": "GET",
@@ -1554,7 +1554,7 @@
       "path": "/api/v1/teams/:teamId/capacity",
       "source": "apps/api/src/workspace-administration/workspace-administration.controller.ts",
       "line": 121,
-      "ledgerStatus": "Partial: assignment count/capacity/availability; richer allocation constraints pending"
+      "ledgerStatus": "Verified: workload, paused/team-owned work, global member capacity and eligibility constraints"
     },
     {
       "method": "GET",

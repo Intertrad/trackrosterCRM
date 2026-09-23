@@ -18,6 +18,7 @@ const env = {
   MAILPIT_URL: 'http://127.0.0.1:58025',
   AUTH_PUBLIC_ORIGIN: 'http://localhost:3000',
   MFA_ENCRYPTION_KEY: '11'.repeat(32),
+  SSO_ENCRYPTION_KEY: '22'.repeat(32),
   REDIS_URL: 'redis://127.0.0.1:56389',
   JWT_ACCESS_SECRET: 'isolated-backend-access-secret-at-least-32-characters',
   JWT_REFRESH_SECRET: 'isolated-backend-refresh-secret-at-least-32-characters',

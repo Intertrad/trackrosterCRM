@@ -1,35 +1,12 @@
 # Remaining API contract checklist
 
-Snapshot: 2026-09-23, after field rounds and objective-risk calculations.
+Snapshot: 2026-09-23, after profile, permission, summary and security-configuration completion.
 
 For APIs usable in frontend integration now, see the [frontend API handoff](FRONTEND_API_HANDOFF.md). Verified does not yet mean production deployment is signed off.
 
-The ledger contains 172 verified operations, 13 partially completed operations, and 196 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
+The ledger contains 185 verified operations, 0 partially completed operations, and 196 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
 
-The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Configurable activity outcomes, canonical follow-up transitions and manager/admin dashboards are implemented. Routes, today route summaries, objectives and director risk calculations are now implemented. General prospect merge remains pending.
-
-## 2. Authentication and personal account — P0
-
-| Method | Endpoint | Required behavior                                         | Ledger status                                                                      |
-| ------ | -------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| PATCH  | `/me`    | Update name, phone, avatar metadata, locale and timezone. | Partial: name/phone/locale/timezone, audit and conditional updates; avatar pending |
-
-## 3. Tenant, users, roles and scope — P0
-
-| Method | Endpoint                                     | Required behavior                                          | Ledger status                                                                                      |
-| ------ | -------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| GET    | `/memberships/{membershipId}`                | Read user, role, capacity, teams and effective scope.      | Partial: identity, capacity, current team grants and effective permissions; roster history pending |
-| GET    | `/permissions`                               | List atomic permissions.                                   | Partial: nine published permissions; remaining domains pending                                     |
-| PUT    | `/roles/{role}/permissions`                  | Update configurable tenant-role permissions where allowed. | Partial: four restriction-only configurable management capabilities                                |
-| POST   | `/memberships/{membershipId}/scopes`         | Add a scoped grant/restriction.                            | Partial: positive grants at all five scopes; explicit deny rules pending                           |
-| GET    | `/memberships/{membershipId}/access-history` | Read immutable role and scope history.                     | Partial: cursor-paginated append-only API audit; DB tamper protection pending                      |
-
-## 4. Organizations and teams — P0
-
-| Method | Endpoint                          | Required behavior                              | Ledger status                                                                          |
-| ------ | --------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| GET    | `/organizations/{organizationId}` | Read details and summary.                      | Partial: authorized metadata; expanded summary pending                                 |
-| GET    | `/teams/{teamId}/capacity`        | Return workload, capacity and allocation room. | Partial: assignment count/capacity/availability; richer allocation constraints pending |
+Membership detail now includes dated roster history. The thirteen previously partial endpoints are implemented with the explicit limits documented in [completion contracts](API_COMPLETION_DETAILS.md). SSO sign-in and fine-grained exclusion from aggregates remain separate work. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Configurable activity outcomes, canonical follow-up transitions and manager/admin dashboards are implemented. Routes, today route summaries, objectives and director risk calculations are now implemented. General prospect merge remains pending.
 
 ## 5. Territories and map data — P0/P1
 
@@ -42,13 +19,11 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 6. Campaigns — P0
 
-| Method | Endpoint                         | Required behavior                      | Ledger status                                                        |
-| ------ | -------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
-| GET    | `/campaigns`                     | List visible campaigns.                | Partial: scope-filtered metadata list; advanced list filters pending |
-| POST   | `/campaigns`                     | Create draft campaign.                 | Pending verification                                                 |
-| GET    | `/campaigns/{campaignId}`        | Read configuration, scope and summary. | Partial: scoped campaign metadata; richer summary pending            |
-| DELETE | `/campaigns/{campaignId}`        | Archive campaign.                      | Pending verification                                                 |
-| POST   | `/campaigns/{campaignId}/status` | Activate, pause, complete or archive.  | Pending verification                                                 |
+| Method | Endpoint                         | Required behavior                     | Ledger status        |
+| ------ | -------------------------------- | ------------------------------------- | -------------------- |
+| POST   | `/campaigns`                     | Create draft campaign.                | Pending verification |
+| DELETE | `/campaigns/{campaignId}`        | Archive campaign.                     | Pending verification |
+| POST   | `/campaigns/{campaignId}/status` | Activate, pause, complete or archive. | Pending verification |
 
 ## 7. Prospects, contacts and data quality — P0
 
@@ -107,13 +82,12 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 14. Notifications — P0 basic / P1 complete
 
-| Method | Endpoint                    | Required behavior                                     | Ledger status                                                        |
-| ------ | --------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
-| GET    | `/notifications`            | List notifications by severity/read state.            | Partial: owned cursor inbox/unread filtering; severity model pending |
-| GET    | `/notification-preferences` | Read event/channel preferences.                       | Pending verification                                                 |
-| PUT    | `/notification-preferences` | Update preferences while preserving mandatory alerts. | Pending verification                                                 |
-| POST   | `/devices`                  | Register push-notification device.                    | Pending verification                                                 |
-| DELETE | `/devices/{deviceId}`       | Revoke push device.                                   | Pending verification                                                 |
+| Method | Endpoint                    | Required behavior                                     | Ledger status        |
+| ------ | --------------------------- | ----------------------------------------------------- | -------------------- |
+| GET    | `/notification-preferences` | Read event/channel preferences.                       | Pending verification |
+| PUT    | `/notification-preferences` | Update preferences while preserving mandatory alerts. | Pending verification |
+| POST   | `/devices`                  | Register push-notification device.                    | Pending verification |
+| DELETE | `/devices/{deviceId}`       | Revoke push device.                                   | Pending verification |
 
 ## 15. Dashboards, reports, objectives and forecasts — P0/P1
 
@@ -253,36 +227,34 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 21. Supporting and cross-cutting APIs — P0/P1
 
-| Method | Endpoint                                    | Required behavior                                          | Ledger status                                                |
-| ------ | ------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
-| POST   | `/auth/reauthenticate`                      | Step-up authentication before sensitive actions.           | Pending verification                                         |
-| POST   | `/auth/sso/{provider}/start`                | Start configured enterprise SSO.                           | Pending verification                                         |
-| GET    | `/auth/sso/{provider}/callback`             | Complete SSO flow.                                         | Pending verification                                         |
-| POST   | `/me/avatar/upload-url`                     | Create avatar upload session.                              | Pending verification                                         |
-| POST   | `/me/avatar/confirm`                        | Confirm uploaded avatar.                                   | Pending verification                                         |
-| DELETE | `/me/avatar`                                | Remove avatar.                                             | Pending verification                                         |
-| GET    | `/search`                                   | Permission-filtered global search.                         | Pending verification                                         |
-| GET    | `/metadata/statuses`                        | Return allowed status labels and transitions.              | Pending verification                                         |
-| GET    | `/metadata/filter-facets`                   | Return authorization-filtered filter values/counts.        | Pending verification                                         |
-| GET    | `/metadata/metric-definitions`              | Explain formula, scope and freshness of reporting metrics. | Pending verification                                         |
-| GET    | `/prospects/facets`                         | Return scoped filter counts for prospect lists.            | Pending verification                                         |
-| GET    | `/prospects/{prospectId}/data-quality`      | Return missing/invalid-field guidance.                     | Pending verification                                         |
-| GET    | `/prospects/{prospectId}/change-history`    | Read authorized master-data changes.                       | Pending verification                                         |
-| GET    | `/prospects/{prospectId}/notes`             | List authorized notes.                                     | Pending verification                                         |
-| POST   | `/prospects/{prospectId}/notes`             | Add note with visibility level.                            | Pending verification                                         |
-| PATCH  | `/prospect-notes/{noteId}`                  | Update permitted mutable note.                             | Pending verification                                         |
-| DELETE | `/prospect-notes/{noteId}`                  | Soft-delete permitted note.                                | Pending verification                                         |
-| GET    | `/notification-policies`                    | List tenant alert/digest policies.                         | Pending verification                                         |
-| PATCH  | `/notification-policies/{policyId}`         | Update allowed channels and cadence.                       | Pending verification                                         |
-| GET    | `/notification-templates`                   | List tenant notification templates.                        | Pending verification                                         |
-| PATCH  | `/notification-templates/{templateId}`      | Update editable template.                                  | Pending verification                                         |
-| POST   | `/notification-templates/{templateId}/test` | Send safe test notification.                               | Pending verification                                         |
-| GET    | `/sync/bootstrap`                           | Return first offline/PWA dataset within scope.             | Pending verification                                         |
-| GET    | `/sync/changes`                             | Return authorized changes after cursor.                    | Pending verification                                         |
-| POST   | `/sync/operations`                          | Replay idempotent offline operations and conflicts.        | Pending verification                                         |
-| GET    | `/settings/security`                        | Read tenant security settings.                             | Partial: enforced MFA/password/session policies; SSO pending |
-| PATCH  | `/settings/security`                        | Update MFA/session/password/SSO policy.                    | Partial: enforced MFA/password/session policies; SSO pending |
-| GET    | `/subscription`                             | Read tenant plan, lifecycle and billing contact.           | Pending verification                                         |
-| GET    | `/subscription/usage`                       | Read seat/feature quota usage.                             | Pending verification                                         |
-| PATCH  | `/subscription`                             | Request allowed plan or seat change.                       | Pending verification                                         |
-| POST   | `/subscription/billing-portal`              | Create short-lived provider billing-portal session.        | Pending verification                                         |
+| Method | Endpoint                                    | Required behavior                                          | Ledger status        |
+| ------ | ------------------------------------------- | ---------------------------------------------------------- | -------------------- |
+| POST   | `/auth/reauthenticate`                      | Step-up authentication before sensitive actions.           | Pending verification |
+| POST   | `/auth/sso/{provider}/start`                | Start configured enterprise SSO.                           | Pending verification |
+| GET    | `/auth/sso/{provider}/callback`             | Complete SSO flow.                                         | Pending verification |
+| POST   | `/me/avatar/upload-url`                     | Create avatar upload session.                              | Pending verification |
+| POST   | `/me/avatar/confirm`                        | Confirm uploaded avatar.                                   | Pending verification |
+| DELETE | `/me/avatar`                                | Remove avatar.                                             | Pending verification |
+| GET    | `/search`                                   | Permission-filtered global search.                         | Pending verification |
+| GET    | `/metadata/statuses`                        | Return allowed status labels and transitions.              | Pending verification |
+| GET    | `/metadata/filter-facets`                   | Return authorization-filtered filter values/counts.        | Pending verification |
+| GET    | `/metadata/metric-definitions`              | Explain formula, scope and freshness of reporting metrics. | Pending verification |
+| GET    | `/prospects/facets`                         | Return scoped filter counts for prospect lists.            | Pending verification |
+| GET    | `/prospects/{prospectId}/data-quality`      | Return missing/invalid-field guidance.                     | Pending verification |
+| GET    | `/prospects/{prospectId}/change-history`    | Read authorized master-data changes.                       | Pending verification |
+| GET    | `/prospects/{prospectId}/notes`             | List authorized notes.                                     | Pending verification |
+| POST   | `/prospects/{prospectId}/notes`             | Add note with visibility level.                            | Pending verification |
+| PATCH  | `/prospect-notes/{noteId}`                  | Update permitted mutable note.                             | Pending verification |
+| DELETE | `/prospect-notes/{noteId}`                  | Soft-delete permitted note.                                | Pending verification |
+| GET    | `/notification-policies`                    | List tenant alert/digest policies.                         | Pending verification |
+| PATCH  | `/notification-policies/{policyId}`         | Update allowed channels and cadence.                       | Pending verification |
+| GET    | `/notification-templates`                   | List tenant notification templates.                        | Pending verification |
+| PATCH  | `/notification-templates/{templateId}`      | Update editable template.                                  | Pending verification |
+| POST   | `/notification-templates/{templateId}/test` | Send safe test notification.                               | Pending verification |
+| GET    | `/sync/bootstrap`                           | Return first offline/PWA dataset within scope.             | Pending verification |
+| GET    | `/sync/changes`                             | Return authorized changes after cursor.                    | Pending verification |
+| POST   | `/sync/operations`                          | Replay idempotent offline operations and conflicts.        | Pending verification |
+| GET    | `/subscription`                             | Read tenant plan, lifecycle and billing contact.           | Pending verification |
+| GET    | `/subscription/usage`                       | Read seat/feature quota usage.                             | Pending verification |
+| PATCH  | `/subscription`                             | Request allowed plan or seat change.                       | Pending verification |
+| POST   | `/subscription/billing-portal`              | Create short-lived provider billing-portal session.        | Pending verification |

@@ -144,7 +144,7 @@ export class WorkspaceAdministrationService {
         .values({ tenantId: auth.tenantId, ...input })
         .returning();
       await this.record(auth, 'organization', row!.id, 'created', input, transaction);
-      return row!;
+      return this.organization(auth, row!.id, transaction);
     });
   }
 
@@ -163,7 +163,7 @@ export class WorkspaceAdministrationService {
         .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.id, id)))
         .for('update');
       if (!before) throw new NotFoundException('Organization not found');
-      assertResourceMatches(ifMatch, before);
+      assertResourceMatches(ifMatch, await this.organization(auth, id, transaction));
       if (input.status === 'inactive') {
         const participation = await transaction.execute(
           sql`SELECT id FROM campaign_organizations WHERE tenant_id = ${auth.tenantId} AND organization_id = ${id} AND ended_at IS NULL LIMIT 1`,
@@ -218,7 +218,7 @@ export class WorkspaceAdministrationService {
         { ...input, previousStatus: before.status },
         transaction,
       );
-      return row!;
+      return this.organization(auth, row!.id, transaction);
     });
   }
 

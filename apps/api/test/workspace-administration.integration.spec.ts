@@ -124,6 +124,39 @@ describe('Workspace administration HTTP authorization and persistence', () => {
     'idempotency-key': randomUUID(),
   });
 
+  it('keeps enriched organization reads compatible with conditional updates', async () => {
+    const headers = { authorization: `Bearer ${tokens.get(adminId)}` };
+    const before = await app.inject({
+      method: 'GET',
+      url: `/api/v1/organizations/${orgId}`,
+      headers,
+    });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().summary).toMatchObject({ teamCount: 1, activeAssignments: 0 });
+    const changed = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/organizations/${orgId}`,
+      headers: {
+        ...headers,
+        'if-match': String(before.headers.etag),
+        'idempotency-key': randomUUID(),
+      },
+      payload: { name: 'Updated organization' },
+    });
+    expect(changed.statusCode, changed.body).toBe(200);
+    expect(changed.json().summary.teamCount).toBe(1);
+    const stale = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/organizations/${orgId}`,
+      headers: {
+        ...headers,
+        'if-match': String(before.headers.etag),
+        'idempotency-key': randomUUID(),
+      },
+      payload: { name: 'Stale' },
+    });
+    expect(stale.statusCode).toBe(412);
+  });
   it('derives tenant from authentication and denies reader configuration writes', async () => {
     const changed = await app.inject({
       method: 'PATCH',
