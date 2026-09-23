@@ -1,5 +1,5 @@
 {
-  "snapshot": "2026-09-22",
+  "snapshot": "2026-09-23",
   "scope": "Static controller declarations, not runtime registration or production certification",
   "routes": [
     {
@@ -571,6 +571,34 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/dashboard/admin",
+      "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
+      "line": 142,
+      "ledgerStatus": "Verified: tenant operational readiness, session counts, alerts and data-quality counts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/director",
+      "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
+      "line": 136,
+      "ledgerStatus": "Partial: scoped performance and organization comparison; objective targets/risks pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/manager",
+      "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
+      "line": 130,
+      "ledgerStatus": "Verified: scoped performance, workload, paused exceptions and campaign-linked territories"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/today",
+      "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
+      "line": 124,
+      "ledgerStatus": "Partial: authorized daily priorities/follow-ups/meetings; route planning summary pending"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/establishments",
       "source": "apps/api/src/establishments/establishment.controller.ts",
       "line": 48,
@@ -713,8 +741,36 @@
       "method": "GET",
       "path": "/api/v1/follow-ups",
       "source": "apps/api/src/follow-ups/follow-up-queue.controller.ts",
-      "line": 19,
-      "ledgerStatus": "Pending verification"
+      "line": 24,
+      "ledgerStatus": "Verified: scoped lifecycle lists and cursor pagination; legacy team queue retained"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow-ups/:followUpId",
+      "source": "apps/api/src/follow-ups/canonical-follow-up.controller.ts",
+      "line": 54,
+      "ledgerStatus": "Verified: scoped historical detail, source, next action and audit history"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/follow-ups/:followUpId",
+      "source": "apps/api/src/follow-ups/canonical-follow-up.controller.ts",
+      "line": 60,
+      "ledgerStatus": "Verified: conditional open follow-up edits with reminder scheduling and audit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/follow-ups/:followUpId/cancel",
+      "source": "apps/api/src/follow-ups/canonical-follow-up.controller.ts",
+      "line": 79,
+      "ledgerStatus": "Verified: reasoned cancellation, obsolete ownership cleanup and audit"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/follow-ups/:followUpId/complete",
+      "source": "apps/api/src/follow-ups/canonical-follow-up.controller.ts",
+      "line": 68,
+      "ledgerStatus": "Verified: authorized atomic completion with idempotency and audit"
     },
     {
       "method": "GET",
@@ -1310,6 +1366,20 @@
       "source": "apps/api/src/permissions/permission.controller.ts",
       "line": 82,
       "ledgerStatus": "Partial: four restriction-only configurable management capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/default-statuses",
+      "source": "apps/api/src/outcome-settings/outcome-settings.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Verified: tenant outcome catalogue and fixed lifecycle stages"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/settings/default-statuses",
+      "source": "apps/api/src/outcome-settings/outcome-settings.controller.ts",
+      "line": 70,
+      "ledgerStatus": "Verified: audited conditional tenant outcome configuration; fixed lifecycle enum"
     },
     {
       "method": "GET",

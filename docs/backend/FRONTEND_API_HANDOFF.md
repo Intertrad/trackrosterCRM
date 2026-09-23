@@ -1,20 +1,20 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-22, after staged imports and asynchronous exports. Base path: `/api/v1`.
+Snapshot: 2026-09-23, after configurable outcomes and canonical workflows. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 144 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 144 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 153 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 153 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0046`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0047`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 651 API unit tests, 515 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 47 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 651 API unit tests, 526 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 48 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                  | Product-contract operations | Frontend guidance                                                           |
 | ------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                        |                         144 | Integrate the documented supported behavior                                 |
-| Partial                         |                          13 | Use only the implemented subset described below                             |
-| Pending verification/completion |                         224 | Do not assume the target contract is ready; consult the remaining checklist |
+| Verified                        |                         153 | Integrate the documented supported behavior                                 |
+| Partial                         |                          15 | Use only the implemented subset described below                             |
+| Pending verification/completion |                         213 | Do not assume the target contract is ready; consult the remaining checklist |
 | Verified extensions             |                           3 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
@@ -281,6 +281,22 @@ Contract reference: [workflow, payloads and operational limits](IMPORT_EXPORT_JO
 | GET    | `/exports/{exportId}/audit`    | Read requester, scope and download evidence.                         |
 | GET    | `/exports/{exportId}/file`     | Extension: bearer-authenticated content with expiring download token |
 
+### Configurable outcomes and canonical workflows
+
+Contract reference: [payloads, filters, authorization and limits](OUTCOMES_FOLLOWUPS_DASHBOARDS.md).
+
+| Method | Endpoint                            | Supported behavior                                                                        |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| GET    | `/settings/default-statuses`        | Verified: tenant outcome catalogue and fixed lifecycle stages                             |
+| PATCH  | `/settings/default-statuses`        | Verified: audited conditional tenant outcome configuration; fixed lifecycle enum          |
+| GET    | `/follow-ups`                       | Verified: scoped lifecycle lists and cursor pagination; legacy team queue retained        |
+| GET    | `/follow-ups/{followUpId}`          | Verified: scoped historical detail, source, next action and audit history                 |
+| PATCH  | `/follow-ups/{followUpId}`          | Verified: conditional open follow-up edits with reminder scheduling and audit             |
+| POST   | `/follow-ups/{followUpId}/complete` | Verified: authorized atomic completion with idempotency and audit                         |
+| POST   | `/follow-ups/{followUpId}/cancel`   | Verified: reasoned cancellation, obsolete ownership cleanup and audit                     |
+| GET    | `/dashboard/manager`                | Verified: scoped performance, workload, paused exceptions and campaign-linked territories |
+| GET    | `/dashboard/admin`                  | Verified: tenant operational readiness, session counts, alerts and data-quality counts    |
+
 ## Partial APIs: usable subsets, unfinished contracts
 
 These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
@@ -301,11 +317,14 @@ These routes exist, but do not advertise their full planned behavior in the fron
 | GET    | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
 | PATCH  | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
 
+| GET | `/dashboard/today` | Partial: priorities and daily counts; route summary awaits route planning |
+| GET | `/dashboard/director` | Partial: performance and organization comparison; objective risks await campaign targets |
+
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 224 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 15 partial and 213 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Immediate next group: configurable outcomes and follow-up/dashboard reconciliation. Later groups include map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Next dependencies: route planning and campaign objective targets/risk calculations. Later groups include map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 

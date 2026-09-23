@@ -1,12 +1,12 @@
 # Remaining API contract checklist
 
-Snapshot: 2026-09-22, after staged imports and asynchronous exports.
+Snapshot: 2026-09-23, after configurable outcomes and canonical workflows.
 
 For APIs usable in frontend integration now, see the [frontend API handoff](FRONTEND_API_HANDOFF.md). Verified does not yet mean production deployment is signed off.
 
-The ledger contains 144 verified operations, 13 partially completed operations, and 224 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
+The ledger contains 153 verified operations, 15 partially completed operations, and 213 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
 
-The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Next: configurable activity outcomes and canonical follow-up/dashboard reconciliation; general prospect merge remains pending.
+The roster-history endpoint is implemented; the older membership-detail ledger row still needs reconciliation. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Configurable activity outcomes, canonical follow-up transitions and manager/admin dashboards are implemented. Today route summaries and director objective-risk calculations remain partial; general prospect merge remains pending.
 
 ## 2. Authentication and personal account — P0
 
@@ -96,14 +96,9 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 11. Actions, outcomes and follow-ups — P0
 
-| Method | Endpoint                            | Required behavior                                              | Ledger status        |
-| ------ | ----------------------------------- | -------------------------------------------------------------- | -------------------- |
-| GET    | `/dashboard/today`                  | Prospector priorities, follow-ups, meetings and route summary. | Pending verification |
-| GET    | `/follow-ups`                       | List due/completed/missed/cancelled follow-ups.                | Pending verification |
-| GET    | `/follow-ups/{followUpId}`          | Read source and next action.                                   | Pending verification |
-| PATCH  | `/follow-ups/{followUpId}`          | Reschedule/update open follow-up.                              | Pending verification |
-| POST   | `/follow-ups/{followUpId}/complete` | Complete follow-up.                                            | Pending verification |
-| POST   | `/follow-ups/{followUpId}/cancel`   | Cancel with reason.                                            | Pending verification |
+| Method | Endpoint           | Required behavior                                              | Ledger status                                                                            |
+| ------ | ------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| GET    | `/dashboard/today` | Prospector priorities, follow-ups, meetings and route summary. | Partial: authorized daily priorities/follow-ups/meetings; route planning summary pending |
 
 ## 12. Routes and field rounds — P1
 
@@ -155,35 +150,33 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 
 ## 15. Dashboards, reports, objectives and forecasts — P0/P1
 
-| Method | Endpoint                                     | Required behavior                                               | Ledger status        |
-| ------ | -------------------------------------------- | --------------------------------------------------------------- | -------------------- |
-| GET    | `/dashboard/manager`                         | Team workload, exceptions, performance and territory summary.   | Pending verification |
-| GET    | `/dashboard/admin`                           | Workspace readiness, adoption, alerts and data-quality summary. | Pending verification |
-| GET    | `/dashboard/director`                        | Executive KPIs, objective risks and organization comparison.    | Pending verification |
-| GET    | `/platform/dashboard`                        | Super Admin tenant/service health summary.                      | Pending verification |
-| GET    | `/reports/overview`                          | Authorized summary KPIs.                                        | Pending verification |
-| GET    | `/reports/workload`                          | Portfolio load/capacity/backlog.                                | Pending verification |
-| GET    | `/reports/actions`                           | Activity by date/channel/type.                                  | Pending verification |
-| GET    | `/reports/funnel`                            | Assigned-to-converted funnel.                                   | Pending verification |
-| GET    | `/reports/conversions`                       | Contact, qualification and conversion rates.                    | Pending verification |
-| GET    | `/reports/follow-ups`                        | Timeliness and overdue metrics.                                 | Pending verification |
-| GET    | `/reports/coverage`                          | Assigned prospect coverage.                                     | Pending verification |
-| GET    | `/reports/collisions`                        | Prevented collisions and overrides.                             | Pending verification |
-| GET    | `/reports/data-quality`                      | Completeness/enrichment metrics.                                | Pending verification |
-| GET    | `/reports/territories`                       | Geographic performance aggregates.                              | Pending verification |
-| GET    | `/reports/forecast`                          | Forecast with confidence and assumptions.                       | Pending verification |
-| GET    | `/objectives`                                | List objectives in scope.                                       | Pending verification |
-| POST   | `/objectives`                                | Create objective (Admin/authorized Manager).                    | Pending verification |
-| GET    | `/objectives/{objectiveId}`                  | Read target, actual, history and contributing metrics.          | Pending verification |
-| PATCH  | `/objectives/{objectiveId}`                  | Update future/editable target definition.                       | Pending verification |
-| GET    | `/objectives/at-risk`                        | Return risk-ranked objectives.                                  | Pending verification |
-| GET    | `/report-definitions`                        | List standard report definitions and metric metadata.           | Pending verification |
-| GET    | `/reports/{reportId}`                        | Run/read a detailed report with reproducible filters.           | Pending verification |
-| GET    | `/scheduled-reports`                         | List personal/authorized schedules.                             | Pending verification |
-| POST   | `/scheduled-reports`                         | Create schedule.                                                | Pending verification |
-| PATCH  | `/scheduled-reports/{scheduleId}`            | Update recipients/cadence/format.                               | Pending verification |
-| DELETE | `/scheduled-reports/{scheduleId}`            | Delete schedule.                                                | Pending verification |
-| GET    | `/scheduled-reports/{scheduleId}/deliveries` | Read generation/delivery history.                               | Pending verification |
+| Method | Endpoint                                     | Required behavior                                            | Ledger status                                                                            |
+| ------ | -------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| GET    | `/dashboard/director`                        | Executive KPIs, objective risks and organization comparison. | Partial: scoped performance and organization comparison; objective targets/risks pending |
+| GET    | `/platform/dashboard`                        | Super Admin tenant/service health summary.                   | Pending verification                                                                     |
+| GET    | `/reports/overview`                          | Authorized summary KPIs.                                     | Pending verification                                                                     |
+| GET    | `/reports/workload`                          | Portfolio load/capacity/backlog.                             | Pending verification                                                                     |
+| GET    | `/reports/actions`                           | Activity by date/channel/type.                               | Pending verification                                                                     |
+| GET    | `/reports/funnel`                            | Assigned-to-converted funnel.                                | Pending verification                                                                     |
+| GET    | `/reports/conversions`                       | Contact, qualification and conversion rates.                 | Pending verification                                                                     |
+| GET    | `/reports/follow-ups`                        | Timeliness and overdue metrics.                              | Pending verification                                                                     |
+| GET    | `/reports/coverage`                          | Assigned prospect coverage.                                  | Pending verification                                                                     |
+| GET    | `/reports/collisions`                        | Prevented collisions and overrides.                          | Pending verification                                                                     |
+| GET    | `/reports/data-quality`                      | Completeness/enrichment metrics.                             | Pending verification                                                                     |
+| GET    | `/reports/territories`                       | Geographic performance aggregates.                           | Pending verification                                                                     |
+| GET    | `/reports/forecast`                          | Forecast with confidence and assumptions.                    | Pending verification                                                                     |
+| GET    | `/objectives`                                | List objectives in scope.                                    | Pending verification                                                                     |
+| POST   | `/objectives`                                | Create objective (Admin/authorized Manager).                 | Pending verification                                                                     |
+| GET    | `/objectives/{objectiveId}`                  | Read target, actual, history and contributing metrics.       | Pending verification                                                                     |
+| PATCH  | `/objectives/{objectiveId}`                  | Update future/editable target definition.                    | Pending verification                                                                     |
+| GET    | `/objectives/at-risk`                        | Return risk-ranked objectives.                               | Pending verification                                                                     |
+| GET    | `/report-definitions`                        | List standard report definitions and metric metadata.        | Pending verification                                                                     |
+| GET    | `/reports/{reportId}`                        | Run/read a detailed report with reproducible filters.        | Pending verification                                                                     |
+| GET    | `/scheduled-reports`                         | List personal/authorized schedules.                          | Pending verification                                                                     |
+| POST   | `/scheduled-reports`                         | Create schedule.                                             | Pending verification                                                                     |
+| PATCH  | `/scheduled-reports/{scheduleId}`            | Update recipients/cadence/format.                            | Pending verification                                                                     |
+| DELETE | `/scheduled-reports/{scheduleId}`            | Delete schedule.                                             | Pending verification                                                                     |
+| GET    | `/scheduled-reports/{scheduleId}/deliveries` | Read generation/delivery history.                            | Pending verification                                                                     |
 
 ## 16. Saved views and exports — P0/P1
 
@@ -328,8 +321,6 @@ The roster-history endpoint is implemented; the older membership-detail ledger r
 | POST   | `/sync/operations`                          | Replay idempotent offline operations and conflicts.        | Pending verification                                         |
 | GET    | `/settings/security`                        | Read tenant security settings.                             | Partial: enforced MFA/password/session policies; SSO pending |
 | PATCH  | `/settings/security`                        | Update MFA/session/password/SSO policy.                    | Partial: enforced MFA/password/session policies; SSO pending |
-| GET    | `/settings/default-statuses`                | Read configured lifecycle/action outcomes.                 | Pending verification                                         |
-| PATCH  | `/settings/default-statuses`                | Update allowed tenant status configuration.                | Pending verification                                         |
 | GET    | `/subscription`                             | Read tenant plan, lifecycle and billing contact.           | Pending verification                                         |
 | GET    | `/subscription/usage`                       | Read seat/feature quota usage.                             | Pending verification                                         |
 | PATCH  | `/subscription`                             | Request allowed plan or seat change.                       | Pending verification                                         |

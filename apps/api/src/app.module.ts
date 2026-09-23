@@ -1,3 +1,4 @@
+import { CanonicalDashboardModule } from './reporting/canonical-dashboard.controller.js';
 import { OutcomeSettingsModule } from './outcome-settings/outcome-settings.controller.js';
 import { DataJobsModule } from './data-jobs/data-jobs.module.js';
 import { ReservationLifecycleModule } from './reservations/reservation-lifecycle.module.js';
@@ -47,6 +48,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
 import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
 @Module({
   imports: [
+    CanonicalDashboardModule,
     OutcomeSettingsModule,
     DataJobsModule,
     ReservationLifecycleModule,
