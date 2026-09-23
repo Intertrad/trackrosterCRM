@@ -27,6 +27,9 @@ export interface FindProspectorTodayInput {
 
   now: Date;
 
+  /** Start of the caller's local day; bounds the completed-today count. */
+  startsAt: Date;
+
   endsAt: Date;
 }
 
@@ -49,6 +52,10 @@ export interface ProspectorTodayRepositoryPriority {
     name: string;
 
     city: string | null;
+
+    latitude: string | number | null;
+
+    longitude: string | number | null;
   };
 }
 
@@ -160,6 +167,15 @@ export class ProspectorTodayRepository {
           name: establishments.name,
 
           city: establishments.city,
+
+          /*
+           * Needed to plot the day's visits. Columns already exist on the
+           * joined row, so this adds no query cost; a prospect without
+           * coordinates simply does not appear on the map.
+           */
+          latitude: establishments.latitude,
+
+          longitude: establishments.longitude,
         },
       })
       .from(prospectFollowUps)
@@ -199,15 +215,53 @@ export class ProspectorTodayRepository {
       .orderBy(asc(prospectFollowUps.dueAt), asc(prospectFollowUps.id))
       .limit(PRIORITY_LIMIT);
 
-    const [[summary], priorities] = await Promise.all([summaryQuery, prioritiesQuery]);
+    /*
+     * Completed work needs its own query: the shared scope condition pins
+     * status to 'pending', so a completed follow-up is invisible to the
+     * summary above by construction.
+     */
+    const completedQuery = this.database
+      .select({ completedToday: sql<number>`count(*)`.mapWith(Number) })
+      .from(prospectFollowUps)
+      .innerJoin(
+        campaignProspectAssignments,
+        and(
+          eq(prospectFollowUps.tenantId, campaignProspectAssignments.tenantId),
+          eq(prospectFollowUps.assignmentId, campaignProspectAssignments.id),
+        ),
+      )
+      .where(
+        and(
+          eq(prospectFollowUps.tenantId, input.tenantId),
+          eq(prospectFollowUps.status, 'completed'),
+          gte(prospectFollowUps.completedAt, input.startsAt),
+          lt(prospectFollowUps.completedAt, input.endsAt),
+          eq(campaignProspectAssignments.organizationId, input.organizationId),
+          eq(campaignProspectAssignments.teamId, input.teamId),
+          isNull(campaignProspectAssignments.endedAt),
+          or(
+            eq(prospectFollowUps.assignedUserId, input.userId),
+            isNull(prospectFollowUps.assignedUserId),
+          ),
+        ),
+      );
+
+    const [[summary], priorities, [completed]] = await Promise.all([
+      summaryQuery,
+      prioritiesQuery,
+      completedQuery,
+    ]);
 
     return {
-      summary: summary ?? {
-        actionsLeft: 0,
-        toDo: 0,
-        followUps: 0,
-        meetings: 0,
-        overdue: 0,
+      summary: {
+        ...(summary ?? {
+          actionsLeft: 0,
+          toDo: 0,
+          followUps: 0,
+          meetings: 0,
+          overdue: 0,
+        }),
+        completedToday: completed?.completedToday ?? 0,
       },
       priorities,
     };

@@ -57,6 +57,7 @@ export class ProspectorTodayService {
       teamId: scope.teamId,
       userId: input.userId,
       now: generatedAt,
+      startsAt: day.startsAt,
       endsAt: day.endsAt,
     };
 
@@ -85,7 +86,14 @@ export class ProspectorTodayService {
         isOverdue: priority.dueAt.getTime() < generatedAt.getTime(),
         category: priority.category,
         channel: priority.channel,
-        establishment: priority.establishment,
+        establishment: {
+          id: priority.establishment.id,
+          name: priority.establishment.name,
+          city: priority.establishment.city,
+          /* Postgres numeric arrives as a string; publish a number or null. */
+          latitude: toCoordinate(priority.establishment.latitude),
+          longitude: toCoordinate(priority.establishment.longitude),
+        },
       })),
     };
   }
@@ -114,4 +122,19 @@ export class ProspectorTodayService {
       teamId: grant.teamId,
     };
   }
+}
+
+/*
+ * A coordinate the driver hands back as a string, or null when the
+ * establishment has never been geocoded. Anything unparseable is treated as
+ * absent rather than published as NaN, which would break any map consuming it.
+ */
+function toCoordinate(value: string | number | null): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = typeof value === 'number' ? value : Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }

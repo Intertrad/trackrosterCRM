@@ -16,7 +16,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
+import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import { scheduledReportDeliveries, scheduledReports } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -165,7 +167,7 @@ export class ScheduledReportsController {
   @Get() list(@CurrentAuth() a: Auth, @Query('limit') l?: number, @Query('cursor') c?: string) {
     return this.s.list(a, l, c);
   }
-  @Post() @Idempotent('scheduled-report.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post() @Idempotent('scheduled_report.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
     return this.s.create(a, d);
   }
   @Patch(':scheduleId') update(
@@ -190,7 +192,7 @@ export class ScheduledReportsController {
   }
 }
 @Module({
-  imports: [],
+  imports: [DatabaseModule, AuthModule],
   controllers: [ScheduledReportsController],
   providers: [ScheduledReportsService],
 })

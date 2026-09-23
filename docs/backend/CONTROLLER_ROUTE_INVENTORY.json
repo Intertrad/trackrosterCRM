@@ -585,6 +585,34 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/custom-fields",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 82,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/custom-fields",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 85,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/custom-fields/:fieldId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 103,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/custom-fields/:fieldId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 92,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/dashboard/admin",
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
       "line": 160,
@@ -610,6 +638,13 @@
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
       "line": 142,
       "ledgerStatus": "Verified: authorized daily priorities and persisted local-day route summary"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data-quality/overview",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 172,
+      "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",
@@ -1263,11 +1298,109 @@
       "ledgerStatus": "Verified: 33 implemented-domain capabilities, including 28 configurable restrictions"
     },
     {
+      "method": "DELETE",
+      "path": "/api/v1/prospect-addresses/:addressId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 166,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospect-addresses/:addressId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 156,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospect-contacts/:contactId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 190,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospect-contacts/:contactId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 180,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospect-duplicates",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 148,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospect-duplicates/:duplicateId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 151,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospect-duplicates/:duplicateId/resolve",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 157,
+      "ledgerStatus": "Pending verification"
+    },
+    {
       "method": "GET",
       "path": "/api/v1/prospector/today",
       "source": "apps/api/src/prospector-today/prospector-today.controller.ts",
       "line": 15,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 65,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 68,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospects/:prospectId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 94,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 75,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospects/:prospectId",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 83,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/addresses",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 115,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/addresses",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 122,
+      "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",
@@ -1282,6 +1415,48 @@
       "source": "apps/api/src/consents/consent.controller.ts",
       "line": 46,
       "ledgerStatus": "Verified: scoped append-only evidence, channel/global restriction resolution and workflow enforcement"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/contacts",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 133,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/contacts",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 140,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/prospects/:prospectId/custom-fields",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 136,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/restore",
+      "source": "apps/api/src/prospect-master/prospect-master.controller.ts",
+      "line": 104,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospects/:prospectId/tags/:tagId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 127,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/tags/:tagId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 118,
+      "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",
@@ -1338,6 +1513,97 @@
       "source": "apps/api/src/regions/region.controller.ts",
       "line": 67,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/report-definitions",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 31,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/:reportId([0-9a-fA-F-]{36})",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 34,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/actions",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 53,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/collisions",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 83,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/conversions",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 65,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/coverage",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 77,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/data-quality",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 89,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/follow-ups",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 71,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/forecast",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 101,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/funnel",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 59,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/overview",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 41,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/territories",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 95,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/workload",
+      "source": "apps/api/src/reporting/report.controller.ts",
+      "line": 47,
+      "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",
@@ -1555,6 +1821,34 @@
       "source": "apps/api/src/security-administration/security-policy.controller.ts",
       "line": 55,
       "ledgerStatus": "Verified: conditional policy updates and encrypted OIDC configuration; no SSO activation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 46,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 49,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tags/:tagId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 67,
+      "ledgerStatus": "Pending verification"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tags/:tagId",
+      "source": "apps/api/src/prospect-enrichment/enrichment.controller.ts",
+      "line": 56,
+      "ledgerStatus": "Pending verification"
     },
     {
       "method": "GET",

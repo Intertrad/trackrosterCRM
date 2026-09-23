@@ -13,6 +13,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DATABASE } from '../database/database.constants.js';
+import { addAssignmentScopeConditions } from './report-scope.js';
 import type { Database } from '../database/database.types.js';
 import { campaignProspectAssignments } from '../database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../database/schema/campaign-prospects.js';
@@ -558,7 +559,7 @@ export class ManagerDashboardRepository {
       lt(prospectActivities.occurredAt, input.range.to),
     ];
 
-    this.addAssignmentScopeConditions(conditions, input);
+    addAssignmentScopeConditions(conditions, input);
 
     if (input.filters.userId) {
       conditions.push(eq(prospectActivities.userId, input.filters.userId));
@@ -582,7 +583,7 @@ export class ManagerDashboardRepository {
       eq(campaigns.status, 'active'),
     ];
 
-    this.addAssignmentScopeConditions(conditions, input);
+    addAssignmentScopeConditions(conditions, input);
 
     if (input.filters.userId) {
       conditions.push(eq(campaignProspectAssignments.assignedUserId, input.filters.userId));
@@ -598,7 +599,7 @@ export class ManagerDashboardRepository {
   private buildFollowUpScopeConditions(input: ManagerDashboardReportInput): SQL[] {
     const conditions: SQL[] = [eq(prospectFollowUps.tenantId, input.tenantId)];
 
-    this.addAssignmentScopeConditions(conditions, input);
+    addAssignmentScopeConditions(conditions, input);
 
     if (input.filters.userId) {
       conditions.push(eq(prospectFollowUps.assignedUserId, input.filters.userId));
@@ -609,38 +610,5 @@ export class ManagerDashboardRepository {
     }
 
     return conditions;
-  }
-
-  private addAssignmentScopeConditions(
-    conditions: SQL[],
-    input: ManagerDashboardReportInput,
-  ): void {
-    /*
-     * Mandatory server-resolved authority scope.
-     */
-    if (input.scope.organizationId) {
-      conditions.push(eq(campaignProspectAssignments.organizationId, input.scope.organizationId));
-    }
-
-    if (input.scope.teamId) {
-      conditions.push(eq(campaignProspectAssignments.teamId, input.scope.teamId));
-    }
-
-    /*
-     * Optional caller filters.
-     *
-     * Authorization for these is handled before
-     * repository execution in TR-023-D.
-     *
-     * Applying them here as well keeps the query
-     * explicit and gives us defense in depth.
-     */
-    if (input.filters.organizationId) {
-      conditions.push(eq(campaignProspectAssignments.organizationId, input.filters.organizationId));
-    }
-
-    if (input.filters.teamId) {
-      conditions.push(eq(campaignProspectAssignments.teamId, input.filters.teamId));
-    }
   }
 }

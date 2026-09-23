@@ -65,6 +65,9 @@ describe('ProspectorTodayService', () => {
               id: establishmentId,
               name: 'Nancy central police station',
               city: 'Nancy',
+              /* The driver hands numeric back as a string. */
+              latitude: '48.6921',
+              longitude: '6.1844',
             },
           },
         ],
@@ -117,6 +120,8 @@ describe('ProspectorTodayService', () => {
             id: establishmentId,
             name: 'Nancy central police station',
             city: 'Nancy',
+            latitude: 48.6921,
+            longitude: 6.1844,
           },
         },
       ],
@@ -129,6 +134,8 @@ describe('ProspectorTodayService', () => {
       teamId,
       userId,
       now: new Date('2026-09-20T10:00:00.000Z'),
+      /* Start of the caller's local day, which bounds completed work. */
+      startsAt: new Date('2026-09-19T22:00:00.000Z'),
       endsAt: new Date('2026-09-20T22:00:00.000Z'),
     });
 
@@ -188,6 +195,8 @@ describe('ProspectorTodayService', () => {
             id: establishmentId,
             name: 'Nancy central police station',
             city: 'Nancy',
+            latitude: 48.6921,
+            longitude: 6.1844,
           },
         },
       ],

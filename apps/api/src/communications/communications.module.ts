@@ -3,10 +3,12 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   Injectable,
   Module,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -28,7 +30,17 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { MessagingService } from '../messaging/messaging.module.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
+import {
+  AttachUploadDto,
+  NotificationPreferencesDto,
+  PresignUploadDto,
+  RegisterDeviceDto,
+} from './communications.dto.js';
 import { ObjectStorageService } from '../providers/object-storage.service.js';
+import { ProvidersModule } from '../providers/providers.module.js';
+import { AuthModule } from '../auth/auth.module.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { MessagingModule } from '../messaging/messaging.module.js';
 
 type Auth = AuthenticatedPrincipal;
 @Injectable()
@@ -38,9 +50,10 @@ export class CommunicationsService {
     private readonly messaging: MessagingService,
     private readonly storage: ObjectStorageService,
   ) {}
-  async presign(a: Auth, d: { filename: string; contentType: string; byteSize: number }) {
-    if (!d.filename?.trim() || !d.contentType || d.byteSize < 1 || d.byteSize > 25_000_000)
-      throw new BadRequestException('Invalid upload');
+  async presign(a: Auth, d: PresignUploadDto) {
+    /* The DTO bounds filename, content type and size; this guards the one
+     * case validation cannot express — a name that is only whitespace. */
+    if (!d.filename.trim()) throw new BadRequestException('A filename is required');
     const key = `${a.tenantId}/${a.membershipId}/${randomUUID()}-${d.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const base = process.env.OBJECT_STORAGE_UPLOAD_BASE_URL ?? 'http://localhost:58080/upload';
     const signedUrl = await this.storage.uploadUrl(key, d.contentType);
@@ -52,11 +65,7 @@ export class CommunicationsService {
       headers: { 'content-type': d.contentType },
     };
   }
-  async attach(
-    a: Auth,
-    messageId: string,
-    d: { objectKey: string; filename: string; contentType: string; byteSize: number },
-  ) {
+  async attach(a: Auth, messageId: string, d: AttachUploadDto) {
     const [m] = await this.db
       .select()
       .from(messages)
@@ -67,12 +76,24 @@ export class CommunicationsService {
           sql`EXISTS(SELECT 1 FROM conversation_participants p WHERE p.tenant_id=${a.tenantId} AND p.conversation_id=messages.conversation_id AND p.membership_id=${a.membershipId})`,
         ),
       );
-    if (!m) throw new BadRequestException('Message not found');
+    if (!m) throw new NotFoundException('Message not found');
+    /* Presign namespaces every key by tenant, so a key that does not carry
+     * this tenant's prefix was not issued to this caller. */
     if (!d.objectKey.startsWith(`${a.tenantId}/`))
-      throw new BadRequestException('Invalid object key');
+      throw new ForbiddenException('Object key does not belong to this workspace');
     const [r] = await this.db
       .insert(messageAttachments)
-      .values({ tenantId: a.tenantId, messageId, uploadedBy: a.membershipId, ...d })
+      /* Columns are named explicitly. Spreading the request body here let
+       * any field the body happened to carry reach the insert. */
+      .values({
+        tenantId: a.tenantId,
+        messageId,
+        uploadedBy: a.membershipId,
+        objectKey: d.objectKey,
+        filename: d.filename,
+        contentType: d.contentType,
+        byteSize: d.byteSize,
+      })
       .returning();
     return r;
   }
@@ -108,7 +129,9 @@ export class CommunicationsService {
       );
     return r?.preferences ?? {};
   }
-  async setPrefs(a: Auth, p: Record<string, unknown>) {
+  async setPrefs(a: Auth, p: NotificationPreferencesDto) {
+    /* Validation has already rejected any key outside the catalogue, so this
+     * is a narrowing to the column's stored shape, not a trust decision. */
     const preferences = p as Record<string, { email?: boolean; push?: boolean; inApp?: boolean }>;
     const [r] = await this.db
       .insert(notificationPreferences)
@@ -120,9 +143,7 @@ export class CommunicationsService {
       .returning();
     return r!.preferences;
   }
-  async device(a: Auth, d: { token: string; platform: string }) {
-    if (!d.token || !['ios', 'android', 'web'].includes(d.platform))
-      throw new BadRequestException('Invalid device');
+  async device(a: Auth, d: RegisterDeviceDto) {
     const [r] = await this.db
       .insert(pushDevices)
       .values({
@@ -157,14 +178,14 @@ export class CommunicationsController {
   constructor(private readonly s: CommunicationsService) {}
   @Post('uploads/presign') @Idempotent('upload.presign') presign(
     @CurrentAuth() a: Auth,
-    @Body() d: any,
+    @Body() d: PresignUploadDto,
   ) {
     return this.s.presign(a, d);
   }
   @Post('messages/:messageId/attachments') @Idempotent('message.attachment') attach(
     @CurrentAuth() a: Auth,
     @Param('messageId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: AttachUploadDto,
   ) {
     return this.s.attach(a, id, d);
   }
@@ -179,11 +200,14 @@ export class CommunicationsController {
   }
   @Put('notification-preferences') setPreferences(
     @CurrentAuth() a: Auth,
-    @Body() d: Record<string, unknown>,
+    @Body() d: NotificationPreferencesDto,
   ) {
     return this.s.setPrefs(a, d);
   }
-  @Post('devices') @Idempotent('device.register') device(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post('devices') @Idempotent('device.register') device(
+    @CurrentAuth() a: Auth,
+    @Body() d: RegisterDeviceDto,
+  ) {
     return this.s.device(a, d);
   }
   @Delete('devices/:deviceId') revoke(
@@ -194,7 +218,7 @@ export class CommunicationsController {
   }
 }
 @Module({
-  imports: [],
+  imports: [DatabaseModule, AuthModule, MessagingModule, ProvidersModule],
   controllers: [CommunicationsController],
   providers: [CommunicationsService],
   exports: [CommunicationsService],

@@ -11,6 +11,9 @@ import { ManagerDashboardScopeService } from './manager-dashboard-scope.service.
 import { ManagerDashboardService } from './manager-dashboard.service.js';
 import { ReportingRepositoryModule } from './reporting-repository.module.js';
 import { ReportController } from './report.controller.js';
+import { DatabaseModule } from '../database/database.module.js';
+import { ReportQueryRepository } from './report-query.repository.js';
+import { ReportQueryService } from './report-query.service.js';
 
 @Module({
   imports: [
@@ -27,11 +30,19 @@ import { ReportController } from './report.controller.js';
     CampaignModule,
 
     ReportingRepositoryModule,
+
+    /* ReportQueryRepository injects DATABASE directly. */
+    DatabaseModule,
   ],
 
   controllers: [ManagerDashboardController, ReportController],
 
-  providers: [ManagerDashboardScopeService, ManagerDashboardService],
+  providers: [
+    ManagerDashboardScopeService,
+    ManagerDashboardService,
+    ReportQueryRepository,
+    ReportQueryService,
+  ],
 
   exports: [ManagerDashboardService, ManagerDashboardScopeService],
 })

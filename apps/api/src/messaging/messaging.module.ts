@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Injectable,
   Inject,
   Module,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -15,8 +17,10 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
+import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import {
   conversations,
@@ -28,9 +32,41 @@ import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
+import {
+  AddParticipantDto,
+  ConversationListDto,
+  CreateConversationDto,
+  MuteConversationDto,
+  SendMessageDto,
+  UpdateConversationDto,
+} from './messaging.dto.js';
 
 type Auth = AuthenticatedPrincipal;
+
 const page = (n?: number) => Math.min(Math.max(n ?? 50, 1), 100);
+
+/*
+ * Both listings are ordered by (timestamp DESC, id DESC). A keyset cursor has
+ * to carry both halves of that key: paging on the id alone, as this module
+ * previously did, filters on a random UUID while sorting by time and so
+ * returns an arbitrary subset rather than the next page.
+ */
+interface Keyset {
+  timestamp: Date;
+  id: string;
+}
+
+function encodeCursor(timestamp: Date, id: string): string {
+  return `${timestamp.toISOString()}|${id}`;
+}
+
+function decodeCursor(cursor: string | undefined): Keyset | undefined {
+  if (!cursor) return undefined;
+  const [iso, id] = cursor.split('|');
+  const timestamp = new Date(iso!);
+  if (Number.isNaN(timestamp.getTime()) || !id) throw new BadRequestException('Invalid cursor');
+  return { timestamp, id };
+}
 
 @Injectable()
 export class MessagingService {
@@ -46,31 +82,58 @@ export class MessagingService {
           eq(conversationParticipants.membershipId, a.membershipId),
         ),
       );
-    if (!m) throw new BadRequestException('Conversation membership required');
+    /* Not a participant is an authorization outcome, not a malformed
+     * request; 400 sends well-behaved clients into a pointless retry loop. */
+    if (!m) throw new ForbiddenException('Conversation membership required');
   }
-  async list(a: Auth, limit?: number, cursor?: string) {
-    return this.db
+  async list(a: Auth, q: ConversationListDto) {
+    const after = decodeCursor(q.cursor);
+    const limit = page(q.limit);
+    const rows = await this.db
       .select()
       .from(conversations)
       .where(
         and(
           eq(conversations.tenantId, a.tenantId),
           sql`EXISTS (SELECT 1 FROM conversation_participants p WHERE p.tenant_id=${a.tenantId} AND p.conversation_id=conversations.id AND p.membership_id=${a.membershipId})`,
-          cursor ? gt(conversations.id, cursor) : undefined,
+          after
+            ? sql`(${conversations.updatedAt}, ${conversations.id}) < (${after.timestamp}, ${after.id})`
+            : undefined,
         ),
       )
       .orderBy(desc(conversations.updatedAt), desc(conversations.id))
-      .limit(page(limit));
+      .limit(limit + 1);
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor: rows.length > limit && last ? encodeCursor(last.updatedAt, last.id) : null,
+    };
   }
-  async create(
-    a: Auth,
-    d: {
-      kind: 'direct' | 'team' | 'prospect' | 'campaign';
-      title?: string;
-      participantIds?: string[];
-    },
-  ) {
-    if (!d.kind) throw new BadRequestException('kind is required');
+  async create(a: Auth, d: CreateConversationDto) {
+    const requested = [...new Set(d.participantIds ?? [])].filter((id) => id !== a.membershipId);
+
+    /*
+     * Participant ids arrive from the client and are stamped with the
+     * caller's tenant on insert, so an id from another tenant would otherwise
+     * be written into this tenant's conversation. addParticipant already
+     * performs this check; create did not.
+     */
+    if (requested.length) {
+      const valid = await this.db
+        .select({ id: tenantMemberships.id })
+        .from(tenantMemberships)
+        .where(
+          and(
+            eq(tenantMemberships.tenantId, a.tenantId),
+            eq(tenantMemberships.status, 'active'),
+            inArray(tenantMemberships.id, requested),
+          ),
+        );
+      if (valid.length !== requested.length)
+        throw new BadRequestException('Every participant must be an active workspace member');
+    }
+
     return this.db.transaction(async (tx) => {
       const [c] = await tx
         .insert(conversations)
@@ -81,7 +144,7 @@ export class MessagingService {
           createdBy: a.membershipId,
         })
         .returning();
-      const ids = [...new Set([a.membershipId, ...(d.participantIds ?? [])])];
+      const ids = [a.membershipId, ...requested];
       await tx
         .insert(conversationParticipants)
         .values(
@@ -101,9 +164,10 @@ export class MessagingService {
       .select()
       .from(conversations)
       .where(and(eq(conversations.tenantId, a.tenantId), eq(conversations.id, id)));
+    if (!c) throw new NotFoundException('Conversation not found');
     return c;
   }
-  async update(a: Auth, id: string, d: { title?: string; status?: 'active' | 'archived' }) {
+  async update(a: Auth, id: string, d: UpdateConversationDto) {
     await this.member(a, id);
     const [c] = await this.db
       .update(conversations)
@@ -156,24 +220,34 @@ export class MessagingService {
         ),
       );
   }
-  async listMessages(a: Auth, id: string, limit?: number, cursor?: string) {
+  async listMessages(a: Auth, id: string, q: ConversationListDto) {
     await this.member(a, id);
-    return this.db
+    const after = decodeCursor(q.cursor);
+    const limit = page(q.limit);
+    const rows = await this.db
       .select()
       .from(messages)
       .where(
         and(
           eq(messages.tenantId, a.tenantId),
           eq(messages.conversationId, id),
-          cursor ? gt(messages.id, cursor) : undefined,
+          after
+            ? sql`(${messages.createdAt}, ${messages.id}) < (${after.timestamp}, ${after.id})`
+            : undefined,
         ),
       )
       .orderBy(desc(messages.createdAt), desc(messages.id))
-      .limit(page(limit));
+      .limit(limit + 1);
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : null,
+    };
   }
   async send(a: Auth, id: string, body: string) {
     await this.member(a, id);
-    if (!body?.trim()) throw new BadRequestException('Message body is required');
+    if (!body.trim()) throw new BadRequestException('Message body is required');
     const [m] = await this.db
       .insert(messages)
       .values({
@@ -201,7 +275,7 @@ export class MessagingService {
           eq(messages.status, 'sent'),
         ),
       );
-    if (!m) throw new BadRequestException('Message not editable');
+    if (!m) throw new ForbiddenException('Only the sender can edit a sent message');
     const [r] = await this.db
       .update(messages)
       .set({ body: body.trim(), status: 'edited', updatedAt: sql`clock_timestamp()` })
@@ -221,7 +295,7 @@ export class MessagingService {
         ),
       )
       .returning({ id: messages.id });
-    if (!m) throw new BadRequestException('Message not found');
+    if (!m) throw new NotFoundException('Message not found');
   }
   async read(a: Auth, id: string) {
     await this.member(a, id);
@@ -258,10 +332,13 @@ export class MessagingService {
 @UseGuards(AuthGuard)
 export class ConversationController {
   constructor(private readonly s: MessagingService) {}
-  @Get() list(@CurrentAuth() a: Auth, @Query('limit') l?: number, @Query('cursor') c?: string) {
-    return this.s.list(a, l, c);
+  @Get() list(@CurrentAuth() a: Auth, @Query() q: ConversationListDto) {
+    return this.s.list(a, q);
   }
-  @Post() @Idempotent('conversation.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post() @Idempotent('conversation.create') create(
+    @CurrentAuth() a: Auth,
+    @Body() d: CreateConversationDto,
+  ) {
     return this.s.create(a, d);
   }
   @Get(':id') get(@CurrentAuth() a: Auth, @Param('id', ParseUUIDPipe) id: string) {
@@ -270,7 +347,7 @@ export class ConversationController {
   @Patch(':id') update(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: UpdateConversationDto,
   ) {
     return this.s.update(a, id, d);
   }
@@ -283,7 +360,7 @@ export class ConversationController {
   @Post(':id/participants') add(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() d: { membershipId: string },
+    @Body() d: AddParticipantDto,
   ) {
     return this.s.addParticipant(a, id, d.membershipId);
   }
@@ -297,15 +374,14 @@ export class ConversationController {
   @Get(':id/messages') messages(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('limit') l?: number,
-    @Query('cursor') c?: string,
+    @Query() q: ConversationListDto,
   ) {
-    return this.s.listMessages(a, id, l, c);
+    return this.s.listMessages(a, id, q);
   }
   @Post(':id/messages') @Idempotent('message.create') send(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() d: { body: string },
+    @Body() d: SendMessageDto,
   ) {
     return this.s.send(a, id, d.body);
   }
@@ -315,7 +391,7 @@ export class ConversationController {
   @Patch(':id/mute') mute(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() d: { mutedUntil?: string | null },
+    @Body() d: MuteConversationDto,
   ) {
     return this.s.mute(a, id, d.mutedUntil);
   }
@@ -327,7 +403,7 @@ export class MessageController {
   @Patch(':id') edit(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() d: { body: string },
+    @Body() d: SendMessageDto,
   ) {
     return this.s.edit(a, id, d.body);
   }
@@ -339,7 +415,9 @@ export class MessageController {
   }
 }
 @Module({
-  imports: [],
+  /* DatabaseModule is not global, so DATABASE has to be imported here; the
+   * module previously declared no imports at all and could not instantiate. */
+  imports: [DatabaseModule, AuthModule],
   controllers: [ConversationController, MessageController],
   providers: [MessagingService],
   exports: [MessagingService],

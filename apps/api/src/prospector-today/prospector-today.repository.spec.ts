@@ -24,6 +24,7 @@ describe('ProspectorTodayRepository', () => {
   let select: ReturnType<typeof vi.fn>;
   let summaryBuilder: QueryBuilder;
   let priorityBuilder: QueryBuilder;
+  let completedBuilder: QueryBuilder;
   let repository: ProspectorTodayRepository;
 
   beforeEach(() => {
@@ -49,11 +50,21 @@ describe('ProspectorTodayRepository', () => {
           id: '44444444-4444-4444-8444-444444444444',
           name: 'Nancy central police station',
           city: 'Nancy',
+          latitude: '48.6921',
+          longitude: '6.1844',
         },
       },
     ]);
 
-    select = vi.fn().mockReturnValueOnce(summaryBuilder).mockReturnValueOnce(priorityBuilder);
+    /* Completed work is counted by its own query: the shared scope condition
+     * pins status to 'pending', so it cannot come from the summary. */
+    completedBuilder = createQueryBuilder([{ completedToday: 12 }]);
+
+    select = vi
+      .fn()
+      .mockReturnValueOnce(summaryBuilder)
+      .mockReturnValueOnce(priorityBuilder)
+      .mockReturnValueOnce(completedBuilder);
 
     repository = new ProspectorTodayRepository({
       select,
@@ -68,6 +79,7 @@ describe('ProspectorTodayRepository', () => {
         teamId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         userId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         now: new Date('2026-09-20T10:00:00.000Z'),
+        startsAt: new Date(Date.parse('2026-09-21T00:00:00.000Z')),
         endsAt: new Date('2026-09-20T22:00:00.000Z'),
       }),
     ).resolves.toMatchObject({
@@ -92,7 +104,12 @@ describe('ProspectorTodayRepository', () => {
   it('returns a zero summary if the database adapter yields no aggregate row', async () => {
     summaryBuilder = createQueryBuilder([]);
     priorityBuilder = createQueryBuilder([]);
-    select = vi.fn().mockReturnValueOnce(summaryBuilder).mockReturnValueOnce(priorityBuilder);
+    completedBuilder = createQueryBuilder([]);
+    select = vi
+      .fn()
+      .mockReturnValueOnce(summaryBuilder)
+      .mockReturnValueOnce(priorityBuilder)
+      .mockReturnValueOnce(completedBuilder);
     repository = new ProspectorTodayRepository({
       select,
     } as unknown as Database);
@@ -104,6 +121,7 @@ describe('ProspectorTodayRepository', () => {
         teamId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
         userId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
         now: new Date('2026-09-20T10:00:00.000Z'),
+        startsAt: new Date(Date.parse('2026-09-21T00:00:00.000Z')),
         endsAt: new Date('2026-09-20T22:00:00.000Z'),
       }),
     ).resolves.toEqual({
@@ -113,6 +131,8 @@ describe('ProspectorTodayRepository', () => {
         followUps: 0,
         meetings: 0,
         overdue: 0,
+        /* An empty aggregate still reports a real completed count. */
+        completedToday: 0,
       },
       priorities: [],
     });
@@ -127,6 +147,7 @@ describe('ProspectorTodayRepository', () => {
       teamId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       userId,
       now: new Date('2026-09-20T10:00:00.000Z'),
+      startsAt: new Date(Date.parse('2026-09-21T00:00:00.000Z')),
       endsAt: new Date('2026-09-20T22:00:00.000Z'),
     });
 

@@ -16,7 +16,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
+import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import { savedViews } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -125,7 +127,7 @@ export class SavedViewsController {
   @Get() list(@CurrentAuth() a: Auth, @Query('resource') r?: string) {
     return this.s.list(a, r);
   }
-  @Post() @Idempotent('saved-view.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post() @Idempotent('saved_view.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
     return this.s.create(a, d);
   }
   @Patch(':viewId') update(
@@ -142,5 +144,9 @@ export class SavedViewsController {
     return this.s.remove(a, id);
   }
 }
-@Module({ controllers: [SavedViewsController], providers: [SavedViewsService] })
+@Module({
+  imports: [DatabaseModule, AuthModule],
+  controllers: [SavedViewsController],
+  providers: [SavedViewsService],
+})
 export class SavedViewsModule {}

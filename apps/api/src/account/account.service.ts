@@ -35,6 +35,12 @@ export class AccountService {
         avatar: accountSettings.avatar,
         locale: sql<string>`coalesce(${accountSettings.locale}, 'en')`,
         timezone: sql<string>`coalesce(${accountSettings.timezone}, 'UTC')`,
+        /*
+         * Whether a second factor is enrolled, as a boolean only. The
+         * enrolment timestamp and the factor itself stay server-side; the
+         * account screen needs to know on/off and nothing more.
+         */
+        mfaEnabled: sql<boolean>`${identities.mfaEnrolledAt} IS NOT NULL`,
       })
       .from(tenantMemberships)
       .innerJoin(identities, eq(identities.id, tenantMemberships.identityId))

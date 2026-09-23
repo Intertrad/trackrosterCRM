@@ -13,6 +13,9 @@ export interface ProspectorTodaySummary {
   meetings: number;
 
   overdue: number;
+
+  /** Follow-ups completed within the caller's local day. */
+  completedToday: number;
 }
 
 export interface ProspectorTodayPriority {
@@ -36,6 +39,15 @@ export interface ProspectorTodayPriority {
     name: string;
 
     city: string | null;
+
+    /*
+     * Numeric columns arrive from the driver as strings. They are published
+     * as numbers so a client never has to guess, and null when the
+     * establishment has never been geocoded.
+     */
+    latitude: number | null;
+
+    longitude: number | null;
   };
 }
 

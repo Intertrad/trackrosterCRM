@@ -14,7 +14,9 @@ import {
 } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
+import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import {
   accessReviewDecisions,
@@ -178,7 +180,7 @@ export class ComplianceController {
   @Get('access-reviews') reviews(@CurrentAuth() a: Auth) {
     return this.s.reviews(a);
   }
-  @Post('access-reviews') @Idempotent('access-review.create') start(@CurrentAuth() a: Auth) {
+  @Post('access-reviews') @Idempotent('access_review.create') start(@CurrentAuth() a: Auth) {
     return this.s.start(a);
   }
   @Get('access-reviews/:reviewId') review(
@@ -209,7 +211,7 @@ export class ComplianceController {
   @Get('compliance-reports') reports(@CurrentAuth() a: Auth) {
     return this.s.reports(a);
   }
-  @Post('compliance-reports') @Idempotent('compliance-report.create') create(
+  @Post('compliance-reports') @Idempotent('compliance_report.create') create(
     @CurrentAuth() a: Auth,
     @Body() d: any,
   ) {
@@ -228,5 +230,9 @@ export class ComplianceController {
     return this.s.download(a, id);
   }
 }
-@Module({ controllers: [ComplianceController], providers: [ComplianceService] })
+@Module({
+  imports: [DatabaseModule, AuthModule],
+  controllers: [ComplianceController],
+  providers: [ComplianceService],
+})
 export class ComplianceModule {}

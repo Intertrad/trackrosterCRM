@@ -16,7 +16,9 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
+import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import { apiClients, integrations, webhookDeliveries, webhooks } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -258,7 +260,7 @@ export class IntegrationsController {
   @Get('api-clients') clients(@CurrentAuth() a: Auth) {
     return this.s.clients(a);
   }
-  @Post('api-clients') @Idempotent('api-client.create') createClient(
+  @Post('api-clients') @Idempotent('api_client.create') createClient(
     @CurrentAuth() a: Auth,
     @Body() d: any,
   ) {
@@ -330,5 +332,9 @@ export class IntegrationsController {
     return this.s.retry(a, id);
   }
 }
-@Module({ controllers: [IntegrationsController], providers: [IntegrationsService] })
+@Module({
+  imports: [DatabaseModule, AuthModule],
+  controllers: [IntegrationsController],
+  providers: [IntegrationsService],
+})
 export class IntegrationsModule {}
