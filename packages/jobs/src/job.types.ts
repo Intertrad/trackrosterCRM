@@ -2,6 +2,8 @@ import {
   FOLLOW_UP_REMINDER_JOB,
   RESERVATION_EXPIRY_JOB,
   WEBHOOK_DELIVERY_JOB,
+  SCHEDULED_REPORT_JOB,
+  COMPLIANCE_ARTIFACT_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
 } from './job.constants.js';
@@ -102,6 +104,13 @@ export interface WebhookDeliveryJobData extends BaseJobData {
   event: string;
   payload: Record<string, unknown>;
 }
+export interface ScheduledReportJobData extends BaseJobData {
+  scheduleId: string;
+  deliveryId: string;
+}
+export interface ComplianceArtifactJobData extends BaseJobData {
+  exportId: string;
+}
 
 export interface TrackRosterJobMap {
   [SYSTEM_HEALTH_CHECK_JOB]: SystemHealthCheckJobData;
@@ -112,6 +121,8 @@ export interface TrackRosterJobMap {
 
   [RESERVATION_EXPIRY_JOB]: ReservationExpiryJobData;
   [WEBHOOK_DELIVERY_JOB]: WebhookDeliveryJobData;
+  [SCHEDULED_REPORT_JOB]: ScheduledReportJobData;
+  [COMPLIANCE_ARTIFACT_JOB]: ComplianceArtifactJobData;
 }
 
 export type TrackRosterJobName = keyof TrackRosterJobMap;

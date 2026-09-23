@@ -13,6 +13,8 @@ import { SystemRetryProbeProcessor } from './processors/system-retry-probe.proce
 import { FollowUpReminderRepository } from './repositories/follow-up-reminder.repository.js';
 import { ReservationExpiryRepository } from './repositories/reservation-expiry.repository.js';
 import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processor.js';
+import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
+import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
 
 @Module({
   imports: [WorkerDatabaseModule, ReservationRedisModule],
@@ -28,6 +30,8 @@ import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processo
 
     ReservationExpiryProcessor,
     WebhookDeliveryProcessor,
+    ScheduledReportProcessor,
+    ComplianceArtifactProcessor,
 
     SystemHealthCheckProcessor,
 
