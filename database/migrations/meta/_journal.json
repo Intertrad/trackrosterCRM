@@ -330,6 +330,13 @@
       "when": 1790111993504,
       "tag": "0046_import_export_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1790152167549,
+      "tag": "0047_outcome_configuration",
+      "breakpoints": true
     }
   ]
 }

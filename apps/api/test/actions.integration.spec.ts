@@ -1,3 +1,5 @@
+import { DEFAULT_OUTCOMES } from '../src/outcome-settings/outcome-settings.service.js';
+import { outcomeSettings } from '../src/database/schema/outcome-settings.js';
 import { ActionEffectsService } from '../src/actions/action-effects.service.js';
 import { FollowUpReminderSchedulerService } from '../src/follow-ups/follow-up-reminder-scheduler.service.js';
 import { ReservationRepository } from '../src/reservations/reservation.repository.js';
@@ -61,7 +63,7 @@ describe('Actions, outcomes and unified timelines', () => {
     tokens = new Map<string, string>();
   const path = `/prospects/${establishment}/consents`;
   const call = (
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     url: string,
     body?: object,
     actor = admin,
@@ -173,6 +175,7 @@ describe('Actions, outcomes and unified timelines', () => {
   });
   afterEach(async () => {
     vi.restoreAllMocks();
+    await db.delete(outcomeSettings).where(eq(outcomeSettings.tenantId, tenantId));
     await db
       .update(campaignProspects)
       .set({ lifecycleStage: 'to_contact' })
@@ -254,6 +257,121 @@ describe('Actions, outcomes and unified timelines', () => {
     actor = member,
     key: string = randomUUID(),
   ) => call('POST', `/actions/${id}/${op}`, body, actor, key);
+  it('configures custom outcomes, enforces channels and preserves historical definitions', async () => {
+    const config = [
+      ...DEFAULT_OUTCOMES,
+      {
+        code: 'finished_review',
+        label: 'Review finished',
+        behavior: 'completed',
+        enabled: true,
+        actionTypes: ['task'],
+      },
+    ];
+    const save = await call('PATCH', '/settings/default-statuses', { outcomes: config });
+    expect(save.statusCode, save.body).toBe(200);
+    const task = (await create()).json();
+    expect((await command(task.id, 'start')).statusCode).toBe(200);
+    const done = await command(task.id, 'complete', { outcomeCode: 'finished_review' });
+    expect(done.statusCode, done.body).toBe(200);
+    const events = await db.select().from(actionEvents).where(eq(actionEvents.actionId, task.id));
+    expect(JSON.stringify(events)).toContain('Review finished');
+    expect(
+      (await call('PATCH', '/settings/default-statuses', { outcomes: DEFAULT_OUTCOMES }))
+        .statusCode,
+    ).toBe(200);
+    const other = (await create()).json();
+    await command(other.id, 'start');
+    expect(
+      (await command(other.id, 'complete', { outcomeCode: 'finished_review' })).statusCode,
+    ).toBe(400);
+    expect(
+      (await call('GET', `/actions/${task.id}`, undefined, member)).json().outcome.outcomeCode,
+    ).toBe('finished_review');
+  });
+  it('protects configuration authority, tenant isolation, opposition semantics and ETags', async () => {
+    const body = { outcomes: DEFAULT_OUTCOMES };
+    expect((await call('PATCH', '/settings/default-statuses', body, member)).statusCode).toBe(403);
+    expect(
+      (
+        await call('PATCH', '/settings/default-statuses', {
+          outcomes: DEFAULT_OUTCOMES.filter((o) => o.code !== 'do_not_contact'),
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await call('PATCH', '/settings/default-statuses', {
+          outcomes: DEFAULT_OUTCOMES.map((o) =>
+            o.code === 'do_not_contact' ? { ...o, behavior: 'contacted' } : o,
+          ),
+        })
+      ).statusCode,
+    ).toBe(400);
+    const old = (await call('GET', '/settings/default-statuses')).json();
+    const key = randomUUID();
+    expect((await call('PATCH', '/settings/default-statuses', body, admin, key)).statusCode).toBe(
+      200,
+    );
+    const stale = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/settings/default-statuses',
+      payload: body,
+      headers: {
+        authorization: `Bearer ${tokens.get(admin)}`,
+        'idempotency-key': randomUUID(),
+        'if-match': old.etag,
+      },
+    });
+    expect(stale.statusCode, stale.body).toBe(412);
+    expect(
+      (await call('GET', '/settings/default-statuses', undefined, foreign)).json().updatedAt,
+    ).toBeNull();
+    await db
+      .delete(userAccessGrants)
+      .where(and(eq(userAccessGrants.tenantId, tenantId), eq(userAccessGrants.userId, admin)));
+    try {
+      expect((await call('PATCH', '/settings/default-statuses', body, admin, key)).statusCode).toBe(
+        403,
+      );
+    } finally {
+      await db
+        .insert(userAccessGrants)
+        .values({ tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' });
+    }
+  });
+  it('custom opposition outcomes retain consent enforcement', async () => {
+    const config = [
+      ...DEFAULT_OUTCOMES,
+      {
+        code: 'opted_out',
+        label: 'Opted out',
+        behavior: 'do_not_contact',
+        enabled: true,
+        actionTypes: ['call'],
+      },
+    ];
+    expect(
+      (await call('PATCH', '/settings/default-statuses', { outcomes: config })).statusCode,
+    ).toBe(200);
+    const action = (await create({ type: 'call' })).json();
+    await command(action.id, 'start');
+    expect(
+      (
+        await command(action.id, 'complete', {
+          outcomeCode: 'opted_out',
+          nextFollowUp: { dueAt: new Date(Date.now() + 86400000).toISOString() },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const result = await command(action.id, 'complete', { outcomeCode: 'opted_out' });
+    expect(result.statusCode, result.body).toBe(200);
+    const consents = await db
+      .select()
+      .from(contactConsents)
+      .where(eq(contactConsents.tenantId, tenantId));
+    expect(consents.some((c) => c.status === 'blocked')).toBe(true);
+  });
   it('validates planning scope, target assignee and required fields', async () => {
     expect(
       (

@@ -60,7 +60,7 @@ export const OUTCOMES = [
   'completed',
 ] as const;
 export class CompleteActionDto {
-  @IsIn(OUTCOMES) outcomeCode!: (typeof OUTCOMES)[number];
+  @IsString() @Matches(/^[a-z][a-z0-9_]{0,39}$/) outcomeCode!: string;
   @ValidateIf((_o, v) => v !== undefined) @IsString() @MaxLength(10000) notes?: string;
   @ValidateIf((_o, v) => v !== undefined)
   @IsIn(['to_contact', 'contact_made', 'in_progress', 'follow_up', 'qualified', 'converted'])
@@ -81,7 +81,10 @@ export class ReasonDto {
 }
 export class CorrectionDto extends ReasonDto {
   @IsString() @Matches(/\S/) @MaxLength(10000) notes!: string;
-  @ValidateIf((_o, v) => v !== undefined) @IsIn(OUTCOMES) outcomeCode?: (typeof OUTCOMES)[number];
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsString()
+  @Matches(/^[a-z][a-z0-9_]{0,39}$/)
+  outcomeCode?: string;
 }
 export class ListActionsDto {
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() campaignId?: string;

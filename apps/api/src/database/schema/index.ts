@@ -39,3 +39,4 @@ export * from './collision-workflows.js';
 export * from './reservation-lifecycle.js';
 export * from './assignment-rules.js';
 export * from './data-jobs.js';
+export * from './outcome-settings.js';

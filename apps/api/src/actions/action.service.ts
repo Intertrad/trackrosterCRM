@@ -1,3 +1,4 @@
+import { resolveOutcome } from '../outcome-settings/outcome-settings.service.js';
 import { prospectReadScope } from './action-access.js';
 import {
   BadRequestException,
@@ -300,7 +301,17 @@ export class ActionService {
         if (operation === 'correction') {
           if (!['completed', 'cancelled'].includes(row.status))
             throw new ConflictException('Only finalized actions accept corrections');
-          await this.event(auth, row, 'correction', { ...(input as CorrectionDto) }, tx);
+          const correction = input as CorrectionDto;
+          const definition = correction.outcomeCode
+            ? await resolveOutcome(tx, auth.tenantId, correction.outcomeCode, row.type)
+            : null;
+          await this.event(
+            auth,
+            row,
+            'correction',
+            { ...correction, outcomeDefinition: definition },
+            tx,
+          );
           return row;
         }
         if (['completed', 'cancelled'].includes(row.status))
@@ -413,13 +424,20 @@ export class ActionService {
           if (row.status !== 'started')
             throw new ConflictException('Start the action before completing it');
           const complete = input as CompleteActionDto;
-          if (['task', 'note'].includes(row.type) && complete.outcomeCode !== 'completed')
+          const definition = await resolveOutcome(
+            tx,
+            auth.tenantId,
+            complete.outcomeCode,
+            row.type,
+          );
+          evidence.outcomeDefinition = definition;
+          if (['task', 'note'].includes(row.type) && definition.behavior !== 'completed')
             throw new BadRequestException('Task and note actions use the completed outcome');
-          if (this.contact(row.type) && complete.outcomeCode === 'completed')
+          if (this.contact(row.type) && definition.behavior === 'completed')
             throw new BadRequestException('Choose a contact outcome');
           if (complete.nextFollowUp && new Date(complete.nextFollowUp.dueAt) <= now)
             throw new BadRequestException('Next follow-up must be in the future');
-          if (complete.outcomeCode === 'do_not_contact' && complete.nextFollowUp)
+          if (definition.behavior === 'do_not_contact' && complete.nextFollowUp)
             throw new BadRequestException('Opposition cannot schedule another contact');
           if (this.contact(row.type)) {
             await this.reservations.requireReservationEligibility({
@@ -495,7 +513,7 @@ export class ActionService {
               after: complete.lifecycleStage,
             };
           }
-          if (complete.outcomeCode === 'do_not_contact') {
+          if (definition.behavior === 'do_not_contact') {
             const [consent] = await tx
               .insert(contactConsents)
               .values({
