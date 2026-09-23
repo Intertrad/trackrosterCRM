@@ -1,3 +1,4 @@
+import { ProspectMasterModule } from './prospect-master/prospect-master.controller.js';
 import { MapModule } from './maps/map.controller.js';
 import { CanonicalDashboardModule } from './reporting/canonical-dashboard.controller.js';
 import { OutcomeSettingsModule } from './outcome-settings/outcome-settings.controller.js';
@@ -49,6 +50,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
 import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
 @Module({
   imports: [
+    ProspectMasterModule,
     MapModule,
     CanonicalDashboardModule,
     OutcomeSettingsModule,

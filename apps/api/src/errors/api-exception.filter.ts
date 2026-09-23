@@ -1,4 +1,7 @@
-import { isCampaignClosedError } from '../campaigns/campaign-work-error.js';
+import {
+  isCampaignClosedError,
+  isProspectArchivedError,
+} from '../campaigns/campaign-work-error.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -42,11 +45,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     const requestId = request.id ?? randomUUID();
 
-    if (isCampaignClosedError(exception)) {
+    if (isCampaignClosedError(exception) || isProspectArchivedError(exception)) {
       response.status(409).send({
         statusCode: 409,
-        code: 'CAMPAIGN_CLOSED',
-        message: 'Campaign no longer accepts open work',
+        code: isProspectArchivedError(exception) ? 'PROSPECT_ARCHIVED' : 'CAMPAIGN_CLOSED',
+        message: 'This record no longer accepts open work',
         error: 'Conflict',
         requestId,
       });

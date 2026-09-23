@@ -60,7 +60,12 @@ export function requestDomainPermission(
     return read ? 'territories.read' : 'territories.manage';
   if (/^\/(organizations|organization-relationships|teams)(\/|$)/.test(path))
     return read ? 'organizations.read' : 'organizations.manage';
-  if (/^\/(establishments|prospects|work-queue)(\/|$)/.test(path) || /\/prospects(\/|$)/.test(path))
+  if (
+    /^\/(establishments|prospects|prospect-addresses|prospect-contacts|work-queue)(\/|$)/.test(
+      path,
+    ) ||
+    /\/prospects(\/|$)/.test(path)
+  )
     return read ? 'prospects.read' : 'prospects.manage';
   if (/^\/(campaigns|campaign-members)(\/|$)/.test(path))
     return read ? 'campaigns.read' : 'campaigns.manage';
