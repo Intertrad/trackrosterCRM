@@ -252,7 +252,7 @@ describe('Canonical follow-ups and dashboards', () => {
       member,
     );
     expect(today.statusCode, today.body).toBe(200);
-    expect(today.json().routeSummary.available).toBe(false);
+    expect(today.json().routeSummary.available).toBe(true);
     const manager = await call('GET', '/dashboard/manager', undefined, admin);
     expect(manager.statusCode, manager.body).toBe(200);
     expect(manager.json().workload.items[0].current).toBe(1);

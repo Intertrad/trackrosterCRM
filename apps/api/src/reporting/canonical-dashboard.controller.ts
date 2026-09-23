@@ -1,3 +1,5 @@
+import { RouteModule } from '../routes/route.controller.js';
+import { RouteService } from '../routes/route.service.js';
 import {
   Controller,
   ForbiddenException,
@@ -28,6 +30,7 @@ export class CanonicalDashboardService {
     @Inject(DATABASE) private readonly db: Database,
     private readonly reports: ManagerDashboardService,
     private readonly today: ProspectorTodayService,
+    private readonly routes: RouteService,
   ) {}
   async todayView(a: AuthenticatedPrincipal, q: ProspectorTodayQueryDto) {
     const result = await this.today.getToday({
@@ -38,7 +41,12 @@ export class CanonicalDashboardService {
     });
     return {
       ...result,
-      routeSummary: { available: false, reason: 'Route planning is not implemented' },
+      routeSummary: await this.routes.todaySummary(
+        a,
+        q.teamId,
+        result.day.startsAt,
+        result.day.endsAt,
+      ),
     };
   }
   private async role(a: AuthenticatedPrincipal, roles: string[]) {
@@ -144,7 +152,7 @@ export class CanonicalDashboardController {
   }
 }
 @Module({
-  imports: [AuthModule, DatabaseModule, ReportingModule, ProspectorTodayModule],
+  imports: [RouteModule, AuthModule, DatabaseModule, ReportingModule, ProspectorTodayModule],
   controllers: [CanonicalDashboardController],
   providers: [CanonicalDashboardService],
 })
