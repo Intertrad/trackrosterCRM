@@ -3,6 +3,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationRepository } from './notification.repository.js';
 
 export interface ListNotificationInboxInput {
+  severity?: 'info' | 'warning' | 'error' | 'critical';
+  readState?: 'read' | 'unread' | 'all';
   tenantId: string;
 
   userId: string;
@@ -30,6 +32,8 @@ export class NotificationService {
       limit,
       unreadOnly: input.unreadOnly,
       cursor: input.cursor,
+      severity: input.severity,
+      readState: input.readState,
     });
     return {
       items: rows.slice(0, limit),
@@ -53,7 +57,8 @@ export class NotificationService {
 
       {
         unreadOnly: input.unreadOnly,
-
+        ...(input.severity ? { severity: input.severity } : {}),
+        ...(input.readState ? { readState: input.readState } : {}),
         limit: input.limit ?? 50,
       },
     );

@@ -413,6 +413,12 @@ describe('Organization relationships and historical team rosters', () => {
     expect((await call('PATCH', path, { startsAt: iso(-2) })).statusCode).toBe(400);
     expect((await call('DELETE', path)).statusCode).toBe(204);
     expect((await call('PATCH', path, { endsAt: end })).statusCode).toBe(409);
+    const detail = await call('GET', `/memberships/${reader}`);
+    expect(detail.statusCode).toBe(200);
+    expect(detail.json().rosterHistory.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: first.json().id, effective: false })]),
+    );
+
     expect((await call('GET', `/teams/${team}`, undefined, reader)).statusCode).toBe(404);
     expect((await call('GET', `/teams/${team}/members?state=revoked`)).json().items).toHaveLength(
       1,

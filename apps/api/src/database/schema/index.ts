@@ -42,3 +42,4 @@ export * from './data-jobs.js';
 export * from './outcome-settings.js';
 export * from './field-routes.js';
 export * from './objectives.js';
+export * from './membership-access-evidence.js';

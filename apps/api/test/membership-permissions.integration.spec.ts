@@ -313,6 +313,34 @@ describe('Membership administration and enforced role permissions', () => {
       'membership.scope_added',
     );
   });
+  it('preserves access evidence after audit retention and rejects database tampering', async () => {
+    const eventId = randomUUID();
+    await db.insert(auditEvents).values({
+      id: eventId,
+      tenantId,
+      actorType: 'user',
+      actorUserId: adminId,
+      action: 'membership.evidence_test',
+      resourceType: 'tenant_membership',
+      resourceId: prospectorId,
+      metadata: { reason: 'Evidence test' },
+    });
+    for (const statement of [
+      sql`UPDATE membership_access_evidence SET digest='invalid' WHERE id=${eventId}`,
+      sql`DELETE FROM membership_access_evidence WHERE id=${eventId}`,
+      sql`TRUNCATE membership_access_evidence`,
+      sql`INSERT INTO membership_access_evidence SELECT ${randomUUID()}::uuid,tenant_id,membership_id,payload,digest,occurred_at FROM membership_access_evidence WHERE id=${eventId}`,
+    ])
+      await expect(db.execute(statement)).rejects.toThrow();
+    await db.delete(auditEvents).where(eq(auditEvents.id, eventId));
+    const history = await call('GET', `/memberships/${prospectorId}/access-history`);
+    expect(history.statusCode).toBe(200);
+    expect(history.json().items.find((item: { id: string }) => item.id === eventId)).toMatchObject({
+      action: 'membership.evidence_test',
+      integrity: { algorithm: 'sha256', verified: true },
+    });
+  });
+
   it('exposes six roles and prevents privilege expansion through role configuration', async () => {
     expect((await call('GET', '/roles')).json().items).toHaveLength(6);
     expect((await call('GET', '/permissions')).json().items.length).toBeGreaterThan(4);

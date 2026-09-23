@@ -1,3 +1,4 @@
+import { ListCampaignsDto } from './dto/list-campaigns.dto.js';
 import { ResourceScopeService } from '../resource-scopes/resource-scope.service.js';
 import { ResourceAccess, ResourceAccessGuard } from '../resource-scopes/resource-access.guard.js';
 import { AuthenticatedPrincipal } from '../auth/auth.types.js';
@@ -10,6 +11,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -50,8 +52,9 @@ export class CampaignController {
   list(
     @CurrentAuth()
     auth: AuthContext,
+    @Query() query?: ListCampaignsDto,
   ) {
-    return this.scopes.listCampaigns(auth);
+    return this.scopes.listCampaigns(auth, query);
   }
 
   @Get(':campaignId')

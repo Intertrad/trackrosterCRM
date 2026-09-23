@@ -126,7 +126,14 @@ export class WorkspaceAdministrationService {
         ),
       );
     if (!row) throw new NotFoundException('Organization not found');
-    return row;
+    const summary =
+      await executor.execute(sql`WITH visible_teams AS (SELECT t.id FROM teams t WHERE t.tenant_id=${auth.tenantId} AND t.organization_id=${id} AND EXISTS(SELECT 1 FROM user_access_grants g WHERE g.tenant_id=t.tenant_id AND g.user_id=${auth.membershipId} AND (g.scope_type='tenant' OR (g.scope_type='organization' AND g.organization_id=t.organization_id) OR (g.scope_type='team' AND g.team_id=t.id)))), visible_assignments AS (SELECT a.* FROM campaign_prospect_assignments a WHERE a.tenant_id=${auth.tenantId} AND a.organization_id=${id} AND a.team_id IN(SELECT id FROM visible_teams) AND a.ended_at IS NULL AND EXISTS(SELECT 1 FROM user_access_grants g WHERE g.tenant_id=a.tenant_id AND g.user_id=${auth.membershipId} AND (g.scope_type='tenant' OR (g.scope_type='organization' AND g.organization_id=a.organization_id) OR (g.scope_type='team' AND g.team_id=a.team_id)) AND (g.role<>'prospector' OR a.assigned_user_id IS NULL OR a.assigned_user_id=${auth.membershipId}))) SELECT
+    (SELECT count(*)::int FROM visible_teams) AS "teamCount",
+    (SELECT count(*)::int FROM visible_assignments) AS "activeAssignments",
+    (SELECT count(*)::int FROM visible_assignments WHERE status='paused') AS "pausedAssignments",
+    (SELECT count(DISTINCT campaign_id)::int FROM visible_assignments) AS "campaignsWithAssignments",
+    (SELECT count(DISTINCT assigned_user_id)::int FROM visible_assignments) AS "assignedMembers"`);
+    return { ...row, summary: { ...summary.rows[0], scope: 'authorized_teams_and_assignments' } };
   }
 
   async createOrganization(auth: AuthenticatedPrincipal, input: CreateOrganizationDto) {
@@ -413,6 +420,15 @@ export class WorkspaceAdministrationService {
           isNull(campaignProspectAssignments.endedAt),
         ),
       );
+    const members = await this.database
+      .execute(sql`SELECT m.id AS "membershipId",m.status,i.status AS "identityStatus",ms.capacity,
+      (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=m.tenant_id AND a.assigned_user_id=m.id AND a.ended_at IS NULL) AS "globalWorkload",
+      (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=m.tenant_id AND a.assigned_user_id=m.id AND a.team_id=${id} AND a.ended_at IS NULL) AS "teamWorkload"
+      FROM tenant_memberships m JOIN identities i ON i.id=m.identity_id LEFT JOIN membership_settings ms ON ms.tenant_id=m.tenant_id AND ms.membership_id=m.id
+      WHERE m.tenant_id=${auth.tenantId} AND EXISTS(SELECT 1 FROM user_access_grants g WHERE g.tenant_id=m.tenant_id AND g.user_id=m.id AND g.role='prospector' AND g.scope_type='team' AND g.team_id=${id}) ORDER BY m.id LIMIT 1001`);
+    const state = await this.database.execute(
+      sql`SELECT count(*) FILTER(WHERE status='paused')::int AS paused,count(*) FILTER(WHERE assigned_user_id IS NULL)::int AS "teamOwned" FROM campaign_prospect_assignments WHERE tenant_id=${auth.tenantId} AND team_id=${id} AND ended_at IS NULL`,
+    );
     const assigned = workload?.assigned ?? 0;
     return {
       teamId: id,
@@ -420,6 +436,29 @@ export class WorkspaceAdministrationService {
       assigned,
       available: Math.max(0, team.capacity - assigned),
       overCapacity: Math.max(0, assigned - team.capacity),
+      acceptingAssignments: team.status === 'active' && assigned < team.capacity,
+      constraints: {
+        teamActive: team.status === 'active',
+        pausedAssignmentsConsumeCapacity: true,
+        memberCapacityIsGlobal: true,
+        territoryAndCampaignEligibility:
+          'Evaluate for the target campaign/prospect through allocation preview',
+      },
+      paused: state.rows[0]?.paused ?? 0,
+      teamOwned: state.rows[0]?.teamOwned ?? 0,
+      members: {
+        items: members.rows.slice(0, 1000).map((m) => ({
+          ...m,
+          eligible: m.status === 'active' && m.identityStatus === 'active',
+          available:
+            m.status === 'active' && m.identityStatus === 'active'
+              ? m.capacity === null
+                ? null
+                : Math.max(0, Number(m.capacity) - Number(m.globalWorkload))
+              : 0,
+        })),
+        truncated: members.rows.length > 1000,
+      },
     };
   }
 

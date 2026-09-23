@@ -205,6 +205,35 @@ describe('Territory and campaign resource scopes', () => {
     ).toBe(404);
     expect((await call('POST', '/territories', { name: 'Denied' }, reader)).statusCode).toBe(403);
   });
+  it('filters and paginates campaigns without accepting hidden cursors', async () => {
+    const first = await call('GET', '/campaigns?limit=1&sort=name');
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json().items).toHaveLength(1);
+    const second = await call(
+      'GET',
+      `/campaigns?limit=1&sort=name&cursor=${first.json().nextCursor}`,
+    );
+    expect(second.statusCode, second.body).toBe(200);
+    expect(second.json().items[0].id).not.toBe(first.json().items[0].id);
+    expect((await call('GET', `/campaigns?organizationId=${foreignOrg}`)).json().items).toEqual([]);
+    expect((await call('GET', `/campaigns?cursor=${foreignCampaign}`)).statusCode).toBe(400);
+    expect(
+      (
+        await call(
+          'GET',
+          '/campaigns?startsAfter=2026-12-01T00:00:00Z&startsBefore=2026-01-01T00:00:00Z',
+        )
+      ).statusCode,
+    ).toBe(400);
+    const filtered = await call('GET', `/campaigns?organizationId=${org}`);
+    expect(filtered.json().items.map((row: { id: string }) => row.id)).toEqual([campaign]);
+    const detail = await call('GET', `/campaigns/${campaign}`);
+    expect(detail.json().summary).toMatchObject({
+      prospects: 0,
+      activeAssignments: 0,
+      scope: 'visible_prospects',
+    });
+  });
   it('restricts campaign list/detail to explicit grants and never grants organization or assignment authority', async () => {
     await grant(reader, 'campaign', campaign, 'read', 'prospector');
     expect(

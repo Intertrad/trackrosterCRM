@@ -14,6 +14,7 @@ export const accountSettings = pgTable(
     membershipId: uuid('membership_id').primaryKey(),
     tenantId: uuid('tenant_id').notNull(),
     phone: varchar('phone', { length: 40 }),
+    avatar: jsonb('avatar').$type<{ url: string; altText: string }>(),
     locale: varchar('locale', { length: 35 }).default('en').notNull(),
     timezone: varchar('timezone', { length: 100 }).default('UTC').notNull(),
     preferences: jsonb('preferences').$type<PersonalPreferences>().default({}).notNull(),

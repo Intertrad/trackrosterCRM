@@ -1,6 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsUrl,
+  IsObject,
+  ValidateNested,
   IsIn,
   IsInt,
   IsLocale,
@@ -16,7 +19,18 @@ import {
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
+export class AvatarDto {
+  @IsUrl({ protocols: ['https'], require_protocol: true, disallow_auth: true })
+  @MaxLength(2048)
+  url!: string;
+  @IsString() @MaxLength(120) altText = '';
+}
 export class UpdateAccountDto {
+  @ValidateIf((_, v) => v !== undefined && v !== null)
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AvatarDto)
+  avatar?: AvatarDto | null;
   @ValidateIf((_, value) => value !== undefined)
   @Transform(trim)
   @IsString()

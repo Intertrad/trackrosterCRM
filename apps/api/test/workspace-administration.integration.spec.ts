@@ -313,7 +313,14 @@ describe('Workspace administration HTTP authorization and persistence', () => {
           headers: headers(managerId),
         })
       ).json(),
-    ).toMatchObject({ capacity: 42, assigned: 0, available: 42 });
+    ).toMatchObject({
+      capacity: 42,
+      assigned: 0,
+      available: 42,
+      acceptingAssignments: true,
+      constraints: { memberCapacityIsGlobal: true, pausedAssignmentsConsumeCapacity: true },
+      members: { truncated: false },
+    });
     expect(
       (
         await app.inject({

@@ -133,6 +133,49 @@ describe('Account and native workspace authentication', () => {
     return { authorization: `Bearer ${tokens.accessToken}`, 'idempotency-key': randomUUID() };
   }
 
+  it('sets and clears HTTPS avatar metadata without crossing memberships', async () => {
+    const tokens = await login();
+    const me = await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(tokens) });
+    const avatar = { url: 'https://cdn.example.test/avatar.png', altText: 'Profile photo' };
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me',
+      headers: { ...headers(tokens), 'if-match': String(me.headers.etag) },
+      payload: { avatar },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().avatar).toEqual(avatar);
+    const other = await login(memberB);
+    expect(
+      (await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(other) })).json()
+        .avatar,
+    ).toBeNull();
+    for (const url of [
+      'http://cdn.example.test/avatar.png',
+      'javascript:alert(1)',
+      'https://user:password@example.test/a',
+    ]) {
+      expect(
+        (
+          await app.inject({
+            method: 'PATCH',
+            url: '/api/v1/me',
+            headers: { ...headers(tokens), 'if-match': String(updated.headers.etag) },
+            payload: { avatar: { url } },
+          })
+        ).statusCode,
+      ).toBe(400);
+    }
+    const cleared = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/me',
+      headers: { ...headers(tokens), 'if-match': String(updated.headers.etag) },
+      payload: { avatar: null },
+    });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().avatar).toBeNull();
+  });
+
   it('keeps legacy routes and only exposes the authenticated identity memberships', async () => {
     const tokens = await login();
     const [versioned, legacy, memberships] = await Promise.all([

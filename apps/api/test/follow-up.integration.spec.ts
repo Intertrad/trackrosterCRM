@@ -1267,7 +1267,28 @@ describe('Follow-up HTTP integration', () => {
         id: randomUUID(),
         readAt: null,
         scheduledFor: new Date(Date.now() + 1000),
+        severity: 'warning',
       });
+    const filteredSeverity = await getApp().inject({
+      method: 'GET',
+      url: '/api/v1/notifications?severity=warning&readState=unread',
+      headers: { authorization: `Bearer ${prospectorAToken}` },
+    });
+    expect(filteredSeverity.statusCode).toBe(200);
+    expect(filteredSeverity.json().items).toHaveLength(1);
+    expect(filteredSeverity.json().items[0]).toMatchObject({
+      severity: 'warning',
+      readAt: null,
+      recipientUserId: prospectorAId,
+    });
+    const readOnly = await getApp().inject({
+      method: 'GET',
+      url: '/api/v1/notifications?readState=read',
+      headers: { authorization: `Bearer ${prospectorAToken}` },
+    });
+    expect(readOnly.json().items.every((n: { readAt: string | null }) => n.readAt !== null)).toBe(
+      true,
+    );
     const versioned = await getApp().inject({
       method: 'GET',
       url: '/api/v1/notifications?limit=1',

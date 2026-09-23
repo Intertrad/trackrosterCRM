@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, gt, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, ilike, isNull, or, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
@@ -119,11 +119,15 @@ export class MembershipService {
           isNull(campaignProspectAssignments.endedAt),
         ),
       );
+    const roster = await executor.execute(
+      sql`SELECT tm.*, t.name AS team_name, t.organization_id, (tm.revoked_at IS NULL AND tm.starts_at<=now() AND (tm.ends_at IS NULL OR tm.ends_at>now())) AS effective FROM team_memberships tm JOIN teams t ON t.tenant_id=tm.tenant_id AND t.id=tm.team_id WHERE tm.tenant_id=${auth.tenantId} AND tm.membership_id=${id} ORDER BY tm.starts_at DESC,tm.id DESC LIMIT 101`,
+    );
     return {
       ...row,
       activeAssignments: work!.count,
       availableCapacity: row.capacity === null ? null : Math.max(0, row.capacity - work!.count),
       scopes,
+      rosterHistory: { items: roster.rows.slice(0, 100), truncated: roster.rows.length > 100 },
     };
   }
   private async lock(auth: AuthenticatedPrincipal, id: string, executor: DatabaseExecutor) {
@@ -457,27 +461,22 @@ export class MembershipService {
   }
   async history(auth: AuthenticatedPrincipal, id: string, query: ListMembershipsDto) {
     await this.get(auth, id);
-    const target = sql`(${auditEvents.resourceType} = 'tenant_membership' AND ${auditEvents.resourceId} = ${id}) OR (${auditEvents.resourceType} = 'access_grant' AND ${auditEvents.metadata}->>'targetUserId' = ${id})`;
-    const rows = await this.db
-      .select()
-      .from(auditEvents)
-      .where(
-        and(
-          eq(auditEvents.tenantId, auth.tenantId),
-          sql`(${target})`,
-          sql`(${auditEvents.action} LIKE 'membership.%' OR ${auditEvents.action} LIKE 'access_grant.%')`,
-          query.cursor
-            ? sql`(${auditEvents.occurredAt}, ${auditEvents.id}) < (SELECT occurred_at, id FROM audit_events WHERE id = ${query.cursor} AND tenant_id = ${auth.tenantId} AND ((resource_type = 'tenant_membership' AND resource_id = ${id}) OR (resource_type = 'access_grant' AND metadata->>'targetUserId' = ${id})))`
-            : undefined,
-        ),
-      )
-      .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
-      .limit(query.limit + 1);
+    const result = await this.db.execute(sql`
+      SELECT payload, digest, id,
+        digest = encode(sha256(convert_to(payload::text, 'UTF8')), 'hex') AS verified
+      FROM membership_access_evidence
+      WHERE tenant_id=${auth.tenantId} AND membership_id=${id}
+      ${query.cursor ? sql`AND (occurred_at,id) < (SELECT occurred_at,id FROM membership_access_evidence WHERE tenant_id=${auth.tenantId} AND membership_id=${id} AND id=${query.cursor})` : sql``}
+      ORDER BY occurred_at DESC,id DESC LIMIT ${query.limit + 1}`);
     return {
-      items: rows.slice(0, query.limit),
-      nextCursor: rows.length > query.limit ? rows[query.limit - 1]!.id : null,
+      items: result.rows.slice(0, query.limit).map((row) => ({
+        ...(row.payload as Record<string, unknown>),
+        integrity: { algorithm: 'sha256', digest: row.digest, verified: row.verified },
+      })),
+      nextCursor: result.rows.length > query.limit ? result.rows[query.limit - 1]!.id : null,
     };
   }
+
   private async audit(
     auth: AuthenticatedPrincipal,
     id: string,

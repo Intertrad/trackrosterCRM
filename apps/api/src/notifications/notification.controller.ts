@@ -50,6 +50,8 @@ export class NotificationController {
       userId: auth.userId,
 
       unreadOnly: query.unreadOnly,
+      ...(query.severity ? { severity: query.severity } : {}),
+      ...(query.readState ? { readState: query.readState } : {}),
 
       limit: query.limit,
     });

@@ -32,6 +32,7 @@ export class AccountService {
         tenantName: tenants.name,
         displayName: tenantMemberships.displayName,
         phone: accountSettings.phone,
+        avatar: accountSettings.avatar,
         locale: sql<string>`coalesce(${accountSettings.locale}, 'en')`,
         timezone: sql<string>`coalesce(${accountSettings.timezone}, 'UTC')`,
       })
@@ -139,7 +140,12 @@ export class AccountService {
             ),
           );
       }
-      const settings = { phone: input.phone, locale: input.locale, timezone: input.timezone };
+      const settings = {
+        phone: input.phone,
+        locale: input.locale,
+        timezone: input.timezone,
+        avatar: input.avatar,
+      };
       if (Object.values(settings).some((value) => value !== undefined)) {
         await transaction
           .insert(accountSettings)

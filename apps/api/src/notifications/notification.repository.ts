@@ -20,6 +20,8 @@ export interface CreateFollowUpReminderNotificationInput {
 }
 
 export interface NotificationInboxOptions {
+  severity?: 'info' | 'warning' | 'error' | 'critical';
+  readState?: 'read' | 'unread' | 'all';
   unreadOnly?: boolean;
 
   limit: number;
@@ -44,7 +46,11 @@ export class NotificationRepository {
         and(
           eq(notifications.tenantId, tenantId),
           eq(notifications.recipientUserId, recipientUserId),
-          options.unreadOnly ? isNull(notifications.readAt) : undefined,
+          options.unreadOnly || options.readState === 'unread'
+            ? isNull(notifications.readAt)
+            : undefined,
+          options.readState === 'read' ? sql`${notifications.readAt} IS NOT NULL` : undefined,
+          options.severity ? eq(notifications.severity, options.severity) : undefined,
           options.cursor
             ? sql`(${notifications.createdAt}, ${notifications.id}) < (
         SELECT created_at, id FROM notifications WHERE id = ${options.cursor}::uuid

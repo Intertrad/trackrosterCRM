@@ -1,3 +1,5 @@
+import { prospectReadScope } from '../actions/action-access.js';
+import type { ListCampaignsDto } from '../campaigns/dto/list-campaigns.dto.js';
 import { campaignOrganizationAccess } from '../campaign-organizations/organization-access.js';
 import { activeParticipationPredicate } from './participation-access.js';
 import { campaignMembers, territoryAssignments } from '../database/schema/participation.js';
@@ -83,12 +85,52 @@ export class ResourceScopeService {
     if (!rows.length)
       throw new NotFoundException(`${kind === 'campaign' ? 'Campaign' : 'Territory'} not found`);
   }
-  async listCampaigns(auth: AuthenticatedPrincipal) {
-    return this.db
+  async listCampaigns(auth: AuthenticatedPrincipal, q?: ListCampaignsDto) {
+    if (!q || !Object.values(q).some((value) => value !== undefined))
+      return this.db
+        .select()
+        .from(campaigns)
+        .where(this.predicate(auth, 'campaign'))
+        .orderBy(campaigns.createdAt, campaigns.id);
+    if (
+      q.startsAfter &&
+      q.startsBefore &&
+      new Date(q.startsAfter).getTime() > new Date(q.startsBefore).getTime()
+    )
+      throw new BadRequestException('Invalid campaign date range');
+    const filters = [this.predicate(auth, 'campaign')];
+    if (q.organizationId) filters.push(eq(campaigns.organizationId, q.organizationId));
+    if (q.status) filters.push(eq(campaigns.status, q.status));
+    if (q.search)
+      filters.push(sql`${campaigns.name} ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}`);
+    if (q.startsAfter) filters.push(sql`${campaigns.startsAt}>=${q.startsAfter}::timestamptz`);
+    if (q.startsBefore) filters.push(sql`${campaigns.startsAt}<${q.startsBefore}::timestamptz`);
+    if (q.territoryId)
+      filters.push(
+        sql`EXISTS(SELECT 1 FROM campaign_territories ct WHERE ct.tenant_id=${auth.tenantId} AND ct.campaign_id=${campaigns.id} AND ct.territory_id=${q.territoryId})`,
+      );
+    const sort = q.sort === 'name' ? campaigns.name : campaigns.createdAt;
+    if (q.cursor) {
+      const [cursor] = await this.db
+        .select()
+        .from(campaigns)
+        .where(and(...filters, eq(campaigns.id, q.cursor)));
+      if (!cursor) throw new BadRequestException('Cursor is outside the filtered campaign list');
+      filters.push(
+        sql`(${sort},${campaigns.id})>(${q.sort === 'name' ? cursor.name : cursor.createdAt.toISOString()},${cursor.id}::uuid)`,
+      );
+    }
+    const limit = q.limit ?? 25;
+    const rows = await this.db
       .select()
       .from(campaigns)
-      .where(this.predicate(auth, 'campaign'))
-      .orderBy(campaigns.createdAt, campaigns.id);
+      .where(and(...filters))
+      .orderBy(sort, campaigns.id)
+      .limit(limit + 1);
+    return {
+      items: rows.slice(0, limit),
+      nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
+    };
   }
   async getCampaign(auth: AuthenticatedPrincipal, id: string) {
     const [row] = await this.db
@@ -96,7 +138,17 @@ export class ResourceScopeService {
       .from(campaigns)
       .where(and(eq(campaigns.id, id), this.predicate(auth, 'campaign')));
     if (!row) throw new NotFoundException('Campaign not found');
-    return row;
+    const stats = await this.db
+      .execute(sql`WITH visible AS (SELECT cp.* FROM campaign_prospects cp WHERE cp.tenant_id=${auth.tenantId} AND cp.campaign_id=${id} AND ${prospectReadScope(auth, sql`cp.id`)}) SELECT
+    (SELECT count(*)::int FROM visible) AS prospects,
+    (SELECT coalesce(jsonb_object_agg(stage,n),'{}'::jsonb) FROM (SELECT lifecycle_stage AS stage,count(*)::int AS n FROM visible GROUP BY lifecycle_stage) grouped) AS "byLifecycleStage",
+    (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=${auth.tenantId} AND a.campaign_prospect_id IN(SELECT id FROM visible) AND a.ended_at IS NULL) AS "activeAssignments",
+    (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=${auth.tenantId} AND a.campaign_prospect_id IN(SELECT id FROM visible) AND a.ended_at IS NULL AND a.status='paused') AS "pausedAssignments",
+    (SELECT count(*)::int FROM prospect_follow_ups f WHERE f.tenant_id=${auth.tenantId} AND f.campaign_prospect_id IN(SELECT id FROM visible) AND f.status='pending') AS "pendingFollowUps",
+    (SELECT count(*)::int FROM prospect_follow_ups f WHERE f.tenant_id=${auth.tenantId} AND f.campaign_prospect_id IN(SELECT id FROM visible) AND f.status='pending' AND f.due_at<now()) AS "overdueFollowUps",
+    (SELECT count(*)::int FROM actions a WHERE a.tenant_id=${auth.tenantId} AND a.campaign_prospect_id IN(SELECT id FROM visible) AND a.status='completed') AS "completedActions",
+    (SELECT count(*)::int FROM campaign_territories WHERE tenant_id=${auth.tenantId} AND campaign_id=${id}) AS "territoryCount"`);
+    return { ...row, summary: { ...stats.rows[0], scope: 'visible_prospects' } };
   }
   async validate(tenantId: string, input: MembershipScopeDto, tx: DatabaseExecutor) {
     if (
