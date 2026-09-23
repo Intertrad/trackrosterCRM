@@ -10,6 +10,7 @@ import { ManagerDashboardController } from './manager-dashboard.controller.js';
 import { ManagerDashboardScopeService } from './manager-dashboard-scope.service.js';
 import { ManagerDashboardService } from './manager-dashboard.service.js';
 import { ReportingRepositoryModule } from './reporting-repository.module.js';
+import { ReportController } from './report.controller.js';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { ReportingRepositoryModule } from './reporting-repository.module.js';
     ReportingRepositoryModule,
   ],
 
-  controllers: [ManagerDashboardController],
+  controllers: [ManagerDashboardController, ReportController],
 
   providers: [ManagerDashboardScopeService, ManagerDashboardService],
 
