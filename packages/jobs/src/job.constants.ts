@@ -20,6 +20,7 @@ export const SYSTEM_RETRY_PROBE_JOB = 'system.retry-probe' as const;
 export const FOLLOW_UP_REMINDER_JOB = 'follow_up.reminder' as const;
 
 export const RESERVATION_EXPIRY_JOB = 'reservation.expire' as const;
+export const WEBHOOK_DELIVERY_JOB = 'webhook.delivery' as const;
 
 export const DEFAULT_JOB_ATTEMPTS = 3;
 
