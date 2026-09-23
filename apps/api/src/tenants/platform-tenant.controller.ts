@@ -1,12 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import { Database } from '../database/database.types.js';
-import { tenants } from '../database/schema/tenants.js';
+import { tenants } from '../database/schema/index.js';
 import { PlatformAdminGuard } from '../authorization/platform-admin.guard.js';
 import { Inject } from '@nestjs/common';
 
@@ -32,6 +32,31 @@ export class PlatformTenantController {
   async detail(@Param('tenantId') tenantId: string) {
     const [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
     return tenant ?? null;
+  }
+
+  @Get(':tenantId/usage')
+  async usage(@Param('tenantId') tenantId: string) {
+    const [members, prospects, campaigns, activities] = await Promise.all([
+      this.db.execute(
+        sql`SELECT count(*)::int AS count FROM tenant_memberships WHERE tenant_id=${tenantId}`,
+      ),
+      this.db.execute(
+        sql`SELECT count(*)::int AS count FROM prospects WHERE tenant_id=${tenantId}`,
+      ),
+      this.db.execute(
+        sql`SELECT count(*)::int AS count FROM campaigns WHERE tenant_id=${tenantId}`,
+      ),
+      this.db.execute(
+        sql`SELECT count(*)::int AS count FROM activities WHERE tenant_id=${tenantId}`,
+      ),
+    ]);
+    return {
+      tenantId,
+      memberships: members.rows[0]?.count ?? 0,
+      prospects: prospects.rows[0]?.count ?? 0,
+      campaigns: campaigns.rows[0]?.count ?? 0,
+      activities: activities.rows[0]?.count ?? 0,
+    };
   }
 
   @Patch(':tenantId/status')
