@@ -1,3 +1,5 @@
+import { ObjectiveModule } from '../objectives/objective.controller.js';
+import { ObjectiveService } from '../objectives/objective.service.js';
 import { RouteModule } from '../routes/route.controller.js';
 import { RouteService } from '../routes/route.service.js';
 import {
@@ -31,6 +33,7 @@ export class CanonicalDashboardService {
     private readonly reports: ManagerDashboardService,
     private readonly today: ProspectorTodayService,
     private readonly routes: RouteService,
+    private readonly objectives: ObjectiveService,
   ) {}
   async todayView(a: AuthenticatedPrincipal, q: ProspectorTodayQueryDto) {
     const result = await this.today.getToday({
@@ -94,10 +97,17 @@ export class CanonicalDashboardService {
               items: comparison.rows.slice(0, 500),
               truncated: comparison.rows.length > 500,
             },
-            objectiveRisks: {
-              available: false,
-              reason: 'Campaign objective targets are not configured',
-            },
+            objectiveRisks: await this.objectives.atRisk(
+              a,
+              {
+                organizationId: org ?? undefined,
+                teamId: team ?? undefined,
+                campaignId: q.campaignId,
+                ownerId: q.userId,
+                limit: 100,
+              },
+              base.range,
+            ),
           }
         : {}),
     };
@@ -152,7 +162,14 @@ export class CanonicalDashboardController {
   }
 }
 @Module({
-  imports: [RouteModule, AuthModule, DatabaseModule, ReportingModule, ProspectorTodayModule],
+  imports: [
+    ObjectiveModule,
+    RouteModule,
+    AuthModule,
+    DatabaseModule,
+    ReportingModule,
+    ProspectorTodayModule,
+  ],
   controllers: [CanonicalDashboardController],
   providers: [CanonicalDashboardService],
 })

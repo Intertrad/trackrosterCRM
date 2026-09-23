@@ -573,29 +573,29 @@
       "method": "GET",
       "path": "/api/v1/dashboard/admin",
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
-      "line": 142,
+      "line": 160,
       "ledgerStatus": "Verified: tenant operational readiness, session counts, alerts and data-quality counts"
     },
     {
       "method": "GET",
       "path": "/api/v1/dashboard/director",
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
-      "line": 136,
-      "ledgerStatus": "Partial: scoped performance and organization comparison; objective targets/risks pending"
+      "line": 154,
+      "ledgerStatus": "Verified: scoped performance, organization comparison and objective-risk calculations"
     },
     {
       "method": "GET",
       "path": "/api/v1/dashboard/manager",
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
-      "line": 130,
+      "line": 148,
       "ledgerStatus": "Verified: scoped performance, workload, paused exceptions and campaign-linked territories"
     },
     {
       "method": "GET",
       "path": "/api/v1/dashboard/today",
       "source": "apps/api/src/reporting/canonical-dashboard.controller.ts",
-      "line": 124,
-      "ledgerStatus": "Partial: authorized daily priorities/follow-ups/meetings; route planning summary pending"
+      "line": 142,
+      "ledgerStatus": "Verified: authorized daily priorities and persisted local-day route summary"
     },
     {
       "method": "GET",
@@ -1103,6 +1103,41 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/objectives",
+      "source": "apps/api/src/objectives/objective.controller.ts",
+      "line": 54,
+      "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/objectives",
+      "source": "apps/api/src/objectives/objective.controller.ts",
+      "line": 70,
+      "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/objectives/:objectiveId",
+      "source": "apps/api/src/objectives/objective.controller.ts",
+      "line": 64,
+      "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/objectives/:objectiveId",
+      "source": "apps/api/src/objectives/objective.controller.ts",
+      "line": 76,
+      "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/objectives/at-risk",
+      "source": "apps/api/src/objectives/objective.controller.ts",
+      "line": 57,
+      "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/organization-relationships",
       "source": "apps/api/src/organization-structure/structure.controller.ts",
       "line": 37,
@@ -1366,6 +1401,90 @@
       "source": "apps/api/src/permissions/permission.controller.ts",
       "line": 82,
       "ledgerStatus": "Partial: four restriction-only configurable management capabilities"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/route-stops/:stopId",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 159,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/route-stops/:stopId",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 151,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/routes",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 63,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 66,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/routes/:routeId",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 86,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/routes/:routeId",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 72,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/routes/:routeId",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 78,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/complete",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 135,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/optimize",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 113,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/start",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 124,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/routes/:routeId/stop-order",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 105,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/stops",
+      "source": "apps/api/src/routes/route.controller.ts",
+      "line": 93,
+      "ledgerStatus": "Verified: scoped own-round lifecycle, sequential stops and geographic estimates"
     },
     {
       "method": "GET",

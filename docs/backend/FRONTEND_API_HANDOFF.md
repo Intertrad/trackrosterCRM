@@ -1,20 +1,20 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-23, after configurable outcomes and canonical workflows. Base path: `/api/v1`.
+Snapshot: 2026-09-23, after field rounds and objective-risk calculations. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 153 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 153 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 172 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 172 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0047`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0049`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 651 API unit tests, 526 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 48 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 655 API unit tests, 539 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 50 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                  | Product-contract operations | Frontend guidance                                                           |
 | ------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                        |                         153 | Integrate the documented supported behavior                                 |
-| Partial                         |                          15 | Use only the implemented subset described below                             |
-| Pending verification/completion |                         213 | Do not assume the target contract is ready; consult the remaining checklist |
+| Verified                        |                         172 | Integrate the documented supported behavior                                 |
+| Partial                         |                          13 | Use only the implemented subset described below                             |
+| Pending verification/completion |                         196 | Do not assume the target contract is ready; consult the remaining checklist |
 | Verified extensions             |                           3 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
@@ -297,6 +297,32 @@ Contract reference: [payloads, filters, authorization and limits](OUTCOMES_FOLLO
 | GET    | `/dashboard/manager`                | Verified: scoped performance, workload, paused exceptions and campaign-linked territories |
 | GET    | `/dashboard/admin`                  | Verified: tenant operational readiness, session counts, alerts and data-quality counts    |
 
+### Field rounds, objectives and dashboard completion
+
+Contract reference: [payloads, lifecycle, scope and calculation details](ROUTES_AND_OBJECTIVES.md). Route distance/duration are geographic estimates; objective forecasts use explained elapsed-time pace.
+
+| Method | Endpoint                       | Supported behavior                                                                               |
+| ------ | ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| GET    | `/dashboard/today`             | Verified: authorized daily priorities and persisted local-day route summary                      |
+| GET    | `/routes`                      | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| POST   | `/routes`                      | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| GET    | `/routes/{routeId}`            | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| PATCH  | `/routes/{routeId}`            | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| DELETE | `/routes/{routeId}`            | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| POST   | `/routes/{routeId}/stops`      | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| PATCH  | `/route-stops/{stopId}`        | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| DELETE | `/route-stops/{stopId}`        | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| PUT    | `/routes/{routeId}/stop-order` | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| POST   | `/routes/{routeId}/optimize`   | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| POST   | `/routes/{routeId}/start`      | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| POST   | `/routes/{routeId}/complete`   | Verified: scoped own-round lifecycle, sequential stops and geographic estimates                  |
+| GET    | `/dashboard/director`          | Verified: scoped performance, organization comparison and objective-risk calculations            |
+| GET    | `/objectives`                  | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
+| POST   | `/objectives`                  | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
+| GET    | `/objectives/{objectiveId}`    | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
+| PATCH  | `/objectives/{objectiveId}`    | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
+| GET    | `/objectives/at-risk`          | Verified: scoped targets, immutable started definitions, contribution history and explained risk |
+
 ## Partial APIs: usable subsets, unfinished contracts
 
 These routes exist, but do not advertise their full planned behavior in the frontend yet. The status text is retained from the acceptance ledger. The roster-history endpoint is separately verified; its older membership-detail row still needs reconciliation.
@@ -317,14 +343,11 @@ These routes exist, but do not advertise their full planned behavior in the fron
 | GET    | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
 | PATCH  | `/settings/security`                         | Partial: enforced MFA/password/session policies; SSO pending                                       |
 
-| GET | `/dashboard/today` | Partial: priorities and daily counts; route summary awaits route planning |
-| GET | `/dashboard/director` | Partial: performance and organization comparison; objective risks await campaign targets |
-
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 15 partial and 213 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 13 partial and 196 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Next dependencies: route planning and campaign objective targets/risk calculations. Later groups include map/search/data quality, saved views/routes/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Next groups include map/search/data quality, saved views/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 

@@ -37,11 +37,11 @@ All three mutations require `Idempotency-Key` and accept optional `If-Match`. Fo
 
 ## Canonical dashboards
 
-`GET /dashboard/today?teamId={id}&timeZone=Europe/Paris` exposes the existing authorized prospector day boundaries, priorities and todo/follow-up/meeting/overdue counts. Time zones are IANA identifiers with DST-aware day boundaries. `routeSummary.available=false` explicitly identifies the route-planning dependency; this portion of the original contract remains pending.
+`GET /dashboard/today?teamId={id}&timeZone=Europe/Paris` exposes the existing authorized prospector day boundaries, priorities and todo/follow-up/meeting/overdue counts. Time zones are IANA identifiers with DST-aware day boundaries. `routeSummary.available=true` now includes persisted local-day rounds, metrics and the next stop; see [route contracts](ROUTES_AND_OBJECTIVES.md).
 
 `GET /dashboard/manager` exposes the existing manager report plus current team workload, paused assignment exceptions, campaign-linked territory counts and canonical action outcomes. Query fields: optional `organizationId`, `teamId`, `userId`, `campaignId`, paired ISO `from`/`to`. Omitted dates default to the last 30 days; maximum range is 366 days. Existing report authorization validates filters before aggregating. Territory counts describe campaign links, not geometric coverage; a prospect can count in multiple linked territories.
 
-`GET /dashboard/director` requires tenant administration or an explicit director organization scope. It adds organization comparison for current/paused assignments within the authorized scope. `objectiveRisks.available=false` identifies the missing campaign-objective target model. This dashboard remains partial until targets and risk calculations are implemented.
+`GET /dashboard/director` requires tenant administration or an explicit director organization scope. It adds organization comparison for current/paused assignments within the authorized scope. `objectiveRisks.available=true` now includes scoped risk-ranked objectives with current actuals and explained elapsed-time calculations; see [objective contracts](ROUTES_AND_OBJECTIVES.md).
 
 `GET /dashboard/admin` requires tenant administration. It returns current active member/organization/team/campaign counts, sessions created in the last 30 days (a session count, not unique-user adoption), missing prospect coordinates/phone counts, failed export jobs and imports awaiting commit. Operational counts do not certify production readiness.
 
