@@ -66,3 +66,23 @@ export const complianceReports = pgTable(
     }),
   ],
 );
+export const evidenceExports = pgTable(
+  'evidence_exports',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    requestedBy: uuid('requested_by').notNull(),
+    scope: jsonb('scope').notNull(),
+    status: varchar('status', { length: 20 }).notNull().default('ready'),
+    objectKey: varchar('object_key', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({ columns: [t.tenantId], foreignColumns: [tenants.id] }),
+    foreignKey({
+      columns: [t.tenantId, t.requestedBy],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
+    }),
+  ],
+);

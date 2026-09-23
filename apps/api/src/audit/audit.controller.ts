@@ -1,17 +1,20 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
+  HttpCode,
   Inject,
   Param,
   ParseUUIDPipe,
   Query,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
-import { auditEvents } from '../database/schema/index.js';
+import { auditEvents, evidenceExports } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
@@ -92,19 +95,87 @@ export class AuditController {
   @Get('security-events') security(@CurrentAuth() a: Auth, @Query() q: Record<string, string>) {
     return this.list(a, Number(q.limit), q.cursor, q.action, 'security');
   }
+  @Get('security-events/:eventId') securityDetail(
+    @CurrentAuth() a: Auth,
+    @Param('eventId') id: string,
+  ) {
+    return this.resource(a, id, 'security');
+  }
   @Get('assignments') assignments(@CurrentAuth() a: Auth, @Query() q: Record<string, string>) {
     return this.list(a, Number(q.limit), q.cursor, q.action, 'assignment');
+  }
+  @Get('assignments/:assignmentId') assignment(
+    @CurrentAuth() a: Auth,
+    @Param('assignmentId') id: string,
+  ) {
+    return this.resource(a, id, 'assignment');
   }
   @Get('overrides') overrides(@CurrentAuth() a: Auth, @Query() q: Record<string, string>) {
     return this.list(a, Number(q.limit), q.cursor, q.action, 'override_request');
   }
+  @Get('overrides/:overrideId') override(@CurrentAuth() a: Auth, @Param('overrideId') id: string) {
+    return this.resource(a, id, 'override_request');
+  }
   @Get('collisions') collisions(@CurrentAuth() a: Auth, @Query() q: Record<string, string>) {
     return this.list(a, Number(q.limit), q.cursor, q.action, 'collision');
+  }
+  @Get('collisions/:collisionId') collision(
+    @CurrentAuth() a: Auth,
+    @Param('collisionId') id: string,
+  ) {
+    return this.resource(a, id, 'collision');
   }
   @Get('exports') exports(@CurrentAuth() a: Auth, @Query() q: Record<string, string>) {
     return this.list(a, Number(q.limit), q.cursor, q.action, 'export');
   }
+  @Get('exports/:exportId') export(@CurrentAuth() a: Auth, @Param('exportId') id: string) {
+    return this.resource(a, id, 'export');
+  }
   @Get('retention') retention(@CurrentAuth() a: Auth) {
     return this.overview(a);
+  }
+  @Post('evidence-exports') @HttpCode(202) async evidence(
+    @CurrentAuth() a: Auth,
+    @Body() scope: Record<string, unknown>,
+  ) {
+    await this.allowed(a);
+    const [r] = await this.db
+      .insert(evidenceExports)
+      .values({
+        tenantId: a.tenantId,
+        requestedBy: a.membershipId,
+        scope,
+        objectKey: `${a.tenantId}/evidence/${Date.now()}.json`,
+        expiresAt: new Date(Date.now() + 86400000),
+      })
+      .returning();
+    return r;
+  }
+  @Get('evidence-exports/:exportId') async evidenceDetail(
+    @CurrentAuth() a: Auth,
+    @Param('exportId', ParseUUIDPipe) id: string,
+  ) {
+    await this.allowed(a);
+    const [r] = await this.db
+      .select()
+      .from(evidenceExports)
+      .where(and(eq(evidenceExports.tenantId, a.tenantId), eq(evidenceExports.id, id)));
+    if (!r) throw new BadRequestException('Evidence export not found');
+    return r;
+  }
+  private async resource(a: Auth, id: string, type: string) {
+    await this.allowed(a);
+    const events = await this.db
+      .select()
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.tenantId, a.tenantId),
+          eq(auditEvents.resourceType, type),
+          eq(auditEvents.resourceId, id),
+        ),
+      )
+      .orderBy(desc(auditEvents.occurredAt));
+    return { resourceType: type, resourceId: id, events };
   }
 }

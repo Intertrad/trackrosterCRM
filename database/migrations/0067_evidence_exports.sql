@@ -1,0 +1,2 @@
+-- Custom SQL migration file, put your code below! --
+CREATE TABLE evidence_exports (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id), requested_by uuid NOT NULL, scope jsonb NOT NULL, status varchar(20) NOT NULL DEFAULT 'ready', object_key varchar(500), created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz, CONSTRAINT evidence_exports_requester_fk FOREIGN KEY(tenant_id,requested_by) REFERENCES tenant_memberships(tenant_id,id));
