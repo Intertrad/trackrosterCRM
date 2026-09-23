@@ -1,5 +1,23 @@
 # Backend implementation status
 
+## Current implementation note — 2026-09-23
+
+The backend now includes platform administrator authorization, tenant administration,
+tenant usage summaries, tenant platform configuration, and platform-user grant/revoke
+operations. These routes require an active record in `platform_access_grants` and write
+tenant-scoped audit evidence for lifecycle mutations.
+
+Background workers now support signed Cloudflare R2 artifact uploads, scheduled report
+generation, Brevo delivery, compliance artifact persistence, webhook retries, and
+opt-in infrastructure probes. Live provider validation still requires configured
+PostgreSQL, Redis, R2, and Brevo services.
+
+The following remain explicitly incomplete: database RLS and restricted credentials,
+encrypted OAuth token persistence/refresh, provider sync jobs, complete platform
+subscription/billing APIs, feature flags, security incidents, support access, global
+search, notes, offline sync, notification policies/templates, and full OpenAPI
+publication. These areas must not be described as production-ready.
+
 The user requested every API in API_BUILD_LIST.md (P0, P1 and P2), using the product and design handoff as requirements. Frontend work is deferred. Existing implementations and migrations are preserved. A route is not complete merely because a controller exists: authorization, persistence, business rules, validation, auditing, idempotency and tests must support the intended behavior.
 
 ## Implemented foundation — 2026-09-22

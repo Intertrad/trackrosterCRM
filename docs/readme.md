@@ -120,3 +120,19 @@ Documentation explains:
 - what business rules must never be violated.
 
 Major architectural decisions must be recorded as ADRs.
+
+# TrackRoster documentation index
+
+This documentation set is organized by audience:
+
+- `architecture/`: system, API, database, security, and technology decisions.
+- `backend/`: endpoint contracts, implementation progress, and frontend handoff.
+- `api/`: public API reference.
+- `operations/`: deployment, incident response, backup, and recovery procedures.
+- `production/`: launch readiness, API inventory, and migration runbooks.
+- `product/`: workflows, lifecycle rules, and user roles.
+- `engineering/`: contribution, testing, naming, and delivery standards.
+
+Implementation status is authoritative in [`backend/IMPLEMENTATION_STATUS.md`](backend/IMPLEMENTATION_STATUS.md).
+When another document conflicts with source code or migrations, source code and
+migrations take precedence and the discrepancy should be corrected in the document.

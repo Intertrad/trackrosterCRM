@@ -1,13 +1,35 @@
 # Implemented API Inventory
 
-**Snapshot date:** 2026-09-21  
-**Implementation:** 25 Nest controllers, 62 HTTP operations
+**Snapshot date:** 2026-09-23  
+**Implementation:** continuously updated; verify routes against `docs/backend/CONTROLLER_ROUTE_INVENTORY.json`
 
 This file documents the API that actually exists. It is not an aspirational product API.
 The planning document at `docs/api/API_SPEC.md` describes desired capabilities and may use
 different paths.
 
-There is currently no global `/api` prefix, URI version, or generated OpenAPI contract.
+The API currently exposes compatibility routes and `/api/v1` aliases. A generated OpenAPI
+contract and production approval are still pending. This inventory records implemented
+behavior, not the complete product roadmap.
+
+## Recently added platform routes
+
+All routes below require an authenticated identity with an active platform access grant.
+
+| Method | Path                                                   | Purpose                                                             |
+| ------ | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| GET    | `/platform/tenants`                                    | List tenants, optionally filtered by status.                        |
+| GET    | `/platform/tenants/{tenantId}`                         | View tenant details.                                                |
+| GET    | `/platform/tenants/{tenantId}/usage`                   | Return membership, prospect, campaign, and activity counts.         |
+| PATCH  | `/platform/tenants/{tenantId}/status`                  | Activate, suspend, or deactivate a tenant and write audit evidence. |
+| GET    | `/platform/tenants/{tenantId}/config`                  | Read platform configuration JSON.                                   |
+| PATCH  | `/platform/tenants/{tenantId}/config`                  | Replace platform configuration JSON and audit changed keys.         |
+| GET    | `/platform/users`                                      | List active platform grants and identities.                         |
+| POST   | `/platform/users/{identityId}/grants`                  | Grant a platform role and audit the action.                         |
+| POST   | `/platform/users/{identityId}/grants/{grantId}/revoke` | Revoke a platform grant and audit the action.                       |
+
+Tenant configuration and platform grants require migration `0068`. Plans, billing,
+feature flags, support access, incident management, and platform job administration are
+not documented as implemented because their production contracts are still pending.
 
 ## Global behavior
 

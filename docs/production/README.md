@@ -80,3 +80,13 @@ TrackRoster may move from one release level to the next only when every required
 - operational evidence from a production-like environment;
 - a named owner;
 - no unresolved P0 defect.
+
+# Production readiness
+
+TrackRoster has a broad, tested backend surface, but a verified route is not the same
+as production certification. Production launch requires live PostgreSQL/Redis/R2/Brevo
+integration tests, restricted database roles, row-level security validation, backup
+restore testing, load testing, provider key provisioning, and monitoring.
+
+Use [API_INVENTORY.md](API_INVENTORY.md) for frontend integration status and
+[PRODUCT_BACKEND_COVERAGE.md](PRODUCT_BACKEND_COVERAGE.md) for domain coverage.
