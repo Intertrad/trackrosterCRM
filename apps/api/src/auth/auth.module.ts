@@ -18,10 +18,12 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthenticationIdentityRepository } from './authentication-identity.repository.js';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard.js';
 import { RedisModule } from '../redis/redis.module.js';
+import { OAuthProviderController } from './oauth-provider.controller.js';
+import { OAuthProviderService } from './oauth-provider.service.js';
 
 @Module({
   imports: [PermissionModule, DatabaseModule, RedisModule, JwtModule.register({})],
-  controllers: [AuthController, MfaController, PasswordRecoveryController],
+  controllers: [AuthController, MfaController, PasswordRecoveryController, OAuthProviderController],
   providers: [
     SecurityPolicyService,
     AuthMailService,
@@ -34,6 +36,7 @@ import { RedisModule } from '../redis/redis.module.js';
     PasswordService,
     AuthService,
     TokenService,
+    OAuthProviderService,
   ],
   exports: [
     PermissionModule,
