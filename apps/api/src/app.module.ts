@@ -53,6 +53,7 @@ import { MessagingModule } from './messaging/messaging.module.js';
 import { CommunicationsModule } from './communications/communications.module.js';
 import { ScheduledReportsModule } from './scheduled-reports/scheduled-reports.module.js';
 import { SavedViewsModule } from './saved-views/saved-views.module.js';
+import { ComplianceModule } from './compliance/compliance.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -114,6 +115,7 @@ import { SavedViewsModule } from './saved-views/saved-views.module.js';
     CommunicationsModule,
     ScheduledReportsModule,
     SavedViewsModule,
+    ComplianceModule,
   ],
 })
 export class AppModule {}

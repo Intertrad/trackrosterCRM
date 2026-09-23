@@ -51,3 +51,4 @@ export * from './messaging.js';
 export * from './communications.js';
 export * from './scheduled-reports.js';
 export * from './saved-views.js';
+export * from './compliance.js';
