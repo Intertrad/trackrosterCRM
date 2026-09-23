@@ -16,12 +16,14 @@ import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processo
 import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
 import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
 import { WorkerArtifactStorageService } from '../providers/worker-artifact-storage.service.js';
+import { WorkerMailService } from '../providers/worker-mail.service.js';
 
 @Module({
   imports: [WorkerDatabaseModule, ReservationRedisModule],
 
   providers: [
     WorkerArtifactStorageService,
+    WorkerMailService,
     JobLoggingService,
 
     FollowUpReminderRepository,
