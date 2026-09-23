@@ -27,24 +27,31 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
 
   private settings() {
     const endpoint = this.config.get<string>('MAILPIT_URL');
+    const brevoKey = this.config.get<string>('BREVO_API_KEY');
     const key = this.config.get<string>('MFA_ENCRYPTION_KEY');
     const origin = this.config.get<string>('AUTH_PUBLIC_ORIGIN');
-    if (!endpoint || !key || !/^[a-f0-9]{64}$/i.test(key) || !origin)
+    if ((!endpoint && !brevoKey) || !key || !/^[a-f0-9]{64}$/i.test(key) || !origin)
       throw new ServiceUnavailableException('Account email is not configured');
-    const url = new URL(endpoint),
+    const url = endpoint ? new URL(endpoint) : undefined,
       publicUrl = new URL(origin);
     if (
-      this.config.get('NODE_ENV') === 'production' ||
-      !['127.0.0.1', 'localhost', 'mailpit'].includes(url.hostname) ||
-      url.protocol !== 'http:' ||
-      url.username ||
-      url.password ||
+      (endpoint &&
+        (this.config.get('NODE_ENV') === 'production' ||
+          !['127.0.0.1', 'localhost', 'mailpit'].includes(url!.hostname) ||
+          url!.protocol !== 'http:' ||
+          url!.username ||
+          url!.password)) ||
       !['http:', 'https:'].includes(publicUrl.protocol) ||
       publicUrl.username ||
       publicUrl.password
     )
       throw new ServiceUnavailableException('Local mailbox configuration is invalid');
-    return { endpoint: url.origin, key: Buffer.from(key, 'hex'), origin: publicUrl.origin };
+    return {
+      endpoint: url?.origin,
+      brevoKey,
+      key: Buffer.from(key, 'hex'),
+      origin: publicUrl.origin,
+    };
   }
   assertConfigured() {
     return this.settings();
@@ -63,7 +70,7 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
     await executor.insert(authMailOutbox).values({ id, encryptedPayload, expiresAt });
   }
   onModuleInit() {
-    if (!this.config.get('MAILPIT_URL')) return;
+    if (!this.config.get('MAILPIT_URL') && !this.config.get('BREVO_API_KEY')) return;
     this.settings();
     this.timer = setInterval(() => {
       if (!this.running)
@@ -115,17 +122,34 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
         const payload = JSON.parse(
           openSecret(message.encryptedPayload, settings.key, `mail:${message.id}`).toString(),
         ) as MailMessage;
-        const response = await fetch(`${settings.endpoint}/api/v1/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(5000),
-          body: JSON.stringify({
-            From: { Email: 'accounts@trackroster.test', Name: 'TrackRoster' },
-            To: [{ Email: payload.to }],
-            Subject: payload.subject,
-            Text: payload.text,
-          }),
-        });
+        const response = await fetch(
+          settings.brevoKey
+            ? 'https://api.brevo.com/v3/smtp/email'
+            : `${settings.endpoint}/api/v1/send`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(settings.brevoKey ? { 'api-key': settings.brevoKey } : {}),
+            },
+            signal: AbortSignal.timeout(5000),
+            body: JSON.stringify({
+              sender: settings.brevoKey
+                ? {
+                    email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
+                    name: 'TrackRoster',
+                  }
+                : { Email: 'accounts@trackroster.test', Name: 'TrackRoster' },
+              ...(settings.brevoKey
+                ? {
+                    to: [{ email: payload.to }],
+                    subject: payload.subject,
+                    textContent: payload.text,
+                  }
+                : { To: [{ Email: payload.to }], Subject: payload.subject, Text: payload.text }),
+            }),
+          },
+        );
         if (!response.ok) throw new Error('Mailbox rejected delivery');
         await tx
           .update(authMailOutbox)
