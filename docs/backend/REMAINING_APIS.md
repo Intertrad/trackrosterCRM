@@ -1,29 +1,12 @@
 # Remaining API contract checklist
 
-Snapshot: 2026-09-23, after profile, permission, summary and security-configuration completion.
+Snapshot: 2026-09-23, after map APIs and campaign lifecycle completion.
 
 For APIs usable in frontend integration now, see the [frontend API handoff](FRONTEND_API_HANDOFF.md). Verified does not yet mean production deployment is signed off.
 
-The ledger contains 185 verified operations, 0 partially completed operations, and 196 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
+The ledger contains 192 verified operations, 0 partially completed operations, and 189 operations awaiting verification. The three implemented extension routes (two geographic-allocation routes and authenticated export file download) are outside these 381 base operations. These are acceptance-ledger counts, not a count of missing implementations. Some functionality exists under older or campaign-scoped routes and still needs contract reconciliation.
 
-Membership detail now includes dated roster history. The thirteen previously partial endpoints are implemented with the explicit limits documented in [completion contracts](API_COMPLETION_DETAILS.md). SSO sign-in and fine-grained exclusion from aggregates remain separate work. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Configurable activity outcomes, canonical follow-up transitions and manager/admin dashboards are implemented. Routes, today route summaries, objectives and director risk calculations are now implemented. General prospect merge remains pending.
-
-## 5. Territories and map data — P0/P1
-
-| Method | Endpoint            | Required behavior                                         | Ledger status        |
-| ------ | ------------------- | --------------------------------------------------------- | -------------------- |
-| GET    | `/prospects/map`    | Return scoped, clustered map markers and status summary.  | Pending verification |
-| GET    | `/prospects/nearby` | Return authorized prospects within radius of coordinates. | Pending verification |
-| GET    | `/map/heatmap`      | Return aggregate activity/conversion heat layer.          | Pending verification |
-| GET    | `/map/coverage`     | Return aggregate coverage layer by territory.             | Pending verification |
-
-## 6. Campaigns — P0
-
-| Method | Endpoint                         | Required behavior                     | Ledger status        |
-| ------ | -------------------------------- | ------------------------------------- | -------------------- |
-| POST   | `/campaigns`                     | Create draft campaign.                | Pending verification |
-| DELETE | `/campaigns/{campaignId}`        | Archive campaign.                     | Pending verification |
-| POST   | `/campaigns/{campaignId}/status` | Activate, pause, complete or archive. | Pending verification |
+Membership detail now includes dated roster history. The thirteen previously partial endpoints are implemented with the explicit limits documented in [completion contracts](API_COMPLETION_DETAILS.md). SSO sign-in and fine-grained exclusion from aggregates remain separate work. Geographic allocation and saved capacity/round-robin allocation rules are implemented; implicit priority rule chains remain pending. Reservation rules, canonical claim/read/release, heartbeat/extension and observed expiry history are now implemented. Transactional bulk assignments are implemented. Canonical assignment list/detail/lifecycle APIs are implemented. All four explicit allocation strategies and ranked suggestions are implemented. Staged CSV/XLSX imports, exact deduplication and asynchronous exports are implemented. Configurable activity outcomes, canonical follow-up transitions and manager/admin dashboards are implemented. Routes, today route summaries, objectives and director risk calculations are now implemented. Scoped prospect maps, nearby search, heatmaps, territory coverage and campaign creation/status/archival are implemented. General prospect merge remains pending.
 
 ## 7. Prospects, contacts and data quality — P0
 

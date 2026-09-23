@@ -16,3 +16,41 @@ Heatmap/coverage accept `from` (inclusive) and `to` (exclusive), defaulting to t
 Requests exceeding 20,000 visible campaign memberships return 413 `MAP_SCOPE_TOO_LARGE`, rather than silently calculating incomplete totals. Coverage is additionally limited to 200 authorized intersecting territories. Existing geometry and geography GiST indexes support viewport/radius predicates; no map schema migration is required.
 
 Map validation: ten PostGIS integration cases cover tenant/ownership isolation, metadata-only grants, deduplication, invalid bounds, dateline viewports, radius pagination, boundary inclusion, action/conversion counts, permission restrictions and the 20,001-row limit. API typecheck and affected-file lint passed.
+
+## Campaign lifecycle
+
+`POST /campaigns` creates a draft for a tenant administrator. Body:
+
+```json
+{
+  "organizationId": "<uuid>",
+  "name": "Autumn outreach",
+  "description": "Optional",
+  "startsAt": "2026-10-01T00:00:00Z",
+  "endsAt": "2026-11-01T00:00:00Z"
+}
+```
+
+Returns 201 with the same enriched campaign representation as GET and an ETag. Names are trimmed and must not be blank. The organization must be active and belong to the current tenant. Start/end dates are optional; end cannot precede start. Dates are descriptive scheduling fields and do not automatically activate a campaign. Description is at most 10,000 characters.
+
+`POST /campaigns/{campaignId}/status` accepts `{ "status": "active|paused|completed|archived", "reason": "optional explanation" }` and returns 200 with the updated representation and ETag. It requires campaign **manage** authority: tenant administrator, owning-organization director, or an explicit manage-level campaign grant. A team manager or participant without that authority cannot change campaign status.
+
+| Current state | Allowed next states         |
+| ------------- | --------------------------- |
+| draft         | active, archived            |
+| active        | paused, completed, archived |
+| paused        | active, completed, archived |
+| completed     | archived                    |
+| archived      | none                        |
+
+Repeating the current status is a no-op with no duplicate audit event. Archived campaign fields are read-only. Re-activation of a paused campaign requires its organization to remain active. Read/write campaign grants may edit metadata but cannot change status.
+
+`DELETE /campaigns/{campaignId}` archives the campaign and returns 204. It never deletes campaign, prospect, assignment, action or audit history. Repeated archival is a no-op. Reload GET if a subsequent conditional operation is needed; the empty 204 response carries no resource version.
+
+- Supply `Idempotency-Key` for status and archive (required). Creation and the existing PATCH accept it but keep it optional for legacy clients. A reused key with different input returns 409.
+- Use `If-Match` from GET/create/update/status for conditional writes; a stale version returns 412. Missing If-Match remains accepted for compatibility.
+- Completion and archival return 409 `CAMPAIGN_HAS_OPEN_WORK` until all current assignments (including paused), planned/started actions, pending follow-ups, live reservations and pending override requests are resolved. The API does not silently cancel work. Counts are not disclosed through this error to metadata-only managers.
+- Existing `PATCH /campaigns/{campaignId}` uses the same lifecycle service, permissions and terminal rules, so it cannot bypass the new status endpoint.
+- Authority, membership activity, role restrictions and explicit denies are rechecked within the serialized write transaction, as well as before idempotent replay.
+- Database triggers serialize open-work writes against terminal transitions and reject new open work in completed/archived campaigns. Expired reservations and completed/cancelled historical records do not block closure. Database conflict code `TR001` is translated to safe HTTP 409 `CAMPAIGN_CLOSED` where surfaced.
+- Changes create `campaign.created`, `campaign.updated` or `campaign.status_changed` audit events, including previous/new status and optional reason. Deployment requires migrations 0055–0056; they were applied only to the isolated validation database.

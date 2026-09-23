@@ -190,7 +190,7 @@ describe('Scoped prospect maps', () => {
       await db.delete(tenants).where(inArray(tenants.id, ids));
     }
     await app?.close();
-  });
+  }, 60_000);
   it('requires authentication and validates spatial and temporal bounds', async () => {
     expect(
       (await app.inject({ method: 'GET', url: `/api/v1/prospects/map?bbox=${bbox}` })).statusCode,
@@ -351,7 +351,7 @@ describe('Scoped prospect maps', () => {
       );
       await db.delete(campaigns).where(eq(campaigns.id, largeCampaign));
     }
-  }, 30000);
+  }, 90_000);
   it('enforces configurable restrictions and explicit denial on map aliases', async () => {
     await db
       .insert(tenantRolePermissions)

@@ -1,20 +1,20 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-23, after profile, permission, summary and security-configuration completion. Base path: `/api/v1`.
+Snapshot: 2026-09-23, after map APIs and campaign lifecycle completion. Base path: `/api/v1`.
 
 ## Readiness summary
 
-**Use for frontend integration in a migrated development/test environment:** 185 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 185 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
+**Use for frontend integration in a migrated development/test environment:** 192 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 192 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0054`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0056`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
 
-Latest recorded validation: 657 API unit tests, 548 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 55 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
+Latest recorded validation: 659 API unit tests, 568 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 57 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 
 | Classification                  | Product-contract operations | Frontend guidance                                                           |
 | ------------------------------- | --------------------------: | --------------------------------------------------------------------------- |
-| Verified                        |                         185 | Integrate the documented supported behavior                                 |
+| Verified                        |                         192 | Integrate the documented supported behavior                                 |
 | Partial                         |                           0 | Use only the implemented subset described below                             |
-| Pending verification/completion |                         196 | Do not assume the target contract is ready; consult the remaining checklist |
+| Pending verification/completion |                         189 | Do not assume the target contract is ready; consult the remaining checklist |
 | Verified extensions             |                           3 | Verified additions outside the 381-operation product ledger                 |
 
 ## Client conventions
@@ -343,11 +343,25 @@ See [payloads and limits](API_COMPLETION_DETAILS.md) before integration. Denials
 | GET    | `/settings/security`                         | Verified: enforced local policies and redacted OIDC configuration; SSO sign-in remains separate                   |
 | PATCH  | `/settings/security`                         | Verified: conditional policy updates and encrypted OIDC configuration; no SSO activation                          |
 
+## Maps and campaign lifecycle
+
+See [query parameters, payloads, scope and lifecycle rules](MAPS_AND_CAMPAIGN_LIFECYCLE.md). Map totals use only authorized prospects. Archival preserves history and requires outstanding work to be resolved first.
+
+| Method | Endpoint                         | Supported behavior                                                                                    |
+| ------ | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| GET    | `/prospects/map`                 | Verified: prospect-authorized GeoJSON clustering, lifecycle summary and bounded viewport queries      |
+| GET    | `/prospects/nearby`              | Verified: authorized geography-radius search, deduplication and stable distance/UUID pagination       |
+| GET    | `/map/heatmap`                   | Verified: authorized canonical activity and current-conversion grid aggregates                        |
+| GET    | `/map/coverage`                  | Verified: territory/prospect scope intersection, boundary-inclusive contact coverage and counts       |
+| POST   | `/campaigns`                     | Verified: authorized draft creation, active organization validation, audit, idempotency and ETag      |
+| DELETE | `/campaigns/{campaignId}`        | Verified: conditional audited archival with open-work and concurrent-write protection                 |
+| POST   | `/campaigns/{campaignId}/status` | Verified: authorized lifecycle transitions, open-work blockers, audit, replay and conditional updates |
+
 ## APIs still left
 
-The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 0 partial and 196 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
+The [remaining API checklist](REMAINING_APIS.md) lists every partial/pending method, path and required behavior. There are 0 partial and 189 pending-verification product contracts. Pending verification is not the same as nonexistent code: work queues, follow-ups, dashboards and other areas already have legacy implementations that need reconciliation against the canonical product contracts.
 
-Next groups include map/search/data quality, saved views/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
+Next groups include search/data quality, saved views/messaging/files, reporting/compliance, integrations/webhooks and platform/subscription administration.
 
 ## Additional existing routes
 

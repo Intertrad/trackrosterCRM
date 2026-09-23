@@ -132,14 +132,18 @@ export class ResourceScopeService {
       nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
     };
   }
-  async getCampaign(auth: AuthenticatedPrincipal, id: string) {
-    const [row] = await this.db
+  async getCampaign(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    executor: DatabaseExecutor = this.db,
+  ) {
+    const [row] = await executor
       .select()
       .from(campaigns)
       .where(and(eq(campaigns.id, id), this.predicate(auth, 'campaign')));
     if (!row) throw new NotFoundException('Campaign not found');
-    const stats = await this.db
-      .execute(sql`WITH visible AS (SELECT cp.* FROM campaign_prospects cp WHERE cp.tenant_id=${auth.tenantId} AND cp.campaign_id=${id} AND ${prospectReadScope(auth, sql`cp.id`)}) SELECT
+    const stats =
+      await executor.execute(sql`WITH visible AS (SELECT cp.* FROM campaign_prospects cp WHERE cp.tenant_id=${auth.tenantId} AND cp.campaign_id=${id} AND ${prospectReadScope(auth, sql`cp.id`)}) SELECT
     (SELECT count(*)::int FROM visible) AS prospects,
     (SELECT coalesce(jsonb_object_agg(stage,n),'{}'::jsonb) FROM (SELECT lifecycle_stage AS stage,count(*)::int AS n FROM visible GROUP BY lifecycle_stage) grouped) AS "byLifecycleStage",
     (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=${auth.tenantId} AND a.campaign_prospect_id IN(SELECT id FROM visible) AND a.ended_at IS NULL) AS "activeAssignments",

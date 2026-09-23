@@ -3,7 +3,6 @@ import { sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
-import { prospectReadScope } from '../actions/action-access.js';
 import { resourceScopePredicate } from '../resource-scopes/resource-scope.service.js';
 import type {
   HeatmapDto,
@@ -52,13 +51,26 @@ export class MapService {
       : sql`(${column} && ST_MakeEnvelope(${w},${s},180,${n},4326) OR ${column} && ST_MakeEnvelope(-180,${s},${e},${n},4326))`;
   }
   private eligible(a: AuthenticatedPrincipal, q: ProspectMapFiltersDto, spatial: SQL) {
+    // Match prospectReadScope authority using the already joined campaign/prospect.
+    // Rejoining those tables inside the scope check can produce huge intermediate results.
     return sql`eligible AS MATERIALIZED (
     SELECT cp.id AS campaign_prospect_id,cp.campaign_id,cp.lifecycle_stage,e.id,e.name,e.longitude,e.latitude,e.location,
       EXISTS(SELECT 1 FROM campaign_prospect_assignments ca WHERE ca.tenant_id=cp.tenant_id AND ca.campaign_prospect_id=cp.id AND ca.ended_at IS NULL) AS assigned
     FROM establishments e JOIN campaign_prospects cp ON cp.tenant_id=e.tenant_id AND cp.establishment_id=e.id
     JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id
     WHERE e.tenant_id=${a.tenantId} AND e.status='active' AND e.location IS NOT NULL AND cp.status='active'
-      AND ${spatial} AND ${prospectReadScope(a, sql`cp.id`)}
+      AND ${spatial} AND EXISTS (
+        SELECT 1 FROM user_access_grants g WHERE g.tenant_id=cp.tenant_id AND g.user_id=${a.membershipId} AND (
+          (g.scope_type='tenant' AND g.role IN ('client_admin','observer')) OR
+          (g.scope_type='organization' AND g.organization_id=c.organization_id AND g.role IN ('director','observer')) OR
+          (g.scope_type='team' AND EXISTS (
+            SELECT 1 FROM campaign_prospect_assignments aa
+            WHERE aa.tenant_id=cp.tenant_id AND aa.campaign_prospect_id=cp.id AND aa.ended_at IS NULL
+              AND aa.team_id=g.team_id AND (g.role IN ('manager','observer') OR
+                (g.role='prospector' AND (aa.assigned_user_id IS NULL OR aa.assigned_user_id=${a.membershipId})))
+          ))
+        )
+      )
       AND ${q.campaignStatus ? sql`c.status=${q.campaignStatus}` : sql`c.status IN ('active','paused')`}
       ${q.campaignId ? sql`AND cp.campaign_id=${q.campaignId}` : sql``}
       ${q.organizationId ? sql`AND c.organization_id=${q.organizationId}` : sql``}
@@ -66,7 +78,7 @@ export class MapService {
       ${q.lifecycleStage ? sql`AND cp.lifecycle_stage=${q.lifecycleStage}` : sql``}
       ${q.search ? sql`AND e.name ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}` : sql``}
       ${q.territoryId ? sql`AND EXISTS(SELECT 1 FROM territories WHERE territories.id=${q.territoryId} AND ${resourceScopePredicate(a, 'territory')} AND territories.status='active' AND ST_Covers(territories.boundary,e.location))` : sql``}
-    ORDER BY e.id,cp.id LIMIT ${MAX_MEMBERSHIPS + 1}
+    LIMIT ${MAX_MEMBERSHIPS + 1}
   ), points AS MATERIALIZED (
     SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
       bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted

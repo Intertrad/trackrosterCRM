@@ -1,3 +1,4 @@
+import { isCampaignClosedError } from '../campaigns/campaign-work-error.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -40,6 +41,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const response = http.getResponse<HttpReply>();
 
     const requestId = request.id ?? randomUUID();
+
+    if (isCampaignClosedError(exception)) {
+      response.status(409).send({
+        statusCode: 409,
+        code: 'CAMPAIGN_CLOSED',
+        message: 'Campaign no longer accepts open work',
+        error: 'Conflict',
+        requestId,
+      });
+      return;
+    }
 
     if (exception instanceof HttpException) {
       const statusCode = exception.getStatus();

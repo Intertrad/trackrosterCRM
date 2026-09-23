@@ -300,28 +300,35 @@
       "method": "GET",
       "path": "/api/v1/campaigns",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 51,
+      "line": 55,
       "ledgerStatus": "Verified: scoped advanced filters, stable cursor sorting and legacy no-query compatibility"
     },
     {
       "method": "POST",
       "path": "/api/v1/campaigns",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 35,
-      "ledgerStatus": "Pending verification"
+      "line": 41,
+      "ledgerStatus": "Verified: authorized draft creation, active organization validation, audit, idempotency and ETag"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 108,
+      "ledgerStatus": "Verified: conditional audited archival with open-work and concurrent-write protection"
     },
     {
       "method": "GET",
       "path": "/api/v1/campaigns/:campaignId",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 60,
+      "line": 64,
       "ledgerStatus": "Verified: campaign metadata and prospect-authorized operational summary"
     },
     {
       "method": "PATCH",
       "path": "/api/v1/campaigns/:campaignId",
       "source": "apps/api/src/campaigns/campaign.controller.ts",
-      "line": 71,
+      "line": 76,
       "ledgerStatus": "Verified: metadata/lifecycle authority and transaction recheck; optional legacy idempotency"
     },
     {
@@ -526,6 +533,13 @@
       "source": "apps/api/src/activities/prospect-timeline.controller.ts",
       "line": 19,
       "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/status",
+      "source": "apps/api/src/campaigns/campaign.controller.ts",
+      "line": 94,
+      "ledgerStatus": "Verified: authorized lifecycle transitions, open-work blockers, audit, replay and conditional updates"
     },
     {
       "method": "GET",
@@ -914,6 +928,20 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/map/coverage",
+      "source": "apps/api/src/maps/map.controller.ts",
+      "line": 27,
+      "ledgerStatus": "Verified: territory/prospect scope intersection, boundary-inclusive contact coverage and counts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/map/heatmap",
+      "source": "apps/api/src/maps/map.controller.ts",
+      "line": 24,
+      "ledgerStatus": "Verified: authorized canonical activity and current-conversion grid aggregates"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/me",
       "source": "apps/api/src/account/account.controller.ts",
       "line": 41,
@@ -1261,6 +1289,20 @@
       "source": "apps/api/src/actions/unified-timeline.controller.ts",
       "line": 16,
       "ledgerStatus": "Verified: permission-filtered unified available history; pre-existing unrecorded reservation/expiry history is not fabricated"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/map",
+      "source": "apps/api/src/maps/map.controller.ts",
+      "line": 13,
+      "ledgerStatus": "Verified: prospect-authorized GeoJSON clustering, lifecycle summary and bounded viewport queries"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/nearby",
+      "source": "apps/api/src/maps/map.controller.ts",
+      "line": 16,
+      "ledgerStatus": "Verified: authorized geography-radius search, deduplication and stable distance/UUID pagination"
     },
     {
       "method": "GET",

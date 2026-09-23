@@ -11,6 +11,7 @@ export class CreateCampaignDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(10000)
   description?: string | null;
 
   @IsOptional()

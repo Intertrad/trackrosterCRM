@@ -1,3 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
+import type { DatabaseExecutor } from '../database/database.types.js';
+import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 /** Restrictions on existing authority; these capabilities never create resource access. */
 export const DOMAIN_PERMISSIONS = [
   'campaigns.read',
@@ -61,4 +65,20 @@ export function requestDomainPermission(
   if (/^\/(campaigns|campaign-members)(\/|$)/.test(path))
     return read ? 'campaigns.read' : 'campaigns.manage';
   return undefined;
+}
+
+export async function enforceDomainRestriction(
+  db: DatabaseExecutor,
+  auth: AuthenticatedPrincipal,
+  permission: DomainPermission,
+) {
+  const restricted = await db.execute(sql`
+        SELECT 1 FROM tenant_role_permissions p WHERE p.tenant_id=${auth.tenantId}
+        AND NOT (p.permissions ? ${permission})
+        AND EXISTS (SELECT 1 FROM (SELECT tenant_id,user_id,role FROM user_access_grants UNION ALL SELECT tenant_id,user_id,role FROM membership_resource_scopes) g WHERE g.tenant_id=p.tenant_id AND g.user_id=${auth.membershipId}
+          AND CASE g.role::text WHEN 'observer' THEN 'auditor' WHEN 'client_admin' THEN 'tenant_admin' ELSE g.role::text END=p.role)
+        AND NOT EXISTS (SELECT 1 FROM user_access_grants g WHERE g.tenant_id=p.tenant_id AND g.user_id=${auth.membershipId} AND g.role='client_admin' AND g.scope_type='tenant')
+        LIMIT 1`);
+  if (restricted.rows.length)
+    throw new ForbiddenException(`Permission ${permission} is restricted for this membership`);
 }

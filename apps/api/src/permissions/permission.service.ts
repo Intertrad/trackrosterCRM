@@ -1,5 +1,9 @@
 import { enforceScopeDenials } from './scope-denial-policy.js';
-import { DOMAIN_PERMISSIONS, requestDomainPermission } from './domain-permissions.js';
+import {
+  DOMAIN_PERMISSIONS,
+  enforceDomainRestriction,
+  requestDomainPermission,
+} from './domain-permissions.js';
 import { consentAccess } from '../consents/consent-access.js';
 import { ConflictException } from '@nestjs/common';
 import { campaignOrganizationAccess } from '../campaign-organizations/organization-access.js';
@@ -268,22 +272,7 @@ export class PermissionService {
     const method = request.method ?? '';
     await enforceScopeDenials(this.db, auth, path, method, request.params);
     const domainPermission = requestDomainPermission(path, method);
-    if (domainPermission) {
-      // A restriction never grants authority. All existing service/SQL checks still run.
-      // Fail closed for mixed-role aggregate requests: an applicable restricted role
-      // cannot be bypassed by adding an unrelated role or changing a route alias.
-      const restricted = await this.db.execute(sql`
-        SELECT 1 FROM tenant_role_permissions p WHERE p.tenant_id=${auth.tenantId}
-        AND NOT (p.permissions ? ${domainPermission})
-        AND EXISTS (SELECT 1 FROM (SELECT tenant_id,user_id,role FROM user_access_grants UNION ALL SELECT tenant_id,user_id,role FROM membership_resource_scopes) g WHERE g.tenant_id=p.tenant_id AND g.user_id=${auth.membershipId}
-          AND CASE g.role::text WHEN 'observer' THEN 'auditor' WHEN 'client_admin' THEN 'tenant_admin' ELSE g.role::text END=p.role)
-        AND NOT EXISTS (SELECT 1 FROM user_access_grants g WHERE g.tenant_id=p.tenant_id AND g.user_id=${auth.membershipId} AND g.role='client_admin' AND g.scope_type='tenant')
-        LIMIT 1`);
-      if (restricted.rows.length)
-        throw new ForbiddenException(
-          `Permission ${domainPermission} is restricted for this membership`,
-        );
-    }
+    if (domainPermission) await enforceDomainRestriction(this.db, auth, domainPermission);
 
     const contactOperation =
       (method === 'POST' && /\/(reservation|activities|follow-ups)$/.test(path)) ||
