@@ -51,6 +51,7 @@ import { WorkQueueModule } from './work-queue/work-queue.module.js';
 import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { CommunicationsModule } from './communications/communications.module.js';
+import { ScheduledReportsModule } from './scheduled-reports/scheduled-reports.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -110,6 +111,7 @@ import { CommunicationsModule } from './communications/communications.module.js'
     ProspectorTodayModule,
     MessagingModule,
     CommunicationsModule,
+    ScheduledReportsModule,
   ],
 })
 export class AppModule {}

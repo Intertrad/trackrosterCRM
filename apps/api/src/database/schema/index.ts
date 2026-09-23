@@ -49,3 +49,4 @@ export * from './prospect-master.js';
 export * from './prospect-enrichment.js';
 export * from './messaging.js';
 export * from './communications.js';
+export * from './scheduled-reports.js';

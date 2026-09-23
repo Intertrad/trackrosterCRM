@@ -449,6 +449,13 @@
       "when": 1790160170626,
       "tag": "0063_communications_uploads_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1790161027220,
+      "tag": "0064_scheduled_reports",
+      "breakpoints": true
     }
   ]
 }
