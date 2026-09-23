@@ -28,6 +28,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { MessagingService } from '../messaging/messaging.module.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
+import { ObjectStorageService } from '../providers/object-storage.service.js';
 
 type Auth = AuthenticatedPrincipal;
 @Injectable()
@@ -35,15 +36,17 @@ export class CommunicationsService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly messaging: MessagingService,
+    private readonly storage: ObjectStorageService,
   ) {}
   async presign(a: Auth, d: { filename: string; contentType: string; byteSize: number }) {
     if (!d.filename?.trim() || !d.contentType || d.byteSize < 1 || d.byteSize > 25_000_000)
       throw new BadRequestException('Invalid upload');
     const key = `${a.tenantId}/${a.membershipId}/${randomUUID()}-${d.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const base = process.env.OBJECT_STORAGE_UPLOAD_BASE_URL ?? 'http://localhost:58080/upload';
+    const signedUrl = await this.storage.uploadUrl(key, d.contentType);
     return {
       objectKey: key,
-      uploadUrl: `${base}/${encodeURIComponent(key)}`,
+      uploadUrl: signedUrl ?? `${base}/${encodeURIComponent(key)}`,
       expiresInSeconds: 900,
       method: 'PUT',
       headers: { 'content-type': d.contentType },
@@ -86,9 +89,10 @@ export class CommunicationsService {
       );
     if (!r) throw new BadRequestException('Attachment not found');
     const base = process.env.OBJECT_STORAGE_DOWNLOAD_BASE_URL ?? 'http://localhost:58080/download';
+    const signedUrl = await this.storage.downloadUrl(r.objectKey);
     return {
       attachmentId: id,
-      downloadUrl: `${base}/${encodeURIComponent(r.objectKey)}`,
+      downloadUrl: signedUrl ?? `${base}/${encodeURIComponent(r.objectKey)}`,
       expiresInSeconds: 300,
     };
   }

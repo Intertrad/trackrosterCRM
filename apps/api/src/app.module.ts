@@ -55,6 +55,7 @@ import { ScheduledReportsModule } from './scheduled-reports/scheduled-reports.mo
 import { SavedViewsModule } from './saved-views/saved-views.module.js';
 import { ComplianceModule } from './compliance/compliance.module.js';
 import { IntegrationsModule } from './integrations/integrations.module.js';
+import { ProvidersModule } from './providers/providers.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -118,6 +119,7 @@ import { IntegrationsModule } from './integrations/integrations.module.js';
     SavedViewsModule,
     ComplianceModule,
     IntegrationsModule,
+    ProvidersModule,
   ],
 })
 export class AppModule {}
