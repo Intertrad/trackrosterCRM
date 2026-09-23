@@ -49,6 +49,7 @@ import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { RegionModule } from './regions/region.module.js';
 import { WorkQueueModule } from './work-queue/work-queue.module.js';
 import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
+import { MessagingModule } from './messaging/messaging.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -106,6 +107,7 @@ import { ProspectorTodayModule } from './prospector-today/prospector-today.modul
     RegionModule,
     WorkQueueModule,
     ProspectorTodayModule,
+    MessagingModule,
   ],
 })
 export class AppModule {}

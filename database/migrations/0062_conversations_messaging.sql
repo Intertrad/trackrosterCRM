@@ -1,0 +1,10 @@
+-- Custom SQL migration file, put your code below! --
+CREATE TYPE conversation_kind AS ENUM ('direct','team','prospect','campaign');
+CREATE TYPE conversation_status AS ENUM ('active','archived');
+CREATE TYPE message_status AS ENUM ('sent','edited','deleted');
+CREATE TABLE conversations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id), kind conversation_kind NOT NULL, title varchar(200), status conversation_status NOT NULL DEFAULT 'active', created_by uuid NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CONSTRAINT conversations_creator_fk FOREIGN KEY (tenant_id,created_by) REFERENCES tenant_memberships(tenant_id,id));
+CREATE INDEX conversations_tenant_updated_idx ON conversations(tenant_id,updated_at);
+CREATE TABLE conversation_participants (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, membership_id uuid NOT NULL, last_read_at timestamptz, muted_until timestamptz, joined_at timestamptz NOT NULL DEFAULT now(), CONSTRAINT conversation_participants_unique UNIQUE(tenant_id,conversation_id,membership_id), CONSTRAINT conversation_participant_member_fk FOREIGN KEY(tenant_id,membership_id) REFERENCES tenant_memberships(tenant_id,id));
+CREATE INDEX conversation_participants_member_idx ON conversation_participants(tenant_id,membership_id);
+CREATE TABLE messages (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE, sender_id uuid NOT NULL, body text NOT NULL, status message_status NOT NULL DEFAULT 'sent', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CONSTRAINT messages_body_check CHECK(length(trim(body))>0 AND length(body)<=10000), CONSTRAINT messages_sender_fk FOREIGN KEY(tenant_id,sender_id) REFERENCES tenant_memberships(tenant_id,id));
+CREATE INDEX messages_conversation_created_idx ON messages(tenant_id,conversation_id,created_at);
