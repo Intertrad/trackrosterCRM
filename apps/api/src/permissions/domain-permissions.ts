@@ -30,6 +30,7 @@ export function requestDomainPermission(
   path: string,
   method: string,
 ): DomainPermission | undefined {
+  if (/^\/map\//.test(path)) return 'reports.read';
   const read = method === 'GET' || method === 'HEAD';
   if (/^\/(dashboard|manager\/dashboard|prospector\/today)(\/|$)/.test(path)) return 'reports.read';
   if (/^\/(imports|import-issues)(\/|$)/.test(path)) return 'imports.manage';
