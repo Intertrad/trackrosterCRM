@@ -1,4 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { CanonicalFollowUpService } from './canonical-follow-up.service.js';
+import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { Controller, Get, Query, UseGuards, Optional } from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
@@ -14,7 +16,10 @@ interface AuthContext {
 @Controller('follow-ups')
 @UseGuards(AuthGuard)
 export class FollowUpQueueController {
-  constructor(private readonly followUpQueryService: ProspectFollowUpQueryService) {}
+  constructor(
+    private readonly followUpQueryService: ProspectFollowUpQueryService,
+    @Optional() private readonly canonical?: CanonicalFollowUpService,
+  ) {}
 
   @Get()
   list(
@@ -24,12 +29,14 @@ export class FollowUpQueueController {
     @Query()
     query: ListFollowUpQueueQueryDto,
   ) {
+    if (this.canonical && (!query.teamId || query.status || query.cursor || query.campaignId))
+      return this.canonical.list(auth as AuthenticatedPrincipal, query);
     return this.followUpQueryService.listQueue({
       tenantId: auth.tenantId,
 
       userId: auth.userId,
 
-      teamId: query.teamId,
+      teamId: query.teamId!,
 
       overdue: query.overdue,
 

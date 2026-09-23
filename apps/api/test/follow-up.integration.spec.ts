@@ -2292,7 +2292,9 @@ describe('Follow-up HTTP integration', () => {
       },
     });
 
-    expect(missingTeam.statusCode).toBe(400);
+    // Canonical lists infer authorized scope; the legacy team filter is optional.
+    expect(missingTeam.statusCode).toBe(200);
+    expect(Array.isArray(missingTeam.json().items)).toBe(true);
 
     const invalidLimit = await getApp().inject({
       method: 'GET',

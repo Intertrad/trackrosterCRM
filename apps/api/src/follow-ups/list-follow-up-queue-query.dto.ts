@@ -1,9 +1,15 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class ListFollowUpQueueQueryDto {
+  @IsOptional()
   @IsUUID()
-  teamId!: string;
+  teamId?: string;
+  @IsOptional()
+  @IsIn(['pending', 'due', 'missed', 'completed', 'cancelled', 'all'])
+  status?: string;
+  @IsOptional() @IsUUID() cursor?: string;
+  @IsOptional() @IsUUID() campaignId?: string;
 
   @IsOptional()
   @Transform(({ value }) => {
