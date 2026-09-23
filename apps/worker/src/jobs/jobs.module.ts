@@ -15,11 +15,13 @@ import { ReservationExpiryRepository } from './repositories/reservation-expiry.r
 import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processor.js';
 import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
 import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
+import { WorkerArtifactStorageService } from '../providers/worker-artifact-storage.service.js';
 
 @Module({
   imports: [WorkerDatabaseModule, ReservationRedisModule],
 
   providers: [
+    WorkerArtifactStorageService,
     JobLoggingService,
 
     FollowUpReminderRepository,

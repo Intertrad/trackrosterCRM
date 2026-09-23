@@ -5,7 +5,12 @@ import { WORKER_DATABASE_POOL } from '../../database/worker-database.constants.j
 import type { JobProcessorResult } from '../job-processing.types.js';
 @Injectable()
 export class ScheduledReportProcessor {
-  constructor(@Inject(WORKER_DATABASE_POOL) private readonly db: Pool) {}
+  constructor(
+    @Inject(WORKER_DATABASE_POOL) private readonly db: Pool,
+    config?: unknown,
+  ) {
+    void config;
+  }
   async process(data: ScheduledReportJobData): Promise<JobProcessorResult> {
     const s = await this.db.query(
       'SELECT active FROM scheduled_reports WHERE id=$1 AND tenant_id=$2',
