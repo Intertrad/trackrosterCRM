@@ -13,6 +13,7 @@ import { ClientAdminGuard } from './client-admin.guard.js';
 import { SelfAccessController } from './self-access.controller.js';
 import { SelfAccessService } from './self-access.service.js';
 import { UserAccessGrantRepository } from './user-access-grant.repository.js';
+import { PlatformAdminGuard } from './platform-admin.guard.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, AuditModule, OrganizationModule, TeamModule, UserModule],
@@ -25,6 +26,7 @@ import { UserAccessGrantRepository } from './user-access-grant.repository.js';
     ClientAdminGuard,
     SelfAccessService,
     UserAccessGrantRepository,
+    PlatformAdminGuard,
   ],
 
   exports: [
@@ -33,6 +35,7 @@ import { UserAccessGrantRepository } from './user-access-grant.repository.js';
     ClientAdminGuard,
     SelfAccessService,
     UserAccessGrantRepository,
+    PlatformAdminGuard,
   ],
 })
 export class AuthorizationModule {}
