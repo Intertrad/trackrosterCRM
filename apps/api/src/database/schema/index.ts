@@ -48,3 +48,4 @@ export * from './membership-scope-denials.js';
 export * from './prospect-master.js';
 export * from './prospect-enrichment.js';
 export * from './messaging.js';
+export * from './communications.js';
