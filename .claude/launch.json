@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "web", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "basemap-tiles",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dlx", "http-server", ".", "-p", "8088", "--cors", "-s"],
+      "port": 8088
+    }
+  ]
+}
