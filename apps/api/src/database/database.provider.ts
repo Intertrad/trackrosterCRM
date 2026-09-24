@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 
 import { DATABASE, DATABASE_POOL } from './database.constants.js';
 import * as schema from './schema/index.js';
+import { createRequestAwareDatabase } from './request-tenant-executor.js';
 
 export const databaseProviders: Provider[] = [
   {
@@ -36,9 +37,11 @@ export const databaseProviders: Provider[] = [
     inject: [DATABASE_POOL],
 
     useFactory: (pool: Pool) => {
-      return drizzle(pool, {
-        schema,
-      });
+      return createRequestAwareDatabase(
+        drizzle(pool, {
+          schema,
+        }),
+      );
     },
   },
 ];
