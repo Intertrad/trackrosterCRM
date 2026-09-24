@@ -133,17 +133,15 @@ describe('Bulk assignment and saved rules', () => {
       await tx
         .insert(organizations)
         .values([org, otherOrg].map((id) => ({ id, tenantId, name: id, slug: id })));
-      await tx
-        .insert(teams)
-        .values(
-          [team, otherTeam, outsideTeam].map((id) => ({
-            id,
-            tenantId,
-            organizationId: id === outsideTeam ? otherOrg : org,
-            name: id,
-            slug: id,
-          })),
-        );
+      await tx.insert(teams).values(
+        [team, otherTeam, outsideTeam].map((id) => ({
+          id,
+          tenantId,
+          organizationId: id === outsideTeam ? otherOrg : org,
+          name: id,
+          slug: id,
+        })),
+      );
     });
     await withTenantContext(db, foreignTenantId, (tx) =>
       tx
@@ -155,53 +153,79 @@ describe('Bulk assignment and saved rules', () => {
     await db
       .insert(identities)
       .values(actors.map((id) => ({ id, email: `${id}@example.test`, passwordHash })));
-    await db.insert(tenantMemberships).values(
-      actors.map((id) => ({
-        id,
-        identityId: id,
-        tenantId: id === foreign ? foreignTenantId : tenantId,
-        status: 'active' as const,
-        activatedAt: sql`now()`,
-      })),
-    );
-    await db.insert(userAccessGrants).values([
-      { tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' },
-      { tenantId: foreignTenantId, userId: foreign, role: 'client_admin', scopeType: 'tenant' },
-      {
+    await withTenantContext(db, tenantId, async (tx) => {
+      await tx
+        .insert(tenantMemberships)
+        .values(
+          actors
+            .filter((id) => id !== foreign)
+            .map((id) => ({
+              id,
+              identityId: id,
+              tenantId,
+              status: 'active' as const,
+              activatedAt: sql`now()`,
+            })),
+        );
+      await tx.insert(userAccessGrants).values([
+        { tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' },
+        {
+          tenantId,
+          userId: director,
+          role: 'director',
+          scopeType: 'organization',
+          organizationId: org,
+        },
+        {
+          tenantId,
+          userId: member,
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId: org,
+          teamId: team,
+        },
+      ]);
+      await tx
+        .insert(campaigns)
+        .values({ id: campaign, tenantId, organizationId: org, name: campaign, status: 'active' });
+      await tx.insert(territories).values({
+        id: territory,
         tenantId,
-        userId: director,
-        role: 'director',
-        scopeType: 'organization',
-        organizationId: org,
-      },
-      {
-        tenantId,
-        userId: member,
-        role: 'prospector',
-        scopeType: 'team',
-        organizationId: org,
-        teamId: team,
-      },
-    ]);
-    await db.insert(campaigns).values([
-      { id: campaign, tenantId, organizationId: org, name: campaign, status: 'active' },
-      {
-        id: foreignCampaign,
-        tenantId: foreignTenantId,
-        organizationId: foreignOrg,
-        name: foreignCampaign,
-        status: 'active',
-      },
-    ]);
-    await db.insert(territories).values({
-      id: territory,
-      tenantId,
-      name: territory,
-      boundary: sql`ST_Multi(ST_MakeEnvelope(2,48,3,49,4326))`,
+        name: territory,
+        boundary: sql`ST_Multi(ST_MakeEnvelope(2,48,3,49,4326))`,
+      });
+      await tx
+        .insert(campaignTerritories)
+        .values({ tenantId, campaignId: campaign, territoryId: territory });
     });
-    await db
-      .insert(campaignTerritories)
-      .values({ tenantId, campaignId: campaign, territoryId: territory });
+    await withTenantContext(db, foreignTenantId, async (tx) => {
+      await tx
+        .insert(tenantMemberships)
+        .values({
+          id: foreign,
+          identityId: foreign,
+          tenantId: foreignTenantId,
+          status: 'active',
+          activatedAt: sql`now()`,
+        });
+      await tx
+        .insert(userAccessGrants)
+        .values({
+          tenantId: foreignTenantId,
+          userId: foreign,
+          role: 'client_admin',
+          scopeType: 'tenant',
+        });
+      await tx
+        .insert(campaigns)
+        .values({
+          id: foreignCampaign,
+          tenantId: foreignTenantId,
+          organizationId: foreignOrg,
+          name: foreignCampaign,
+          status: 'active',
+        });
+    });
     for (const id of actors) {
       const result = await app.inject({
         method: 'POST',
