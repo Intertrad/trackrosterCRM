@@ -28,6 +28,8 @@ import { assertAdministratorRemains } from '../authorization/administrator-conti
 import { internalRole, publicRole } from '../permissions/permission-catalogue.js';
 import { PermissionService } from '../permissions/permission.service.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { ListMembershipsDto, MembershipScopeDto, UpdateMembershipDto } from './membership.dto.js';
 @Injectable()
 export class MembershipService {
@@ -36,7 +38,12 @@ export class MembershipService {
     private readonly permissions: PermissionService,
     private readonly resourceScopes: ResourceScopeService,
   ) {}
-  async list(auth: AuthenticatedPrincipal, query: ListMembershipsDto) {
+  async list(
+    auth: AuthenticatedPrincipal,
+    query: ListMembershipsDto,
+  ): Promise<{ items: unknown[]; nextCursor: string | null }> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, auth.tenantId, () => this.list(auth, query));
     const resourceScoped = query.territoryId || query.campaignId;
     const scoped = query.role || query.teamId || query.organizationId;
     const rows = await this.db
@@ -87,7 +94,13 @@ export class MembershipService {
       nextCursor: rows.length > query.limit ? rows[query.limit - 1]!.id : null,
     };
   }
-  async get(auth: AuthenticatedPrincipal, id: string, executor: DatabaseExecutor = this.db) {
+  async get(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    executor: DatabaseExecutor = this.db,
+  ): Promise<any> {
+    if (!currentTenantExecutor() && executor === this.db)
+      return withTenantContext(this.db, auth.tenantId, (tx) => this.get(auth, id, tx));
     const [row] = await executor
       .select({
         id: tenantMemberships.id,
@@ -150,7 +163,9 @@ export class MembershipService {
     id: string,
     input: UpdateMembershipDto,
     ifMatch?: string,
-  ) {
+  ): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, auth.tenantId, () => this.update(auth, id, input, ifMatch));
     if (!Object.entries(input).some(([key, value]) => key !== 'reason' && value !== undefined))
       throw new BadRequestException('At least one field is required');
     if ((input.role || input.status) && !input.reason?.trim())
