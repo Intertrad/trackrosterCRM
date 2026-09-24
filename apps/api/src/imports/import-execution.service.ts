@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { EstablishmentContactRepository } from '../establishment-contacts/establishment-contact.repository.js';
 import { EstablishmentContactService } from '../establishment-contacts/establishment-contact.service.js';
 import { EstablishmentService } from '../establishments/establishment.service.js';
@@ -36,6 +38,10 @@ export class ImportExecutionService {
   ) {}
 
   async executeCsv(tenantId: string, csvContent: string): Promise<ImportExecutionResult> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.database, tenantId, () =>
+        this.executeCsv(tenantId, csvContent),
+      );
     /*
      * Never trust preview data returned
      * by the frontend.
