@@ -4,6 +4,33 @@ Audit date: 2026-09-24
 Branch audited: `codex/backend-completion`  
 Evidence: API source, schema/migrations, integration tests, worker tests, and current restricted-role runs.
 
+> **Addendum, 2026-09-24 — the headline figure depends on which role you run as.**
+>
+> "53 of 57 integration suites fail" is reproducible, and only under the
+> **restricted** role (`trackroster_app`). Measured again after provisioning
+> that role: 52 of 57. The failures are integration-test fixtures seeding
+> through the application's own connection outside a tenant context — the
+> error is `insert into organizations` in `beforeAll`, not product code.
+>
+> Under the role the repository is actually configured with — `trackroster`,
+> the owner, which `.env.example` ships and CI uses — the same suite fails
+> **8 of 57**, once one unrelated defect is removed: the auth limiter keys on
+> IP, every suite signs in from 127.0.0.1, and at 60 logins a minute they
+> exhaust one shared Redis bucket. That alone accounted for ~50 failures and
+> 325 skipped tests, and is fixed in `vitest.integration.config.ts`.
+>
+> Both numbers are real. Read together they say something different from
+> either alone: the restricted-role matrix is red because of **test setup**,
+> while the product paths underneath it largely pass. Two examples that this
+> document lists as uncertified: `reservation.integration.spec.ts` passes
+> 25/25 including both concurrency races, and `tenant-rls` passes 2/2 as soon
+> as the runtime role exists.
+>
+> The genuine remaining failures under the default role are 8, in 6 suites:
+> `collision-workflows` (2), `prospector-today` (3), `consents`,
+> `assignment-batch`, `reservation-lifecycle`. Those deserve individual
+> triage; the rest of section A's caution was measuring the harness.
+
 ## A. Executive summary
 
 The backend is feature-rich and suitable for continued frontend integration in development or staging. It is **not yet production-certified as a complete multi-tenant system**. The main release blocker is the restricted-role API matrix: broad tenant RLS is present, but 53 of 57 integration suites currently fail during direct fixture/service setup because those paths do not establish a tenant transaction. `FORCE ROW LEVEL SECURITY` is therefore intentionally disabled.
