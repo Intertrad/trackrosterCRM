@@ -9,6 +9,7 @@ import { identities, platformAccessGrants } from '../database/schema/index.js';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { PlatformGrantDto, PlatformGrantRevokeDto } from './platform-user.dto.js';
 
 @Controller('platform/users')
 @UseGuards(AuthGuard, PlatformAdminGuard)
@@ -38,7 +39,7 @@ export class PlatformUserController {
   @Post(':identityId/grants')
   async grant(
     @Param('identityId') identityId: string,
-    @Body() body: { role: 'super_admin' | 'support_operator'; reason: string },
+    @Body() body: PlatformGrantDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
     const [grant] = await this.db
@@ -68,7 +69,7 @@ export class PlatformUserController {
   async revoke(
     @Param('identityId') identityId: string,
     @Param('grantId') grantId: string,
-    @Body() body: { reason: string },
+    @Body() body: PlatformGrantRevokeDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
     const [grant] = await this.db

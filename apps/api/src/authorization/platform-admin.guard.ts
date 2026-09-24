@@ -19,6 +19,7 @@ export class PlatformAdminGuard implements CanActivate {
       .where(
         and(
           eq(platformAccessGrants.identityId, identityId),
+          eq(platformAccessGrants.role, 'super_admin'),
           isNull(platformAccessGrants.revokedAt),
         ),
       )
