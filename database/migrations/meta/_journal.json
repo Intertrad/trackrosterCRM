@@ -484,6 +484,13 @@
       "when": 1790165829915,
       "tag": "0068_integrations_api_clients_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790236505190,
+      "tag": "0069_tenant_platform_config",
+      "breakpoints": true
     }
   ]
 }
