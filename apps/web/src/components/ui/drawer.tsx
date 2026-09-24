@@ -1,14 +1,18 @@
 'use client';
 
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { X } from 'lucide-react';
 
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
+import { useFocusTrap } from '@/lib/ui/use-focus-trap';
 
 /*
- * Right-hand drawer used for action completion and detail panels. It traps
- * focus and restores it on close so a keyboard user is never dropped back at
- * the top of a long list after logging an outcome.
+ * Right-hand drawer used for action completion and detail panels.
+ *
+ * Focus is trapped and restored by the shared hook the dialog also uses —
+ * this previously only moved focus in, so Tab walked straight out into the
+ * page behind a panel that still called itself modal.
  */
 export function Drawer({
   open,
@@ -25,30 +29,11 @@ export function Drawer({
   footer?: ReactNode;
   headerAccessory?: ReactNode;
 }) {
+  const { t } = useTranslation();
+
   const panelRef = useRef<HTMLDivElement>(null);
-  const previouslyFocused = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    previouslyFocused.current = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      previouslyFocused.current?.focus();
-    };
-  }, [onClose, open]);
+  useFocusTrap(panelRef, open, onClose);
 
   if (!open) {
     return null;
@@ -56,12 +41,14 @@ export function Drawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        type="button"
-        aria-label="Close panel"
-        onClick={onClose}
-        className="absolute inset-0 bg-navy/35"
-      />
+      {/*
+        Decorative: clicking away dismisses, but the backdrop carries no
+        accessible name of its own. As a labelled button it was a second
+        "Close" control the size of the screen, which a screen reader
+        announced before the real one. Keyboard users have Escape and the
+        close button in the header.
+      */}
+      <div aria-hidden="true" onClick={onClose} className="absolute inset-0 bg-navy/35" />
 
       <div
         ref={panelRef}
@@ -83,7 +70,7 @@ export function Drawer({
             <button
               type="button"
               onClick={onClose}
-              aria-label="Close panel"
+              aria-label={t('common.close')}
               className="text-ink-muted transition-colors hover:text-ink"
             >
               <X aria-hidden="true" className="size-5" />
