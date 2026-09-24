@@ -8,6 +8,8 @@ import {
   type UserAccessGrant,
 } from '../database/schema/user-access-grants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 
 @Injectable()
 export class UserAccessGrantRepository {
@@ -20,6 +22,9 @@ export class UserAccessGrantRepository {
     input: NewUserAccessGrant,
     executor: DatabaseExecutor = this.database,
   ): Promise<UserAccessGrant> {
+    if (!currentTenantExecutor() && this.database) {
+      return withTenantContext(this.database, input.tenantId, (tx) => this.create(input, tx));
+    }
     const [grant] = await executor.insert(userAccessGrants).values(input).returning();
 
     if (!grant) {
@@ -34,6 +39,11 @@ export class UserAccessGrantRepository {
     grantId: string,
     executor: DatabaseExecutor = this.database,
   ): Promise<UserAccessGrant | null> {
+    if (!currentTenantExecutor() && this.database) {
+      return withTenantContext(this.database, tenantId, (tx) =>
+        this.findById(tenantId, grantId, tx),
+      );
+    }
     const [grant] = await executor
       .select()
       .from(userAccessGrants)
@@ -54,6 +64,11 @@ export class UserAccessGrantRepository {
     userId: string,
     executor: DatabaseExecutor = this.database,
   ): Promise<UserAccessGrant[]> {
+    if (!currentTenantExecutor() && this.database) {
+      return withTenantContext(this.database, tenantId, (tx) =>
+        this.findByUser(tenantId, userId, tx),
+      );
+    }
     return executor
       .select()
       .from(userAccessGrants)
@@ -72,6 +87,11 @@ export class UserAccessGrantRepository {
     grantId: string,
     executor: DatabaseExecutor = this.database,
   ): Promise<boolean> {
+    if (!currentTenantExecutor() && this.database) {
+      return withTenantContext(this.database, tenantId, (tx) =>
+        this.deleteById(tenantId, userId, grantId, tx),
+      );
+    }
     const [grant] = await executor
       .delete(userAccessGrants)
       .where(
@@ -96,6 +116,11 @@ export class UserAccessGrantRepository {
     grantId: string,
     executor: DatabaseExecutor = this.database,
   ): Promise<UserAccessGrant | null> {
+    if (!currentTenantExecutor() && this.database) {
+      return withTenantContext(this.database, tenantId, (tx) =>
+        this.findByIdForUser(tenantId, userId, grantId, tx),
+      );
+    }
     const [grant] = await executor
       .select()
       .from(userAccessGrants)
