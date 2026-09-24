@@ -63,6 +63,37 @@ export class IntegrationsService {
       .set({ status: 'revoked', updatedAt: sql`clock_timestamp()` })
       .where(and(eq(integrations.tenantId, a.tenantId), eq(integrations.id, id)));
   }
+  async health(a: Auth, provider: string) {
+    const [row] = await this.db
+      .select({
+        status: integrations.status,
+        config: integrations.config,
+        updatedAt: integrations.updatedAt,
+      })
+      .from(integrations)
+      .where(
+        and(
+          eq(integrations.tenantId, a.tenantId),
+          eq(integrations.provider, provider),
+          eq(integrations.connectedBy, a.membershipId),
+        ),
+      )
+      .limit(1);
+    if (!row) return { provider, connected: false, healthy: false, reason: 'not_connected' };
+    const config = row.config as { encryptedTokens?: string; tokenUpdatedAt?: string };
+    const tokenPresent = Boolean(config.encryptedTokens);
+    const tokenAge = config.tokenUpdatedAt
+      ? Date.now() - Date.parse(config.tokenUpdatedAt)
+      : Infinity;
+    return {
+      provider,
+      connected: row.status === 'connected',
+      healthy: row.status === 'connected' && tokenPresent,
+      tokenUpdatedAt: config.tokenUpdatedAt ?? null,
+      stale: tokenAge > 24 * 60 * 60 * 1000,
+      updatedAt: row.updatedAt,
+    };
+  }
   async clients(a: Auth) {
     return this.db
       .select({
@@ -250,6 +281,12 @@ export class IntegrationsController {
     @Param('integrationId', ParseUUIDPipe) id: string,
   ) {
     return this.test(a, id);
+  }
+  @Get('integrations/:provider/health') health(
+    @CurrentAuth() a: Auth,
+    @Param('provider') provider: string,
+  ) {
+    return this.s.health(a, provider);
   }
   @Delete('integrations/:integrationId') @HttpCode(204) remove(
     @CurrentAuth() a: Auth,
