@@ -44,7 +44,6 @@ describe('TenantService', () => {
       name: 'Intertrad',
       slug: 'intertrad',
       status: 'active',
-      platformConfig: {},
     });
   });
 

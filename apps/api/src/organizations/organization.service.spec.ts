@@ -67,7 +67,6 @@ describe('OrganizationService', () => {
       name: 'France Sales',
       slug: 'france-sales',
       status: 'active',
-      platformConfig: {},
     });
   });
 
