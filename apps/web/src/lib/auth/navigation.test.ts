@@ -9,18 +9,18 @@ import type { WorkspaceMode } from './workspace';
 
 const MODES: WorkspaceMode[] = ['admin', 'director', 'manager', 'prospector', 'observer'];
 
-function labels(items: WorkspaceNavigationItem[]): string[] {
+function labelKeys(items: WorkspaceNavigationItem[]): string[] {
   return items.map((item) => item.label);
 }
 
 describe('workspace navigation', () => {
   it('gives the prospector the operational order from the design handoff', () => {
-    expect(labels(getNavigationForWorkspace('prospector'))).toEqual([
-      'Today',
-      'My prospects',
-      'Map',
-      'Actions',
-      'Messages',
+    expect(labelKeys(getNavigationForWorkspace('prospector'))).toEqual([
+      'nav.today',
+      'nav.workQueue',
+      'nav.map',
+      'nav.actions',
+      'nav.messages',
     ]);
   });
 
@@ -43,17 +43,17 @@ describe('workspace navigation', () => {
   });
 
   it('gives the manager the oversight order from the design handoff', () => {
-    expect(labels(getNavigationForWorkspace('manager'))).toEqual([
-      'Overview',
-      'Team',
-      'Campaigns',
-      'Assignments',
-      'Collision center',
-      'Approvals',
-      'Reports',
-      'Exports',
-      'Messages',
-      'Search',
+    expect(labelKeys(getNavigationForWorkspace('manager'))).toEqual([
+      'nav.overview',
+      'nav.team',
+      'nav.campaigns',
+      'nav.assignments',
+      'nav.collisions',
+      'nav.approvals',
+      'nav.reports',
+      'nav.exports',
+      'nav.messages',
+      'nav.search',
     ]);
   });
 
@@ -61,7 +61,7 @@ describe('workspace navigation', () => {
     const items = getNavigationForWorkspace('observer');
 
     /* The role has no write path, so nothing here may link to a mutation. */
-    expect(labels(items)).toEqual(['Overview', 'Audit']);
+    expect(labelKeys(items)).toEqual(['nav.overview', 'nav.audit']);
   });
 
   it.each(MODES)('never gives a planned item an href in %s navigation', (mode) => {

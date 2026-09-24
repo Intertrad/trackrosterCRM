@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth/auth-context';
+import { SessionLanguage } from '@/lib/i18n/session-language';
 
 /*
  * The dossier specifies Inter Display for titles and key figures and
@@ -35,7 +36,9 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <SessionLanguage>{children}</SessionLanguage>
+        </AuthProvider>
       </body>
     </html>
   );

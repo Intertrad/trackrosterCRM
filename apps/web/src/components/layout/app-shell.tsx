@@ -18,6 +18,7 @@ import {
   type WorkspaceNavigationItem,
 } from '@/lib/auth/navigation';
 import { getWorkspaceModeLabel } from '@/lib/auth/workspace';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 const COLLAPSE_STORAGE_KEY = 'trackroster.sidebar.collapsed';
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   const { user, activeWorkspace, status, sessionError, refreshSession } = useAuth();
+  const { t } = useTranslation();
 
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -126,7 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        <nav aria-label="Workspace" className="flex-1 overflow-y-auto px-3 py-6">
+        <nav aria-label={t('nav.workspace')} className="flex-1 overflow-y-auto px-3 py-6">
           <ul className="flex flex-col gap-2">
             {items.map((item) => (
               <li key={item.id}>
@@ -192,6 +194,8 @@ function SidebarItem({
   pathname: string;
   collapsed: boolean;
 }) {
+  const { t } = useTranslation();
+
   const active = isNavigationItemActive(pathname, item);
 
   const shared = cn(
@@ -204,12 +208,12 @@ function SidebarItem({
     return (
       <span
         aria-disabled="true"
-        title={`${item.label} is not available yet`}
+        title={t('nav.unavailable', { label: t(item.label) })}
         className={cn(shared, 'cursor-not-allowed font-semibold text-white/35')}
       >
         <NavIcon id={item.icon} className="size-5 shrink-0" />
 
-        {!collapsed ? <span className="truncate">{item.label}</span> : null}
+        {!collapsed ? <span className="truncate">{t(item.label)}</span> : null}
       </span>
     );
   }
@@ -229,7 +233,7 @@ function SidebarItem({
           position is readable at a glance without reading a label. */}
       <NavIcon id={item.icon} className={cn('size-5 shrink-0', active && 'text-lime')} />
 
-      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      {!collapsed ? <span className="truncate">{t(item.label)}</span> : null}
     </Link>
   );
 }
@@ -247,13 +251,15 @@ function MobileNav({
   moreOpen: boolean;
   onToggleMore: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <>
       {moreOpen ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
             type="button"
-            aria-label="Close menu"
+            aria-label={t('common.close')}
             onClick={onToggleMore}
             className="absolute inset-0 bg-navy/45"
           />
@@ -263,12 +269,12 @@ function MobileNav({
             style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-[17px] font-bold text-navy">More</h2>
+              <h2 className="text-[17px] font-bold text-navy">{t('nav.more')}</h2>
 
               <button
                 type="button"
                 onClick={onToggleMore}
-                aria-label="Close menu"
+                aria-label={t('common.close')}
                 className="text-ink-muted hover:text-ink"
               >
                 <X aria-hidden="true" className="size-5" />
@@ -288,7 +294,7 @@ function MobileNav({
                   className="flex items-center gap-3 rounded-lg px-3 py-3 text-[15px] font-semibold text-ink hover:bg-surface-muted"
                 >
                   <Settings aria-hidden="true" className="size-5 text-ink-muted" />
-                  Account settings
+                  {t('account.settings')}
                 </Link>
               </li>
             </ul>
@@ -297,7 +303,7 @@ function MobileNav({
       ) : null}
 
       <nav
-        aria-label="Primary"
+        aria-label={t('nav.primary')}
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-line-soft bg-surface lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
@@ -309,7 +315,7 @@ function MobileNav({
             <>
               <NavIcon id={item.icon} className="size-[22px]" />
 
-              <span className="truncate text-[11px] font-semibold">{item.label}</span>
+              <span className="truncate text-[11px] font-semibold">{t(item.label)}</span>
             </>
           );
 
@@ -348,13 +354,15 @@ function MobileNav({
 }
 
 function MobileMoreItem({ item }: { item: WorkspaceNavigationItem }) {
+  const { t } = useTranslation();
+
   const shared = 'flex items-center gap-3 rounded-lg px-3 py-3 text-[15px] font-semibold';
 
   if (item.availability === 'planned' || !item.href) {
     return (
       <span aria-disabled="true" className={cn(shared, 'text-ink-muted/55')}>
         <NavIcon id={item.icon} className="size-5" />
-        {item.label}
+        {t(item.label)}
       </span>
     );
   }
@@ -362,7 +370,7 @@ function MobileMoreItem({ item }: { item: WorkspaceNavigationItem }) {
   return (
     <Link href={item.href} className={cn(shared, 'text-ink hover:bg-surface-muted')}>
       <NavIcon id={item.icon} className="size-5 text-ink-muted" />
-      {item.label}
+      {t(item.label)}
     </Link>
   );
 }

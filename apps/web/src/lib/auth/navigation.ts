@@ -1,3 +1,4 @@
+import type { MessageKey } from '@/lib/i18n/dictionary';
 import { isAvailable, type FeatureKey } from '@/lib/readiness/feature-readiness';
 
 import type { WorkspaceMode } from './workspace';
@@ -47,7 +48,13 @@ export type NavigationIconId =
 interface WorkspaceNavigationItemBase {
   id: NavigationItemId;
 
-  label: string;
+  /**
+   * Message key, not a string.
+   *
+   * The sidebar is the most-read text in the product; leaving English here
+   * would mean a French account sees a translated page under an English menu.
+   */
+  label: MessageKey;
 
   icon: NavigationIconId;
 
@@ -75,7 +82,7 @@ export type WorkspaceNavigationItem = WorkspaceNavigationItemBase &
 
 const OVERVIEW: WorkspaceNavigationItem = {
   id: 'overview',
-  label: 'Overview',
+  label: 'nav.overview',
   icon: 'dashboard',
   href: '/',
   availability: 'ready',
@@ -131,7 +138,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
       return [
         {
           id: 'administration',
-          label: 'Overview',
+          label: 'nav.overview',
           icon: 'administration',
           href: '/admin/overview',
           availability: 'ready',
@@ -139,7 +146,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'users',
-          label: 'Users & roles',
+          label: 'nav.users',
           icon: 'team',
           href: '/admin/users',
           availability: 'ready',
@@ -147,7 +154,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'imports',
-          label: 'Imports',
+          label: 'nav.imports',
           icon: 'imports',
           href: '/admin/imports',
           availability: 'ready',
@@ -155,7 +162,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'audit',
-          label: 'Audit',
+          label: 'nav.audit',
           icon: 'audit',
           href: '/admin/audit',
           availability: 'ready',
@@ -163,15 +170,15 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'dashboard',
-          label: 'Team overview',
+          label: 'nav.dashboard',
           icon: 'dashboard',
           href: '/manager/overview',
           availability: 'ready',
         },
-        { id: 'overrides', label: 'Overrides', icon: 'overrides', availability: 'planned' },
+        { id: 'overrides', label: 'nav.overrides', icon: 'overrides', availability: 'planned' },
         {
           id: 'search',
-          label: 'Search',
+          label: 'nav.search',
           icon: 'prospects',
           href: '/search',
           availability: 'ready',
@@ -188,7 +195,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
       return [
         {
           id: 'overview',
-          label: 'Overview',
+          label: 'nav.overview',
           icon: 'dashboard',
           href: '/director/overview',
           availability: 'ready',
@@ -196,7 +203,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'dashboard',
-          label: 'Team overview',
+          label: 'nav.dashboard',
           icon: 'team',
           href: '/manager/overview',
           availability: 'ready',
@@ -204,7 +211,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'reports',
-          label: 'Reports',
+          label: 'nav.reports',
           icon: 'reports',
           href: '/manager/reports',
           availability: 'ready',
@@ -212,7 +219,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'overrides',
-          label: 'Approvals',
+          label: 'nav.approvals',
           icon: 'overrides',
           href: '/manager/approvals',
           availability: 'ready',
@@ -220,21 +227,21 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'exports',
-          label: 'Exports',
+          label: 'nav.exports',
           icon: 'imports',
           href: '/manager/exports',
           availability: 'ready',
         },
         {
           id: 'collisions',
-          label: 'Collision center',
+          label: 'nav.collisions',
           icon: 'collisions',
           href: '/manager/collisions',
           availability: 'ready',
         },
         {
           id: 'search',
-          label: 'Search',
+          label: 'nav.search',
           icon: 'prospects',
           href: '/search',
           availability: 'ready',
@@ -245,7 +252,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
       return [
         {
           id: 'overview',
-          label: 'Overview',
+          label: 'nav.overview',
           icon: 'dashboard',
           href: '/manager/overview',
           availability: 'ready',
@@ -253,21 +260,21 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'team',
-          label: 'Team',
+          label: 'nav.team',
           icon: 'team',
           href: '/manager/team',
           availability: 'ready',
         },
         {
           id: 'campaigns',
-          label: 'Campaigns',
+          label: 'nav.campaigns',
           icon: 'campaigns',
           href: '/manager/campaigns',
           availability: 'ready',
         },
         {
           id: 'assignments',
-          label: 'Assignments',
+          label: 'nav.assignments',
           icon: 'assignments',
           href: '/manager/assignments',
           availability: 'ready',
@@ -275,14 +282,14 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'collisions',
-          label: 'Collision center',
+          label: 'nav.collisions',
           icon: 'collisions',
           href: '/manager/collisions',
           availability: 'ready',
         },
         {
           id: 'overrides',
-          label: 'Approvals',
+          label: 'nav.approvals',
           icon: 'overrides',
           href: '/manager/approvals',
           availability: 'ready',
@@ -290,7 +297,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'reports',
-          label: 'Reports',
+          label: 'nav.reports',
           icon: 'reports',
           href: '/manager/reports',
           availability: 'ready',
@@ -298,21 +305,21 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'exports',
-          label: 'Exports',
+          label: 'nav.exports',
           icon: 'imports',
           href: '/manager/exports',
           availability: 'ready',
         },
         {
           id: 'messages',
-          label: 'Messages',
+          label: 'nav.messages',
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
         },
         {
           id: 'search',
-          label: 'Search',
+          label: 'nav.search',
           icon: 'prospects',
           href: '/search',
           availability: 'ready',
@@ -323,7 +330,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
       return [
         {
           id: 'overview',
-          label: 'Today',
+          label: 'nav.today',
           icon: 'today',
           href: '/',
           availability: 'ready',
@@ -331,7 +338,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'work_queue',
-          label: 'My prospects',
+          label: 'nav.workQueue',
           icon: 'prospects',
           href: '/work-queue',
           availability: 'ready',
@@ -339,7 +346,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'map',
-          label: 'Map',
+          label: 'nav.map',
           icon: 'map',
           href: '/map',
           availability: 'ready',
@@ -347,7 +354,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'follow_ups',
-          label: 'Actions',
+          label: 'nav.actions',
           icon: 'actions',
           href: '/follow-ups',
           availability: 'ready',
@@ -355,7 +362,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'messages',
-          label: 'Messages',
+          label: 'nav.messages',
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
@@ -367,7 +374,10 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
        * Observer screens are added only once their read contracts are frozen;
        * the role has no write path by design.
        */
-      return [OVERVIEW, { id: 'audit', label: 'Audit', icon: 'audit', availability: 'planned' }];
+      return [
+        OVERVIEW,
+        { id: 'audit', label: 'nav.audit', icon: 'audit', availability: 'planned' },
+      ];
   }
 }
 

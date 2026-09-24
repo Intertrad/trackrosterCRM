@@ -32,6 +32,9 @@ export interface SelfAccessContext extends AuthenticatedUser {
 
   displayName: string | null;
 
+  /** Stored on the membership; drives both wording and date formatting. */
+  locale: string;
+
   grants: SelfAccessGrant[];
 }
 

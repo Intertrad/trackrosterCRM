@@ -1,5 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { and, eq } from 'drizzle-orm';
 
+import { DATABASE } from '../database/database.constants.js';
+import type { Database } from '../database/database.types.js';
+import { accountSettings } from '../database/schema/index.js';
 import { UserRepository } from '../users/user.repository.js';
 import { AuthorizationService } from './authorization.service.js';
 import type { SelfAccessContext, SelfAccessGrant } from './self-access.types.js';
@@ -18,6 +22,9 @@ export class SelfAccessService {
 
     @Inject(UserRepository)
     private readonly userRepository: UserRepository,
+
+    @Inject(DATABASE)
+    private readonly database: Database,
   ) {}
 
   async getContext(input: GetSelfAccessContextInput): Promise<SelfAccessContext> {
@@ -28,6 +35,19 @@ export class SelfAccessService {
     }
 
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
+
+    /* A membership that has never opened its settings has no row yet; the
+     * column default is the same 'en' the account endpoints fall back to. */
+    const [settings] = await this.database
+      .select({ locale: accountSettings.locale })
+      .from(accountSettings)
+      .where(
+        and(
+          eq(accountSettings.tenantId, input.tenantId),
+          eq(accountSettings.membershipId, input.userId),
+        ),
+      )
+      .limit(1);
 
     const responseGrants: SelfAccessGrant[] = grants
       .map((grant) => ({
@@ -55,6 +75,8 @@ export class SelfAccessService {
       email: user.email,
 
       displayName: user.displayName,
+
+      locale: settings?.locale ?? 'en',
 
       grants: responseGrants,
     };

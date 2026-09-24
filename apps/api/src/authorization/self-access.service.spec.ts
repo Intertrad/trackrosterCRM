@@ -5,6 +5,7 @@ import type { UserAccessGrant } from '../database/schema/user-access-grants.js';
 import { UserRepository } from '../users/user.repository.js';
 import { AuthorizationService } from './authorization.service.js';
 import { SelfAccessService } from './self-access.service.js';
+import type { Database } from '../database/database.types.js';
 
 describe('SelfAccessService', () => {
   let authorizationService: {
@@ -20,6 +21,8 @@ describe('SelfAccessService', () => {
   const tenantId = '11111111-1111-4111-8111-111111111111';
 
   const userId = '22222222-2222-4222-8222-222222222222';
+
+  let databaseRows: Array<{ locale: string }> = [];
 
   beforeEach(() => {
     authorizationService = {
@@ -46,10 +49,26 @@ describe('SelfAccessService', () => {
       }),
     };
 
+    /* Only the settings lookup is exercised here; the locale falls back to the
+     * column default when a membership has never saved preferences. */
+    databaseRows = [];
+
+    const database = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: () => Promise.resolve(databaseRows),
+          }),
+        }),
+      }),
+    };
+
     service = new SelfAccessService(
       authorizationService as unknown as AuthorizationService,
 
       userRepository as unknown as UserRepository,
+
+      database as unknown as Database,
     );
   });
 
@@ -88,6 +107,8 @@ describe('SelfAccessService', () => {
       }),
     ).resolves.toEqual({
       userId,
+
+      locale: 'en',
 
       tenantId,
 
@@ -141,6 +162,8 @@ describe('SelfAccessService', () => {
       }),
     ).resolves.toEqual({
       userId,
+
+      locale: 'en',
 
       tenantId,
 

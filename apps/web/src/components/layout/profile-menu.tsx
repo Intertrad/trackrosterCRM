@@ -8,6 +8,7 @@ import { Building2, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { browserJson } from '@/lib/api/browser-json';
 import { clearChallenges } from '@/lib/auth/auth-challenge';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 import { getInitials } from '@/lib/ui/initials';
 
@@ -33,6 +34,7 @@ export function ProfileMenu({
 }) {
   const router = useRouter();
   const { refreshSession } = useAuth();
+  const { t } = useTranslation();
 
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -154,7 +156,7 @@ export function ProfileMenu({
             className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
           >
             <Settings aria-hidden="true" className="size-[18px] text-ink-muted" />
-            Account settings
+            {t('account.settings')}
           </Link>
 
           <Link
@@ -164,7 +166,7 @@ export function ProfileMenu({
             className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
           >
             <Building2 aria-hidden="true" className="size-[18px] text-ink-muted" />
-            Switch workspace
+            {t('account.switchWorkspace')}
           </Link>
 
           <button
@@ -175,7 +177,7 @@ export function ProfileMenu({
             className="flex w-full items-center gap-3 border-t border-line-soft px-4 py-2.5 text-left text-[14px] font-semibold text-danger transition-colors hover:bg-danger-bg disabled:opacity-60"
           >
             <LogOut aria-hidden="true" className="size-[18px]" />
-            {signingOut ? 'Signing out…' : 'Sign out'}
+            {signingOut ? t('account.signingOut') : t('account.signOut')}
           </button>
         </div>
       ) : null}

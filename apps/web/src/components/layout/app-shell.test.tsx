@@ -17,6 +17,8 @@ vi.mock('next/navigation', () => ({
   usePathname: pathnameMock,
 }));
 
+import { I18nProvider } from '@/lib/i18n/i18n-context';
+
 import { AppShell } from './app-shell';
 
 function authenticated(mode = 'prospector', overrides: Record<string, unknown> = {}) {
@@ -57,6 +59,24 @@ describe('AppShell', () => {
     /* And nothing else: Routes, Logged actions and Search were taken out of
      * the prospector sidebar deliberately. */
     expect(within(sidebar).getAllByRole('link')).toHaveLength(5);
+  });
+
+  it('renders the sidebar in the language the membership stores', () => {
+    authenticated();
+
+    render(
+      <I18nProvider locale="fr-FR">
+        <AppShell>content</AppShell>
+      </I18nProvider>,
+    );
+
+    const sidebar = screen.getByRole('navigation', { name: 'Espace de travail' });
+
+    /* The sidebar is the most-read text in the product: an English menu above a
+     * French page is the tell that i18n was bolted on. */
+    expect(within(sidebar).getByRole('link', { name: "Aujourd'hui" })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('link', { name: 'Mes prospects' })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole('link', { name: 'Today' })).not.toBeInTheDocument();
   });
 
   it('never renders a link for a screen that does not exist', () => {
