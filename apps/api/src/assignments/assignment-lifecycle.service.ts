@@ -9,6 +9,8 @@ import { and, eq, gt, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import {
   auditEvents,
   campaignProspectAssignments as assignments,
@@ -50,7 +52,9 @@ export class AssignmentLifecycleService {
     await this.batches.authorize(a, r.campaignId, [r.teamId], tx);
     return r;
   }
-  async list(a: AuthenticatedPrincipal, q: AssignmentListDto) {
+  async list(a: AuthenticatedPrincipal, q: AssignmentListDto): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, a.tenantId, () => this.list(a, q));
     const rows = await this.db
       .select()
       .from(assignments)
@@ -72,7 +76,9 @@ export class AssignmentLifecycleService {
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
     };
   }
-  async detail(a: AuthenticatedPrincipal, id: string) {
+  async detail(a: AuthenticatedPrincipal, id: string): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, a.tenantId, () => this.detail(a, id));
     const r = await this.row(a, id);
     const history = await this.db
       .select()
@@ -111,7 +117,9 @@ export class AssignmentLifecycleService {
       })),
     };
   }
-  async unassigned(a: AuthenticatedPrincipal, q: UnassignedListDto) {
+  async unassigned(a: AuthenticatedPrincipal, q: UnassignedListDto): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, a.tenantId, () => this.unassigned(a, q));
     await this.batches.authorize(a, q.campaignId, q.teamId ? [q.teamId] : null);
     const rows = await this.db.execute(
       sql`SELECT cp.id AS "campaignProspectId",cp.campaign_id AS "campaignId",cp.establishment_id AS "establishmentId",e.name FROM campaign_prospects cp JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id JOIN establishments e ON e.tenant_id=cp.tenant_id AND e.id=cp.establishment_id WHERE cp.tenant_id=${a.tenantId} AND cp.campaign_id=${q.campaignId} AND cp.status='active' AND c.status NOT IN ('completed','archived') AND e.status='active' AND NOT EXISTS(SELECT 1 FROM campaign_prospect_assignments x WHERE x.tenant_id=cp.tenant_id AND x.campaign_prospect_id=cp.id AND x.ended_at IS NULL) ${q.cursor ? sql`AND cp.id>${q.cursor}::uuid` : sql``} ORDER BY cp.id LIMIT ${q.limit + 1}`,
@@ -121,7 +129,9 @@ export class AssignmentLifecycleService {
       nextCursor: rows.rows.length > q.limit ? rows.rows[q.limit - 1]!.campaignProspectId : null,
     };
   }
-  async create(a: AuthenticatedPrincipal, b: CreateAssignmentDto) {
+  async create(a: AuthenticatedPrincipal, b: CreateAssignmentDto): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, a.tenantId, () => this.create(a, b));
     const result = await this.batches.run(
       a,
       {
@@ -140,7 +150,9 @@ export class AssignmentLifecycleService {
     op: 'update' | 'complete' | 'revoke' | 'reassign',
     b: UpdateAssignmentDto | AssignmentEndDto | ReassignAssignmentDto,
     version?: string,
-  ) {
+  ): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, a.tenantId, () => this.mutate(a, id, op, b, version));
     if (Object.values(b).some((v) => v === null) && !('teamId' in b))
       throw new BadRequestException('Fields cannot be null');
     if (op === 'update' && !Object.values(b).some((v) => v !== undefined))

@@ -11,6 +11,8 @@ import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import {
   actions,
   actionEvents,
@@ -100,7 +102,9 @@ export class ActionService {
         message: 'Prospect opposition blocks this contact channel',
       });
   }
-  async list(auth: AuthenticatedPrincipal, q: ListActionsDto) {
+  async list(auth: AuthenticatedPrincipal, q: ListActionsDto): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, auth.tenantId, () => this.list(auth, q));
     const rows = await this.db
       .select()
       .from(actions)
@@ -123,7 +127,9 @@ export class ActionService {
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
     };
   }
-  async detail(auth: AuthenticatedPrincipal, id: string) {
+  async detail(auth: AuthenticatedPrincipal, id: string): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, auth.tenantId, () => this.detail(auth, id));
     const action = await this.authorize(auth, id);
     const [outcome] = await this.db
       .select()
@@ -139,7 +145,9 @@ export class ActionService {
       .where(and(eq(actionEffects.tenantId, auth.tenantId), eq(actionEffects.actionId, id)));
     return { ...action, etag: resourceETag(action), outcome: outcome ?? null, effects };
   }
-  async events(auth: AuthenticatedPrincipal, id: string, q: ListActionsDto) {
+  async events(auth: AuthenticatedPrincipal, id: string, q: ListActionsDto): Promise<any> {
+    if (!currentTenantExecutor())
+      return withTenantContext(this.db, auth.tenantId, () => this.events(auth, id, q));
     await this.authorize(auth, id);
     const rows = await this.db
       .select()
