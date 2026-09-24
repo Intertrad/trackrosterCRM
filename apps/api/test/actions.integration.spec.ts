@@ -112,61 +112,91 @@ describe('Actions, outcomes and unified timelines', () => {
     await db
       .insert(identities)
       .values(actors.map((id) => ({ id, email: `${id}@example.test`, passwordHash })));
-    await db.insert(tenantMemberships).values(
-      actors.map((id) => ({
-        id,
-        identityId: id,
-        tenantId: id === foreign ? foreignTenantId : tenantId,
-        status: 'active' as const,
-        activatedAt: sql`now()`,
-      })),
-    );
-    await db.insert(userAccessGrants).values([
-      { tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' },
-      { tenantId: foreignTenantId, userId: foreign, role: 'client_admin', scopeType: 'tenant' },
-      {
-        tenantId,
-        userId: member,
-        role: 'prospector',
-        scopeType: 'team',
-        organizationId: org,
-        teamId: team,
-      },
-    ]);
-    await db.insert(campaigns).values(
-      [campaign, otherCampaign].map((id) => ({
-        id,
-        tenantId,
-        organizationId: org,
-        name: id,
-        status: 'active' as const,
-      })),
-    );
-    await db.insert(establishments).values(
-      [establishment, otherEstablishment].map((id) => ({
-        id,
-        tenantId,
-        name: id,
-        normalizedName: id,
-        countryCode: 'FR',
-      })),
-    );
-    await db.insert(establishmentContacts).values([
-      { id: contact, tenantId, establishmentId: establishment, name: 'Contact' },
-      { id: otherContact, tenantId, establishmentId: otherEstablishment, name: 'Other' },
-    ]);
-    await db.insert(campaignProspects).values([
-      { id: prospect, tenantId, campaignId: campaign, establishmentId: establishment },
-      { id: otherProspect, tenantId, campaignId: otherCampaign, establishmentId: establishment },
-    ]);
-    await db.insert(campaignProspectAssignments).values({
-      id: assignment,
-      tenantId,
-      campaignId: campaign,
-      campaignProspectId: prospect,
-      organizationId: org,
-      teamId: team,
-      assignedUserId: member,
+    await withTenantContext(db, tenantId, async (tx) => {
+      await tx
+        .insert(tenantMemberships)
+        .values(
+          actors
+            .filter((id) => id !== foreign)
+            .map((id) => ({
+              id,
+              identityId: id,
+              tenantId,
+              status: 'active' as const,
+              activatedAt: sql`now()`,
+            })),
+        );
+      await tx.insert(userAccessGrants).values([
+        { tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' },
+        {
+          tenantId,
+          userId: member,
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId: org,
+          teamId: team,
+        },
+      ]);
+      await tx
+        .insert(campaigns)
+        .values(
+          [campaign, otherCampaign].map((id) => ({
+            id,
+            tenantId,
+            organizationId: org,
+            name: id,
+            status: 'active' as const,
+          })),
+        );
+      await tx
+        .insert(establishments)
+        .values(
+          [establishment, otherEstablishment].map((id) => ({
+            id,
+            tenantId,
+            name: id,
+            normalizedName: id,
+            countryCode: 'FR',
+          })),
+        );
+      await tx.insert(establishmentContacts).values([
+        { id: contact, tenantId, establishmentId: establishment, name: 'Contact' },
+        { id: otherContact, tenantId, establishmentId: otherEstablishment, name: 'Other' },
+      ]);
+      await tx.insert(campaignProspects).values([
+        { id: prospect, tenantId, campaignId: campaign, establishmentId: establishment },
+        { id: otherProspect, tenantId, campaignId: otherCampaign, establishmentId: establishment },
+      ]);
+      await tx
+        .insert(campaignProspectAssignments)
+        .values({
+          id: assignment,
+          tenantId,
+          campaignId: campaign,
+          campaignProspectId: prospect,
+          organizationId: org,
+          teamId: team,
+          assignedUserId: member,
+        });
+    });
+    await withTenantContext(db, foreignTenantId, async (tx) => {
+      await tx
+        .insert(tenantMemberships)
+        .values({
+          id: foreign,
+          identityId: foreign,
+          tenantId: foreignTenantId,
+          status: 'active',
+          activatedAt: sql`now()`,
+        });
+      await tx
+        .insert(userAccessGrants)
+        .values({
+          tenantId: foreignTenantId,
+          userId: foreign,
+          role: 'client_admin',
+          scopeType: 'tenant',
+        });
     });
     for (const id of actors) {
       const r = await app.inject({
