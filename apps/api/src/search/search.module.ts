@@ -15,6 +15,7 @@ import type { Database } from '../database/database.types.js';
 import { campaigns, establishments, organizations } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
+import { DatabaseModule } from '../database/database.module.js';
 
 export class SearchQuery {
   @IsString() @MaxLength(120) q!: string;
@@ -163,5 +164,5 @@ export class SearchController {
   }
 }
 
-@Module({ controllers: [SearchController], providers: [SearchService] })
+@Module({ imports: [DatabaseModule], controllers: [SearchController], providers: [SearchService] })
 export class SearchModule {}
