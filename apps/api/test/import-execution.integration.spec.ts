@@ -6,7 +6,6 @@ import { and, eq } from 'drizzle-orm';
 import { EstablishmentContactService } from '../src/establishment-contacts/establishment-contact.service.js';
 
 import { AppModule } from '../src/app.module.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { establishmentContacts } from '../src/database/schema/establishment-contacts.js';
 import { establishments } from '../src/database/schema/establishments.js';
@@ -14,6 +13,7 @@ import { tenants } from '../src/database/schema/tenants.js';
 import { ImportExecutionService } from '../src/imports/import-execution.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Import execution PostgreSQL integration', () => {
   let database: Database | undefined;
@@ -46,7 +46,7 @@ describe('Import execution PostgreSQL integration', () => {
       abortOnError: false,
     });
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     executionService = application.get(ImportExecutionService);
 

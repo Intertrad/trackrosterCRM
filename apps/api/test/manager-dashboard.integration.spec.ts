@@ -11,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
@@ -29,6 +28,7 @@ import { userAccessGrants } from '../src/database/schema/user-access-grants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 interface WorkItem {
   campaignId: string;
@@ -600,7 +600,7 @@ describe('Manager dashboard HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 

@@ -25,6 +25,7 @@ import { PasswordService } from './password.service.js';
 import { MfaService } from './mfa.service.js';
 import type { Identity } from '../database/schema/identities.js';
 import { TokenService } from './token.service.js';
+import { setTenantContext } from '../database/tenant-context.js';
 
 export interface LoginInput {
   email: string;
@@ -202,6 +203,24 @@ export class AuthService {
     const expiresAt = this.tokenService.getExpiration(tokens.refreshToken);
 
     try {
+      /*
+       * Adopt the tenant the membership resolved to, before the session row
+       * is written.
+       *
+       * TenantTransactionInterceptor sets the context from an authenticated
+       * request, which sign-in is not — so under the non-privileged runtime
+       * role `auth_sessions` rejects the insert for want of a context that
+       * cannot exist until this point. Switching workspace has the same
+       * problem from the other side: the request carries the context of the
+       * tenant being left, not the one being joined.
+       *
+       * set_config is transaction-local and every caller here supplies a
+       * transaction, so this scopes to the sign-in and nothing further.
+       */
+      if (executor) {
+        await setTenantContext(executor, principal.tenantId);
+      }
+
       const sessionInput = {
         id: sessionId,
         userId: membership.identityId === membership.membershipId ? membership.legacyUserId : null,

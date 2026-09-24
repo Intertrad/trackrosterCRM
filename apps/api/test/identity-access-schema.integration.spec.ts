@@ -5,7 +5,6 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { identities } from '../src/database/schema/identities.js';
 import { organizations } from '../src/database/schema/organizations.js';
@@ -19,6 +18,7 @@ import { OrganizationService } from '../src/organizations/organization.service.j
 import { TeamService } from '../src/teams/team.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Identity and access schema integration', () => {
   let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
@@ -153,7 +153,7 @@ describe('Identity and access schema integration', () => {
       abortOnError: false,
     });
 
-    database = app.get<Database>(DATABASE);
+    database = getSeedDatabase();
     userRepository = app.get(UserRepository);
 
     const tenantService = app.get(TenantService);

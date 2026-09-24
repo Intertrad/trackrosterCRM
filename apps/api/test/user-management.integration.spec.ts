@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import { Database } from '../src/database/database.types.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { teams } from '../src/database/schema/teams.js';
@@ -21,6 +20,7 @@ import { TeamService } from '../src/teams/team.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { ManagedUser } from '../src/user-management/user-management.types.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('User management and RBAC integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -88,7 +88,7 @@ describe('User management and RBAC integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 

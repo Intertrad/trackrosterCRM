@@ -11,13 +11,13 @@ import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { AuthenticatedUser, AuthenticationTokens } from '../src/auth/auth.types.js';
 import { TokenService } from '../src/auth/token.service.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import { Database } from '../src/database/database.types.js';
 import { authSessions } from '../src/database/schema/auth-sessions.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Authentication integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -98,7 +98,7 @@ describe('Authentication integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 

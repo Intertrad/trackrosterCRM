@@ -11,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { establishmentContacts } from '../src/database/schema/establishment-contacts.js';
 import { establishments } from '../src/database/schema/establishments.js';
@@ -21,6 +20,7 @@ import type { ImportExecutionResult } from '../src/imports/import-execution.type
 import { registerImportMultipart } from '../src/imports/import-multipart.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 interface MultipartRequest {
   payload: string;
@@ -125,7 +125,7 @@ describe('Import execution HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 

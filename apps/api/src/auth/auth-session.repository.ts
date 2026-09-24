@@ -9,6 +9,7 @@ import { tenants } from '../database/schema/tenants.js';
 import { tenantSecurityPolicies } from '../database/schema/security-policies.js';
 import { auditEvents } from '../database/schema/audit-events.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
+import { withTenantContext } from '../database/tenant-context.js';
 
 export interface AuthenticationSessionPrincipal {
   sessionId: string;
@@ -50,8 +51,26 @@ export class AuthSessionRepository {
 
   async findActiveById(
     input: AuthenticationSessionPrincipal,
-    executor: DatabaseExecutor = this.database,
+    executor?: DatabaseExecutor,
   ): Promise<AuthSession | null> {
+    /*
+     * Session validation happens before the request has a tenant context:
+     * AuthGuard runs ahead of TenantTransactionInterceptor, which is what
+     * establishes it. Under the non-privileged runtime role that leaves
+     * `auth_sessions` invisible and every authenticated request answering
+     * 401 with a perfectly valid token.
+     *
+     * The tenant here comes from an access token whose signature has already
+     * been verified, so it is as trustworthy as the session it is about to
+     * look up. Scoping the read to it is both what RLS needs and what the
+     * query already filtered on.
+     */
+    if (!executor) {
+      return withTenantContext(this.database, input.tenantId, (tx) =>
+        this.findActiveById(input, tx),
+      );
+    }
+
     const [row] = await executor
       .select({
         session: authSessions,

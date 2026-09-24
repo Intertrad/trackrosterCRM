@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { AuthorizationService } from '../src/authorization/authorization.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { withTenantContext } from '../src/database/tenant-context.js';
 import { organizations } from '../src/database/schema/organizations.js';
@@ -19,6 +18,7 @@ import { OrganizationService } from '../src/organizations/organization.service.j
 import { TeamService } from '../src/teams/team.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Authorization integration', () => {
   let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
@@ -46,7 +46,7 @@ describe('Authorization integration', () => {
       abortOnError: false,
     });
 
-    database = app.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = app.get(TenantService);
     const organizationService = app.get(OrganizationService);

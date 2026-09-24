@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { auditEvents } from '../src/database/schema/audit-events.js';
 import { idempotencyRecords } from '../src/database/schema/idempotency-records.js';
@@ -21,6 +20,7 @@ import { users } from '../src/database/schema/users.js';
 import { RegionService } from '../src/regions/region.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Region HTTP and hierarchy integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -135,7 +135,7 @@ describe('Region HTTP and hierarchy integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     regionService = application.get(RegionService);
 

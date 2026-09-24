@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { AuthSessionRepository } from '../src/auth/auth-session.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { authSessions } from '../src/database/schema/auth-sessions.js';
 import { identities } from '../src/database/schema/identities.js';
@@ -16,6 +15,7 @@ import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Authentication session schema integration', () => {
   let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
@@ -78,7 +78,7 @@ describe('Authentication session schema integration', () => {
       abortOnError: false,
     });
 
-    database = app.get<Database>(DATABASE);
+    database = getSeedDatabase();
     authSessionRepository = app.get(AuthSessionRepository);
 
     const tenantService = app.get(TenantService);

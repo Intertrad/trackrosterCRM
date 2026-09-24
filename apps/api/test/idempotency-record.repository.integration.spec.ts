@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import { idempotencyRecords, tenants, users } from '../src/database/schema/index.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -17,6 +16,7 @@ import {
 } from '../src/idempotency/idempotency-record.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('idempotency record repository integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -111,7 +111,7 @@ describe('idempotency record repository integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     repository = application.get(IdempotencyRecordRepository);
 

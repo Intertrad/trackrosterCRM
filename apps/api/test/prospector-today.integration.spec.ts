@@ -11,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import {
@@ -34,6 +33,7 @@ import { users } from '../src/database/schema/users.js';
 import type { ProspectorTodayResponse } from '../src/prospector-today/prospector-today.types.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 interface AssignedProspectFixture {
   campaignId: string;
@@ -310,7 +310,7 @@ describe('Prospector Today HTTP integration', () => {
     await application.init();
 
     app = application;
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
     const userRepository = application.get(UserRepository);

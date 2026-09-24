@@ -12,7 +12,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
@@ -28,6 +27,7 @@ import { RedisService } from '../src/redis/redis.service.js';
 import { ReservationRepository } from '../src/reservations/reservation.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Reservation HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -227,7 +227,7 @@ describe('Reservation HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     redisService = application.get(RedisService);
 
