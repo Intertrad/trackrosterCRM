@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { like } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import * as schema from '../database/schema/index.js';
 import { organizations } from '../database/schema/organizations.js';
 import { teams } from '../database/schema/teams.js';
 import { tenants } from '../database/schema/tenants.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { TenantRepository } from '../tenants/tenant.repository.js';
 import { OrganizationRepository } from './organization.repository.js';
@@ -62,11 +63,17 @@ describe('Organization and Team tenant isolation', () => {
       return;
     }
 
-    await database.delete(teams).where(like(teams.slug, `${testRunId}%`));
-
-    await database.delete(organizations).where(like(organizations.slug, `${testRunId}%`));
-
-    await database.delete(tenants).where(like(tenants.slug, `${testRunId}%`));
+    const testTenants = await database
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(like(tenants.slug, `${testRunId}%`));
+    for (const tenant of testTenants) {
+      await withTenantContext(database, tenant.id, async () => {
+        await database!.delete(teams).where(eq(teams.tenantId, tenant.id));
+        await database!.delete(organizations).where(eq(organizations.tenantId, tenant.id));
+      });
+      await database.delete(tenants).where(eq(tenants.id, tenant.id));
+    }
 
     await pool.end();
   });

@@ -4,7 +4,9 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import { NewUser, User, users } from '../database/schema/users.js';
-import { Database } from '../database/database.types.js';
+import { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { identities } from '../database/schema/identities.js';
 import { tenantMemberships } from '../database/schema/tenant-memberships.js';
 import { assertAdministratorRemains } from '../authorization/administrator-continuity.js';
@@ -33,7 +35,15 @@ export class UserRepository {
   ) {}
 
   async create(input: NewUser): Promise<User> {
-    const [user] = await this.database.insert(users).values(input).returning();
+    if (!currentTenantExecutor())
+      return withTenantContext(this.database, input.tenantId, (tx) =>
+        this.createWithExecutor(input, tx),
+      );
+    return this.createWithExecutor(input, this.database);
+  }
+
+  private async createWithExecutor(input: NewUser, executor: DatabaseExecutor): Promise<User> {
+    const [user] = await executor.insert(users).values(input).returning();
 
     if (!user) {
       throw new Error('Failed to create user');
