@@ -491,6 +491,13 @@
       "when": 1790236505190,
       "tag": "0069_tenant_platform_config",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1790243827867,
+      "tag": "0070_worker_rls_policies",
+      "breakpoints": true
     }
   ]
 }
