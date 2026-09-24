@@ -7,10 +7,10 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
+import { getSeedDatabase } from './support/seed.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaigns } from '../src/database/schema/campaigns.js';
 import { organizations } from '../src/database/schema/organizations.js';
@@ -93,7 +93,7 @@ describe('Campaign HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 
