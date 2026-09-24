@@ -16,6 +16,7 @@ import { campaigns, establishments, organizations } from '../database/schema/ind
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { DatabaseModule } from '../database/database.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 export class SearchQuery {
   @IsString() @MaxLength(120) q!: string;
@@ -164,5 +165,9 @@ export class SearchController {
   }
 }
 
-@Module({ imports: [DatabaseModule], controllers: [SearchController], providers: [SearchService] })
+@Module({
+  imports: [DatabaseModule, AuthModule],
+  controllers: [SearchController],
+  providers: [SearchService],
+})
 export class SearchModule {}
