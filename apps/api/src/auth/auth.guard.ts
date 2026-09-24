@@ -11,6 +11,7 @@ import {
 import { AuthSessionRepository } from './auth-session.repository.js';
 import { AuthenticatedRequest } from './auth.types.js';
 import { TokenService } from './token.service.js';
+import { setRequestTenantContext } from '../database/tenant-context-store.js';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -73,6 +74,12 @@ export class AuthGuard implements CanActivate {
       tokenId: payload.jti,
       userId: payload.membershipId,
     };
+
+    setRequestTenantContext({
+      tenantId: payload.tenantId,
+      membershipId: payload.membershipId,
+      identityId: payload.sub,
+    });
 
     await this.permissions.enforceRequest(request.auth, request);
     return true;
