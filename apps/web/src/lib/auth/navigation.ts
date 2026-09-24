@@ -1,3 +1,5 @@
+import { isAvailable, type FeatureKey } from '@/lib/readiness/feature-readiness';
+
 import type { WorkspaceMode } from './workspace';
 
 export type NavigationItemId =
@@ -80,7 +82,50 @@ const OVERVIEW: WorkspaceNavigationItem = {
   primary: true,
 };
 
+/**
+ * Which audited capability family each screen depends on.
+ *
+ * Partial on purpose: an entry exists only where `docs/API_READINESS_AUDIT.md`
+ * names the family, so this stays a mirror of the audit rather than a parallel
+ * taxonomy that can drift from it. Screens with no entry are not annotated,
+ * not silently approved.
+ */
+export const NAVIGATION_FEATURE: Partial<Record<NavigationItemId, FeatureKey>> = {
+  overview: 'work_queue',
+  work_queue: 'work_queue',
+  map: 'prospect_reads',
+  follow_ups: 'follow_ups',
+  logged_actions: 'action_completion',
+  messages: 'messaging',
+  dashboard: 'manager_dashboard',
+  team: 'manager_dashboard',
+  campaigns: 'campaign_workspace_reads',
+  assignments: 'assignments',
+  collisions: 'reservations',
+  overrides: 'overrides',
+  imports: 'imports',
+  exports: 'exports',
+  users: 'membership_admin',
+  search: 'search',
+};
+
+/**
+ * A screen whose backend family the audit lists under "do not integrate" must
+ * not be reachable, however complete the screen itself is. This is the control
+ * that keeps that true as the audit is re-run, rather than relying on nobody
+ * having built the screen yet.
+ */
+function isOfferable(item: WorkspaceNavigationItem): boolean {
+  const feature = NAVIGATION_FEATURE[item.id];
+
+  return feature === undefined || isAvailable(feature);
+}
+
 export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigationItem[] {
+  return navigationFor(mode).filter(isOfferable);
+}
+
+function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
   switch (mode) {
     case 'admin':
       return [
