@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { desc, eq, sql } from 'drizzle-orm';
 import { AuditService } from '../audit/audit.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -9,6 +18,7 @@ import { Database } from '../database/database.types.js';
 import { tenants } from '../database/schema/index.js';
 import { PlatformAdminGuard } from '../authorization/platform-admin.guard.js';
 import { Inject } from '@nestjs/common';
+import { PlatformTenantConfigDto, PlatformTenantStatusDto } from './platform-tenant.dto.js';
 
 @Controller('platform/tenants')
 @UseGuards(AuthGuard, PlatformAdminGuard)
@@ -29,13 +39,13 @@ export class PlatformTenantController {
   }
 
   @Get(':tenantId')
-  async detail(@Param('tenantId') tenantId: string) {
+  async detail(@Param('tenantId', new ParseUUIDPipe()) tenantId: string) {
     const [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
     return tenant ?? null;
   }
 
   @Get(':tenantId/usage')
-  async usage(@Param('tenantId') tenantId: string) {
+  async usage(@Param('tenantId', new ParseUUIDPipe()) tenantId: string) {
     const [members, prospects, campaigns, activities] = await Promise.all([
       this.db.execute(
         sql`SELECT count(*)::int AS count FROM tenant_memberships WHERE tenant_id=${tenantId}`,
@@ -60,7 +70,7 @@ export class PlatformTenantController {
   }
 
   @Get(':tenantId/config')
-  async config(@Param('tenantId') tenantId: string) {
+  async config(@Param('tenantId', new ParseUUIDPipe()) tenantId: string) {
     const [tenant] = await this.db
       .select({ platformConfig: tenants.platformConfig })
       .from(tenants)
@@ -71,13 +81,13 @@ export class PlatformTenantController {
 
   @Patch(':tenantId/config')
   async updateConfig(
-    @Param('tenantId') tenantId: string,
-    @Body() body: Record<string, unknown>,
+    @Param('tenantId', new ParseUUIDPipe()) tenantId: string,
+    @Body() body: PlatformTenantConfigDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
     const [tenant] = await this.db
       .update(tenants)
-      .set({ platformConfig: body, updatedAt: new Date() })
+      .set({ platformConfig: body.config, updatedAt: new Date() })
       .where(eq(tenants.id, tenantId))
       .returning();
     if (tenant)
@@ -88,15 +98,15 @@ export class PlatformTenantController {
         action: 'platform.tenant_configured',
         resourceType: 'tenant',
         resourceId: tenantId,
-        metadata: { keys: Object.keys(body) },
+        metadata: { keys: Object.keys(body.config) },
       });
     return tenant?.platformConfig ?? {};
   }
 
   @Patch(':tenantId/status')
   async setStatus(
-    @Param('tenantId') tenantId: string,
-    @Body() body: { status: 'active' | 'suspended' | 'inactive' },
+    @Param('tenantId', new ParseUUIDPipe()) tenantId: string,
+    @Body() body: PlatformTenantStatusDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
     const [tenant] = await this.db
