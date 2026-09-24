@@ -83,6 +83,8 @@ export function ProspectMap({
   ordered = false,
   className,
   onSelect,
+  onVisibleChange,
+  selectedId = null,
 }: {
   points: MapPoint[];
   /** Authorised territory boundaries, as returned by GET /territories/map. */
@@ -95,10 +97,24 @@ export function ProspectMap({
   ordered?: boolean;
   className?: string;
   onSelect?: (point: MapPoint) => void;
+
+  /**
+   * Ids currently inside the viewport, emitted on every settled move.
+   *
+   * The portfolio map counts what a prospector can actually see rather than
+   * how many points were handed to it.
+   */
+  onVisibleChange?: (ids: string[]) => void;
+
+  /** Draws a ring around one point, to show which popup is open. */
+  selectedId?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
+
+  /** Detaches the viewport listener when the points or the map change. */
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const [failed, setFailed] = useState(false);
 
@@ -358,6 +374,9 @@ export function ProspectMap({
           'cursor:pointer',
           'box-shadow:0 1px 4px rgba(5,18,74,0.35)',
           `background:${STAGE_COLORS[point.stage]}`,
+          ...(point.id === selectedId
+            ? [`box-shadow:0 0 0 4px ${STAGE_COLORS[point.stage]}55,0 1px 4px rgba(5,18,74,0.35)`]
+            : []),
           ...(ordered
             ? [
                 'color:#ffffff',
@@ -428,14 +447,44 @@ export function ProspectMap({
       if (markersRef.current.length > 0) {
         mapRef.current.fitBounds(bounds, { padding: 56, maxZoom: 14, duration: 0 });
       }
+
+      if (onVisibleChange) {
+        const map = mapRef.current;
+
+        const report = () => {
+          const view = map.getBounds();
+
+          onVisibleChange(
+            points
+              .filter(
+                (point) =>
+                  Number.isFinite(point.latitude) &&
+                  Number.isFinite(point.longitude) &&
+                  view.contains([point.longitude, point.latitude]),
+              )
+              .map((point) => point.id),
+          );
+        };
+
+        map.on('moveend', report);
+
+        /* fitBounds above runs with duration 0, so the viewport is already
+         * final and the first count does not have to wait for a move. */
+        report();
+
+        cleanupRef.current = () => map.off('moveend', report);
+      }
     }
 
     void render();
 
     return () => {
       cancelled = true;
+
+      cleanupRef.current?.();
+      cleanupRef.current = null;
     };
-  }, [onSelect, ordered, points, ready]);
+  }, [onSelect, onVisibleChange, ordered, points, ready, selectedId]);
 
   if (!isMapConfigured()) {
     return (

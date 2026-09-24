@@ -18,6 +18,7 @@ export function FilterSelect({
   onChange,
   disabled,
   className,
+  tone = 'default',
 }: {
   label: string;
   value: string;
@@ -25,6 +26,8 @@ export function FilterSelect({
   onChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  /** 'brand' is the tinted pill the portfolio filters use. */
+  tone?: 'default' | 'brand';
 }) {
   const id = useId();
 
@@ -38,7 +41,10 @@ export function FilterSelect({
 
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[14px] font-semibold text-ink-muted"
+        className={cn(
+          'pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[14px] font-semibold',
+          tone === 'brand' ? 'text-brand' : 'text-ink-muted',
+        )}
       >
         {label}:
       </span>
@@ -49,10 +55,12 @@ export function FilterSelect({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
-          'h-11 w-full appearance-none rounded-full border border-line bg-surface',
-          'pr-10 text-[14px] font-semibold text-ink',
-          'transition-colors duration-150 hover:border-brand-pale',
+          'h-11 w-full appearance-none rounded-full border pr-10 text-[14px] font-semibold',
+          'transition-colors duration-150',
           'disabled:cursor-not-allowed disabled:opacity-60',
+          tone === 'brand'
+            ? 'border-transparent bg-brand-tint text-brand hover:bg-brand-pale/40'
+            : 'border-line bg-surface text-ink hover:border-brand-pale',
         )}
         style={{ paddingLeft: `${label.length * 0.52 + 1.6}rem` }}
       >
@@ -67,7 +75,10 @@ export function FilterSelect({
 
       <ChevronDown
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-ink-muted"
+        className={cn(
+          'pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2',
+          tone === 'brand' ? 'text-brand' : 'text-ink-muted',
+        )}
       />
     </div>
   );

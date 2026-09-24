@@ -1,25 +1,51 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { List, Map as MapIcon, MapPin, Phone } from 'lucide-react';
+import {
+  Ban,
+  CalendarClock,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+  List,
+  Map as MapIcon,
+  Phone,
+  Star,
+  TriangleAlert,
+} from 'lucide-react';
 
 import {
   LIFECYCLE_ORDER,
   LifecycleBadge,
   getLifecycleLabel,
 } from '@/components/prospector/lifecycle-badge';
+import { PortfolioMap } from '@/components/prospector/portfolio-map';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
-import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
-import { LinkButton } from '@/components/ui/link-button';
 import { SearchInput } from '@/components/ui/search-input';
 import { ApiError } from '@/lib/api/api-error';
-import { getWorkQueueOptions, listWorkQueue } from '@/lib/api/work-queue-client';
+import { listCollisionEvents } from '@/lib/api/collision-client';
+import {
+  QUICK_FILTERS,
+  SORT_LABELS,
+  deriveNextStep,
+  lastActionLabel,
+  loadPortfolio,
+  localityLabel,
+  matchesQuickFilter,
+  regionSummary,
+  sortPortfolio,
+  summarize,
+  type NextStep,
+  type PortfolioSort,
+  type QuickFilterId,
+} from '@/lib/api/portfolio';
+import { getWorkQueueOptions } from '@/lib/api/work-queue-client';
 import type {
   WorkQueueCampaignOption,
   WorkQueueItem,
@@ -28,8 +54,7 @@ import type {
 import { useAuth } from '@/lib/auth/auth-context';
 import { cn } from '@/lib/ui/cn';
 
-const PAGE_SIZE = 25;
-const SEARCH_DEBOUNCE_MS = 300;
+type ViewMode = 'list' | 'map';
 
 export default function MyProspectsPage() {
   return (
@@ -42,76 +67,50 @@ export default function MyProspectsPage() {
 function MyProspectsView() {
   const { activeWorkspace } = useAuth();
 
+  const teamId = activeWorkspace?.teamId ?? null;
+
   /* Scoped search links here with the matched name, so the queue opens
    * already filtered rather than dropping the term the user searched for. */
   const initialSearch = useSearchParams().get('search') ?? '';
 
-  const teamId = activeWorkspace?.teamId ?? null;
-
-  const [view, setView] = useState<'list' | 'map'>('list');
-  const [selected, setSelected] = useState<MapPoint | null>(null);
+  const [view, setView] = useState<ViewMode>('list');
   const [search, setSearch] = useState(initialSearch);
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
   const [stage, setStage] = useState<WorkQueueLifecycleStage | 'all'>('all');
   const [campaignId, setCampaignId] = useState('all');
+  const [sort, setSort] = useState<PortfolioSort>('priority');
+  const [quick, setQuick] = useState<QuickFilterId>('all');
 
   const [campaigns, setCampaigns] = useState<WorkQueueCampaignOption[]>([]);
   const [items, setItems] = useState<WorkQueueItem[] | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [complete, setComplete] = useState(true);
+  const [blockedIds, setBlockedIds] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
 
-  /* Typing must not fire a request per keystroke. */
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    if (!teamId) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    getWorkQueueOptions({ teamId, signal: controller.signal })
-      .then((options) => setCampaigns(options.campaigns))
-      .catch(() => setCampaigns([]));
-
-    return () => controller.abort();
-  }, [teamId]);
-
-  const requestRef = useRef(0);
-
+  /*
+   * The whole portfolio is read once and every figure on this screen is
+   * derived from it. `GET /work-queue` has no totals, no ordering and no
+   * follow-up predicate, so counting a page would mean quoting numbers that
+   * describe the request rather than the prospector's actual book of work.
+   */
   const load = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!teamId) {
         return;
       }
 
-      const requestId = ++requestRef.current;
-
       try {
-        const response = await listWorkQueue({
-          teamId,
-          limit: PAGE_SIZE,
-          ...(debouncedSearch ? { q: debouncedSearch } : {}),
-          ...(stage !== 'all' ? { lifecycleStage: stage } : {}),
-          ...(campaignId !== 'all' ? { campaignId } : {}),
-          signal,
-        });
+        const portfolio = await loadPortfolio(teamId, signal);
 
-        /* Drop a slower response from an earlier filter combination. */
-        if (signal?.aborted || requestId !== requestRef.current) {
+        if (signal?.aborted) {
           return;
         }
 
-        setItems(response.items);
-        setNextCursor(response.page.nextCursor);
+        setItems(portfolio.items);
+        setComplete(portfolio.complete);
         setError(null);
       } catch (caught) {
-        if (signal?.aborted || requestId !== requestRef.current) {
+        if (signal?.aborted) {
           return;
         }
 
@@ -122,7 +121,7 @@ function MyProspectsView() {
         );
       }
     },
-    [campaignId, debouncedSearch, stage, teamId],
+    [teamId],
   );
 
   useEffect(() => {
@@ -133,54 +132,80 @@ function MyProspectsView() {
     return () => controller.abort();
   }, [load]);
 
-  async function loadMore(): Promise<void> {
-    if (!teamId || !nextCursor) {
+  useEffect(() => {
+    if (!teamId) {
       return;
     }
 
-    setLoadingMore(true);
+    const controller = new AbortController();
 
-    try {
-      const response = await listWorkQueue({
-        teamId,
-        limit: PAGE_SIZE,
-        cursor: nextCursor,
-        ...(debouncedSearch ? { q: debouncedSearch } : {}),
-        ...(stage !== 'all' ? { lifecycleStage: stage } : {}),
-        ...(campaignId !== 'all' ? { campaignId } : {}),
-      });
+    getWorkQueueOptions({ teamId, signal: controller.signal })
+      .then((response) => setCampaigns(response.campaigns))
+      .catch(() => setCampaigns([]));
 
-      setItems((current) => [...(current ?? []), ...response.items]);
-      setNextCursor(response.page.nextCursor);
-    } catch {
-      setError('We could not load more prospects.');
-    } finally {
-      setLoadingMore(false);
-    }
+    /* A prospector without collision-read access simply sees no blocked
+     * markers; it is not an error for the page. */
+    listCollisionEvents({ limit: 100 }, controller.signal)
+      .then((page) =>
+        setBlockedIds(
+          new Set(
+            page.items
+              .filter(
+                (event) => event.decision === 'block' || event.decision === 'require_override',
+              )
+              .map((event) => event.campaignProspectId),
+          ),
+        ),
+      )
+      .catch(() => setBlockedIds(new Set()));
+
+    return () => controller.abort();
+  }, [teamId]);
+
+  async function reload(): Promise<void> {
+    setReloading(true);
+    await load();
+    setReloading(false);
   }
 
-  const filtered = useMemo(
-    () => debouncedSearch !== '' || stage !== 'all' || campaignId !== 'all',
-    [campaignId, debouncedSearch, stage],
-  );
+  const summary = useMemo(() => summarize(items ?? [], blockedIds), [blockedIds, items]);
 
-  /* Only geocoded establishments can be plotted; the rest stay in the list. */
-  const points = useMemo<MapPoint[]>(
-    () =>
-      (items ?? []).flatMap((item) =>
-        toMapPoint(
-          item.campaignProspectId,
-          item.establishment.name,
-          item.establishment.latitude,
-          item.establishment.longitude,
-          item.lifecycleStage,
-          `/work-queue/${item.campaign.id}/${item.campaignProspectId}`,
-        ),
-      ),
-    [items],
-  );
+  const region = useMemo(() => regionSummary(items ?? []), [items]);
 
-  const missingCoordinates = (items?.length ?? 0) - points.length;
+  const narrowed =
+    search.trim() !== '' || stage !== 'all' || campaignId !== 'all' || quick !== 'all';
+
+  const visible = useMemo(() => {
+    if (!items) {
+      return [];
+    }
+
+    const term = search.trim().toLowerCase();
+
+    const filtered = items.filter((item) => {
+      if (stage !== 'all' && item.lifecycleStage !== stage) {
+        return false;
+      }
+
+      if (campaignId !== 'all' && item.campaign.id !== campaignId) {
+        return false;
+      }
+
+      if (!matchesQuickFilter(item, quick)) {
+        return false;
+      }
+
+      if (!term) {
+        return true;
+      }
+
+      return [item.establishment.name, item.establishment.city, item.establishment.postalCode]
+        .filter((part): part is string => Boolean(part))
+        .some((part) => part.toLowerCase().includes(term));
+    });
+
+    return sortPortfolio(filtered, sort);
+  }, [campaignId, items, quick, search, sort, stage]);
 
   if (!teamId) {
     return (
@@ -194,69 +219,69 @@ function MyProspectsView() {
     );
   }
 
+  if (error && !items) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <Alert tone="danger" title="We could not load your portfolio.">
+          {error}
+        </Alert>
+
+        <Button className="mt-5" loading={reloading} onClick={() => void reload()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
         title="My prospects"
         subtitle={
-          items
-            ? `${items.length}${nextCursor ? '+' : ''} establishments assigned to you`
-            : 'Loading your portfolio…'
+          items === null
+            ? 'Loading your portfolio…'
+            : [
+                `${summary.assigned} establishment${summary.assigned === 1 ? '' : 's'} assigned to me`,
+                region,
+              ]
+                .filter(Boolean)
+                .join(' · ')
         }
-        action={
-          <div
-            role="group"
-            aria-label="View"
-            className="inline-flex rounded-lg border border-line bg-surface p-1"
-          >
-            {(
-              [
-                { id: 'list', label: 'List', icon: List },
-                { id: 'map', label: 'Map', icon: MapIcon },
-              ] as const
-            ).map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setView(option.id)}
-                aria-pressed={view === option.id}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-md px-3.5 py-2 text-[14px] font-semibold transition-colors',
-                  view === option.id ? 'bg-brand text-white' : 'text-ink-soft hover:text-ink',
-                )}
-              >
-                <option.icon aria-hidden="true" className="size-[18px]" />
-                {option.label}
-              </button>
-            ))}
-          </div>
-        }
+        action={<ViewToggle view={view} onChange={setView} />}
       />
 
-      <div className="flex flex-wrap gap-3">
+      {error ? <Alert tone="warning">{error}</Alert> : null}
+
+      {!complete ? (
+        <Alert tone="warning" title="Showing the first part of your portfolio.">
+          It is larger than this screen reads in one go, so the totals below describe what was
+          loaded rather than every assignment.
+        </Alert>
+      ) : null}
+
+      <div className="flex flex-wrap items-center gap-3">
         <SearchInput
           label="Search my portfolio"
-          placeholder="Search my portfolio..."
+          placeholder="Search my portfolio…"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="min-w-[240px] flex-1"
+          className="min-w-[240px] flex-1 [&_input]:rounded-full"
         />
 
         <FilterSelect
           label="Status"
+          tone="brand"
           value={stage}
           onChange={(value) => setStage(value as WorkQueueLifecycleStage | 'all')}
           options={[
             { value: 'all', label: 'All' },
-            ...LIFECYCLE_ORDER.map((value) => ({
-              value,
-              label: getLifecycleLabel(value),
-            })),
+            ...LIFECYCLE_ORDER.map((id) => ({ value: id, label: getLifecycleLabel(id) })),
           ]}
         />
 
         <FilterSelect
           label="Campaign"
+          tone="brand"
           value={campaignId}
           onChange={setCampaignId}
           options={[
@@ -264,146 +289,245 @@ function MyProspectsView() {
             ...campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name })),
           ]}
         />
+
+        {view === 'list' ? (
+          <FilterSelect
+            label="Sort"
+            tone="brand"
+            value={sort}
+            onChange={(value) => setSort(value as PortfolioSort)}
+            options={Object.entries(SORT_LABELS).map(([value, label]) => ({ value, label }))}
+          />
+        ) : null}
       </div>
 
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-
-      {view === 'map' ? (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
-          <ProspectMap points={points} onSelect={setSelected} />
-
-          <Card>
-            <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
-              {selected ? selected.name : 'Nearby prospects'}
-            </h2>
-
-            {selected ? (
-              <div className="mt-4">
-                <LinkButton href={selected.href ?? '/work-queue'} variant="primary">
-                  Open prospect
-                </LinkButton>
-              </div>
-            ) : (
-              <p className="mt-2 text-[14px] text-ink-muted">Select a marker to open its record.</p>
+      <div className="flex flex-wrap gap-2.5">
+        {QUICK_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            onClick={() => setQuick(filter.id)}
+            aria-pressed={quick === filter.id}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[14px] font-semibold',
+              'border transition-colors duration-150',
+              quick === filter.id
+                ? 'border-lime bg-lime/12 text-lime-deep'
+                : 'border-transparent bg-surface-muted text-ink-soft hover:text-ink',
             )}
+          >
+            {quick === filter.id ? (
+              <Star aria-hidden="true" className="size-4 fill-current" />
+            ) : null}
+            {filter.label}
+          </button>
+        ))}
+      </div>
 
-            <p className="mt-5 border-t border-line-soft pt-4 text-[13px] text-ink-muted">
-              {points.length} of {items?.length ?? 0} plotted
-              {missingCoordinates > 0 ? ` · ${missingCoordinates} without coordinates` : ''}
-            </p>
-          </Card>
-        </div>
-      ) : items === null ? (
-        <ListSkeleton />
-      ) : items.length === 0 ? (
-        <Card>
-          <p className="py-10 text-center text-[15px] text-ink-muted">
-            {filtered
-              ? 'No prospects match these filters.'
-              : 'No establishments are assigned to you yet.'}
-          </p>
-        </Card>
+      {items === null ? (
+        <PortfolioSkeleton />
+      ) : view === 'map' ? (
+        <PortfolioMap items={visible} blockedProspectIds={blockedIds} />
       ) : (
-        <>
-          <Card className="p-0 sm:p-0">
-            <ul className="divide-y divide-line-soft">
-              {items.map((item) => (
-                <ProspectRow key={item.campaignProspectId} item={item} />
-              ))}
-            </ul>
-          </Card>
-
-          {nextCursor ? (
-            <Button
-              variant="secondary"
-              className="self-center"
-              loading={loadingMore}
-              onClick={() => void loadMore()}
-            >
-              Load more
-            </Button>
-          ) : null}
-        </>
+        <ProspectTable items={visible} blockedProspectIds={blockedIds} filtered={narrowed} />
       )}
 
-      <p className="text-[13px] text-ink-muted">
-        Personal scope: only prospects assigned to you are shown — no territory-wide or unassigned
-        records.
-      </p>
+      {items !== null ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-[13px] text-ink-muted">
+          <span className="flex items-center gap-2">
+            <Info aria-hidden="true" className="size-4 shrink-0" />
+
+            {[
+              `${summary.assigned} assigned`,
+              `${summary.toContact} to contact`,
+              `${summary.followUpsDue} follow-up${summary.followUpsDue === 1 ? '' : 's'} due`,
+              `${summary.blocked} blocked by an anti-collision rule`,
+            ].join(' · ')}
+          </span>
+
+          <span>
+            Showing {visible.length} of {summary.assigned}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ProspectRow({ item }: { item: WorkQueueItem }) {
-  const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
+function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (next: ViewMode) => void }) {
+  return (
+    <div
+      role="group"
+      aria-label="View"
+      className="inline-flex gap-1 rounded-xl bg-surface-muted p-1"
+    >
+      {(
+        [
+          { id: 'list', label: 'List', icon: List },
+          { id: 'map', label: 'Map', icon: MapIcon },
+        ] as const
+      ).map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          onClick={() => onChange(option.id)}
+          aria-pressed={view === option.id}
+          className={cn(
+            'inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[15px] font-semibold',
+            'transition-colors duration-150',
+            view === option.id
+              ? 'bg-surface text-navy shadow-card'
+              : 'text-ink-soft hover:text-ink',
+          )}
+        >
+          <option.icon aria-hidden="true" className="size-[18px]" />
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-  const location = [item.establishment.postalCode, item.establishment.city]
-    .filter(Boolean)
-    .join(' ');
+function ProspectTable({
+  items,
+  blockedProspectIds,
+  filtered,
+}: {
+  items: WorkQueueItem[];
+  blockedProspectIds: ReadonlySet<string>;
+  /** Whether any filter is narrowing the portfolio right now. */
+  filtered: boolean;
+}) {
+  if (items.length === 0) {
+    /*
+     * A filtered-empty result and an empty portfolio mean opposite things —
+     * one says "change the filter", the other says "you have no work" — so
+     * they must never share a message.
+     */
+    return (
+      <Card>
+        <p className="py-14 text-center text-[15px] text-ink-muted">
+          {filtered
+            ? 'No prospect matches these filters.'
+            : 'No prospects are assigned to you yet.'}
+        </p>
+      </Card>
+    );
+  }
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">
-      <span className="min-w-0 flex-1 basis-56">
-        <Link
-          href={href}
-          className="block truncate text-[15px] font-bold text-navy hover:text-brand"
-        >
-          {item.establishment.name}
-        </Link>
+    <div className="flex flex-col gap-2">
+      {/* Column headings only where the row actually lays out in columns. */}
+      <div className="hidden px-5 lg:grid lg:grid-cols-[minmax(0,2.1fr)_130px_110px_150px_minmax(0,1.3fr)_28px] lg:items-center lg:gap-4">
+        {['Establishment', 'Status', 'Campaign', 'Last action', 'Next step'].map((heading) => (
+          <span
+            key={heading}
+            className="text-[12px] font-bold tracking-[0.06em] text-ink-muted uppercase"
+          >
+            {heading}
+          </span>
+        ))}
+      </div>
 
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-muted">
-          {location ? (
-            <span className="inline-flex items-center gap-1.5">
-              <MapPin aria-hidden="true" className="size-4" />
-              {location}
-            </span>
-          ) : null}
+      <ul aria-label="My prospects" className="flex flex-col gap-2">
+        {items.map((item) => (
+          <ProspectRow
+            key={item.campaignProspectId}
+            item={item}
+            blocked={blockedProspectIds.has(item.campaignProspectId)}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
 
-          {item.establishment.phone ? (
-            <span className="inline-flex items-center gap-1.5">
-              <Phone aria-hidden="true" className="size-4" />
-              {item.establishment.phone}
-            </span>
-          ) : null}
+function ProspectRow({ item, blocked }: { item: WorkQueueItem; blocked: boolean }) {
+  const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
+
+  const nextStep = deriveNextStep(item, blocked ? new Set([item.campaignProspectId]) : new Set());
+
+  return (
+    <li>
+      <Link
+        href={href}
+        className={cn(
+          'grid gap-x-4 gap-y-3 rounded-xl border border-line-soft bg-surface px-5 py-4',
+          'transition-colors duration-150 hover:border-brand-pale hover:bg-brand-wash',
+          'lg:grid-cols-[minmax(0,2.1fr)_130px_110px_150px_minmax(0,1.3fr)_28px] lg:items-center',
+        )}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-[15px] font-bold text-navy">
+            {item.establishment.name}
+          </span>
+
+          <span className="block truncate text-[14px] text-ink-muted">
+            {localityLabel(item) || '—'}
+          </span>
         </span>
-      </span>
 
-      <span className="hidden w-40 shrink-0 truncate text-[14px] text-ink-soft lg:block">
-        {item.campaign.name}
-      </span>
+        {/* Below lg the row is a stacked card, so these pair up instead of
+            each taking a line of their own. `lg:contents` hands them back to
+            the grid once there are columns to sit in. */}
+        <span className="flex items-center gap-2.5 lg:contents">
+          <LifecycleBadge stage={item.lifecycleStage} />
 
-      <span className="w-32 shrink-0 text-[14px] text-ink-muted">
-        {item.nextFollowUp ? formatDate(item.nextFollowUp.dueAt) : '—'}
-      </span>
+          <span className="flex items-center">
+            <span className="truncate rounded-md bg-surface-muted px-2.5 py-1 text-[13px] font-semibold text-ink-soft">
+              {item.campaign.name}
+            </span>
+          </span>
+        </span>
 
-      <LifecycleBadge stage={item.lifecycleStage} className="shrink-0" />
+        <span className="flex min-w-0 items-center justify-between gap-3 lg:contents">
+          <span className="truncate text-[14px] text-ink-soft">{lastActionLabel(item)}</span>
+
+          <span className="flex min-w-0 items-center">
+            <NextStepLabel step={nextStep} />
+          </span>
+        </span>
+
+        <ChevronRight
+          aria-hidden="true"
+          className="hidden size-5 shrink-0 text-ink-muted lg:block"
+        />
+      </Link>
     </li>
   );
 }
 
-function ListSkeleton() {
-  return (
-    <Card className="p-0 sm:p-0" aria-busy="true">
-      <span className="sr-only">Loading your portfolio…</span>
+const NEXT_STEP_STYLES: Record<NextStep['tone'], { text: string; icon: typeof Phone }> = {
+  blocked: { text: 'text-danger', icon: Ban },
+  due: { text: 'text-warning', icon: Phone },
+  scheduled: { text: 'text-brand', icon: CalendarClock },
+  attention: { text: 'text-warning', icon: TriangleAlert },
+  done: { text: 'text-success', icon: CheckCircle2 },
+  neutral: { text: 'text-ink-soft', icon: Phone },
+};
 
-      <ul className="divide-y divide-line-soft">
-        {[0, 1, 2, 3, 4, 5].map((row) => (
-          <li key={row} className="flex animate-pulse items-center gap-4 px-6 py-5">
-            <span className="h-5 flex-1 rounded bg-line-soft" />
-            <span className="h-6 w-24 rounded-md bg-line-soft" />
-          </li>
-        ))}
-      </ul>
-    </Card>
+function NextStepLabel({ step }: { step: NextStep }) {
+  const style = NEXT_STEP_STYLES[step.tone];
+
+  return (
+    <span
+      className={cn('inline-flex min-w-0 items-center gap-2 text-[14px] font-bold', style.text)}
+    >
+      <style.icon aria-hidden="true" className="size-4 shrink-0" />
+
+      <span className="truncate">{step.label}</span>
+    </span>
   );
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
+function PortfolioSkeleton() {
+  return (
+    <div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading your portfolio…</span>
 
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
+      {[0, 1, 2, 3, 4, 5].map((row) => (
+        <div key={row} className="h-[76px] animate-pulse rounded-xl bg-line-soft" />
+      ))}
+    </div>
+  );
 }

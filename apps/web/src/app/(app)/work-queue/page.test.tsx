@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -11,17 +11,23 @@ import type {
   WorkQueueResponse,
 } from '@/lib/api/work-queue-types';
 
-const { getWorkQueueOptionsMock, listWorkQueueMock, searchParamsMock, useAuthMock } = vi.hoisted(
-  () => ({
-    getWorkQueueOptionsMock: vi.fn(),
+const {
+  getWorkQueueOptionsMock,
+  listCollisionEventsMock,
+  listWorkQueueMock,
+  searchParamsMock,
+  useAuthMock,
+} = vi.hoisted(() => ({
+  getWorkQueueOptionsMock: vi.fn(),
 
-    listWorkQueueMock: vi.fn(),
+  listCollisionEventsMock: vi.fn(),
 
-    searchParamsMock: vi.fn(() => new URLSearchParams()),
+  listWorkQueueMock: vi.fn(),
 
-    useAuthMock: vi.fn(),
-  }),
-);
+  searchParamsMock: vi.fn(() => new URLSearchParams()),
+
+  useAuthMock: vi.fn(),
+}));
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: useAuthMock,
@@ -29,6 +35,10 @@ vi.mock('@/lib/auth/auth-context', () => ({
 
 vi.mock('next/navigation', () => ({
   useSearchParams: () => searchParamsMock(),
+}));
+
+vi.mock('@/lib/api/collision-client', () => ({
+  listCollisionEvents: listCollisionEventsMock,
 }));
 
 vi.mock('@/lib/api/work-queue-client', () => ({
@@ -153,23 +163,6 @@ function setProspectorWorkspace(selectedTeamId = teamId): void {
   });
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-
-  let reject!: (reason?: unknown) => void;
-
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-
-  return {
-    promise,
-    resolve,
-    reject,
-  };
-}
-
 describe('WorkQueuePage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -179,6 +172,8 @@ describe('WorkQueuePage', () => {
     setProspectorWorkspace();
     listWorkQueueMock.mockResolvedValue(firstPage);
     getWorkQueueOptionsMock.mockResolvedValue(campaignOptions);
+    listCollisionEventsMock.mockResolvedValue({ items: [], nextCursor: null });
+    searchParamsMock.mockReturnValue(new URLSearchParams());
   });
 
   afterEach(() => {
@@ -204,91 +199,153 @@ describe('WorkQueuePage', () => {
   it('loads the selected team queue and renders only API-backed prospect data', async () => {
     render(<MyProspectsPage />);
 
-    expect(await screen.findByRole('heading', { name: 'My prospects' })).toBeInTheDocument();
+    expect(await screen.findByText('North Star Dental')).toBeInTheDocument();
+    expect(screen.getByText('75001 Paris')).toBeInTheDocument();
+    /* Also a campaign-filter option, so the row chip is one of several. */
+    expect(screen.getAllByText('Autumn outreach').length).toBeGreaterThan(0);
+    expect(screen.getByText('Call · yesterday')).toBeInTheDocument();
 
-    expect(listWorkQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId }));
+    expect(listWorkQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId, limit: 100 }));
+  });
 
-    const first = firstPage.items[0]!;
+  it('reads the whole portfolio so its totals are not a page count', async () => {
+    /*
+     * The API returns no totals, so the screen pages until the queue is
+     * exhausted. Counting one page would mean quoting a figure that describes
+     * the request rather than the prospector's book of work.
+     */
+    listWorkQueueMock.mockReset();
+    listWorkQueueMock
+      .mockResolvedValueOnce({
+        items: [queueItem],
+        page: { limit: 100, hasMore: true, nextCursor: 'cursor-1' },
+      })
+      .mockResolvedValueOnce({
+        items: [{ ...queueItem, campaignProspectId: 'second', lifecycleStage: 'to_contact' }],
+        page: { limit: 100, hasMore: false, nextCursor: null },
+      });
 
-    expect(screen.getByRole('link', { name: first.establishment.name })).toHaveAttribute(
-      'href',
-      `/work-queue/${first.campaign.id}/${first.campaignProspectId}`,
+    render(<MyProspectsPage />);
+
+    expect(await screen.findByText(/2 establishments assigned to me/)).toBeInTheDocument();
+
+    expect(listWorkQueueMock).toHaveBeenCalledTimes(2);
+    expect(listWorkQueueMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: 'cursor-1' }),
     );
+
+    expect(screen.getByText(/2 assigned · 1 to contact/)).toBeInTheDocument();
   });
 
-  it('asks the backend to filter by lifecycle status', async () => {
+  it('says so when the portfolio is larger than it can read in one go', async () => {
+    listWorkQueueMock.mockResolvedValue({
+      items: [queueItem],
+      page: { limit: 100, hasMore: true, nextCursor: 'never-ends' },
+    });
+
     render(<MyProspectsPage />);
 
-    await screen.findByRole('heading', { name: 'My prospects' });
-
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'qualified' } });
-
-    await waitFor(() => {
-      expect(listWorkQueueMock).toHaveBeenCalledWith(
-        expect.objectContaining({ teamId, lifecycleStage: 'qualified' }),
-      );
-    });
+    /* Quoting a total for a portfolio that was only partly read would be a
+     * number nobody can stand behind. */
+    expect(
+      await screen.findByText('Showing the first part of your portfolio.'),
+    ).toBeInTheDocument();
   });
 
-  it('asks the backend to filter by campaign using the loaded options', async () => {
+  it('filters by status without asking the backend again', async () => {
+    listWorkQueueMock.mockResolvedValue({
+      items: [
+        queueItem,
+        {
+          ...queueItem,
+          campaignProspectId: 'to-contact-1',
+          lifecycleStage: 'to_contact',
+          establishment: { ...queueItem.establishment, name: 'Verdun gendarmerie' },
+        },
+      ],
+      page: { limit: 100, hasMore: false, nextCursor: null },
+    });
+
     render(<MyProspectsPage />);
 
-    await screen.findByRole('heading', { name: 'My prospects' });
+    await screen.findByText('North Star Dental');
 
-    await waitFor(() => {
-      expect(getWorkQueueOptionsMock).toHaveBeenCalledWith(expect.objectContaining({ teamId }));
-    });
+    const calls = listWorkQueueMock.mock.calls.length;
 
-    fireEvent.change(screen.getByLabelText('Campaign'), {
-      target: { value: campaignOption.id },
-    });
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'to_contact' } });
 
-    await waitFor(() => {
-      expect(listWorkQueueMock).toHaveBeenCalledWith(
-        expect.objectContaining({ campaignId: campaignOption.id }),
-      );
-    });
+    expect(await screen.findByText('Verdun gendarmerie')).toBeInTheDocument();
+    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
+
+    /* The whole portfolio is already in hand; refetching would only risk the
+     * list and its totals disagreeing. */
+    expect(listWorkQueueMock).toHaveBeenCalledTimes(calls);
   });
 
-  it('debounces search so typing does not fire a request per keystroke', async () => {
+  it('filters by campaign using the loaded options', async () => {
+    getWorkQueueOptionsMock.mockResolvedValue({
+      campaigns: [campaignOption, { id: 'other-campaign', name: 'Winter push' }],
+    });
+
     render(<MyProspectsPage />);
 
-    await screen.findByRole('heading', { name: 'My prospects' });
+    await screen.findByText('North Star Dental');
 
-    const initialCalls = listWorkQueueMock.mock.calls.length;
+    fireEvent.change(screen.getByLabelText('Campaign'), { target: { value: 'other-campaign' } });
 
-    const field = screen.getByLabelText('Search my portfolio');
+    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
+    expect(screen.getByText('No prospect matches these filters.')).toBeInTheDocument();
+  });
 
-    fireEvent.change(field, { target: { value: 'n' } });
-    fireEvent.change(field, { target: { value: 'na' } });
-    fireEvent.change(field, { target: { value: 'nan' } });
+  it('searches the portfolio it already holds', async () => {
+    render(<MyProspectsPage />);
 
-    expect(listWorkQueueMock.mock.calls.length).toBe(initialCalls);
+    await screen.findByText('North Star Dental');
 
-    await act(async () => {
-      vi.advanceTimersByTime(400);
+    const calls = listWorkQueueMock.mock.calls.length;
+
+    fireEvent.change(screen.getByLabelText('Search my portfolio'), {
+      target: { value: 'nothing matches this' },
     });
 
-    await waitFor(() => {
-      expect(listWorkQueueMock).toHaveBeenCalledWith(expect.objectContaining({ q: 'nan' }));
-    });
+    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
+    expect(listWorkQueueMock).toHaveBeenCalledTimes(calls);
+
+    fireEvent.change(screen.getByLabelText('Search my portfolio'), { target: { value: '75001' } });
+
+    expect(screen.getByText('North Star Dental')).toBeInTheDocument();
   });
 
   it('distinguishes a filtered empty result from an empty portfolio', async () => {
     listWorkQueueMock.mockResolvedValue({
       items: [],
-      page: { limit: 25, hasMore: false, nextCursor: null },
+      page: { limit: 100, hasMore: false, nextCursor: null },
     });
 
     render(<MyProspectsPage />);
 
-    expect(
-      await screen.findByText('No establishments are assigned to you yet.'),
-    ).toBeInTheDocument();
+    /* "Change the filter" and "you have no work" mean opposite things. */
+    expect(await screen.findByText('No prospects are assigned to you yet.')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'qualified' } });
 
-    expect(await screen.findByText('No prospects match these filters.')).toBeInTheDocument();
+    expect(screen.getByText('No prospect matches these filters.')).toBeInTheDocument();
+  });
+
+  it('marks a prospect the collision engine has blocked', async () => {
+    listCollisionEventsMock.mockResolvedValue({
+      items: [
+        { campaignProspectId: prospectId, decision: 'block', reasonCode: 'ACTIVE_RESERVATION' },
+      ],
+      nextCursor: null,
+    });
+
+    render(<MyProspectsPage />);
+
+    /* Blocked outranks every other next step: acting on it is what the
+     * anti-collision rule exists to prevent. */
+    expect(await screen.findByText('Blocked — cooldown')).toBeInTheDocument();
+    expect(screen.getByText(/1 blocked by an anti-collision rule/)).toBeInTheDocument();
   });
 
   it('surfaces a read failure instead of showing an empty portfolio', async () => {
@@ -301,42 +358,6 @@ describe('WorkQueuePage', () => {
     ).toBeInTheDocument();
   });
 
-  it('ignores a slower response from a superseded filter', async () => {
-    const slow = deferred<WorkQueueResponse>();
-
-    listWorkQueueMock.mockReturnValueOnce(slow.promise);
-
-    render(<MyProspectsPage />);
-
-    const fresh: WorkQueueResponse = {
-      ...firstPage,
-      items: [
-        {
-          ...firstPage.items[0]!,
-          campaignProspectId: '43000000-0000-4000-8000-000000000001',
-          establishment: {
-            ...firstPage.items[0]!.establishment,
-            id: '43000000-0000-4000-8000-000000000002',
-            name: 'Fresh result',
-          },
-        },
-      ],
-    };
-
-    /* Queue the replacement before the filter change triggers the refetch. */
-    listWorkQueueMock.mockResolvedValue(fresh);
-
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'converted' } });
-
-    await act(async () => {
-      slow.resolve(firstPage);
-      await slow.promise;
-    });
-
-    expect(await screen.findByText('Fresh result')).toBeInTheDocument();
-
-    expect(screen.queryByText(firstPage.items[0]!.establishment.name)).not.toBeInTheDocument();
-  });
   it('plots only geocoded prospects on the map view', async () => {
     listWorkQueueMock.mockResolvedValue({
       ...firstPage,
@@ -366,8 +387,8 @@ describe('WorkQueuePage', () => {
      * An establishment without coordinates cannot be a marker, and saying so
      * is better than silently dropping it from the count.
      */
-    expect(await screen.findByText(/1 of 2 plotted/)).toBeInTheDocument();
-    expect(screen.getByText(/1 without coordinates/)).toBeInTheDocument();
+    expect(await screen.findByText(/of 1 visible/)).toBeInTheDocument();
+    expect(screen.getByText('1 without coordinates')).toBeInTheDocument();
   });
 
   it('keeps the list view as the default', async () => {
@@ -379,22 +400,20 @@ describe('WorkQueuePage', () => {
   });
 
   it('opens already filtered when scoped search links here with a term', async () => {
-    searchParamsMock.mockReturnValue(new URLSearchParams('search=Boulangerie%20No%C3%ABl'));
+    searchParamsMock.mockReturnValue(new URLSearchParams('search=North%20Star'));
 
     render(<MyProspectsPage />);
 
     await screen.findByRole('heading', { name: 'My prospects' });
 
-    expect(screen.getByLabelText('Search my portfolio')).toHaveValue('Boulangerie Noël');
+    expect(screen.getByLabelText('Search my portfolio')).toHaveValue('North Star');
 
-    /*
-     * Seeding the box is not enough on its own — the term has to reach the
-     * request, or the link would land on an unfiltered queue.
-     */
-    await waitFor(() =>
-      expect(listWorkQueueMock).toHaveBeenCalledWith(
-        expect.objectContaining({ q: 'Boulangerie Noël' }),
-      ),
-    );
+    /* Seeding the box is not enough: the term has to narrow the list, or the
+     * link would land on an unfiltered portfolio. */
+    expect(screen.getByText('North Star Dental')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Search my portfolio'), { target: { value: 'zzz' } });
+
+    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
   });
 });
