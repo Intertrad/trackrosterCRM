@@ -122,31 +122,53 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
         const payload = JSON.parse(
           openSecret(message.encryptedPayload, settings.key, `mail:${message.id}`).toString(),
         ) as MailMessage;
+
+        /*
+         * The local mailbox wins when it is configured.
+         *
+         * settings() already refuses any endpoint that is not loopback, so a
+         * MAILPIT_URL can only mean a development machine — and on a machine
+         * that also carries a Brevo key, preferring the provider meant every
+         * invitation and password reset went to real addresses over the
+         * public internet, while the mailbox the developer was watching
+         * stayed empty. Of 45 queued messages here, none had ever been
+         * delivered locally.
+         */
+        const useLocalMailbox = Boolean(settings.endpoint);
+
         const response = await fetch(
-          settings.brevoKey
-            ? 'https://api.brevo.com/v3/smtp/email'
-            : `${settings.endpoint}/api/v1/send`,
+          useLocalMailbox
+            ? `${settings.endpoint}/api/v1/send`
+            : 'https://api.brevo.com/v3/smtp/email',
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(settings.brevoKey ? { 'api-key': settings.brevoKey } : {}),
+              ...(useLocalMailbox || !settings.brevoKey ? {} : { 'api-key': settings.brevoKey }),
             },
             signal: AbortSignal.timeout(5000),
             body: JSON.stringify({
-              sender: settings.brevoKey
-                ? {
-                    email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
-                    name: 'TrackRoster',
-                  }
-                : { Email: 'accounts@trackroster.test', Name: 'TrackRoster' },
-              ...(settings.brevoKey
-                ? {
+              /*
+               * The two APIs disagree on the sender field: Mailpit wants
+               * `From`, Brevo wants `sender`. Sending Brevo's spelling to the
+               * local mailbox had it reject every message, which is why all
+               * 50 queued rows showed attempts and none showed a delivery.
+               */
+              ...(useLocalMailbox
+                ? { From: { Email: 'accounts@trackroster.test', Name: 'TrackRoster' } }
+                : {
+                    sender: {
+                      email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
+                      name: 'TrackRoster',
+                    },
+                  }),
+              ...(useLocalMailbox
+                ? { To: [{ Email: payload.to }], Subject: payload.subject, Text: payload.text }
+                : {
                     to: [{ email: payload.to }],
                     subject: payload.subject,
                     textContent: payload.text,
-                  }
-                : { To: [{ Email: payload.to }], Subject: payload.subject, Text: payload.text }),
+                  }),
             }),
           },
         );
