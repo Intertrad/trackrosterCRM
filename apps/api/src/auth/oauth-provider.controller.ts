@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from './auth.guard.js';
 import { CurrentAuth } from './current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from './auth.types.js';
@@ -18,5 +18,11 @@ export class OAuthProviderController {
     @Query('state') state: string,
   ) {
     return this.oauth.callback(provider, code, state);
+  }
+  @Post(':provider/refresh') @UseGuards(AuthGuard) refresh(
+    @Param('provider') provider: 'google' | 'microsoft',
+    @CurrentAuth() a: AuthenticatedPrincipal,
+  ) {
+    return this.oauth.refresh(provider, a.tenantId, a.membershipId);
   }
 }
