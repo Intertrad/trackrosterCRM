@@ -16,7 +16,7 @@ import { campaigns, establishments, organizations } from '../database/schema/ind
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 
-class SearchQuery {
+export class SearchQuery {
   @IsString() @MaxLength(120) q!: string;
   @IsOptional() @IsIn(['all', 'prospect', 'organization', 'campaign']) type?: string;
   @IsOptional() @IsString() cursor?: string;
@@ -26,7 +26,7 @@ class SearchQuery {
 type Auth = { tenantId: string };
 
 @Injectable()
-class SearchService {
+export class SearchService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
   async search(auth: Auth, query: SearchQuery) {
     const q = query.q.trim();
@@ -152,7 +152,7 @@ class SearchService {
 
 @Controller('search')
 @UseGuards(AuthGuard)
-class SearchController {
+export class SearchController {
   constructor(private readonly service: SearchService) {}
   @Get('facets') facets(@CurrentAuth() auth: Auth, @Query() query: SearchQuery) {
     return this.service.facets(auth, query);
