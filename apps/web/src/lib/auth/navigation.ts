@@ -126,18 +126,59 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
       ];
 
     case 'director':
+      /*
+       * A director's scope is organization-wide, and the reporting, approval
+       * and export endpoints already resolve that scope server-side — so the
+       * manager screens are correct for this role rather than needing
+       * duplicates. Only the rollup is director-specific.
+       */
       return [
-        OVERVIEW,
+        {
+          id: 'overview',
+          label: 'Overview',
+          icon: 'dashboard',
+          href: '/director/overview',
+          availability: 'ready',
+          primary: true,
+        },
         {
           id: 'dashboard',
           label: 'Team overview',
-          icon: 'dashboard',
+          icon: 'team',
           href: '/manager/overview',
           availability: 'ready',
           primary: true,
         },
-        { id: 'reports', label: 'Reports', icon: 'reports', availability: 'planned' },
-        { id: 'overrides', label: 'Overrides', icon: 'overrides', availability: 'planned' },
+        {
+          id: 'reports',
+          label: 'Reports',
+          icon: 'reports',
+          href: '/manager/reports',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'overrides',
+          label: 'Approvals',
+          icon: 'overrides',
+          href: '/manager/approvals',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'exports',
+          label: 'Exports',
+          icon: 'imports',
+          href: '/manager/exports',
+          availability: 'ready',
+        },
+        {
+          id: 'collisions',
+          label: 'Collision center',
+          icon: 'collisions',
+          href: '/manager/collisions',
+          availability: 'ready',
+        },
       ];
 
     case 'manager':
