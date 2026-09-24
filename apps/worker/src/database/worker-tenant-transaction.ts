@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from 'pg';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -26,4 +26,16 @@ export async function withWorkerTenantTransaction<T>(
   } finally {
     client.release();
   }
+}
+
+export async function workerTenantQuery<T extends QueryResultRow = QueryResultRow>(
+  pool: Pick<Pool, 'connect'>,
+  tenantId: string,
+  text: string,
+  values: unknown[] = [],
+): Promise<{ rows: T[]; rowCount: number }> {
+  return withWorkerTenantTransaction(pool, tenantId, async (client) => {
+    const result = await client.query<T>(text, values);
+    return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+  });
 }

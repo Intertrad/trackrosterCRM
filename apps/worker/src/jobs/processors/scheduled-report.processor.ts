@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import type { ScheduledReportJobData } from '@trackroster/jobs';
 import { WORKER_DATABASE_POOL } from '../../database/worker-database.constants.js';
+import { workerTenantQuery } from '../../database/worker-tenant-transaction.js';
 import type { JobProcessorResult } from '../job-processing.types.js';
 import { WorkerArtifactStorageService } from '../../providers/worker-artifact-storage.service.js';
 import { WorkerMailService } from '../../providers/worker-mail.service.js';
@@ -15,13 +16,23 @@ export class ScheduledReportProcessor {
     @Optional() @Inject(WorkerMailService) private readonly mail?: WorkerMailService,
   ) {}
   async process(data: ScheduledReportJobData): Promise<JobProcessorResult> {
-    const s = await this.db.query(
+    const s = await workerTenantQuery<{
+      report_key: string;
+      format: string;
+      recipients: unknown;
+      filters: unknown;
+      active: boolean;
+    }>(
+      this.db,
+      data.tenantId,
       'SELECT report_key,format,recipients,filters,active FROM scheduled_reports WHERE id=$1 AND tenant_id=$2',
       [data.scheduleId, data.tenantId],
     );
     const schedule = s.rows[0];
     if (!schedule?.active) return { status: 'noop', reason: 'schedule inactive or missing' };
-    const metrics = await this.db.query(
+    const metrics = await workerTenantQuery<{ activities: number; prospects: number }>(
+      this.db,
+      data.tenantId,
       'SELECT COUNT(*)::int AS activities, COUNT(DISTINCT prospect_id)::int AS prospects FROM activities WHERE tenant_id=$1',
       [data.tenantId],
     );
@@ -50,7 +61,9 @@ export class ScheduledReportProcessor {
         key.split('/').pop()!,
         content,
       );
-    await this.db.query(
+    await workerTenantQuery(
+      this.db,
+      data.tenantId,
       'UPDATE scheduled_report_deliveries SET status=$1,completed_at=clock_timestamp(),row_count=$2 WHERE id=$3 AND tenant_id=$4',
       ['delivered', 1, data.deliveryId, data.tenantId],
     );

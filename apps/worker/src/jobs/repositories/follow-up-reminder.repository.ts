@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 
 import { WORKER_DATABASE_POOL } from '../../database/worker-database.constants.js';
+import { workerTenantQuery } from '../../database/worker-tenant-transaction.js';
 
 export interface FollowUpReminderContext {
   id: string;
@@ -89,7 +90,9 @@ export class FollowUpReminderRepository {
     campaignProspectId: string,
     followUpId: string,
   ): Promise<FollowUpReminderContext | null> {
-    const result = await this.pool.query<FollowUpReminderContextRow>(
+    const result = await workerTenantQuery<FollowUpReminderContextRow>(
+      this.pool,
+      tenantId,
       `
           SELECT
             follow_up.id
@@ -210,7 +213,9 @@ export class FollowUpReminderRepository {
    */
   async findEligibleRecipientUserIds(context: FollowUpReminderContext): Promise<string[]> {
     if (context.assignedUserId !== null) {
-      const result = await this.pool.query<RecipientRow>(
+      const result = await workerTenantQuery<RecipientRow>(
+        this.pool,
+        context.tenantId,
         `
             SELECT DISTINCT
               membership.id
@@ -258,7 +263,9 @@ export class FollowUpReminderRepository {
       return result.rows.map((row) => row.userId);
     }
 
-    const result = await this.pool.query<RecipientRow>(
+    const result = await workerTenantQuery<RecipientRow>(
+      this.pool,
+      context.tenantId,
       `
           SELECT DISTINCT
             membership.id
@@ -325,7 +332,9 @@ export class FollowUpReminderRepository {
       return 0;
     }
 
-    const result = await this.pool.query(
+    const result = await workerTenantQuery(
+      this.pool,
+      context.tenantId,
       `
           INSERT INTO notifications (
             tenant_id,

@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Pool } from 'pg';
 import type { ComplianceArtifactJobData } from '@trackroster/jobs';
 import { WORKER_DATABASE_POOL } from '../../database/worker-database.constants.js';
+import { workerTenantQuery } from '../../database/worker-tenant-transaction.js';
 import type { JobProcessorResult } from '../job-processing.types.js';
 import { WorkerArtifactStorageService } from '../../providers/worker-artifact-storage.service.js';
 @Injectable()
@@ -21,12 +22,16 @@ export class ComplianceArtifactProcessor {
     },
   ) {}
   async process(data: ComplianceArtifactJobData): Promise<JobProcessorResult> {
-    const source = await this.db.query(
+    const source = await workerTenantQuery<{ scope: unknown }>(
+      this.db,
+      data.tenantId,
       'SELECT scope FROM evidence_exports WHERE id=$1 AND tenant_id=$2',
       [data.exportId, data.tenantId],
     );
     if (!source.rows[0]) return { status: 'noop', reason: 'export missing' };
-    const evidence = await this.db.query(
+    const evidence = await workerTenantQuery(
+      this.db,
+      data.tenantId,
       'SELECT id,event_type,created_at,actor_id,metadata FROM audit_events WHERE tenant_id=$1 ORDER BY created_at DESC LIMIT 10000',
       [data.tenantId],
     );
@@ -40,7 +45,9 @@ export class ComplianceArtifactProcessor {
       }),
       'application/json',
     );
-    const r = await this.db.query(
+    const r = await workerTenantQuery(
+      this.db,
+      data.tenantId,
       "UPDATE evidence_exports SET status=$1,object_key=$2,expires_at=clock_timestamp()+interval '24 hours' WHERE id=$3 AND tenant_id=$4 RETURNING id",
       ['ready', key, data.exportId, data.tenantId],
     );
