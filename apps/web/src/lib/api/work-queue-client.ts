@@ -8,20 +8,33 @@ import type {
   ProspectTimelinePage,
   RecordedProspectActivity,
   ReleasedProspectReservation,
+  WorkQueueLifecycleStage,
   WorkQueueProspectDetail,
   WorkQueueResponse,
+  WorkQueueOptionsResponse,
 } from './work-queue-types';
 
 export interface ListWorkQueueInput {
   teamId: string;
 
+  /** Cancels a request superseded by a newer filter combination. */
+  signal?: AbortSignal;
+
   campaignId?: string;
+
+  lifecycleStage?: WorkQueueLifecycleStage;
 
   q?: string;
 
   cursor?: string;
 
   limit?: number;
+}
+
+export interface GetWorkQueueOptionsInput {
+  teamId: string;
+
+  signal?: AbortSignal;
 }
 
 export interface RecordProspectActivityInput {
@@ -54,6 +67,8 @@ export interface GetWorkQueueProspectDetailInput {
 
 export interface ListProspectTimelineInput {
   campaignId: string;
+
+  signal?: AbortSignal;
 
   prospectId: string;
 
@@ -101,6 +116,10 @@ export async function listWorkQueue(input: ListWorkQueueInput): Promise<WorkQueu
     query.set('campaignId', input.campaignId);
   }
 
+  if (input.lifecycleStage) {
+    query.set('lifecycleStage', input.lifecycleStage);
+  }
+
   const search = input.q?.trim();
 
   if (search) {
@@ -119,6 +138,24 @@ export async function listWorkQueue(input: ListWorkQueueInput): Promise<WorkQueu
     method: 'GET',
 
     cache: 'no-store',
+
+    signal: input.signal,
+  });
+}
+
+export async function getWorkQueueOptions(
+  input: GetWorkQueueOptionsInput,
+): Promise<WorkQueueOptionsResponse> {
+  const query = new URLSearchParams();
+
+  query.set('teamId', input.teamId);
+
+  return browserJson<WorkQueueOptionsResponse>(`/api/work-queue/options?${query.toString()}`, {
+    method: 'GET',
+
+    cache: 'no-store',
+
+    signal: input.signal,
   });
 }
 
@@ -202,6 +239,8 @@ export async function listProspectTimeline(
       method: 'GET',
 
       cache: 'no-store',
+
+      signal: input.signal,
     },
   );
 }
@@ -299,6 +338,53 @@ export async function getProspectCollisionDecision(
       method: 'GET',
 
       cache: 'no-store',
+    },
+  );
+}
+
+export interface CreateCollisionOverrideInput {
+  campaignId: string;
+
+  prospectId: string;
+
+  /** The prospector the exception is granted to. */
+  prospectorUserId: string;
+
+  /** Mandatory upstream: 10-1000 characters, stored in the audit trail. */
+  reason: string;
+
+  idempotencyKey: string;
+}
+
+export interface CollisionOverrideRecord {
+  id: string;
+
+  campaignId: string;
+
+  prospectId: string;
+
+  createdAt: string;
+}
+
+export async function createCollisionOverride(
+  input: CreateCollisionOverrideInput,
+): Promise<CollisionOverrideRecord> {
+  return browserJson<CollisionOverrideRecord>(
+    `/api/work-queue/${encodeURIComponent(input.campaignId)}/${encodeURIComponent(
+      input.prospectId,
+    )}/collision-overrides`,
+    {
+      method: 'POST',
+
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': input.idempotencyKey,
+      },
+
+      body: JSON.stringify({
+        prospectorUserId: input.prospectorUserId,
+        reason: input.reason,
+      }),
     },
   );
 }

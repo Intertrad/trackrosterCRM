@@ -60,6 +60,8 @@ export async function listFollowUpQueue(
     method: 'GET',
 
     cache: 'no-store',
+
+    signal: input.signal,
   });
 }
 

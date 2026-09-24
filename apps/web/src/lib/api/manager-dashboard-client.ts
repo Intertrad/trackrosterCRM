@@ -34,6 +34,7 @@ function buildManagerDashboardQuery(input: ManagerDashboardQuery): string {
 
 export async function getManagerDashboard(
   input: ManagerDashboardQuery = {},
+  signal?: AbortSignal,
 ): Promise<ManagerDashboardResponse> {
   const query = buildManagerDashboardQuery(input);
 
@@ -41,6 +42,8 @@ export async function getManagerDashboard(
 
   return browserJson<ManagerDashboardResponse>(path, {
     method: 'GET',
+
+    signal,
     cache: 'no-store',
   });
 }

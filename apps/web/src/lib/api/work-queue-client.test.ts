@@ -5,10 +5,11 @@ import type {
   ProspectCollisionDecision,
   ProspectReservationState,
   ProspectTimelinePage,
+  RecordedProspectActivity,
   ReleasedProspectReservation,
+  WorkQueueOptionsResponse,
   WorkQueueProspectDetail,
   WorkQueueResponse,
-  RecordedProspectActivity,
 } from './work-queue-types';
 
 const { browserJsonMock } = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ import {
   acquireProspectReservation,
   getProspectCollisionDecision,
   getProspectReservation,
+  getWorkQueueOptions,
   getWorkQueueProspectDetail,
   listProspectTimeline,
   listWorkQueue,
@@ -82,6 +84,8 @@ describe('work-queue-client', () => {
 
         campaignId,
 
+        lifecycleStage: 'follow_up',
+
         q: '  Paris Clinic  ',
 
         cursor: 'next-page',
@@ -93,6 +97,7 @@ describe('work-queue-client', () => {
         '/api/work-queue' +
           `?teamId=${teamId}` +
           `&campaignId=${campaignId}` +
+          '&lifecycleStage=follow_up' +
           '&q=Paris+Clinic' +
           '&cursor=next-page' +
           '&limit=50',
@@ -153,6 +158,59 @@ describe('work-queue-client', () => {
     });
   });
 
+  describe('getWorkQueueOptions', () => {
+    const optionsResponse: WorkQueueOptionsResponse = {
+      campaigns: [
+        {
+          id: campaignId,
+
+          name: 'Paris Expansion',
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      browserJsonMock.mockResolvedValue(optionsResponse);
+    });
+
+    it('requests options through the relative BFF URL and encodes teamId', async () => {
+      await getWorkQueueOptions({
+        teamId: 'team/value + west',
+      });
+
+      expect(browserJsonMock).toHaveBeenCalledTimes(1);
+
+      expect(browserJsonMock).toHaveBeenCalledWith(
+        '/api/work-queue/options?teamId=team%2Fvalue+%2B+west',
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+        },
+      );
+    });
+
+    it('returns the typed work queue options response', async () => {
+      await expect(
+        getWorkQueueOptions({
+          teamId,
+        }),
+      ).resolves.toEqual(optionsResponse);
+    });
+
+    it('propagates work queue options transport errors unchanged', async () => {
+      const error = new Error('work queue options request failed');
+
+      browserJsonMock.mockRejectedValue(error);
+
+      await expect(
+        getWorkQueueOptions({
+          teamId,
+        }),
+      ).rejects.toBe(error);
+    });
+  });
+
   describe('getWorkQueueProspectDetail', () => {
     const detailResponse: WorkQueueProspectDetail = {
       campaignProspectId: prospectId,
@@ -187,6 +245,10 @@ describe('work-queue-client', () => {
         city: 'Paris',
 
         countryCode: 'FR',
+
+        latitude: 49.1596,
+
+        longitude: 5.3828,
 
         phone: '+33100000000',
 

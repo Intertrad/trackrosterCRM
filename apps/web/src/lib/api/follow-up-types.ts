@@ -71,6 +71,9 @@ export interface ListFollowUpQueueOptions {
   overdue?: boolean;
 
   limit?: number;
+
+  /** Cancels a request superseded by a tab change. */
+  signal?: AbortSignal;
 }
 
 export interface ListProspectFollowUpsInput {

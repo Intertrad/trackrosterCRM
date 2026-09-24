@@ -1,9 +1,39 @@
 export type WorkQueueEstablishmentStatus = 'active' | 'inactive' | 'archived';
+export interface WorkQueueCampaignOption {
+  id: string;
+
+  name: string;
+}
+
+export interface WorkQueueOptionsResponse {
+  campaigns: WorkQueueCampaignOption[];
+}
 
 export type ProspectTimelineActivityType = 'call' | 'email' | 'message' | 'visit';
 
+export type WorkQueueLifecycleStage =
+  'to_contact' | 'contact_made' | 'in_progress' | 'follow_up' | 'qualified' | 'converted';
+
+export interface WorkQueueLatestActivity {
+  type: ProspectTimelineActivityType;
+
+  occurredAt: string;
+}
+
+export interface WorkQueueNextFollowUp {
+  id: string;
+
+  dueAt: string;
+}
+
 export interface WorkQueueItem {
   campaignProspectId: string;
+
+  lifecycleStage: WorkQueueLifecycleStage;
+
+  latestActivity: WorkQueueLatestActivity | null;
+
+  nextFollowUp: WorkQueueNextFollowUp | null;
 
   campaign: {
     id: string;
@@ -31,6 +61,11 @@ export interface WorkQueueItem {
     postalCode: string | null;
     city: string | null;
     countryCode: string;
+
+    /** Canonical coordinates; null until an establishment is geocoded. */
+    latitude: number | null;
+
+    longitude: number | null;
 
     phone: string | null;
     website: string | null;
@@ -72,6 +107,11 @@ export interface WorkQueueProspectDetail {
     postalCode: string | null;
     city: string | null;
     countryCode: string;
+
+    /** Canonical coordinates; null until an establishment is geocoded. */
+    latitude: number | null;
+
+    longitude: number | null;
 
     phone: string | null;
     website: string | null;
