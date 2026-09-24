@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Settings, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, Settings, X } from 'lucide-react';
 
 import { NavIcon } from '@/components/layout/nav-icon';
 import { NotificationBell } from '@/components/layout/notification-bell';
@@ -93,6 +93,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const primaryItems = items.filter((item) => item.primary).slice(0, 4);
   const overflowItems = items.filter((item) => !primaryItems.includes(item));
 
+  /* The sidebar lists the everyday screens; the rest stay one click away
+   * rather than being unreachable outside their own URL. */
+  const sidebarItems = items.filter((item) => !item.secondary);
+  const sidebarMoreItems = items.filter((item) => item.secondary);
+
   return (
     <div className="flex min-h-dvh flex-col bg-canvas lg:flex-row">
       {/* Mobile top bar — the sidebar is replaced by a bottom bar below lg. */}
@@ -126,14 +131,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        <nav aria-label="Workspace" className="flex-1 px-3 py-4">
+        <nav aria-label="Workspace" className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {items.map((item) => (
+            {sidebarItems.map((item) => (
               <li key={item.id}>
                 <SidebarItem item={item} pathname={pathname} collapsed={collapsed} />
               </li>
             ))}
           </ul>
+
+          {sidebarMoreItems.length > 0 ? (
+            <SidebarMore items={sidebarMoreItems} pathname={pathname} collapsed={collapsed} />
+          ) : null}
         </nav>
 
         <div className={cn('border-t border-white/10 p-3', collapsed && 'px-2')}>
@@ -179,6 +188,81 @@ export function AppShell({ children }: { children: ReactNode }) {
         moreOpen={moreOpen}
         onToggleMore={() => setMoreOpen((open) => !open)}
       />
+    </div>
+  );
+}
+
+/**
+ * The screens a prospector reaches occasionally, kept out of the main list so
+ * the sidebar stays the short, scannable set the design specifies.
+ *
+ * It opens itself when the current page is one of them, so the sidebar never
+ * shows nothing highlighted while you are standing on one.
+ */
+function SidebarMore({
+  items,
+  pathname,
+  collapsed,
+}: {
+  items: WorkspaceNavigationItem[];
+  pathname: string;
+  collapsed: boolean;
+}) {
+  const containsCurrent = items.some((item) => isNavigationItemActive(pathname, item));
+
+  const [open, setOpen] = useState(containsCurrent);
+
+  useEffect(() => {
+    if (containsCurrent) {
+      setOpen(true);
+    }
+  }, [containsCurrent]);
+
+  if (collapsed) {
+    /* No room for a label, so the items are listed directly rather than
+       hidden behind a control nobody can read. */
+    return (
+      <ul className="mt-1 flex flex-col gap-1 border-t border-white/10 pt-2">
+        {items.map((item) => (
+          <li key={item.id}>
+            <SidebarItem item={item} pathname={pathname} collapsed={collapsed} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="mt-2 border-t border-white/10 pt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-lg px-3 py-2.5',
+          'text-[15px] font-semibold text-white/60 transition-colors duration-150',
+          'hover:bg-white/5 hover:text-white',
+        )}
+      >
+        <MoreHorizontal aria-hidden="true" className="size-5 shrink-0" />
+
+        <span className="flex-1 text-left">More</span>
+
+        <ChevronDown
+          aria-hidden="true"
+          className={cn('size-4 transition-transform duration-150', open && 'rotate-180')}
+        />
+      </button>
+
+      {open ? (
+        <ul className="mt-1 flex flex-col gap-1">
+          {items.map((item) => (
+            <li key={item.id}>
+              <SidebarItem item={item} pathname={pathname} collapsed={collapsed} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
@@ -46,10 +46,49 @@ describe('AppShell', () => {
 
     const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
 
+    /* The design handoff specifies these five and nothing else; the
+     * occasional screens sit behind the disclosure below them. */
     expect(sidebar).toHaveTextContent('Today');
     expect(sidebar).toHaveTextContent('My prospects');
-    expect(sidebar).toHaveTextContent('Routes');
+    expect(sidebar).toHaveTextContent('Map');
+    expect(sidebar).toHaveTextContent('Actions');
     expect(sidebar).toHaveTextContent('Messages');
+
+    expect(sidebar).not.toHaveTextContent('Routes');
+    expect(sidebar).not.toHaveTextContent('Logged actions');
+  });
+
+  it('keeps the occasional prospector screens reachable behind More', () => {
+    authenticated();
+
+    render(<AppShell>content</AppShell>);
+
+    const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
+
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'More' }));
+
+    /* Taking a working screen out of the list must not strand it at a URL
+     * nothing links to. */
+    for (const label of ['Routes', 'Logged actions', 'Search']) {
+      expect(within(sidebar).getByRole('link', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('opens More on its own when the current page lives inside it', () => {
+    pathnameMock.mockReturnValue('/routes');
+
+    authenticated();
+
+    render(<AppShell>content</AppShell>);
+
+    const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
+
+    /* Otherwise the sidebar would show nothing highlighted while the
+     * prospector is standing on one of these screens. */
+    expect(within(sidebar).getByRole('link', { name: 'Routes' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   it('never renders a link for a screen that does not exist', () => {
@@ -85,7 +124,7 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    for (const label of ['Today', 'My prospects', 'Map', 'Actions', 'Routes', 'Messages']) {
+    for (const label of ['Today', 'My prospects', 'Map', 'Actions', 'Messages']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     }
   });
