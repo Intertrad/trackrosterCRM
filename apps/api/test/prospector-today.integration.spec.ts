@@ -606,6 +606,7 @@ describe('Prospector Today HTTP integration', () => {
       followUps: 0,
       meetings: 0,
       overdue: 0,
+      completedToday: 0,
     });
     expect(body.priorities).toEqual([]);
   });
@@ -662,6 +663,7 @@ describe('Prospector Today HTTP integration', () => {
       followUps: 1,
       meetings: 1,
       overdue: 1,
+      completedToday: 0,
     });
 
     expect(body.priorities.map((priority) => priority.id)).toEqual([
@@ -824,6 +826,7 @@ describe('Prospector Today HTTP integration', () => {
       followUps: 9,
       meetings: 9,
       overdue: 0,
+      completedToday: 0,
     });
     expect(body.priorities).toHaveLength(25);
     expect(body.priorities.map((priority) => priority.id)).toEqual(expectedIds.slice(0, 25));
