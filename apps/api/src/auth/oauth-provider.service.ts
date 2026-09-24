@@ -129,55 +129,61 @@ export class OAuthProviderService {
 
   async refresh(provider: Provider, tenantId: string, membershipId: string) {
     if (!this.db) throw new ServiceUnavailableException('OAuth persistence is not configured');
-    const [row] = await this.db
-      .select({ id: integrations.id, config: integrations.config })
-      .from(integrations)
-      .where(
-        and(
-          eq(integrations.tenantId, tenantId),
-          eq(integrations.provider, provider),
-          eq(integrations.connectedBy, membershipId),
-          eq(integrations.status, 'connected'),
-        ),
-      )
-      .limit(1);
-    const encrypted = (row?.config as { encryptedTokens?: string } | undefined)?.encryptedTokens;
-    if (!row || !encrypted) throw new BadRequestException('OAuth connection not found');
-    const tokens = this.decrypt(provider, tenantId, membershipId, encrypted);
-    const refreshToken =
-      typeof tokens.refresh_token === 'string' ? tokens.refresh_token : undefined;
-    if (!refreshToken) throw new BadRequestException('Provider did not issue a refresh token');
-    const s = this.settings(provider);
-    const endpoint =
-      provider === 'google'
-        ? 'https://oauth2.googleapis.com/token'
-        : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: s.clientId,
-        client_secret: s.clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!response.ok) throw new BadRequestException('OAuth token refresh failed');
-    const next = (await response.json()) as Record<string, unknown>;
-    if (!next.refresh_token) next.refresh_token = refreshToken;
-    const encryptedTokens = sealSecret(
-      Buffer.from(JSON.stringify(next)),
-      s.key,
-      `${provider}:${tenantId}:${membershipId}`,
-    );
-    await this.db
-      .update(integrations)
-      .set({
-        config: { encryptedTokens, tokenUpdatedAt: new Date().toISOString() },
-        updatedAt: new Date(),
-      })
-      .where(eq(integrations.id, row.id));
-    return { provider, refreshed: true };
+    const refreshWork = async (tx: Database) => {
+      // Serialize refreshes for a connection so concurrent requests cannot
+      // overwrite a rotated refresh token with stale credentials.
+      const [row] = await tx
+        .select({ id: integrations.id, config: integrations.config })
+        .from(integrations)
+        .where(
+          and(
+            eq(integrations.tenantId, tenantId),
+            eq(integrations.provider, provider),
+            eq(integrations.connectedBy, membershipId),
+            eq(integrations.status, 'connected'),
+          ),
+        )
+        .for('update')
+        .limit(1);
+      const encrypted = (row?.config as { encryptedTokens?: string } | undefined)?.encryptedTokens;
+      if (!row || !encrypted) throw new BadRequestException('OAuth connection not found');
+      const tokens = this.decrypt(provider, tenantId, membershipId, encrypted);
+      const refreshToken =
+        typeof tokens.refresh_token === 'string' ? tokens.refresh_token : undefined;
+      if (!refreshToken) throw new BadRequestException('Provider did not issue a refresh token');
+      const s = this.settings(provider);
+      const endpoint =
+        provider === 'google'
+          ? 'https://oauth2.googleapis.com/token'
+          : 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: s.clientId,
+          client_secret: s.clientSecret,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new BadRequestException('OAuth token refresh failed');
+      const next = (await response.json()) as Record<string, unknown>;
+      if (!next.refresh_token) next.refresh_token = refreshToken;
+      const encryptedTokens = sealSecret(
+        Buffer.from(JSON.stringify(next)),
+        s.key,
+        `${provider}:${tenantId}:${membershipId}`,
+      );
+      await tx
+        .update(integrations)
+        .set({
+          config: { encryptedTokens, tokenUpdatedAt: new Date().toISOString() },
+          updatedAt: new Date(),
+        })
+        .where(eq(integrations.id, row.id));
+      return { provider, refreshed: true };
+    };
+    return this.db.transaction(refreshWork);
   }
 }
