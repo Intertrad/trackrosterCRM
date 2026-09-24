@@ -321,6 +321,112 @@ export const DICTIONARY = {
     fr: 'Impossible de charger les coordonnées.',
   },
 
+  /* ---------- actions queue ---------- */
+  'actions.title': { en: 'Actions', fr: 'Actions' },
+  'actions.subtitle': {
+    en: 'Manage your calls, emails, visits and follow-ups',
+    fr: 'Gérez vos appels, emails, visites et relances',
+  },
+  'actions.teamScoped': {
+    en: 'This view is scoped to a team.',
+    fr: 'Cette vue est rattachée à une équipe.',
+  },
+  'actions.teamScopedBody': {
+    en: 'Switch to a team workspace to manage your actions.',
+    fr: "Changez d'espace de travail pour gérer vos actions.",
+  },
+  'actions.loadError': {
+    en: 'We could not load your actions. Please try again.',
+    fr: 'Impossible de charger vos actions. Veuillez réessayer.',
+  },
+  'actions.search': { en: 'Search actions', fr: 'Rechercher une action' },
+  'actions.loading': { en: 'Loading your actions…', fr: 'Chargement de vos actions…' },
+  'actions.tab.todo': { en: 'To do', fr: 'À faire' },
+  'actions.tab.overdue': { en: 'Overdue', fr: 'En retard' },
+  'actions.tab.completed': { en: 'Completed', fr: 'Terminées' },
+  'actions.noSearchMatch': {
+    en: 'No actions match your search',
+    fr: 'Aucune action ne correspond à votre recherche',
+  },
+  'actions.emptyList': { en: 'Nothing in this list', fr: 'Rien dans cette liste' },
+  'actions.noOverdue': {
+    en: 'You have no overdue follow-ups.',
+    fr: "Vous n'avez aucune relance en retard.",
+  },
+  'actions.emptyBody': {
+    en: 'New follow-ups appear here when they are created.',
+    fr: 'Les nouvelles relances apparaîtront ici dès leur création.',
+  },
+  'actions.bulk': { en: 'Bulk actions', fr: 'Actions groupées' },
+  'actions.selected': { en: '{count} actions selected', fr: '{count} actions sélectionnées' },
+  'actions.selected.one': { en: '{count} action selected', fr: '{count} action sélectionnée' },
+  'actions.markCompleted': { en: 'Mark completed', fr: 'Marquer comme terminées' },
+  'actions.cancelActions': { en: 'Cancel actions', fr: 'Annuler les actions' },
+  'actions.clearSelection': { en: 'Clear selection', fr: 'Effacer la sélection' },
+  'actions.select': {
+    en: 'Select follow-up for {name}',
+    fr: 'Sélectionner la relance pour {name}',
+  },
+  'actions.owner.team': { en: 'Team', fr: 'Équipe' },
+  'actions.owner.you': { en: 'You', fr: 'Vous' },
+  'actions.status.open': { en: 'Open', fr: 'Ouverte' },
+  'actions.status.completed': { en: 'Completed', fr: 'Terminée' },
+  'actions.status.overdue': { en: 'Overdue', fr: 'En retard' },
+
+  /* ---------- messages ---------- */
+  'messages.title': { en: 'Messages', fr: 'Messages' },
+  'messages.subtitle': {
+    en: 'Coordinate with your team without leaving TrackRoster',
+    fr: 'Coordonnez-vous avec votre équipe sans quitter TrackRoster',
+  },
+  'messages.search': { en: 'Search conversations', fr: 'Rechercher une conversation' },
+  'messages.none': { en: 'No conversations yet', fr: 'Aucune conversation pour le moment' },
+  'messages.noMatches': { en: 'No matches', fr: 'Aucun résultat' },
+  'messages.startOne': {
+    en: 'Start one to coordinate a visit or hand a prospect over.',
+    fr: 'Démarrez-en une pour organiser une visite ou transmettre un prospect.',
+  },
+  'messages.unread': { en: 'Unread messages', fr: 'Messages non lus' },
+  'messages.unmute': { en: 'Unmute', fr: 'Réactiver' },
+  'messages.mute8h': { en: 'Mute 8h', fr: 'Mettre en sourdine 8 h' },
+  'messages.unknownSender': { en: 'Unknown', fr: 'Inconnu' },
+  'messages.deleteMessage': { en: 'Delete message', fr: 'Supprimer le message' },
+  'messages.message': { en: 'Message', fr: 'Message' },
+  'messages.writeMessage': { en: 'Write a message…', fr: 'Écrire un message…' },
+  'messages.send': { en: 'Send', fr: 'Envoyer' },
+  'messages.newConversation': { en: 'New conversation', fr: 'Nouvelle conversation' },
+  'messages.kind': { en: 'Kind', fr: 'Type' },
+  'messages.titleOptional': { en: 'Title (optional)', fr: 'Titre (facultatif)' },
+  'messages.titlePlaceholder': { en: 'What is this about?', fr: 'De quoi s’agit-il ?' },
+  'messages.participants': { en: 'Participants', fr: 'Participants' },
+  'messages.nobodyAvailable': {
+    en: 'Nobody else is available in this workspace.',
+    fr: "Personne d'autre n'est disponible dans cet espace de travail.",
+  },
+  'messages.genericError': {
+    en: 'Something went wrong. Please try again.',
+    fr: 'Une erreur est survenue. Veuillez réessayer.',
+  },
+  'messages.notParticipant': {
+    en: 'You are not a participant in this conversation.',
+    fr: 'Vous ne participez pas à cette conversation.',
+  },
+  'messages.gone': {
+    en: 'That conversation no longer exists.',
+    fr: "Cette conversation n'existe plus.",
+  },
+  'messages.unreachable': {
+    en: 'We could not reach messaging. Please try again.',
+    fr: 'Impossible de joindre la messagerie. Veuillez réessayer.',
+  },
+
+  /* ---------- conversation kinds ---------- */
+  'conversation.direct': { en: 'Direct', fr: 'Direct' },
+  'conversation.team': { en: 'Team', fr: 'Équipe' },
+  'conversation.prospect': { en: 'Prospect', fr: 'Prospect' },
+  'conversation.campaign': { en: 'Campaign', fr: 'Campagne' },
+  'conversation.named': { en: '{kind} conversation', fr: 'Conversation {kind}' },
+
   /* ---------- lifecycle ---------- */
   'stage.to_contact': { en: 'To contact', fr: 'À contacter' },
   'stage.contact_made': { en: 'Contact made', fr: 'Contact établi' },

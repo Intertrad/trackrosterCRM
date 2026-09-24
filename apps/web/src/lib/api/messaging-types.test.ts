@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { DICTIONARY } from '@/lib/i18n/dictionary';
+import type { Translate } from '@/lib/i18n/i18n-context';
+
 import {
   conversationName,
   hasUnread,
@@ -38,28 +41,34 @@ function participant(overrides: Partial<ConversationParticipant> = {}): Conversa
   };
 }
 
+/* The real translator, so the fallback is asserted as a reader sees it. */
+const t: Translate = (key, values) =>
+  (DICTIONARY[key].en as string).replace(/\{(\w+)\}/g, (match, name: string) =>
+    values && name in values ? String(values[name]) : match,
+  );
+
 describe('conversationName', () => {
   it('prefers an explicit title', () => {
-    expect(conversationName(conversation({ title: 'Verdun daily' }), ['A', 'B'])).toBe(
+    expect(conversationName(conversation({ title: 'Verdun daily' }), t, ['A', 'B'])).toBe(
       'Verdun daily',
     );
   });
 
   /* Direct conversations usually carry no title. */
   it('falls back to the other participants', () => {
-    expect(conversationName(conversation(), ['Sophie', 'Laurent'])).toBe('Sophie, Laurent');
+    expect(conversationName(conversation(), t, ['Sophie', 'Laurent'])).toBe('Sophie, Laurent');
   });
 
   it('caps the fallback at three names', () => {
-    expect(conversationName(conversation(), ['A', 'B', 'C', 'D'])).toBe('A, B, C');
+    expect(conversationName(conversation(), t, ['A', 'B', 'C', 'D'])).toBe('A, B, C');
   });
 
   it('never renders a bare id when there is nothing else', () => {
-    expect(conversationName(conversation({ kind: 'team' }), [])).toBe('Team conversation');
+    expect(conversationName(conversation({ kind: 'team' }), t, [])).toBe('Team conversation');
   });
 
   it('ignores a whitespace-only title', () => {
-    expect(conversationName(conversation({ title: '   ' }), ['Sophie'])).toBe('Sophie');
+    expect(conversationName(conversation({ title: '   ' }), t, ['Sophie'])).toBe('Sophie');
   });
 });
 

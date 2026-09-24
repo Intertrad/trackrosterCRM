@@ -19,12 +19,14 @@ import {
 } from '@/lib/api/follow-up-client';
 import type { FollowUpQueueItem } from '@/lib/api/follow-up-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 type TabId = 'todo' | 'overdue' | 'completed';
 
 export default function ActionsPage() {
   const { activeWorkspace } = useAuth();
+  const { t } = useTranslation();
   const teamId = activeWorkspace?.teamId ?? null;
 
   const [tab, setTab] = useState<TabId>('todo');
@@ -88,8 +90,8 @@ export default function ActionsPage() {
 
         setReadError(
           caught instanceof ApiError && caught.statusCode === 401
-            ? 'Your session has expired. Please sign in again.'
-            : 'We could not load your actions. Please try again.',
+            ? t('today.sessionExpired')
+            : t('actions.loadError'),
         );
       }
     },
@@ -213,10 +215,10 @@ export default function ActionsPage() {
   if (!teamId) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Actions" />
+        <PageHeader title={t('actions.title')} />
 
-        <Alert tone="info" title="This view is scoped to a team.">
-          Switch to a team workspace to manage your actions.
+        <Alert tone="info" title={t('actions.teamScoped')}>
+          {t('actions.teamScopedBody')}
         </Alert>
       </div>
     );
@@ -225,23 +227,23 @@ export default function ActionsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Actions"
-        subtitle="Manage your calls, emails, visits and follow-ups"
+        title={t('actions.title')}
+        subtitle={t('actions.subtitle')}
         action={
           /* The history of completed work and the round planner are no longer
              in the prospector sidebar, so this is where they are reached. */
           <div className="flex flex-wrap gap-2">
-            <LinkButton href="/actions">Logged actions</LinkButton>
+            <LinkButton href="/actions">{t('nav.loggedActions')}</LinkButton>
 
-            <LinkButton href="/routes">Routes</LinkButton>
+            <LinkButton href="/routes">{t('nav.routes')}</LinkButton>
           </div>
         }
       />
 
       <div className="flex flex-wrap gap-3">
         <SearchInput
-          label="Search actions"
-          placeholder="Search actions..."
+          label={t('actions.search')}
+          placeholder={`${t('actions.search')}…`}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="min-w-[240px] flex-1"
@@ -251,9 +253,9 @@ export default function ActionsPage() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            { id: 'todo', label: 'To do' },
-            { id: 'overdue', label: 'Overdue' },
-            { id: 'completed', label: 'Completed' },
+            { id: 'todo', label: 'actions.tab.todo' },
+            { id: 'overdue', label: 'actions.tab.overdue' },
+            { id: 'completed', label: 'actions.tab.completed' },
           ] as const
         ).map((item) => (
           <button
@@ -268,7 +270,7 @@ export default function ActionsPage() {
                 : 'bg-surface-muted text-ink-soft hover:text-ink',
             )}
           >
-            {item.label}
+            {t(item.label)}
 
             <span
               className={cn(
@@ -298,13 +300,11 @@ export default function ActionsPage() {
             <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success" />
 
             <p className="mt-3 text-[17px] font-bold text-navy">
-              {search ? 'No actions match your search' : 'Nothing in this list'}
+              {t(search ? 'actions.noSearchMatch' : 'actions.emptyList')}
             </p>
 
             <p className="mt-1 text-[14px] text-ink-muted">
-              {tab === 'overdue'
-                ? 'You have no overdue follow-ups.'
-                : 'New follow-ups appear here when they are created.'}
+              {t(tab === 'overdue' ? 'actions.noOverdue' : 'actions.emptyBody')}
             </p>
           </div>
         </Card>
@@ -326,11 +326,13 @@ export default function ActionsPage() {
       {selected.size > 0 ? (
         <div
           role="region"
-          aria-label="Bulk actions"
+          aria-label={t('actions.bulk')}
           className="sticky bottom-20 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-raised lg:bottom-6"
         >
           <span className="text-[15px] font-semibold text-navy">
-            {selected.size} action{selected.size === 1 ? '' : 's'} selected
+            {t(selected.size === 1 ? 'actions.selected.one' : 'actions.selected', {
+              count: selected.size,
+            })}
           </span>
 
           <Button
@@ -340,7 +342,7 @@ export default function ActionsPage() {
             leadingIcon={<CheckCircle2 aria-hidden="true" className="size-[18px]" />}
             onClick={() => void runBulk('complete')}
           >
-            Mark completed
+            {t('actions.markCompleted')}
           </Button>
 
           <Button
@@ -349,13 +351,13 @@ export default function ActionsPage() {
             loading={busy}
             onClick={() => void runBulk('cancel')}
           >
-            Cancel actions
+            {t('actions.cancelActions')}
           </Button>
 
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            aria-label="Clear selection"
+            aria-label={t('actions.clearSelection')}
             className="ml-auto text-ink-muted hover:text-ink"
           >
             <X aria-hidden="true" className="size-5" />
@@ -375,6 +377,8 @@ function ActionRow({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
+
   const overdue = item.status === 'pending' && new Date(item.dueAt).getTime() < Date.now();
 
   return (
@@ -383,7 +387,7 @@ function ActionRow({
         type="checkbox"
         checked={selected}
         onChange={onToggle}
-        aria-label={`Select follow-up for ${item.establishmentName}`}
+        aria-label={t('actions.select', { name: item.establishmentName })}
         className="size-[18px] shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
       />
 
@@ -393,7 +397,7 @@ function ActionRow({
         {formatDate(item.dueAt)}
 
         <span className="block text-[13px] font-medium text-ink-muted">
-          {overdue ? 'Overdue' : formatTime(item.dueAt)}
+          {overdue ? t('actions.status.overdue') : formatTime(item.dueAt)}
         </span>
       </span>
 
@@ -409,20 +413,28 @@ function ActionRow({
       </span>
 
       <Badge tone={item.ownership === 'team' ? 'brand' : 'neutral'} className="shrink-0">
-        {item.ownership === 'team' ? 'Team' : 'You'}
+        {t(item.ownership === 'team' ? 'actions.owner.team' : 'actions.owner.you')}
       </Badge>
 
       <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
-        {item.status === 'completed' ? 'Completed' : overdue ? 'Overdue' : 'Open'}
+        {t(
+          item.status === 'completed'
+            ? 'actions.status.completed'
+            : overdue
+              ? 'actions.status.overdue'
+              : 'actions.status.open',
+        )}
       </Badge>
     </li>
   );
 }
 
 function QueueSkeleton() {
+  const { t } = useTranslation();
+
   return (
     <Card className="p-0 sm:p-0" aria-busy="true">
-      <span className="sr-only">Loading your actions…</span>
+      <span className="sr-only">{t('actions.loading')}</span>
 
       <ul className="divide-y divide-line-soft">
         {[0, 1, 2, 3, 4].map((row) => (

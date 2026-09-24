@@ -1,3 +1,6 @@
+import type { MessageKey } from '@/lib/i18n/dictionary';
+import type { Translate } from '@/lib/i18n/i18n-context';
+
 export type ConversationKind = 'direct' | 'team' | 'prospect' | 'campaign';
 
 export type ConversationStatus = 'active' | 'archived';
@@ -65,15 +68,16 @@ export const CONVERSATION_KINDS: readonly ConversationKind[] = [
   'campaign',
 ];
 
-const KIND_LABELS: Record<ConversationKind, string> = {
-  direct: 'Direct',
-  team: 'Team',
-  prospect: 'Prospect',
-  campaign: 'Campaign',
+const KIND_LABELS: Record<ConversationKind, MessageKey> = {
+  direct: 'conversation.direct',
+  team: 'conversation.team',
+  prospect: 'conversation.prospect',
+  campaign: 'conversation.campaign',
 };
 
-export function conversationKindLabel(kind: ConversationKind): string {
-  return KIND_LABELS[kind] ?? kind;
+/** The message key for a kind; call sites translate it themselves. */
+export function conversationKindLabelKey(kind: ConversationKind): MessageKey {
+  return KIND_LABELS[kind];
 }
 
 /**
@@ -84,6 +88,7 @@ export function conversationKindLabel(kind: ConversationKind): string {
  */
 export function conversationName(
   conversation: Conversation,
+  t: Translate,
   participantNames: string[] = [],
 ): string {
   if (conversation.title?.trim()) {
@@ -94,7 +99,7 @@ export function conversationName(
     return participantNames.slice(0, 3).join(', ');
   }
 
-  return `${conversationKindLabel(conversation.kind)} conversation`;
+  return t('conversation.named', { kind: t(conversationKindLabelKey(conversation.kind)) });
 }
 
 export function isMuted(

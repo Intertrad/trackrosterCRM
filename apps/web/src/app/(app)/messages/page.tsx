@@ -32,7 +32,7 @@ import {
 import {
   CONVERSATION_KINDS,
   MAX_MESSAGE_BODY,
-  conversationKindLabel,
+  conversationKindLabelKey,
   conversationName,
   hasUnread,
   isMuted,
@@ -43,9 +43,11 @@ import {
   type Message,
 } from '@/lib/api/messaging-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 
 export default function MessagesPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   /*
    * `userId` on the session is the membership id: the auth guard builds the
@@ -86,7 +88,7 @@ export default function MessagesPage() {
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
             setConversations([]);
-            setReadError(describeMessagingError(caught));
+            setReadError(describeMessagingError(caught, t));
           }
         }),
     [],
@@ -122,7 +124,7 @@ export default function MessagesPage() {
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
             setMessages([]);
-            setActionError(describeMessagingError(caught));
+            setActionError(describeMessagingError(caught, t));
           }
         }),
     [],
@@ -170,7 +172,7 @@ export default function MessagesPage() {
       .filter((person): person is MembershipSummary => Boolean(person))
       .map((person) => membershipName(person));
 
-    return conversationName(conversation, others);
+    return conversationName(conversation, t, others);
   }
 
   const visible = useMemo(() => {
@@ -185,9 +187,9 @@ export default function MessagesPage() {
     }
 
     return conversations.filter((conversation) =>
-      conversationName(conversation).toLowerCase().includes(query),
+      conversationName(conversation, t).toLowerCase().includes(query),
     );
-  }, [conversations, search]);
+  }, [conversations, search, t]);
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -206,7 +208,7 @@ export default function MessagesPage() {
       await loadThread(activeId);
       await loadConversations();
     } catch (caught) {
-      setActionError(describeMessagingError(caught));
+      setActionError(describeMessagingError(caught, t));
     } finally {
       setBusy(false);
     }
@@ -215,8 +217,8 @@ export default function MessagesPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Messages"
-        subtitle="Coordinate with your team without leaving TrackRoster"
+        title={t('messages.title')}
+        subtitle={t('messages.subtitle')}
         action={
           <Button onClick={() => setComposing(true)}>
             <Plus aria-hidden="true" className="mr-2 size-4" />
@@ -230,8 +232,8 @@ export default function MessagesPage() {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
         <Card>
           <SearchInput
-            label="Search conversations"
-            placeholder="Search conversations…"
+            label={t('messages.search')}
+            placeholder={`${t('messages.search')}…`}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -247,12 +249,12 @@ export default function MessagesPage() {
               <MessagesSquare aria-hidden="true" className="mx-auto size-7 text-line" />
 
               <p className="mt-3 text-[15px] font-semibold text-navy">
-                {conversations.length === 0 ? 'No conversations yet' : 'No matches'}
+                {t(conversations.length === 0 ? 'messages.none' : 'messages.noMatches')}
               </p>
 
               {conversations.length === 0 ? (
                 <p className="mx-auto mt-2 max-w-xs text-[14px] text-ink-muted">
-                  Start one to coordinate a visit or hand a prospect over.
+                  {t('messages.startOne')}
                 </p>
               ) : null}
             </div>
@@ -274,19 +276,21 @@ export default function MessagesPage() {
                     >
                       <span className="flex items-center justify-between gap-2">
                         <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-navy">
-                          {conversationName(conversation)}
+                          {conversationName(conversation, t)}
                         </span>
 
                         {conversation.id !== activeId && unread ? (
                           <span
-                            aria-label="Unread messages"
+                            aria-label={t('messages.unread')}
                             className="size-2 shrink-0 rounded-full bg-brand"
                           />
                         ) : null}
                       </span>
 
                       <span className="mt-0.5 flex items-center gap-2 text-[13px] text-ink-muted">
-                        <Badge tone="neutral">{conversationKindLabel(conversation.kind)}</Badge>
+                        <Badge tone="neutral">
+                          {t(conversationKindLabelKey(conversation.kind))}
+                        </Badge>
 
                         {formatTimestamp(conversation.updatedAt)}
                       </span>
@@ -327,12 +331,12 @@ export default function MessagesPage() {
                         muteConversation(active.id, next)
                           .then(() => loadThread(active.id))
                           .catch((caught: unknown) =>
-                            setActionError(describeMessagingError(caught)),
+                            setActionError(describeMessagingError(caught, t)),
                           )
                           .finally(() => setBusy(false));
                       }}
                     >
-                      {isMuted(myParticipation) ? 'Unmute' : 'Mute 8h'}
+                      {t(isMuted(myParticipation) ? 'messages.unmute' : 'messages.mute8h')}
                     </Button>
                   </div>
                 }
@@ -385,7 +389,7 @@ export default function MessagesPage() {
                             >
                               {!mine ? (
                                 <p className="text-[12px] font-semibold text-ink-muted">
-                                  {sender ? membershipName(sender) : 'Unknown'}
+                                  {sender ? membershipName(sender) : t('messages.unknownSender')}
                                 </p>
                               ) : null}
 
@@ -426,7 +430,7 @@ export default function MessagesPage() {
                             {mine && message.status !== 'deleted' ? (
                               <button
                                 type="button"
-                                aria-label="Delete message"
+                                aria-label={t('messages.deleteMessage')}
                                 disabled={busy}
                                 className="mt-1 shrink-0 text-ink-muted hover:text-danger disabled:opacity-40"
                                 onClick={() => {
@@ -435,7 +439,7 @@ export default function MessagesPage() {
                                   deleteMessage(message.id)
                                     .then(() => loadThread(active.id))
                                     .catch((caught: unknown) =>
-                                      setActionError(describeMessagingError(caught)),
+                                      setActionError(describeMessagingError(caught, t)),
                                     )
                                     .finally(() => setBusy(false));
                                 }}
@@ -456,10 +460,10 @@ export default function MessagesPage() {
               <form onSubmit={(event) => void send(event)} className="mt-4 flex gap-2.5">
                 <div className="min-w-0 flex-1">
                   <TextField
-                    label="Message"
+                    label={t('messages.message')}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Write a message…"
+                    placeholder={t('messages.writeMessage')}
                     maxLength={MAX_MESSAGE_BODY}
                     disabled={busy}
                   />
@@ -467,7 +471,7 @@ export default function MessagesPage() {
 
                 <Button type="submit" loading={busy} disabled={draft.trim().length === 0}>
                   <Send aria-hidden="true" className="size-4" />
-                  <span className="sr-only">Send</span>
+                  <span className="sr-only">{t('messages.send')}</span>
                 </Button>
               </form>
             </>
@@ -500,6 +504,8 @@ function ComposeDrawer({
   onClose: () => void;
   onCreated: (conversation: Conversation) => void;
 }) {
+  const { t } = useTranslation();
+
   const [kind, setKind] = useState<ConversationKind>('direct');
   const [title, setTitle] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -516,35 +522,35 @@ function ComposeDrawer({
   }, [open]);
 
   return (
-    <Drawer open={open} title="New conversation" onClose={onClose}>
+    <Drawer open={open} title={t('messages.newConversation')} onClose={onClose}>
       <div className="flex flex-col gap-5">
         <SelectField
-          label="Kind"
+          label={t('messages.kind')}
           value={kind}
           disabled={busy}
           onChange={(event) => setKind(event.target.value as ConversationKind)}
           options={CONVERSATION_KINDS.map((value) => ({
             value,
-            label: conversationKindLabel(value),
+            label: t(conversationKindLabelKey(value)),
           }))}
         />
 
         <TextField
-          label="Title (optional)"
+          label={t('messages.titleOptional')}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          placeholder="What is this about?"
+          placeholder={t('messages.titlePlaceholder')}
           maxLength={200}
           disabled={busy}
         />
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-[14px] font-semibold text-ink">Participants</legend>
+          <legend className="text-[14px] font-semibold text-ink">
+            {t('messages.participants')}
+          </legend>
 
           {people.length === 0 ? (
-            <p className="text-[14px] text-ink-muted">
-              Nobody else is available in this workspace.
-            </p>
+            <p className="text-[14px] text-ink-muted">{t('messages.nobodyAvailable')}</p>
           ) : (
             <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
               {people.map((person) => (
@@ -596,7 +602,7 @@ function ComposeDrawer({
               participantIds: selected,
             })
               .then(onCreated)
-              .catch((caught: unknown) => setError(describeMessagingError(caught)))
+              .catch((caught: unknown) => setError(describeMessagingError(caught, t)))
               .finally(() => setBusy(false));
           }}
         >
@@ -626,22 +632,24 @@ function formatTimestamp(value: string): string {
       });
 }
 
-function describeMessagingError(error: unknown): string {
+function describeMessagingError(error: unknown, t: Translate): string {
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return t('messages.genericError');
   }
 
   if (error.statusCode === 403) {
-    return 'You are not a participant in this conversation.';
+    return t('messages.notParticipant');
   }
 
   if (error.statusCode === 404) {
-    return 'That conversation no longer exists.';
+    return t('messages.gone');
   }
 
   if (error.statusCode === 400) {
+    /* The API's own validation wording, which it already localises or keeps
+     * field-specific; replacing it would lose the detail. */
     return error.messages.join(' ');
   }
 
-  return 'We could not reach messaging. Please try again.';
+  return t('messages.unreachable');
 }

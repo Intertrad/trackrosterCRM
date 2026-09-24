@@ -39,6 +39,8 @@ vi.mock('@/lib/api/follow-up-client', () => ({
   cancelProspectFollowUp: cancelProspectFollowUpMock,
 }));
 
+import { I18nProvider } from '@/lib/i18n/i18n-context';
+
 import FollowUpsPage from './page';
 
 const teamId = '11111111-1111-4111-8111-111111111111';
@@ -121,6 +123,22 @@ describe('FollowUpsPage', () => {
     await waitFor(() => {
       expect(listFollowUpQueueMock).not.toHaveBeenCalled();
     });
+  });
+
+  it('renders in French for a French membership, with no message keys left over', async () => {
+    render(
+      <I18nProvider locale="fr-FR">
+        <FollowUpsPage />
+      </I18nProvider>,
+    );
+
+    await screen.findByRole('heading', { name: 'Actions' });
+
+    expect(screen.getByText('Gérez vos appels, emails, visites et relances')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /À faire/ })).toBeInTheDocument();
+
+    /* A key that reaches the DOM type-checks perfectly and reads as gibberish. */
+    expect(document.body.textContent).not.toMatch(/\b(actions|nav|today)\.[a-zA-Z.]+/);
   });
 
   it('loads the selected team operational queue', async () => {
