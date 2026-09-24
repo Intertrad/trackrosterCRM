@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { Database, DatabaseTransaction } from './database.types.js';
+import { runWithTenantExecutor } from './request-tenant-executor.js';
 
 const TENANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -15,6 +16,6 @@ export async function withTenantContext<T>(
 ) {
   return db.transaction(async (tx) => {
     await setTenantContext(tx, tenantId);
-    return work(tx);
+    return runWithTenantExecutor(tx, () => work(tx));
   });
 }
