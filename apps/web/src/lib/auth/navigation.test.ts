@@ -23,6 +23,7 @@ describe('workspace navigation', () => {
       'Routes',
       'Logged actions',
       'Messages',
+      'Search',
     ]);
   });
 
@@ -55,6 +56,7 @@ describe('workspace navigation', () => {
       'Reports',
       'Exports',
       'Messages',
+      'Search',
     ]);
   });
 
@@ -135,6 +137,7 @@ describe('workspace navigation', () => {
       '/manager/reports',
       '/manager/exports',
       '/messages',
+      '/search',
     ]);
   });
 

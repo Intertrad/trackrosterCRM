@@ -19,6 +19,7 @@ export type NavigationItemId =
   | 'reports'
   | 'collisions'
   | 'users'
+  | 'search'
   | 'audit';
 
 /** Icon is resolved by the shell so this module stays free of JSX. */
@@ -123,6 +124,13 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           availability: 'ready',
         },
         { id: 'overrides', label: 'Overrides', icon: 'overrides', availability: 'planned' },
+        {
+          id: 'search',
+          label: 'Search',
+          icon: 'prospects',
+          href: '/search',
+          availability: 'ready',
+        },
       ];
 
     case 'director':
@@ -177,6 +185,13 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           label: 'Collision center',
           icon: 'collisions',
           href: '/manager/collisions',
+          availability: 'ready',
+        },
+        {
+          id: 'search',
+          label: 'Search',
+          icon: 'prospects',
+          href: '/search',
           availability: 'ready',
         },
       ];
@@ -250,6 +265,13 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           href: '/messages',
           availability: 'ready',
         },
+        {
+          id: 'search',
+          label: 'Search',
+          icon: 'prospects',
+          href: '/search',
+          availability: 'ready',
+        },
       ];
 
     case 'prospector':
@@ -305,6 +327,13 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           label: 'Messages',
           icon: 'messages',
           href: '/messages',
+          availability: 'ready',
+        },
+        {
+          id: 'search',
+          label: 'Search',
+          icon: 'prospects',
+          href: '/search',
           availability: 'ready',
         },
       ];

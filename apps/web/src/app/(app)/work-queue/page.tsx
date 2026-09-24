@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { List, Map as MapIcon, MapPin, Phone } from 'lucide-react';
 
 import {
@@ -31,14 +32,26 @@ const PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
 
 export default function MyProspectsPage() {
+  return (
+    <Suspense fallback={null}>
+      <MyProspectsView />
+    </Suspense>
+  );
+}
+
+function MyProspectsView() {
   const { activeWorkspace } = useAuth();
+
+  /* Scoped search links here with the matched name, so the queue opens
+   * already filtered rather than dropping the term the user searched for. */
+  const initialSearch = useSearchParams().get('search') ?? '';
 
   const teamId = activeWorkspace?.teamId ?? null;
 
   const [view, setView] = useState<'list' | 'map'>('list');
   const [selected, setSelected] = useState<MapPoint | null>(null);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch.trim());
   const [stage, setStage] = useState<WorkQueueLifecycleStage | 'all'>('all');
   const [campaignId, setCampaignId] = useState('all');
 

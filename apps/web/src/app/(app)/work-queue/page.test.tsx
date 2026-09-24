@@ -11,16 +11,24 @@ import type {
   WorkQueueResponse,
 } from '@/lib/api/work-queue-types';
 
-const { getWorkQueueOptionsMock, listWorkQueueMock, useAuthMock } = vi.hoisted(() => ({
-  getWorkQueueOptionsMock: vi.fn(),
+const { getWorkQueueOptionsMock, listWorkQueueMock, searchParamsMock, useAuthMock } = vi.hoisted(
+  () => ({
+    getWorkQueueOptionsMock: vi.fn(),
 
-  listWorkQueueMock: vi.fn(),
+    listWorkQueueMock: vi.fn(),
 
-  useAuthMock: vi.fn(),
-}));
+    searchParamsMock: vi.fn(() => new URLSearchParams()),
+
+    useAuthMock: vi.fn(),
+  }),
+);
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: useAuthMock,
+}));
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => searchParamsMock(),
 }));
 
 vi.mock('@/lib/api/work-queue-client', () => ({
@@ -368,5 +376,25 @@ describe('WorkQueuePage', () => {
     await screen.findByRole('heading', { name: 'My prospects' });
 
     expect(screen.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('opens already filtered when scoped search links here with a term', async () => {
+    searchParamsMock.mockReturnValue(new URLSearchParams('search=Boulangerie%20No%C3%ABl'));
+
+    render(<MyProspectsPage />);
+
+    await screen.findByRole('heading', { name: 'My prospects' });
+
+    expect(screen.getByLabelText('Search my portfolio')).toHaveValue('Boulangerie Noël');
+
+    /*
+     * Seeding the box is not enough on its own — the term has to reach the
+     * request, or the link would land on an unfiltered queue.
+     */
+    await waitFor(() =>
+      expect(listWorkQueueMock).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'Boulangerie Noël' }),
+      ),
+    );
   });
 });
