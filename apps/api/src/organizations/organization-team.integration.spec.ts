@@ -68,9 +68,9 @@ describe('Organization and Team tenant isolation', () => {
       .from(tenants)
       .where(like(tenants.slug, `${testRunId}%`));
     for (const tenant of testTenants) {
-      await withTenantContext(database, tenant.id, async () => {
-        await database!.delete(teams).where(eq(teams.tenantId, tenant.id));
-        await database!.delete(organizations).where(eq(organizations.tenantId, tenant.id));
+      await withTenantContext(database, tenant.id, async (tx) => {
+        await tx.delete(teams).where(eq(teams.tenantId, tenant.id));
+        await tx.delete(organizations).where(eq(organizations.tenantId, tenant.id));
       });
       await database.delete(tenants).where(eq(tenants.id, tenant.id));
     }
