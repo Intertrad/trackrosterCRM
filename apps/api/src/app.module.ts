@@ -56,6 +56,7 @@ import { SavedViewsModule } from './saved-views/saved-views.module.js';
 import { ComplianceModule } from './compliance/compliance.module.js';
 import { IntegrationsModule } from './integrations/integrations.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
+import { SearchModule } from './search/search.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -120,6 +121,7 @@ import { ProvidersModule } from './providers/providers.module.js';
     ComplianceModule,
     IntegrationsModule,
     ProvidersModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
