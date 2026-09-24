@@ -53,15 +53,6 @@ interface WorkspaceNavigationItemBase {
 
   /** Shown in the mobile bottom bar (max five, "More" occupies the fifth). */
   primary?: boolean;
-
-  /**
-   * Kept out of the sidebar's own list and reached through its "More"
-   * disclosure instead.
-   *
-   * These are working screens, not unbuilt ones — the distinction is how
-   * often a prospector needs them, not whether they exist.
-   */
-  secondary?: boolean;
 }
 
 export type WorkspaceNavigationItem = WorkspaceNavigationItemBase &
@@ -363,35 +354,11 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           primary: true,
         },
         {
-          id: 'routes',
-          label: 'Routes',
-          icon: 'routes',
-          href: '/routes',
-          availability: 'ready',
-          secondary: true,
-        },
-        {
-          id: 'logged_actions',
-          label: 'Logged actions',
-          icon: 'actions',
-          href: '/actions',
-          availability: 'ready',
-          secondary: true,
-        },
-        {
           id: 'messages',
           label: 'Messages',
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
-        },
-        {
-          id: 'search',
-          label: 'Search',
-          icon: 'prospects',
-          href: '/search',
-          availability: 'ready',
-          secondary: true,
         },
       ];
 

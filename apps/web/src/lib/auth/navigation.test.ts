@@ -20,10 +20,7 @@ describe('workspace navigation', () => {
       'My prospects',
       'Map',
       'Actions',
-      'Routes',
-      'Logged actions',
       'Messages',
-      'Search',
     ]);
   });
 

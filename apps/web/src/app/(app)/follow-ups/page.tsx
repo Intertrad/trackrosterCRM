@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
 import { ApiError } from '@/lib/api/api-error';
@@ -223,7 +224,19 @@ export default function ActionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Actions" subtitle="Manage your calls, emails, visits and follow-ups" />
+      <PageHeader
+        title="Actions"
+        subtitle="Manage your calls, emails, visits and follow-ups"
+        action={
+          /* The history of completed work and the round planner are no longer
+             in the prospector sidebar, so this is where they are reached. */
+          <div className="flex flex-wrap gap-2">
+            <LinkButton href="/actions">Logged actions</LinkButton>
+
+            <LinkButton href="/routes">Routes</LinkButton>
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap gap-3">
         <SearchInput

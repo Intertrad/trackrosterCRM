@@ -1,7 +1,7 @@
 import {
   BadgeCheck,
   Building2,
-  CalendarCheck2,
+  Calendar,
   ClipboardList,
   FileSearch,
   LayoutDashboard,
@@ -18,7 +18,7 @@ import {
 import type { NavigationIconId } from '@/lib/auth/navigation';
 
 const ICONS = {
-  today: CalendarCheck2,
+  today: Calendar,
   prospects: Building2,
   map: MapIcon,
   actions: ListChecks,

@@ -54,41 +54,9 @@ describe('AppShell', () => {
     expect(sidebar).toHaveTextContent('Actions');
     expect(sidebar).toHaveTextContent('Messages');
 
-    expect(sidebar).not.toHaveTextContent('Routes');
-    expect(sidebar).not.toHaveTextContent('Logged actions');
-  });
-
-  it('keeps the occasional prospector screens reachable behind More', () => {
-    authenticated();
-
-    render(<AppShell>content</AppShell>);
-
-    const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
-
-    fireEvent.click(within(sidebar).getByRole('button', { name: 'More' }));
-
-    /* Taking a working screen out of the list must not strand it at a URL
-     * nothing links to. */
-    for (const label of ['Routes', 'Logged actions', 'Search']) {
-      expect(within(sidebar).getByRole('link', { name: label })).toBeInTheDocument();
-    }
-  });
-
-  it('opens More on its own when the current page lives inside it', () => {
-    pathnameMock.mockReturnValue('/routes');
-
-    authenticated();
-
-    render(<AppShell>content</AppShell>);
-
-    const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
-
-    /* Otherwise the sidebar would show nothing highlighted while the
-     * prospector is standing on one of these screens. */
-    expect(within(sidebar).getByRole('link', { name: 'Routes' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    /* And nothing else: Routes, Logged actions and Search were taken out of
+     * the prospector sidebar deliberately. */
+    expect(within(sidebar).getAllByRole('link')).toHaveLength(5);
   });
 
   it('never renders a link for a screen that does not exist', () => {
