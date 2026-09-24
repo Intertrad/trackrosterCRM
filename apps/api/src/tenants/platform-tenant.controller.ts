@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -41,7 +42,8 @@ export class PlatformTenantController {
   @Get(':tenantId')
   async detail(@Param('tenantId', new ParseUUIDPipe()) tenantId: string) {
     const [tenant] = await this.db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
-    return tenant ?? null;
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant;
   }
 
   @Get(':tenantId/usage')
@@ -76,7 +78,8 @@ export class PlatformTenantController {
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .limit(1);
-    return tenant?.platformConfig ?? {};
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant.platformConfig;
   }
 
   @Patch(':tenantId/config')
@@ -100,7 +103,8 @@ export class PlatformTenantController {
         resourceId: tenantId,
         metadata: { keys: Object.keys(body.config) },
       });
-    return tenant?.platformConfig ?? {};
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant.platformConfig;
   }
 
   @Patch(':tenantId/status')
@@ -124,6 +128,7 @@ export class PlatformTenantController {
         resourceId: tenantId,
         metadata: { status: body.status },
       });
-    return tenant ?? null;
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    return tenant;
   }
 }
