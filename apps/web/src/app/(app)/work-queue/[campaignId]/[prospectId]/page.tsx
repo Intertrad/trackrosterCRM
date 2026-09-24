@@ -9,6 +9,7 @@ import { OverrideRequest } from '@/components/prospector/override-request';
 import { LogOutcomeDrawer } from '@/components/prospector/log-outcome-drawer';
 import { ProspectTimeline } from '@/components/prospector/prospect-timeline';
 import { ConsentPanel } from '@/components/prospector/consent-panel';
+import { ContactPanel } from '@/components/prospector/contact-panel';
 import { ReservationPanel } from '@/components/prospector/reservation-panel';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -339,6 +340,10 @@ export default function ProspectDetailPage({
           {/* Consent is keyed by establishment, not by the campaign prospect:
               a permission holds across every campaign that reaches them. */}
           <ConsentPanel establishmentId={detail.establishment.id} />
+
+          {/* Who to actually speak to. Keyed by establishment for the same
+              reason, and sits under consent so the permission is read first. */}
+          <ContactPanel establishmentId={detail.establishment.id} />
 
           <Card>
             <CardHeader title="Assignment" />
