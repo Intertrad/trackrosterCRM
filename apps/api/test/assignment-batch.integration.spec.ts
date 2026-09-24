@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
 import { DATABASE } from '../src/database/database.constants.js';
+import { withTenantContext } from '../src/database/tenant-context.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   auditEvents,
@@ -128,22 +129,26 @@ describe('Bulk assignment and saved rules', () => {
     await db
       .insert(tenants)
       .values([tenantId, foreignTenantId].map((id) => ({ id, name: id, slug: id })));
-    await db.insert(organizations).values(
-      [org, otherOrg, foreignOrg].map((id) => ({
-        id,
-        tenantId: id === foreignOrg ? foreignTenantId : tenantId,
-        name: id,
-        slug: id,
-      })),
-    );
-    await db.insert(teams).values(
-      [team, otherTeam, outsideTeam].map((id) => ({
-        id,
-        tenantId,
-        organizationId: id === outsideTeam ? otherOrg : org,
-        name: id,
-        slug: id,
-      })),
+    await withTenantContext(db, tenantId, async (tx) => {
+      await tx
+        .insert(organizations)
+        .values([org, otherOrg].map((id) => ({ id, tenantId, name: id, slug: id })));
+      await tx
+        .insert(teams)
+        .values(
+          [team, otherTeam, outsideTeam].map((id) => ({
+            id,
+            tenantId,
+            organizationId: id === outsideTeam ? otherOrg : org,
+            name: id,
+            slug: id,
+          })),
+        );
+    });
+    await withTenantContext(db, foreignTenantId, (tx) =>
+      tx
+        .insert(organizations)
+        .values({ id: foreignOrg, tenantId: foreignTenantId, name: foreignOrg, slug: foreignOrg }),
     );
     const password = 'GeographicAllocation123!';
     const passwordHash = await app.get(PasswordService).hash(password);

@@ -17,6 +17,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
 import { DATABASE } from '../src/database/database.constants.js';
+import { withTenantContext } from '../src/database/tenant-context.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   reservationRecords,
@@ -95,13 +96,17 @@ describe('Actions, outcomes and unified timelines', () => {
     await db
       .insert(tenants)
       .values([tenantId, foreignTenantId].map((id) => ({ id, name: id, slug: id })));
-    await db.insert(organizations).values([
-      { id: org, tenantId, name: org, slug: org },
-      { id: foreignOrg, tenantId: foreignTenantId, name: foreignOrg, slug: foreignOrg },
-    ]);
-    await db
-      .insert(teams)
-      .values({ id: team, tenantId, organizationId: org, name: team, slug: team });
+    await withTenantContext(db, tenantId, async (tx) => {
+      await tx.insert(organizations).values({ id: org, tenantId, name: org, slug: org });
+      await tx
+        .insert(teams)
+        .values({ id: team, tenantId, organizationId: org, name: team, slug: team });
+    });
+    await withTenantContext(db, foreignTenantId, (tx) =>
+      tx
+        .insert(organizations)
+        .values({ id: foreignOrg, tenantId: foreignTenantId, name: foreignOrg, slug: foreignOrg }),
+    );
     const password = 'ConsentWorkflow123!';
     const passwordHash = await app.get(PasswordService).hash(password);
     await db
