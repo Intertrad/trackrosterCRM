@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { desc, eq, isNull } from 'drizzle-orm';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { Inject } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { PlatformAdminGuard } from '../authorization/platform-admin.guard.js';
@@ -38,7 +38,7 @@ export class PlatformUserController {
 
   @Post(':identityId/grants')
   async grant(
-    @Param('identityId') identityId: string,
+    @Param('identityId', new ParseUUIDPipe()) identityId: string,
     @Body() body: PlatformGrantDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
@@ -67,8 +67,8 @@ export class PlatformUserController {
 
   @Post(':identityId/grants/:grantId/revoke')
   async revoke(
-    @Param('identityId') identityId: string,
-    @Param('grantId') grantId: string,
+    @Param('identityId', new ParseUUIDPipe()) identityId: string,
+    @Param('grantId', new ParseUUIDPipe()) grantId: string,
     @Body() body: PlatformGrantRevokeDto,
     @CurrentAuth() auth: AuthenticatedPrincipal,
   ) {
@@ -80,7 +80,13 @@ export class PlatformUserController {
         revocationReason: body.reason,
         updatedAt: new Date(),
       })
-      .where(eq(platformAccessGrants.id, grantId))
+      .where(
+        and(
+          eq(platformAccessGrants.id, grantId),
+          eq(platformAccessGrants.identityId, identityId),
+          isNull(platformAccessGrants.revokedAt),
+        ),
+      )
       .returning();
     if (grant)
       await this.audit.record({
