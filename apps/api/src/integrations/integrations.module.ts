@@ -26,6 +26,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 type Auth = AuthenticatedPrincipal;
+import { ApiClientDto, WebhookDto, WebhookUpdateDto } from './integrations.dto.js';
 const hash = (v: string) => createHash('sha256').update(v).digest('hex');
 @Injectable()
 export class IntegrationsService {
@@ -299,14 +300,14 @@ export class IntegrationsController {
   }
   @Post('api-clients') @Idempotent('api_client.create') createClient(
     @CurrentAuth() a: Auth,
-    @Body() d: any,
+    @Body() d: ApiClientDto,
   ) {
     return this.s.createClient(a, d);
   }
   @Patch('api-clients/:clientId') updateClient(
     @CurrentAuth() a: Auth,
     @Param('clientId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: ApiClientDto,
   ) {
     return this.s.updateClient(a, id, d);
   }
@@ -327,14 +328,14 @@ export class IntegrationsController {
   }
   @Post('webhooks') @Idempotent('webhook.create') createHook(
     @CurrentAuth() a: Auth,
-    @Body() d: any,
+    @Body() d: WebhookDto,
   ) {
     return this.s.createHook(a, d);
   }
   @Patch('webhooks/:webhookId') updateHook(
     @CurrentAuth() a: Auth,
     @Param('webhookId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: WebhookUpdateDto,
   ) {
     return this.s.updateHook(a, id, d);
   }
