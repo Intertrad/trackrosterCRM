@@ -1,14 +1,33 @@
 'use client';
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { Eye, EyeOff, Info, LockKeyhole, Mail } from 'lucide-react';
-import { useAuth } from '@/lib/auth/auth-context';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
-import { browserJson } from '@/lib/api/browser-json';
+import { getAuthConfig, login } from '@/lib/api/auth-client';
+import type { AuthConfig } from '@/lib/api/auth-types';
+import { challengeRoute, clearChallenges, storeChallenge } from '@/lib/auth/auth-challenge';
+import { useAuth } from '@/lib/auth/auth-context';
 
-import styles from './login-form.module.css';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/*
+ * If /auth/config cannot be read we assume the standard password build:
+ * hiding the recovery link on a transient failure would strand anyone who
+ * actually needs it. SSO stays off, because offering an unconfigured
+ * provider produces a dead end rather than a degraded one.
+ */
+const FALLBACK_CONFIG: AuthConfig = {
+  password: true,
+  mfa: { totp: true, recoveryCodes: true },
+  passwordRecovery: true,
+  sso: { enabled: false },
+};
 
 export function LoginForm() {
   const router = useRouter();
@@ -16,11 +35,10 @@ export function LoginForm() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  const [showPassword, setShowPassword] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [config, setConfig] = useState<AuthConfig>(FALLBACK_CONFIG);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -28,42 +46,55 @@ export function LoginForm() {
     }
   }, [router, status]);
 
+  /*
+   * Sign-in methods are declared by the backend. Rendering SSO or the
+   * recovery link unconditionally would offer a path that cannot complete.
+   */
+  useEffect(() => {
+    const controller = new AbortController();
+
+    getAuthConfig(controller.signal)
+      .then(setConfig)
+      .catch(() => setConfig(FALLBACK_CONFIG));
+
+    return () => controller.abort();
+  }, []);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
-    if (isSubmitting || !email.trim() || !password) {
+    if (isSubmitting) {
       return;
     }
 
-    setErrorMessage(null);
+    const trimmed = email.trim();
+
+    if (!EMAIL_PATTERN.test(trimmed)) {
+      setEmailError('Enter a valid email address');
+
+      return;
+    }
+
+    setEmailError(null);
+    setFormError(null);
     setIsSubmitting(true);
 
     try {
-      await browserJson<void>('/api/auth/login', {
-        method: 'POST',
+      clearChallenges();
 
-        headers: {
-          'content-type': 'application/json',
-        },
+      const outcome = await login(trimmed, password);
 
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-        }),
-      });
+      if (outcome.next !== 'authenticated') {
+        storeChallenge(outcome);
+        router.push(challengeRoute(outcome));
 
-      /*
-       * D3 will eventually redirect according to the
-       * authenticated user's real backend grants.
-       *
-       * For now "/" is our temporary authenticated
-       * landing location.
-       */
+        return;
+      }
 
       const user = await refreshSession();
 
       if (!user) {
-        setErrorMessage('Your session could not be established. Please sign in again.');
+        setFormError('Your session could not be established. Please sign in again.');
 
         return;
       }
@@ -71,135 +102,130 @@ export function LoginForm() {
       router.replace('/');
       router.refresh();
     } catch (error) {
-      if (error instanceof ApiError) {
-        if (error.statusCode === 401) {
-          setErrorMessage('Invalid email or password.');
-        } else if (error.statusCode === 400) {
-          setErrorMessage('Please check your email and password.');
-        } else if (error.code === 'NETWORK_ERROR' || error.statusCode >= 500) {
-          setErrorMessage('TrackRoster is temporarily unavailable. Please try again.');
-        } else {
-          setErrorMessage(error.message);
-        }
-
-        return;
-      }
-
-      setErrorMessage('Something went wrong. Please try again.');
+      setFormError(describeLoginError(error));
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  const canSubmit = email.trim().length > 0 && password.length > 0;
+
   return (
-    <form className={styles.card} onSubmit={handleSubmit} noValidate>
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="email">
-          Work email
-        </label>
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+      <TextField
+        label="Email"
+        type="email"
+        name="email"
+        value={email}
+        onChange={(event) => {
+          setEmail(event.target.value);
 
-        <div className={styles.inputWrapper}>
-          <Mail className={styles.inputIcon} size={20} strokeWidth={1.8} aria-hidden="true" />
+          if (emailError) {
+            setEmailError(null);
+          }
+        }}
+        error={emailError}
+        placeholder="name@company.com"
+        autoComplete="email"
+        autoCapitalize="none"
+        spellCheck={false}
+        maxLength={320}
+        disabled={isSubmitting}
+        required
+      />
 
-          <input
-            id="email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className={styles.input}
-            placeholder="name@company.com"
-            autoComplete="email"
-            autoCapitalize="none"
-            spellCheck={false}
-            maxLength={320}
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-      </div>
+      <TextField
+        label="Password"
+        type="password"
+        name="password"
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+        placeholder="Enter your password"
+        autoComplete="current-password"
+        maxLength={1024}
+        disabled={isSubmitting}
+        required
+      />
 
-      <div className={styles.fieldGroup}>
-        <label className={styles.label} htmlFor="password">
-          Password
-        </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/*
+         * "Remember this device" is deliberately absent until a trusted-device
+         * contract exists; MFA owns the only device-trust flow today.
+         */}
+        <Checkbox label="Keep me signed in on this device" disabled />
 
-        <div className={styles.inputWrapper}>
-          <LockKeyhole
-            className={styles.inputIcon}
-            size={20}
-            strokeWidth={1.8}
-            aria-hidden="true"
-          />
-
-          <input
-            id="password"
-            name="password"
-            type={showPassword ? 'text' : 'password'}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className={`${styles.input} ${styles.passwordInput}`}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-            maxLength={1024}
-            required
-            disabled={isSubmitting}
-          />
-
-          <button
-            type="button"
-            className={styles.passwordToggle}
-            onClick={() => setShowPassword((current) => !current)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-            disabled={isSubmitting}
+        {config.passwordRecovery ? (
+          <Link
+            href="/forgot-password"
+            className="text-[14px] font-semibold text-brand hover:text-brand-hover"
           >
-            {showPassword ? (
-              <EyeOff size={20} strokeWidth={1.8} />
-            ) : (
-              <Eye size={20} strokeWidth={1.8} />
-            )}
-          </button>
-        </div>
+            Forgot password?
+          </Link>
+        ) : null}
       </div>
 
-      <div className={styles.options}>
-        <div className={styles.secureSession}>
-          <span className={styles.sessionDot} />
+      {formError ? <Alert tone="danger">{formError}</Alert> : null}
 
-          <span>Secure session</span>
-        </div>
-
-        <button
-          className={styles.forgotPassword}
-          type="button"
-          disabled
-          title="Password recovery is not available yet"
-        >
-          Forgot password?
-        </button>
-      </div>
-
-      {errorMessage ? (
-        <div className={styles.error} role="alert" aria-live="polite">
-          {errorMessage}
-        </div>
-      ) : null}
-
-      <button
-        className={styles.submit}
-        type="submit"
-        disabled={isSubmitting || !email.trim() || !password}
-      >
+      <Button type="submit" fullWidth loading={isSubmitting} disabled={!canSubmit}>
         {isSubmitting ? 'Signing in…' : 'Sign in'}
-      </button>
+      </Button>
 
-      <div className={styles.workspaceInfo}>
-        <div className={styles.infoIcon}>
-          <Info size={16} strokeWidth={2} />
-        </div>
-
-        <p>Supported workspaces: Client Admin, Director, Manager, Prospector, Observer</p>
-      </div>
+      {config.sso.enabled ? <SsoOptions providers={config.sso.providers ?? []} /> : null}
     </form>
   );
+}
+
+function SsoOptions({ providers }: { providers: string[] }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-4">
+        <span className="h-px flex-1 bg-line-soft" />
+
+        <span className="text-[13px] text-ink-muted">or continue with</span>
+
+        <span className="h-px flex-1 bg-line-soft" />
+      </div>
+
+      {providers.map((provider) => (
+        <Button
+          key={provider}
+          variant="secondary"
+          fullWidth
+          onClick={() => {
+            window.location.assign(`/api/auth/sso/${encodeURIComponent(provider)}/start`);
+          }}
+        >
+          <span className="capitalize">Sign in with {provider}</span>
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function describeLoginError(error: unknown): string {
+  if (!(error instanceof ApiError)) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  if (error.statusCode === 401) {
+    return 'Invalid email or password.';
+  }
+
+  if (error.statusCode === 423) {
+    return 'This account is locked. Contact your administrator.';
+  }
+
+  if (error.statusCode === 429) {
+    return 'Too many attempts. Wait a moment and try again.';
+  }
+
+  if (error.statusCode === 400) {
+    return 'Please check your email and password.';
+  }
+
+  if (error.code === 'NETWORK_ERROR' || error.statusCode >= 500) {
+    return 'TrackRoster is temporarily unavailable. Please try again.';
+  }
+
+  return error.message;
 }

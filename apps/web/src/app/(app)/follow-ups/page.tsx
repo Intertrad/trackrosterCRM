@@ -1,1026 +1,442 @@
 'use client';
 
-import {
-  AlertTriangle,
-  Ban,
-  Building2,
-  CalendarClock,
-  CheckCircle2,
-  Clock3,
-  LoaderCircle,
-  RefreshCw,
-  ShieldAlert,
-  UserRound,
-  Users,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCircle2, X } from 'lucide-react';
 
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
+import { SearchInput } from '@/components/ui/search-input';
 import { ApiError } from '@/lib/api/api-error';
 import {
   cancelProspectFollowUp,
   completeProspectFollowUp,
   listFollowUpQueue,
-  rescheduleProspectFollowUp,
 } from '@/lib/api/follow-up-client';
-import type { FollowUpQueueItem, ProspectFollowUpOwnership } from '@/lib/api/follow-up-types';
+import type { FollowUpQueueItem } from '@/lib/api/follow-up-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { cn } from '@/lib/ui/cn';
 
-import styles from './page.module.css';
+type TabId = 'todo' | 'overdue' | 'completed';
 
-type FollowUpFilter = 'all' | 'overdue' | 'upcoming';
-
-type FollowUpMutationKind = 'complete' | 'reschedule' | 'cancel';
-
-interface FollowUpFilterOption {
-  value: FollowUpFilter;
-
-  label: string;
-}
-
-interface FollowUpMutationState {
-  followUpId: string;
-
-  kind: FollowUpMutationKind;
-}
-
-interface FollowUpMutationAttempt {
-  followUpId: string;
-
-  kind: FollowUpMutationKind;
-
-  dueAt?: string;
-
-  idempotencyKey: string;
-}
-
-interface ActionErrorState {
-  followUpId: string;
-
-  message: string;
-}
-
-const filterOptions: FollowUpFilterOption[] = [
-  {
-    value: 'all',
-    label: 'All',
-  },
-  {
-    value: 'overdue',
-    label: 'Overdue',
-  },
-  {
-    value: 'upcoming',
-    label: 'Upcoming',
-  },
-];
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-
-    timeStyle: 'short',
-  }).format(date);
-}
-
-function isOverdue(dueAt: string): boolean {
-  const date = new Date(dueAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return false;
-  }
-
-  return date.getTime() < Date.now();
-}
-
-function getOwnershipLabel(ownership: ProspectFollowUpOwnership): string {
-  return ownership === 'team' ? 'Team-owned' : 'Assigned to me';
-}
-
-function getBackendOverdueFilter(filter: FollowUpFilter): boolean | undefined {
-  switch (filter) {
-    case 'all':
-      return undefined;
-
-    case 'overdue':
-      return true;
-
-    case 'upcoming':
-      return false;
-  }
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
-    if (error.statusCode === 401) {
-      return 'Your TrackRoster session has expired. Refresh the page to restore your session.';
-    }
-
-    if (error.statusCode === 403) {
-      return 'You no longer have access to follow-ups in the selected Prospector workspace.';
-    }
-
-    if (error.statusCode === 404) {
-      return 'This follow-up is no longer available in your active workspace.';
-    }
-
-    if (error.messages.length > 0) {
-      return error.messages.join(', ');
-    }
-  }
-
-  return fallback;
-}
-
-function shouldReuseIdempotencyKey(error: unknown): boolean {
-  if (!(error instanceof ApiError)) {
-    /*
-     * A browser/network failure can be ambiguous:
-     * the backend may have committed successfully
-     * without the response reaching the browser.
-     */
-    return true;
-  }
-
-  return error.statusCode === 0 || error.statusCode >= 500;
-}
-
-function createMutationIdempotencyKey(kind: FollowUpMutationKind): string {
-  return `follow-up-${kind}-${crypto.randomUUID()}`;
-}
-
-function toLocalDateTimeMinimum(date: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, '0');
-
-  return (
-    `${date.getFullYear()}-` +
-    `${pad(date.getMonth() + 1)}-` +
-    `${pad(date.getDate())}T` +
-    `${pad(date.getHours())}:` +
-    `${pad(date.getMinutes())}`
-  );
-}
-
-export default function FollowUpsPage() {
+export default function ActionsPage() {
   const { activeWorkspace } = useAuth();
+  const teamId = activeWorkspace?.teamId ?? null;
 
-  const teamId =
-    activeWorkspace?.mode === 'prospector' && activeWorkspace.scopeType === 'team'
-      ? activeWorkspace.teamId
-      : null;
-
-  const [items, setItems] = useState<FollowUpQueueItem[]>([]);
-
-  const [filter, setFilter] = useState<FollowUpFilter>('all');
-
-  const [loading, setLoading] = useState(false);
-
-  const [error, setError] = useState<string | null>(null);
-
-  const [mutation, setMutation] = useState<FollowUpMutationState | null>(null);
-
-  const [actionError, setActionError] = useState<ActionErrorState | null>(null);
-
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-
-  const [rescheduleTargetId, setRescheduleTargetId] = useState<string | null>(null);
-
-  const [rescheduleDrafts, setRescheduleDrafts] = useState<Record<string, string>>({});
-
-  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
-
-  const requestSequence = useRef(0);
+  const [tab, setTab] = useState<TabId>('todo');
+  const [search, setSearch] = useState('');
+  const [items, setItems] = useState<FollowUpQueueItem[] | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  /*
+   * Read failures and action failures are tracked separately: reloading the
+   * queue after a bulk write must not erase the report of which writes failed.
+   */
+  const [readError, setReadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   /*
-   * A failed ambiguous mutation keeps its attempt
-   * here so the exact same idempotency key can be
-   * reused when the user retries that logical action.
+   * An idempotency key is minted once per follow-up and reused until that
+   * write succeeds. A network failure is ambiguous — the server may already
+   * have completed the follow-up — so retrying with a fresh key could apply
+   * the same completion twice.
    */
-  const mutationAttempt = useRef<FollowUpMutationAttempt | null>(null);
+  const idempotencyKeys = useRef(new Map<string, string>());
 
-  const loadFollowUps = useCallback(async (): Promise<void> => {
-    if (!teamId) {
-      setItems([]);
+  const keyFor = useCallback((followUpId: string): string => {
+    const existing = idempotencyKeys.current.get(followUpId);
 
-      setError(null);
-
-      setLoading(false);
-
-      return;
+    if (existing) {
+      return existing;
     }
 
-    const requestId = ++requestSequence.current;
+    const key = crypto.randomUUID();
+    idempotencyKeys.current.set(followUpId, key);
 
-    setLoading(true);
+    return key;
+  }, []);
 
-    setError(null);
-
-    try {
-      const response = await listFollowUpQueue({
-        teamId,
-
-        overdue: getBackendOverdueFilter(filter),
-
-        /*
-         * The current queue API is bounded,
-         * not cursor-based.
-         */
-        limit: 100,
-      });
-
-      if (requestId !== requestSequence.current) {
+  const load = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      if (!teamId) {
         return;
       }
 
-      setItems(response.items);
-    } catch (loadError) {
-      if (requestId !== requestSequence.current) {
-        return;
-      }
+      try {
+        const response = await listFollowUpQueue({
+          teamId,
+          limit: 100,
+          ...(tab === 'overdue' ? { overdue: true } : {}),
+          signal,
+        });
 
-      setItems([]);
+        if (signal?.aborted) {
+          return;
+        }
 
-      setError(getErrorMessage(loadError, 'TrackRoster could not load your follow-up queue.'));
-    } finally {
-      if (requestId === requestSequence.current) {
-        setLoading(false);
+        setItems(response.items);
+        setReadError(null);
+      } catch (caught) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        setReadError(
+          caught instanceof ApiError && caught.statusCode === 401
+            ? 'Your session has expired. Please sign in again.'
+            : 'We could not load your actions. Please try again.',
+        );
       }
-    }
-  }, [filter, teamId]);
+    },
+    [tab, teamId],
+  );
 
   useEffect(() => {
-    if (!teamId) {
-      requestSequence.current += 1;
+    const controller = new AbortController();
 
-      setItems([]);
+    setSelected(new Set());
+    void load(controller.signal);
 
-      setError(null);
+    return () => controller.abort();
+  }, [load]);
 
-      setLoading(false);
-
-      return;
+  const visible = useMemo(() => {
+    if (!items) {
+      return [];
     }
 
-    void loadFollowUps();
+    const byTab = items.filter((item) =>
+      tab === 'completed' ? item.status === 'completed' : item.status === 'pending',
+    );
 
-    return () => {
-      requestSequence.current += 1;
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return byTab;
+    }
+
+    return byTab.filter(
+      (item) =>
+        item.establishmentName.toLowerCase().includes(query) ||
+        item.campaignName.toLowerCase().includes(query),
+    );
+  }, [items, search, tab]);
+
+  const counts = useMemo(() => {
+    const all = items ?? [];
+    const now = Date.now();
+
+    return {
+      todo: all.filter((item) => item.status === 'pending').length,
+      overdue: all.filter(
+        (item) => item.status === 'pending' && new Date(item.dueAt).getTime() < now,
+      ).length,
+      completed: all.filter((item) => item.status === 'completed').length,
     };
-  }, [teamId, loadFollowUps]);
+  }, [items]);
 
-  function getOrCreateMutationAttempt(
-    followUpId: string,
-    kind: FollowUpMutationKind,
-    dueAt?: string,
-  ): FollowUpMutationAttempt {
-    const current = mutationAttempt.current;
+  function toggle(id: string): void {
+    setSelected((current) => {
+      const next = new Set(current);
 
-    if (
-      current &&
-      current.followUpId === followUpId &&
-      current.kind === kind &&
-      current.dueAt === dueAt
-    ) {
-      return current;
-    }
-
-    const next: FollowUpMutationAttempt = {
-      followUpId,
-
-      kind,
-
-      dueAt,
-
-      idempotencyKey: createMutationIdempotencyKey(kind),
-    };
-
-    mutationAttempt.current = next;
-
-    return next;
-  }
-
-  function clearAttemptIfMatching(followUpId: string, kind: FollowUpMutationKind): void {
-    const current = mutationAttempt.current;
-
-    if (current?.followUpId === followUpId && current.kind === kind) {
-      mutationAttempt.current = null;
-    }
-  }
-
-  function handleFilterChange(nextFilter: FollowUpFilter): void {
-    if (mutation !== null) {
-      return;
-    }
-
-    if (nextFilter === filter) {
-      void loadFollowUps();
-
-      return;
-    }
-
-    setFilter(nextFilter);
-
-    setActionError(null);
-
-    setActionSuccess(null);
-
-    setRescheduleTargetId(null);
-
-    setCancelTargetId(null);
-  }
-
-  async function handleComplete(item: FollowUpQueueItem): Promise<void> {
-    if (!teamId || mutation !== null) {
-      return;
-    }
-
-    const attempt = getOrCreateMutationAttempt(item.id, 'complete');
-
-    setMutation({
-      followUpId: item.id,
-
-      kind: 'complete',
-    });
-
-    setActionError(null);
-
-    setActionSuccess(null);
-
-    setRescheduleTargetId(null);
-
-    setCancelTargetId(null);
-
-    try {
-      await completeProspectFollowUp({
-        campaignId: item.campaignId,
-
-        prospectId: item.prospectId,
-
-        followUpId: item.id,
-
-        teamId,
-
-        idempotencyKey: attempt.idempotencyKey,
-      });
-
-      mutationAttempt.current = null;
-
-      setActionSuccess(`Follow-up for ${item.establishmentName} completed.`);
-
-      await loadFollowUps();
-    } catch (mutationError) {
-      if (!shouldReuseIdempotencyKey(mutationError)) {
-        clearAttemptIfMatching(item.id, 'complete');
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
       }
 
-      setActionError({
-        followUpId: item.id,
-
-        message: getErrorMessage(mutationError, 'TrackRoster could not complete this follow-up.'),
-      });
-    } finally {
-      setMutation(null);
-    }
+      return next;
+    });
   }
 
-  async function handleCancel(item: FollowUpQueueItem): Promise<void> {
-    if (!teamId || mutation !== null) {
+  async function runBulk(action: 'complete' | 'cancel'): Promise<void> {
+    if (!teamId || selected.size === 0) {
       return;
     }
 
-    const attempt = getOrCreateMutationAttempt(item.id, 'cancel');
-
-    setMutation({
-      followUpId: item.id,
-
-      kind: 'cancel',
-    });
-
+    setBusy(true);
     setActionError(null);
+    setNotice(null);
 
-    setActionSuccess(null);
+    const targets = visible.filter((item) => selected.has(item.id));
 
-    try {
-      await cancelProspectFollowUp({
-        campaignId: item.campaignId,
+    let succeeded = 0;
 
-        prospectId: item.prospectId,
-
-        followUpId: item.id,
-
-        teamId,
-
-        idempotencyKey: attempt.idempotencyKey,
-      });
-
-      mutationAttempt.current = null;
-
-      setCancelTargetId(null);
-
-      setActionSuccess(`Follow-up for ${item.establishmentName} cancelled.`);
-
-      await loadFollowUps();
-    } catch (mutationError) {
-      if (!shouldReuseIdempotencyKey(mutationError)) {
-        clearAttemptIfMatching(item.id, 'cancel');
-      }
-
-      setActionError({
-        followUpId: item.id,
-
-        message: getErrorMessage(mutationError, 'TrackRoster could not cancel this follow-up.'),
-      });
-    } finally {
-      setMutation(null);
-    }
-  }
-
-  async function handleReschedule(
-    event: FormEvent<HTMLFormElement>,
-    item: FollowUpQueueItem,
-  ): Promise<void> {
-    event.preventDefault();
-
-    if (!teamId || mutation !== null) {
-      return;
-    }
-
-    const draft = rescheduleDrafts[item.id] ?? '';
-
-    const dueDate = new Date(draft);
-
-    if (!draft || Number.isNaN(dueDate.getTime())) {
-      clearAttemptIfMatching(item.id, 'reschedule');
-
-      setActionSuccess(null);
-
-      setActionError({
-        followUpId: item.id,
-
-        message: 'Choose a valid follow-up date and time.',
-      });
-
-      return;
-    }
-
-    if (dueDate.getTime() <= Date.now()) {
-      clearAttemptIfMatching(item.id, 'reschedule');
-
-      setActionSuccess(null);
-
-      setActionError({
-        followUpId: item.id,
-
-        message: 'The rescheduled date and time must be in the future.',
-      });
-
-      return;
-    }
-
-    const dueAt = dueDate.toISOString();
-
-    const attempt = getOrCreateMutationAttempt(item.id, 'reschedule', dueAt);
-
-    setMutation({
-      followUpId: item.id,
-
-      kind: 'reschedule',
-    });
-
-    setActionError(null);
-
-    setActionSuccess(null);
-
-    try {
-      const updated = await rescheduleProspectFollowUp({
-        campaignId: item.campaignId,
-
-        prospectId: item.prospectId,
-
-        followUpId: item.id,
-
-        teamId,
-
-        dueAt,
-
-        idempotencyKey: attempt.idempotencyKey,
-      });
-
-      mutationAttempt.current = null;
-
-      setRescheduleTargetId(null);
-
-      setRescheduleDrafts((current) => {
-        const next = {
-          ...current,
+    /*
+     * There is no bulk endpoint yet, so each follow-up is completed
+     * individually with its own idempotency key. Failures are counted rather
+     * than aborting the batch, so one rejected row cannot strand the rest.
+     */
+    for (const item of targets) {
+      try {
+        const request = {
+          campaignId: item.campaignId,
+          prospectId: item.prospectId,
+          followUpId: item.id,
+          teamId,
+          idempotencyKey: keyFor(item.id),
         };
 
-        delete next[item.id];
+        if (action === 'complete') {
+          await completeProspectFollowUp(request);
+        } else {
+          await cancelProspectFollowUp(request);
+        }
 
-        return next;
-      });
-
-      setActionSuccess(
-        `Follow-up for ${item.establishmentName} rescheduled to ${formatDateTime(updated.dueAt)}.`,
-      );
-
-      await loadFollowUps();
-    } catch (mutationError) {
-      if (!shouldReuseIdempotencyKey(mutationError)) {
-        clearAttemptIfMatching(item.id, 'reschedule');
+        /* Only a confirmed success may retire the key. */
+        idempotencyKeys.current.delete(item.id);
+        succeeded += 1;
+      } catch {
+        /* Keep the key so a retry is the same logical write. */
       }
-
-      setActionError({
-        followUpId: item.id,
-
-        message: getErrorMessage(mutationError, 'TrackRoster could not reschedule this follow-up.'),
-      });
-    } finally {
-      setMutation(null);
     }
+
+    setBusy(false);
+    setSelected(new Set());
+
+    const verb = action === 'complete' ? 'completed' : 'cancelled';
+
+    if (succeeded === targets.length) {
+      setNotice(`${succeeded} action${succeeded === 1 ? '' : 's'} ${verb}.`);
+    } else {
+      setActionError(`${succeeded} of ${targets.length} actions ${verb}. Please retry the rest.`);
+    }
+
+    await load();
   }
-
-  function toggleReschedule(item: FollowUpQueueItem): void {
-    if (mutation !== null) {
-      return;
-    }
-
-    setActionError(null);
-
-    setActionSuccess(null);
-
-    setCancelTargetId(null);
-
-    if (rescheduleTargetId === item.id) {
-      setRescheduleTargetId(null);
-
-      return;
-    }
-
-    setRescheduleTargetId(item.id);
-  }
-
-  function toggleCancelConfirmation(item: FollowUpQueueItem): void {
-    if (mutation !== null) {
-      return;
-    }
-
-    setActionError(null);
-
-    setActionSuccess(null);
-
-    setRescheduleTargetId(null);
-
-    setCancelTargetId((current) => (current === item.id ? null : item.id));
-  }
-
-  const minimumFollowUpDateTime = toLocalDateTimeMinimum(new Date());
 
   if (!teamId) {
     return (
-      <main className={styles.page}>
-        <section className={styles.unavailableCard} aria-labelledby="follow-ups-unavailable-title">
-          <div className={styles.unavailableIcon}>
-            <ShieldAlert size={24} strokeWidth={1.8} aria-hidden="true" />
-          </div>
+      <div className="flex flex-col gap-6">
+        <PageHeader title="Actions" />
 
-          <p className={styles.eyebrow}>Prospector workspace required</p>
-
-          <h1 id="follow-ups-unavailable-title">Follow-Ups are not available in this workspace.</h1>
-
-          <p className={styles.unavailableMessage}>
-            Select a Prospector team workspace from the sidebar to view operational follow-ups.
-          </p>
-        </section>
-      </main>
+        <Alert tone="info" title="This view is scoped to a team.">
+          Switch to a team workspace to manage your actions.
+        </Alert>
+      </div>
     );
   }
 
   return (
-    <main className={styles.page}>
-      <header className={styles.pageHeader}>
-        <div>
-          <p className={styles.eyebrow}>Prospecting</p>
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Actions" subtitle="Manage your calls, emails, visits and follow-ups" />
 
-          <h1>Follow-Ups</h1>
+      <div className="flex flex-wrap gap-3">
+        <SearchInput
+          label="Search actions"
+          placeholder="Search actions..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="min-w-[240px] flex-1"
+        />
+      </div>
 
-          <p className={styles.pageDescription}>
-            Pending follow-ups that are currently actionable in this team workspace.
-          </p>
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            { id: 'todo', label: 'To do' },
+            { id: 'overdue', label: 'Overdue' },
+            { id: 'completed', label: 'Completed' },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            aria-pressed={tab === item.id}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold transition-colors',
+              tab === item.id
+                ? 'bg-brand-tint text-brand'
+                : 'bg-surface-muted text-ink-soft hover:text-ink',
+            )}
+          >
+            {item.label}
 
-        <button
-          type="button"
-          className={styles.refreshButton}
-          onClick={() => {
-            void loadFollowUps();
-          }}
-          disabled={loading || mutation !== null}
-        >
-          <RefreshCw size={17} strokeWidth={1.9} aria-hidden="true" />
-
-          <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
-        </button>
-      </header>
-
-      <section className={styles.controls} aria-label="Follow-up filters">
-        <div
-          className={styles.filterGroup}
-          role="group"
-          aria-label="Filter follow-ups by due state"
-        >
-          {filterOptions.map((option) => {
-            const selected = filter === option.value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={[styles.filterButton, selected ? styles.filterButtonActive : '']
-                  .filter(Boolean)
-                  .join(' ')}
-                aria-pressed={selected}
-                disabled={loading || mutation !== null}
-                onClick={() => {
-                  handleFilterChange(option.value);
-                }}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className={styles.summaryBar} aria-label="Follow-up queue summary">
-        <div className={styles.summaryIcon}>
-          <CalendarClock size={20} strokeWidth={1.9} aria-hidden="true" />
-        </div>
-
-        <div>
-          <span className={styles.summaryValue}>{loading ? '—' : items.length}</span>
-
-          <span className={styles.summaryLabel}>
-            {items.length === 1 ? 'follow-up loaded' : 'follow-ups loaded'}
-          </span>
-        </div>
-      </section>
-
-      {actionSuccess ? (
-        <section className={styles.successBanner} role="status" aria-live="polite">
-          <CheckCircle2 size={19} strokeWidth={1.9} aria-hidden="true" />
-
-          <span>{actionSuccess}</span>
-        </section>
-      ) : null}
-
-      {loading ? (
-        <section className={styles.stateCard} role="status" aria-live="polite">
-          <div className={styles.spinner} />
-
-          <div>
-            <h2>Loading follow-ups</h2>
-
-            <p>TrackRoster is retrieving actionable follow-ups for this workspace.</p>
-          </div>
-        </section>
-      ) : null}
-
-      {!loading && error ? (
-        <section className={styles.errorCard} role="alert" aria-live="assertive">
-          <div className={styles.errorIcon}>
-            <ShieldAlert size={22} strokeWidth={1.8} aria-hidden="true" />
-          </div>
-
-          <div className={styles.errorContent}>
-            <h2>Follow-Ups unavailable</h2>
-
-            <p>{error}</p>
-
-            <button
-              type="button"
-              onClick={() => {
-                void loadFollowUps();
-              }}
+            <span
+              className={cn(
+                'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
+                item.id === 'overdue' && counts.overdue > 0
+                  ? 'bg-danger text-white'
+                  : tab === item.id
+                    ? 'bg-brand text-white'
+                    : 'bg-line-soft text-ink-soft',
+              )}
             >
-              Try again
-            </button>
+              {counts[item.id]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {readError ? <Alert tone="danger">{readError}</Alert> : null}
+      {actionError ? <Alert tone="danger">{actionError}</Alert> : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
+
+      {items === null ? (
+        <QueueSkeleton />
+      ) : visible.length === 0 ? (
+        <Card>
+          <div className="py-12 text-center">
+            <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success" />
+
+            <p className="mt-3 text-[17px] font-bold text-navy">
+              {search ? 'No actions match your search' : 'Nothing in this list'}
+            </p>
+
+            <p className="mt-1 text-[14px] text-ink-muted">
+              {tab === 'overdue'
+                ? 'You have no overdue follow-ups.'
+                : 'New follow-ups appear here when they are created.'}
+            </p>
           </div>
-        </section>
-      ) : null}
-
-      {!loading && !error && items.length === 0 ? (
-        <section className={styles.emptyCard}>
-          <div className={styles.emptyIcon}>
-            <CalendarClock size={25} strokeWidth={1.8} aria-hidden="true" />
-          </div>
-
-          <h2>
-            {filter === 'overdue'
-              ? 'No overdue follow-ups.'
-              : filter === 'upcoming'
-                ? 'No upcoming follow-ups.'
-                : 'Your follow-up queue is clear.'}
-          </h2>
-
-          <p>
-            {filter === 'overdue'
-              ? 'There are no pending follow-ups past their due time in this workspace.'
-              : filter === 'upcoming'
-                ? 'There are no pending follow-ups scheduled for now or later in this workspace.'
-                : 'There are currently no actionable follow-ups in this team workspace.'}
-          </p>
-        </section>
-      ) : null}
-
-      {!loading && !error && items.length > 0 ? (
-        <section className={styles.followUpList} aria-label="Actionable follow-ups">
-          {items.map((item) => {
-            const overdue = isOverdue(item.dueAt);
-
-            const completing = mutation?.followUpId === item.id && mutation.kind === 'complete';
-
-            const rescheduling = mutation?.followUpId === item.id && mutation.kind === 'reschedule';
-
-            const cancelling = mutation?.followUpId === item.id && mutation.kind === 'cancel';
-
-            const rescheduleOpen = rescheduleTargetId === item.id;
-
-            const cancelOpen = cancelTargetId === item.id;
-
-            const itemActionError =
-              actionError?.followUpId === item.id ? actionError.message : null;
-
-            const detailHref =
-              `/work-queue/${encodeURIComponent(item.campaignId)}` +
-              `/${encodeURIComponent(item.prospectId)}`;
-
-            return (
-              <article
+        </Card>
+      ) : (
+        <Card className="p-0 sm:p-0">
+          <ul className="divide-y divide-line-soft">
+            {visible.map((item) => (
+              <ActionRow
                 key={item.id}
-                className={[styles.followUpCard, overdue ? styles.followUpCardOverdue : '']
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <Link
-                  href={detailHref}
-                  className={styles.prospectLink}
-                  aria-label={`Open ${item.establishmentName}`}
-                >
-                  <div className={styles.cardOverview}>
-                    <div className={styles.cardPrimary}>
-                      <div
-                        className={[
-                          styles.establishmentIcon,
+                item={item}
+                selected={selected.has(item.id)}
+                onToggle={() => toggle(item.id)}
+              />
+            ))}
+          </ul>
+        </Card>
+      )}
 
-                          overdue ? styles.establishmentIconOverdue : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                      >
-                        <Building2 size={21} strokeWidth={1.8} aria-hidden="true" />
-                      </div>
+      {selected.size > 0 ? (
+        <div
+          role="region"
+          aria-label="Bulk actions"
+          className="sticky bottom-20 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-raised lg:bottom-6"
+        >
+          <span className="text-[15px] font-semibold text-navy">
+            {selected.size} action{selected.size === 1 ? '' : 's'} selected
+          </span>
 
-                      <div className={styles.establishmentContent}>
-                        <div className={styles.cardTitleRow}>
-                          <h2>{item.establishmentName}</h2>
+          <Button
+            variant="secondary"
+            size="md"
+            loading={busy}
+            leadingIcon={<CheckCircle2 aria-hidden="true" className="size-[18px]" />}
+            onClick={() => void runBulk('complete')}
+          >
+            Mark completed
+          </Button>
 
-                          <span
-                            className={[
-                              styles.dueBadge,
+          <Button
+            variant="secondary"
+            size="md"
+            loading={busy}
+            onClick={() => void runBulk('cancel')}
+          >
+            Cancel actions
+          </Button>
 
-                              overdue ? styles.dueBadgeOverdue : styles.dueBadgeUpcoming,
-                            ].join(' ')}
-                          >
-                            {overdue ? 'Overdue' : 'Upcoming'}
-                          </span>
-                        </div>
-
-                        <p className={styles.campaignName}>{item.campaignName}</p>
-
-                        <div className={styles.metadata}>
-                          <span>
-                            {item.ownership === 'team' ? (
-                              <Users size={15} strokeWidth={1.9} aria-hidden="true" />
-                            ) : (
-                              <UserRound size={15} strokeWidth={1.9} aria-hidden="true" />
-                            )}
-
-                            {getOwnershipLabel(item.ownership)}
-                          </span>
-
-                          <span>
-                            <Clock3 size={15} strokeWidth={1.9} aria-hidden="true" />
-                            Pending
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={styles.cardAside}>
-                      <span className={styles.dueLabel}>{overdue ? 'Was due' : 'Due'}</span>
-
-                      <time dateTime={item.dueAt}>{formatDateTime(item.dueAt)}</time>
-
-                      {overdue ? (
-                        <span className={styles.overdueHint}>
-                          <AlertTriangle size={14} strokeWidth={1.9} aria-hidden="true" />
-                          Action needed
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </Link>
-
-                <div
-                  className={styles.cardActions}
-                  aria-label={`Actions for ${item.establishmentName}`}
-                >
-                  <button
-                    type="button"
-                    className={[styles.actionButton, styles.completeButton].join(' ')}
-                    disabled={mutation !== null}
-                    onClick={() => {
-                      void handleComplete(item);
-                    }}
-                  >
-                    {completing ? (
-                      <LoaderCircle className={styles.buttonSpinner} size={17} aria-hidden="true" />
-                    ) : (
-                      <CheckCircle2 size={17} strokeWidth={1.9} aria-hidden="true" />
-                    )}
-
-                    {completing ? 'Completing…' : 'Complete'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className={[styles.actionButton, styles.rescheduleButton].join(' ')}
-                    disabled={mutation !== null}
-                    aria-expanded={rescheduleOpen}
-                    onClick={() => {
-                      toggleReschedule(item);
-                    }}
-                  >
-                    <CalendarClock size={17} strokeWidth={1.9} aria-hidden="true" />
-
-                    {rescheduleOpen ? 'Close reschedule' : 'Reschedule'}
-                  </button>
-
-                  <button
-                    type="button"
-                    className={[styles.actionButton, styles.cancelButton].join(' ')}
-                    disabled={mutation !== null}
-                    aria-expanded={cancelOpen}
-                    onClick={() => {
-                      toggleCancelConfirmation(item);
-                    }}
-                  >
-                    <Ban size={17} strokeWidth={1.9} aria-hidden="true" />
-
-                    {cancelOpen ? 'Close cancel' : 'Cancel'}
-                  </button>
-                </div>
-
-                {rescheduleOpen ? (
-                  <form
-                    className={styles.reschedulePanel}
-                    onSubmit={(event) => {
-                      void handleReschedule(event, item);
-                    }}
-                  >
-                    <div>
-                      <label htmlFor={`reschedule-${item.id}`} className={styles.fieldLabel}>
-                        New due date and time
-                      </label>
-
-                      <p className={styles.fieldDescription}>
-                        Choose a future date and time for this follow-up.
-                      </p>
-                    </div>
-
-                    <div className={styles.rescheduleControls}>
-                      <input
-                        id={`reschedule-${item.id}`}
-                        type="datetime-local"
-                        className={styles.dateTimeInput}
-                        min={minimumFollowUpDateTime}
-                        value={rescheduleDrafts[item.id] ?? ''}
-                        required
-                        disabled={mutation !== null}
-                        onChange={(event) => {
-                          const value = event.currentTarget.value;
-
-                          setRescheduleDrafts((current) => ({
-                            ...current,
-
-                            [item.id]: value,
-                          }));
-
-                          clearAttemptIfMatching(item.id, 'reschedule');
-
-                          setActionError(null);
-
-                          setActionSuccess(null);
-                        }}
-                      />
-
-                      <button
-                        type="submit"
-                        className={styles.rescheduleSubmitButton}
-                        disabled={mutation !== null || !rescheduleDrafts[item.id]}
-                      >
-                        {rescheduling ? (
-                          <>
-                            <LoaderCircle
-                              className={styles.buttonSpinner}
-                              size={17}
-                              aria-hidden="true"
-                            />
-                            Rescheduling…
-                          </>
-                        ) : (
-                          'Save new time'
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                ) : null}
-
-                {cancelOpen ? (
-                  <div className={styles.cancelConfirmation}>
-                    <div>
-                      <strong>Cancel this follow-up?</strong>
-
-                      <p>
-                        It will leave the pending operational queue. This action is recorded by the
-                        backend.
-                      </p>
-                    </div>
-
-                    <div className={styles.confirmationActions}>
-                      <button
-                        type="button"
-                        className={styles.keepButton}
-                        disabled={mutation !== null}
-                        onClick={() => {
-                          setCancelTargetId(null);
-
-                          setActionError(null);
-                        }}
-                      >
-                        Keep follow-up
-                      </button>
-
-                      <button
-                        type="button"
-                        className={styles.confirmCancelButton}
-                        disabled={mutation !== null}
-                        onClick={() => {
-                          void handleCancel(item);
-                        }}
-                      >
-                        {cancelling ? (
-                          <>
-                            <LoaderCircle
-                              className={styles.buttonSpinner}
-                              size={17}
-                              aria-hidden="true"
-                            />
-                            Cancelling…
-                          </>
-                        ) : (
-                          'Confirm cancellation'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {itemActionError ? (
-                  <div className={styles.actionError} role="alert" aria-live="assertive">
-                    <AlertTriangle size={18} strokeWidth={1.9} aria-hidden="true" />
-
-                    <span>{itemActionError}</span>
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </section>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            aria-label="Clear selection"
+            className="ml-auto text-ink-muted hover:text-ink"
+          >
+            <X aria-hidden="true" className="size-5" />
+          </button>
+        </div>
       ) : null}
-
-      {!loading && !error && items.length === 100 ? (
-        <p className={styles.limitNotice}>
-          Showing the first 100 actionable follow-ups for this workspace.
-        </p>
-      ) : null}
-    </main>
+    </div>
   );
+}
+
+function ActionRow({
+  item,
+  selected,
+  onToggle,
+}: {
+  item: FollowUpQueueItem;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const overdue = item.status === 'pending' && new Date(item.dueAt).getTime() < Date.now();
+
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
+        aria-label={`Select follow-up for ${item.establishmentName}`}
+        className="size-[18px] shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
+      />
+
+      <span
+        className={cn('w-24 shrink-0 text-[14px] font-bold', overdue ? 'text-danger' : 'text-ink')}
+      >
+        {formatDate(item.dueAt)}
+
+        <span className="block text-[13px] font-medium text-ink-muted">
+          {overdue ? 'Overdue' : formatTime(item.dueAt)}
+        </span>
+      </span>
+
+      <span className="min-w-0 flex-1 basis-48">
+        <Link
+          href={`/work-queue/${item.campaignId}/${item.prospectId}`}
+          className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+        >
+          {item.establishmentName}
+        </Link>
+
+        <span className="block truncate text-[14px] text-ink-muted">{item.campaignName}</span>
+      </span>
+
+      <Badge tone={item.ownership === 'team' ? 'brand' : 'neutral'} className="shrink-0">
+        {item.ownership === 'team' ? 'Team' : 'You'}
+      </Badge>
+
+      <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
+        {item.status === 'completed' ? 'Completed' : overdue ? 'Overdue' : 'Open'}
+      </Badge>
+    </li>
+  );
+}
+
+function QueueSkeleton() {
+  return (
+    <Card className="p-0 sm:p-0" aria-busy="true">
+      <span className="sr-only">Loading your actions…</span>
+
+      <ul className="divide-y divide-line-soft">
+        {[0, 1, 2, 3, 4].map((row) => (
+          <li key={row} className="flex animate-pulse items-center gap-4 px-6 py-5">
+            <span className="size-[18px] rounded bg-line-soft" />
+            <span className="h-5 w-20 rounded bg-line-soft" />
+            <span className="h-5 flex-1 rounded bg-line-soft" />
+            <span className="h-6 w-20 rounded-md bg-line-soft" />
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short' }).format(date);
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? ''
+    : new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(date);
 }

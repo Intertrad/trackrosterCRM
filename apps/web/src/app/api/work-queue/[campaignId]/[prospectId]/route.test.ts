@@ -63,6 +63,10 @@ describe('GET /api/work-queue/:campaignId/:prospectId', () => {
 
       countryCode: 'FR',
 
+      latitude: 49.1596,
+
+      longitude: 5.3828,
+
       phone: '+33100000000',
 
       website: 'https://paris-clinic.example',

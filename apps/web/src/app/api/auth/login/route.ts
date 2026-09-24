@@ -1,6 +1,6 @@
-import type { AuthenticationTokens } from '@/lib/api/auth-types';
+import type { AuthenticationResult } from '@/lib/api/auth-types';
 import { apiErrorResponse } from '@/lib/server/api-error-response';
-import { setAuthCookies } from '@/lib/server/auth-cookies';
+import { resolveAuthenticationOutcome } from '@/lib/server/auth-outcome';
 import { backendJson } from '@/lib/server/backend-json';
 
 export async function POST(request: Request): Promise<Response> {
@@ -16,7 +16,7 @@ export async function POST(request: Request): Promise<Response> {
      */
     const body = await request.text();
 
-    const tokens = await backendJson<AuthenticationTokens>('/auth/login', {
+    const result = await backendJson<AuthenticationResult>('/auth/login', {
       method: 'POST',
 
       headers: {
@@ -26,14 +26,19 @@ export async function POST(request: Request): Promise<Response> {
       body,
     });
 
-    await setAuthCookies(tokens);
-
     /*
-     * Never return the access or refresh token to
-     * browser JavaScript.
+     * Login does not always end in a session: the identity may still owe
+     * an MFA code, a first MFA enrolment, or a workspace choice. Only the
+     * token branch sets cookies.
      */
-    return new Response(null, {
-      status: 204,
+    const outcome = await resolveAuthenticationOutcome(result);
+
+    return Response.json(outcome, {
+      status: 200,
+
+      headers: {
+        'cache-control': 'no-store',
+      },
     });
   } catch (error) {
     return apiErrorResponse(error);

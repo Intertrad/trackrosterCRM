@@ -1,16 +1,18 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/auth/auth-context';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+/*
+ * The dossier specifies Inter Display for titles and key figures and
+ * Inter for interface text. Google serves one variable Inter family
+ * that covers both optical roles, so display treatment is expressed
+ * through weight and tracking rather than a second download.
+ */
+const inter = Inter({
+  variable: '--font-inter',
   subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -22,9 +24,16 @@ export const metadata: Metadata = {
   description: 'Coordinate prospecting activity, assignments and follow-ups across teams.',
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#05124a',
+};
+
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <AuthProvider>{children}</AuthProvider>
       </body>

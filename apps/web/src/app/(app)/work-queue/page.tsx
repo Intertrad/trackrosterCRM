@@ -1,556 +1,396 @@
 'use client';
 
-import {
-  Building2,
-  ClipboardList,
-  MapPin,
-  Phone,
-  RefreshCw,
-  Search,
-  ShieldAlert,
-  X,
-} from 'lucide-react';
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { List, Map as MapIcon, MapPin, Phone } from 'lucide-react';
 
+import {
+  LIFECYCLE_ORDER,
+  LifecycleBadge,
+  getLifecycleLabel,
+} from '@/components/prospector/lifecycle-badge';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { FilterSelect } from '@/components/ui/filter-select';
+import { PageHeader } from '@/components/ui/page-header';
+import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
+import { LinkButton } from '@/components/ui/link-button';
+import { SearchInput } from '@/components/ui/search-input';
 import { ApiError } from '@/lib/api/api-error';
-import { listWorkQueue } from '@/lib/api/work-queue-client';
-import type { WorkQueueItem, WorkQueuePage } from '@/lib/api/work-queue-types';
+import { getWorkQueueOptions, listWorkQueue } from '@/lib/api/work-queue-client';
+import type {
+  WorkQueueCampaignOption,
+  WorkQueueItem,
+  WorkQueueLifecycleStage,
+} from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
-
-import styles from './page.module.css';
+import { cn } from '@/lib/ui/cn';
 
 const PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
 
-function formatAssignedAt(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
-
-function formatLocation(item: WorkQueueItem): string | null {
-  const parts = [
-    item.establishment.postalCode,
-    item.establishment.city,
-    item.establishment.countryCode,
-  ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-
-  return parts.length > 0 ? parts.join(' · ') : null;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.statusCode === 403) {
-      return 'You no longer have access to this Prospector workspace.';
-    }
-
-    if (error.statusCode === 401) {
-      return 'Your TrackRoster session has expired. Refresh the page to restore your session.';
-    }
-
-    if (error.messages.length > 0) {
-      return error.messages.join(', ');
-    }
-  }
-
-  return 'TrackRoster could not load your work queue. Please try again.';
-}
-
-function mergeQueueItems(
-  currentItems: WorkQueueItem[],
-  nextItems: WorkQueueItem[],
-): WorkQueueItem[] {
-  const itemsByAssignmentId = new Map<string, WorkQueueItem>();
-
-  for (const item of currentItems) {
-    itemsByAssignmentId.set(item.assignment.id, item);
-  }
-
-  for (const item of nextItems) {
-    itemsByAssignmentId.set(item.assignment.id, item);
-  }
-
-  return [...itemsByAssignmentId.values()];
-}
-
-interface LoadQueueOptions {
-  cursor?: string;
-
-  append: boolean;
-}
-
-export default function WorkQueuePage() {
+export default function MyProspectsPage() {
   const { activeWorkspace } = useAuth();
 
-  const [items, setItems] = useState<WorkQueueItem[]>([]);
+  const teamId = activeWorkspace?.teamId ?? null;
 
-  const [page, setPage] = useState<WorkQueuePage | null>(null);
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const [selected, setSelected] = useState<MapPoint | null>(null);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [stage, setStage] = useState<WorkQueueLifecycleStage | 'all'>('all');
+  const [campaignId, setCampaignId] = useState('all');
 
-  const [loading, setLoading] = useState(false);
-
+  const [campaigns, setCampaigns] = useState<WorkQueueCampaignOption[]>([]);
+  const [items, setItems] = useState<WorkQueueItem[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
 
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  /* Typing must not fire a request per keystroke. */
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
 
-  const [searchInput, setSearchInput] = useState('');
+    return () => clearTimeout(timer);
+  }, [search]);
 
-  const [appliedSearch, setAppliedSearch] = useState('');
+  useEffect(() => {
+    if (!teamId) {
+      return;
+    }
 
-  /*
-   * Every request receives a monotonically increasing
-   * sequence number.
-   *
-   * When the workspace, search, refresh, or page changes,
-   * a response from an older request is ignored.
-   */
-  const requestSequence = useRef(0);
+    const controller = new AbortController();
 
-  const teamId =
-    activeWorkspace?.mode === 'prospector' && activeWorkspace.scopeType === 'team'
-      ? activeWorkspace.teamId
-      : null;
+    getWorkQueueOptions({ teamId, signal: controller.signal })
+      .then((options) => setCampaigns(options.campaigns))
+      .catch(() => setCampaigns([]));
 
-  const loadQueue = useCallback(
-    async ({ cursor, append }: LoadQueueOptions): Promise<void> => {
+    return () => controller.abort();
+  }, [teamId]);
+
+  const requestRef = useRef(0);
+
+  const load = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
       if (!teamId) {
-        requestSequence.current += 1;
-
-        setItems([]);
-        setPage(null);
-        setError(null);
-        setLoadMoreError(null);
-        setLoading(false);
-        setLoadingMore(false);
-
         return;
       }
 
-      const requestId = ++requestSequence.current;
-
-      if (append) {
-        setLoadingMore(true);
-        setLoadMoreError(null);
-      } else {
-        setLoading(true);
-        setError(null);
-        setLoadMoreError(null);
-
-        /*
-         * Do not leave rows from an old workspace or
-         * previous search visible while a new queue is
-         * being resolved.
-         */
-        setItems([]);
-        setPage(null);
-      }
+      const requestId = ++requestRef.current;
 
       try {
         const response = await listWorkQueue({
           teamId,
-
           limit: PAGE_SIZE,
-
-          ...(appliedSearch
-            ? {
-                q: appliedSearch,
-              }
-            : {}),
-
-          ...(cursor
-            ? {
-                cursor,
-              }
-            : {}),
+          ...(debouncedSearch ? { q: debouncedSearch } : {}),
+          ...(stage !== 'all' ? { lifecycleStage: stage } : {}),
+          ...(campaignId !== 'all' ? { campaignId } : {}),
+          signal,
         });
 
-        if (requestId !== requestSequence.current) {
+        /* Drop a slower response from an earlier filter combination. */
+        if (signal?.aborted || requestId !== requestRef.current) {
           return;
         }
 
-        if (append) {
-          setItems((currentItems) => mergeQueueItems(currentItems, response.items));
-        } else {
-          setItems(response.items);
-        }
-
-        setPage(response.page);
-      } catch (loadError) {
-        if (requestId !== requestSequence.current) {
+        setItems(response.items);
+        setNextCursor(response.page.nextCursor);
+        setError(null);
+      } catch (caught) {
+        if (signal?.aborted || requestId !== requestRef.current) {
           return;
         }
 
-        const message = getErrorMessage(loadError);
-
-        if (append) {
-          /*
-           * A later-page failure must not destroy
-           * already loaded queue rows.
-           */
-          setLoadMoreError(message);
-        } else {
-          setItems([]);
-          setPage(null);
-          setError(message);
-        }
-      } finally {
-        if (requestId === requestSequence.current) {
-          if (append) {
-            setLoadingMore(false);
-          } else {
-            setLoading(false);
-          }
-        }
+        setError(
+          caught instanceof ApiError && caught.statusCode === 401
+            ? 'Your session has expired. Please sign in again.'
+            : 'We could not load your portfolio. Please try again.',
+        );
       }
     },
-    [appliedSearch, teamId],
+    [campaignId, debouncedSearch, stage, teamId],
   );
 
   useEffect(() => {
-    if (!teamId) {
-      requestSequence.current += 1;
+    const controller = new AbortController();
 
-      setItems([]);
-      setPage(null);
-      setError(null);
-      setLoadMoreError(null);
-      setLoading(false);
-      setLoadingMore(false);
+    void load(controller.signal);
 
+    return () => controller.abort();
+  }, [load]);
+
+  async function loadMore(): Promise<void> {
+    if (!teamId || !nextCursor) {
       return;
     }
 
-    void loadQueue({
-      append: false,
-    });
-  }, [teamId, appliedSearch, loadQueue]);
+    setLoadingMore(true);
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-
-    const nextSearch = searchInput.trim();
-
-    /*
-     * Re-submitting the same query acts as a refresh.
-     */
-    if (nextSearch === appliedSearch) {
-      void loadQueue({
-        append: false,
+    try {
+      const response = await listWorkQueue({
+        teamId,
+        limit: PAGE_SIZE,
+        cursor: nextCursor,
+        ...(debouncedSearch ? { q: debouncedSearch } : {}),
+        ...(stage !== 'all' ? { lifecycleStage: stage } : {}),
+        ...(campaignId !== 'all' ? { campaignId } : {}),
       });
 
-      return;
+      setItems((current) => [...(current ?? []), ...response.items]);
+      setNextCursor(response.page.nextCursor);
+    } catch {
+      setError('We could not load more prospects.');
+    } finally {
+      setLoadingMore(false);
     }
-
-    /*
-     * Changing appliedSearch triggers a fresh first-page
-     * request through the effect above. No old cursor is
-     * carried into the new search.
-     */
-    setAppliedSearch(nextSearch);
   }
 
-  function handleClearSearch(): void {
-    setSearchInput('');
+  const filtered = useMemo(
+    () => debouncedSearch !== '' || stage !== 'all' || campaignId !== 'all',
+    [campaignId, debouncedSearch, stage],
+  );
 
-    if (!appliedSearch) {
-      return;
-    }
+  /* Only geocoded establishments can be plotted; the rest stay in the list. */
+  const points = useMemo<MapPoint[]>(
+    () =>
+      (items ?? []).flatMap((item) =>
+        toMapPoint(
+          item.campaignProspectId,
+          item.establishment.name,
+          item.establishment.latitude,
+          item.establishment.longitude,
+          item.lifecycleStage,
+          `/work-queue/${item.campaign.id}/${item.campaignProspectId}`,
+        ),
+      ),
+    [items],
+  );
 
-    setAppliedSearch('');
-  }
-
-  function handleLoadMore(): void {
-    if (loading || loadingMore || !page?.hasMore || !page.nextCursor) {
-      return;
-    }
-
-    void loadQueue({
-      append: true,
-      cursor: page.nextCursor,
-    });
-  }
+  const missingCoordinates = (items?.length ?? 0) - points.length;
 
   if (!teamId) {
     return (
-      <main className={styles.page}>
-        <section className={styles.unavailableCard} aria-labelledby="work-queue-unavailable-title">
-          <div className={styles.unavailableIcon}>
-            <ShieldAlert size={24} strokeWidth={1.8} aria-hidden="true" />
-          </div>
+      <div className="flex flex-col gap-6">
+        <PageHeader title="My prospects" />
 
-          <p className={styles.eyebrow}>Prospector workspace required</p>
-
-          <h1 id="work-queue-unavailable-title">Work Queue is not available in this workspace.</h1>
-
-          <p className={styles.unavailableMessage}>
-            Select a Prospector team workspace from the sidebar to view assigned prospecting work.
-          </p>
-        </section>
-      </main>
+        <Alert tone="info" title="This view is scoped to a team.">
+          Switch to a team workspace to see the portfolio assigned to you.
+        </Alert>
+      </div>
     );
   }
 
   return (
-    <main className={styles.page}>
-      <header className={styles.pageHeader}>
-        <div>
-          <p className={styles.eyebrow}>Prospecting</p>
-
-          <h1>Work Queue</h1>
-
-          <p className={styles.pageDescription}>
-            Active prospects currently assigned to you in this team workspace.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className={styles.refreshButton}
-          onClick={() => {
-            void loadQueue({
-              append: false,
-            });
-          }}
-          disabled={loading || loadingMore}
-        >
-          <RefreshCw size={17} strokeWidth={1.9} aria-hidden="true" />
-
-          <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
-        </button>
-      </header>
-
-      <section className={styles.controls}>
-        <form className={styles.searchForm} onSubmit={handleSearchSubmit} role="search">
-          <div className={styles.searchField}>
-            <Search size={18} strokeWidth={1.9} aria-hidden="true" />
-
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => {
-                setSearchInput(event.target.value);
-              }}
-              maxLength={100}
-              placeholder="Search establishments, city or postal code"
-              aria-label="Search Work Queue"
-            />
-
-            {searchInput ? (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="My prospects"
+        subtitle={
+          items
+            ? `${items.length}${nextCursor ? '+' : ''} establishments assigned to you`
+            : 'Loading your portfolio…'
+        }
+        action={
+          <div
+            role="group"
+            aria-label="View"
+            className="inline-flex rounded-lg border border-line bg-surface p-1"
+          >
+            {(
+              [
+                { id: 'list', label: 'List', icon: List },
+                { id: 'map', label: 'Map', icon: MapIcon },
+              ] as const
+            ).map((option) => (
               <button
+                key={option.id}
                 type="button"
-                className={styles.inputClearButton}
-                onClick={() => {
-                  setSearchInput('');
-                }}
-                aria-label="Clear search input"
-              >
-                <X size={17} strokeWidth={2} aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-
-          <button type="submit" className={styles.searchButton} disabled={loading || loadingMore}>
-            Search
-          </button>
-
-          {appliedSearch ? (
-            <button
-              type="button"
-              className={styles.clearSearchButton}
-              onClick={handleClearSearch}
-              disabled={loading || loadingMore}
-            >
-              Clear
-            </button>
-          ) : null}
-        </form>
-
-        {appliedSearch ? (
-          <p className={styles.activeFilter} aria-live="polite">
-            Results for <strong>“{appliedSearch}”</strong>
-          </p>
-        ) : null}
-      </section>
-
-      <section className={styles.summaryBar} aria-label="Work Queue summary">
-        <div className={styles.summaryIcon}>
-          <ClipboardList size={20} strokeWidth={1.9} aria-hidden="true" />
-        </div>
-
-        <div>
-          <span className={styles.summaryValue}>{loading ? '—' : items.length}</span>
-
-          <span className={styles.summaryLabel}>
-            {items.length === 1 ? 'prospect loaded' : 'prospects loaded'}
-          </span>
-        </div>
-      </section>
-
-      {loading ? (
-        <section className={styles.stateCard} role="status" aria-live="polite">
-          <div className={styles.spinner} />
-
-          <div>
-            <h2>{appliedSearch ? 'Searching your work queue' : 'Loading your work queue'}</h2>
-
-            <p>TrackRoster is retrieving your active assignments.</p>
-          </div>
-        </section>
-      ) : null}
-
-      {error ? (
-        <section className={styles.errorCard} role="alert" aria-live="assertive">
-          <div className={styles.errorIcon}>
-            <ShieldAlert size={22} strokeWidth={1.8} aria-hidden="true" />
-          </div>
-
-          <div className={styles.errorContent}>
-            <h2>Work Queue unavailable</h2>
-
-            <p>{error}</p>
-
-            <button
-              type="button"
-              onClick={() => {
-                void loadQueue({
-                  append: false,
-                });
-              }}
-            >
-              Try again
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {!loading && !error && items.length === 0 ? (
-        <section className={styles.emptyCard}>
-          <div className={styles.emptyIcon}>
-            <ClipboardList size={24} strokeWidth={1.8} aria-hidden="true" />
-          </div>
-
-          <h2>{appliedSearch ? 'No matching prospects.' : 'Your queue is clear.'}</h2>
-
-          <p>
-            {appliedSearch
-              ? 'No active assignments in this workspace match your search.'
-              : 'There are currently no active prospects assigned to you in this team workspace.'}
-          </p>
-
-          {appliedSearch ? (
-            <button type="button" className={styles.emptyClearButton} onClick={handleClearSearch}>
-              Clear search
-            </button>
-          ) : null}
-        </section>
-      ) : null}
-
-      {!loading && !error && items.length > 0 ? (
-        <>
-          <section className={styles.queueList} aria-label="Assigned prospects">
-            {items.map((item) => {
-              const location = formatLocation(item);
-
-              return (
-                <Link
-                  key={item.assignment.id}
-                  href={`/work-queue/${encodeURIComponent(item.campaign.id)}/${encodeURIComponent(
-                    item.campaignProspectId,
-                  )}`}
-                  className={styles.queueCardLink}
-                  aria-label={`Open ${item.establishment.name}`}
-                >
-                  <article className={styles.queueCard}>
-                    <div className={styles.cardPrimary}>
-                      <div className={styles.establishmentIcon}>
-                        <Building2 size={21} strokeWidth={1.8} aria-hidden="true" />
-                      </div>
-
-                      <div className={styles.establishmentContent}>
-                        <div className={styles.cardTitleRow}>
-                          <h2>{item.establishment.name}</h2>
-
-                          <span className={styles.statusBadge}>Assigned</span>
-                        </div>
-
-                        <p className={styles.campaignName}>{item.campaign.name}</p>
-
-                        <div className={styles.metadata}>
-                          {location ? (
-                            <span>
-                              <MapPin size={15} strokeWidth={1.9} aria-hidden="true" />
-
-                              {location}
-                            </span>
-                          ) : null}
-
-                          {item.establishment.phone ? (
-                            <span>
-                              <Phone size={15} strokeWidth={1.9} aria-hidden="true" />
-
-                              {item.establishment.phone}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className={styles.cardAside}>
-                      <span className={styles.assignedLabel}>Assigned</span>
-
-                      <time dateTime={item.assignment.assignedAt}>
-                        {formatAssignedAt(item.assignment.assignedAt)}
-                      </time>
-                    </div>
-                  </article>
-                </Link>
-              );
-            })}
-          </section>
-
-          {loadMoreError ? (
-            <div className={styles.paginationError} role="alert">
-              <span>{loadMoreError}</span>
-
-              <button type="button" onClick={handleLoadMore} disabled={loadingMore}>
-                Retry
-              </button>
-            </div>
-          ) : null}
-
-          {page?.hasMore && page.nextCursor ? (
-            <div className={styles.pagination}>
-              <button
-                type="button"
-                className={styles.loadMoreButton}
-                onClick={handleLoadMore}
-                disabled={loading || loadingMore}
-              >
-                {loadingMore ? (
-                  <>
-                    <span className={styles.smallSpinner} aria-hidden="true" />
-                    Loading more…
-                  </>
-                ) : (
-                  'Load more'
+                onClick={() => setView(option.id)}
+                aria-pressed={view === option.id}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-md px-3.5 py-2 text-[14px] font-semibold transition-colors',
+                  view === option.id ? 'bg-brand text-white' : 'text-ink-soft hover:text-ink',
                 )}
+              >
+                <option.icon aria-hidden="true" className="size-[18px]" />
+                {option.label}
               </button>
-            </div>
-          ) : (
-            <p className={styles.endOfQueue}>
-              {items.length > 0 ? 'You have reached the end of this queue.' : null}
+            ))}
+          </div>
+        }
+      />
+
+      <div className="flex flex-wrap gap-3">
+        <SearchInput
+          label="Search my portfolio"
+          placeholder="Search my portfolio..."
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="min-w-[240px] flex-1"
+        />
+
+        <FilterSelect
+          label="Status"
+          value={stage}
+          onChange={(value) => setStage(value as WorkQueueLifecycleStage | 'all')}
+          options={[
+            { value: 'all', label: 'All' },
+            ...LIFECYCLE_ORDER.map((value) => ({
+              value,
+              label: getLifecycleLabel(value),
+            })),
+          ]}
+        />
+
+        <FilterSelect
+          label="Campaign"
+          value={campaignId}
+          onChange={setCampaignId}
+          options={[
+            { value: 'all', label: 'All' },
+            ...campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name })),
+          ]}
+        />
+      </div>
+
+      {error ? <Alert tone="danger">{error}</Alert> : null}
+
+      {view === 'map' ? (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
+          <ProspectMap points={points} onSelect={setSelected} />
+
+          <Card>
+            <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
+              {selected ? selected.name : 'Nearby prospects'}
+            </h2>
+
+            {selected ? (
+              <div className="mt-4">
+                <LinkButton href={selected.href ?? '/work-queue'} variant="primary">
+                  Open prospect
+                </LinkButton>
+              </div>
+            ) : (
+              <p className="mt-2 text-[14px] text-ink-muted">Select a marker to open its record.</p>
+            )}
+
+            <p className="mt-5 border-t border-line-soft pt-4 text-[13px] text-ink-muted">
+              {points.length} of {items?.length ?? 0} plotted
+              {missingCoordinates > 0 ? ` · ${missingCoordinates} without coordinates` : ''}
             </p>
-          )}
+          </Card>
+        </div>
+      ) : items === null ? (
+        <ListSkeleton />
+      ) : items.length === 0 ? (
+        <Card>
+          <p className="py-10 text-center text-[15px] text-ink-muted">
+            {filtered
+              ? 'No prospects match these filters.'
+              : 'No establishments are assigned to you yet.'}
+          </p>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-0 sm:p-0">
+            <ul className="divide-y divide-line-soft">
+              {items.map((item) => (
+                <ProspectRow key={item.campaignProspectId} item={item} />
+              ))}
+            </ul>
+          </Card>
+
+          {nextCursor ? (
+            <Button
+              variant="secondary"
+              className="self-center"
+              loading={loadingMore}
+              onClick={() => void loadMore()}
+            >
+              Load more
+            </Button>
+          ) : null}
         </>
-      ) : null}
-    </main>
+      )}
+
+      <p className="text-[13px] text-ink-muted">
+        Personal scope: only prospects assigned to you are shown — no territory-wide or unassigned
+        records.
+      </p>
+    </div>
   );
+}
+
+function ProspectRow({ item }: { item: WorkQueueItem }) {
+  const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
+
+  const location = [item.establishment.postalCode, item.establishment.city]
+    .filter(Boolean)
+    .join(' ');
+
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">
+      <span className="min-w-0 flex-1 basis-56">
+        <Link
+          href={href}
+          className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+        >
+          {item.establishment.name}
+        </Link>
+
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-ink-muted">
+          {location ? (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin aria-hidden="true" className="size-4" />
+              {location}
+            </span>
+          ) : null}
+
+          {item.establishment.phone ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Phone aria-hidden="true" className="size-4" />
+              {item.establishment.phone}
+            </span>
+          ) : null}
+        </span>
+      </span>
+
+      <span className="hidden w-40 shrink-0 truncate text-[14px] text-ink-soft lg:block">
+        {item.campaign.name}
+      </span>
+
+      <span className="w-32 shrink-0 text-[14px] text-ink-muted">
+        {item.nextFollowUp ? formatDate(item.nextFollowUp.dueAt) : '—'}
+      </span>
+
+      <LifecycleBadge stage={item.lifecycleStage} className="shrink-0" />
+    </li>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <Card className="p-0 sm:p-0" aria-busy="true">
+      <span className="sr-only">Loading your portfolio…</span>
+
+      <ul className="divide-y divide-line-soft">
+        {[0, 1, 2, 3, 4, 5].map((row) => (
+          <li key={row} className="flex animate-pulse items-center gap-4 px-6 py-5">
+            <span className="h-5 flex-1 rounded bg-line-soft" />
+            <span className="h-6 w-24 rounded-md bg-line-soft" />
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
 }

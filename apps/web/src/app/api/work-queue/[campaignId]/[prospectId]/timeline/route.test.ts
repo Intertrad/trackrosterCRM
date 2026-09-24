@@ -64,6 +64,10 @@ describe('GET /api/work-queue/:campaignId/:prospectId/timeline', () => {
 
       countryCode: 'FR',
 
+      latitude: 49.1596,
+
+      longitude: 5.3828,
+
       phone: null,
 
       website: null,

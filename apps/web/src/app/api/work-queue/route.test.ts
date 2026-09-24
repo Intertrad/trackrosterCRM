@@ -33,6 +33,20 @@ describe('GET /api/work-queue', () => {
       {
         campaignProspectId: '33333333-3333-4333-8333-333333333333',
 
+        lifecycleStage: 'in_progress',
+
+        latestActivity: {
+          type: 'call',
+
+          occurredAt: '2026-09-19T08:00:00.000Z',
+        },
+
+        nextFollowUp: {
+          id: '77777777-7777-4777-8777-777777777777',
+
+          dueAt: '2026-09-20T10:00:00.000Z',
+        },
+
         campaign: {
           id: campaignId,
           name: 'Paris Expansion',
@@ -62,6 +76,10 @@ describe('GET /api/work-queue', () => {
           city: 'Paris',
 
           countryCode: 'FR',
+
+          latitude: 49.1596,
+
+          longitude: 5.3828,
 
           phone: null,
 
@@ -126,11 +144,13 @@ describe('GET /api/work-queue', () => {
       'http://localhost:3000/api/work-queue' +
         `?teamId=${teamId}` +
         `&campaignId=${campaignId}` +
+        '&lifecycleStage=follow_up' +
         '&q=Paris%20Clinic' +
         '&cursor=cursor-value' +
         '&limit=20' +
         '&tenantId=malicious-tenant' +
         '&userId=malicious-user' +
+        '&status=converted' +
         '&unexpected=value',
     );
 
@@ -142,6 +162,7 @@ describe('GET /api/work-queue', () => {
       '/work-queue' +
         `?teamId=${teamId}` +
         `&campaignId=${campaignId}` +
+        '&lifecycleStage=follow_up' +
         '&q=Paris+Clinic' +
         '&cursor=cursor-value' +
         '&limit=20',

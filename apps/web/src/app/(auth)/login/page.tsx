@@ -1,94 +1,57 @@
 import type { Metadata } from 'next';
-import { Check, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+import { Lock } from 'lucide-react';
 
+import { AuthShell } from '@/components/auth/auth-shell';
 import { LoginForm } from '@/components/auth/login-form';
-
-import styles from './login.module.css';
+import { Alert } from '@/components/ui/alert';
 
 export const metadata: Metadata = {
-  title: 'Login',
+  title: 'Sign in',
   description: 'Sign in to your TrackRoster workspace.',
 };
 
-const decorativeTiles = Array.from({ length: 9 }, (_, index) => index);
+export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
+  const { reset } = await searchParams;
 
-export default function LoginPage() {
   return (
-    <main className={styles.page}>
-      <aside className={styles.sidebar}>
-        <div>
-          <div className={styles.brand}>
-            <TrackRosterMark />
+    <AuthShell>
+      {reset === 'success' ? (
+        <Alert tone="success" className="mb-6" title="Password updated">
+          Sign in with your new password. Other sessions were signed out.
+        </Alert>
+      ) : null}
 
-            <span>TrackRoster</span>
-          </div>
+      <header className="mb-8">
+        <h2 className="text-[38px] leading-[1.1] font-bold tracking-[-0.03em] text-navy">
+          Welcome back
+        </h2>
 
-          <p className={styles.tagline}>
-            Every prospect, at the
-            <br />
-            right time, by the right
-            <br />
-            team.
-          </p>
+        <p className="mt-2 text-[16px] text-ink-soft">Sign in to your TrackRoster workspace</p>
+      </header>
+
+      <LoginForm />
+
+      <div className="mt-8 border-t border-line-soft pt-5">
+        <div className="flex items-center justify-center gap-3 text-[14px] font-semibold text-brand">
+          <Link href="/invite" className="hover:text-brand-hover">
+            Accept an invitation
+          </Link>
+
+          <span aria-hidden="true" className="text-line">
+            |
+          </span>
+
+          <a href="mailto:support@trackroster.app" className="hover:text-brand-hover">
+            Get support
+          </a>
         </div>
 
-        <div className={styles.securityArea}>
-          <div className={styles.divider} />
-
-          <div className={styles.security}>
-            <ShieldCheck size={28} strokeWidth={1.9} />
-
-            <div>
-              <strong>Secure &amp; protected</strong>
-
-              <span>HttpOnly session</span>
-              <span>Backend-enforced access</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <section className={styles.mainContent}>
-        <div className={styles.content}>
-          <header className={styles.heading}>
-            <h1>Login</h1>
-
-            <p>
-              Sign in with your work credentials. Your role and workspace will be loaded
-              automatically after login.
-            </p>
-          </header>
-
-          <LoginForm />
-
-          <p className={styles.accessText}>
-            Need access? <span>Contact your administrator.</span>
-          </p>
-        </div>
-
-        <div className={styles.decoration} aria-hidden="true">
-          {decorativeTiles.map((tile) => (
-            <div key={tile} className={`${styles.tile} ${tile === 5 ? styles.checkedTile : ''}`}>
-              {tile === 5 ? <Check size={58} strokeWidth={1.5} /> : null}
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-function TrackRosterMark() {
-  return (
-    <div className={styles.logoMark} aria-hidden="true">
-      {Array.from({ length: 9 }).map((_, index) => (
-        <span
-          key={index}
-          className={index === 5 ? styles.logoChecked : index >= 6 ? styles.logoBlue : ''}
-        >
-          {index === 5 ? <Check size={13} strokeWidth={3} /> : null}
-        </span>
-      ))}
-    </div>
+        <p className="mt-4 flex items-center justify-center gap-2 text-[13px] text-ink-muted">
+          <Lock aria-hidden="true" className="size-4" />
+          Protected by encrypted sessions and optional MFA.
+        </p>
+      </div>
+    </AuthShell>
   );
 }

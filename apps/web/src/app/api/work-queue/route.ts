@@ -4,7 +4,14 @@ import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-jso
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_QUERY_PARAMETERS = ['teamId', 'campaignId', 'q', 'cursor', 'limit'] as const;
+const ALLOWED_QUERY_PARAMETERS = [
+  'teamId',
+  'campaignId',
+  'lifecycleStage',
+  'q',
+  'cursor',
+  'limit',
+] as const;
 
 export async function GET(request: Request): Promise<Response> {
   try {

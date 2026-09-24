@@ -1,3 +1,83 @@
+@import 'tailwindcss';
+
+/*
+ * TrackRoster design tokens.
+ *
+ * Source of truth: Product Design Dossier p.5 (visual identity)
+ * plus the approved high-fidelity handoff. Every colour used by a
+ * component must resolve to a token here — no raw hex in JSX.
+ */
+@theme {
+  /* Brand — dossier palette */
+  --color-navy: #05124a;
+  --color-navy-950: #030c33;
+  --color-navy-900: #05124a;
+  --color-navy-800: #0a1d63;
+  --color-navy-700: #102a80;
+  --color-navy-600: #1739a1;
+
+  --color-brand: #0f59fa;
+  --color-brand-hover: #0b48d4;
+  --color-brand-active: #0939ab;
+  --color-brand-mid: #5f92f6;
+  --color-brand-pale: #a2c0fa;
+  --color-brand-tint: #e8f0ff;
+  --color-brand-wash: #f4f8ff;
+
+  --color-lime: #a7dc41;
+  --color-lime-deep: #7bab1f;
+
+  --color-line: #d7dce7;
+  --color-line-soft: #e6eaf2;
+
+  /* Canvas */
+  --color-canvas: #fbfcff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f8fd;
+
+  /* Text */
+  --color-ink: #05124a;
+  --color-ink-soft: #3d4a6d;
+  --color-ink-muted: #6b7794;
+  --color-ink-onDark: #ffffff;
+  --color-ink-onDark-soft: #b9c8ea;
+
+  /* Status — collision, opposition and security alerts are never
+     decorative, so each state owns a full fg/bg/border triple. */
+  --color-success: #16a34a;
+  --color-success-bg: #e9f8ef;
+  --color-success-border: #b7e6c9;
+
+  --color-warning: #d97706;
+  --color-warning-bg: #fff6e8;
+  --color-warning-border: #f5d9a8;
+
+  --color-danger: #dc2626;
+  --color-danger-bg: #fdeced;
+  --color-danger-border: #f6bcbd;
+
+  --color-critical: #b91c1c;
+  --color-critical-bg: #fde8e8;
+
+  --color-info: #0f59fa;
+  --color-info-bg: #e8f0ff;
+  --color-info-border: #bdd4fd;
+
+  /* Typography */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-display:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(5 18 74 / 6%), 0 1px 3px rgb(5 18 74 / 4%);
+  --shadow-raised: 0 4px 16px rgb(5 18 74 / 8%), 0 1px 3px rgb(5 18 74 / 5%);
+  --shadow-overlay: 0 16px 48px rgb(5 18 74 / 16%);
+
+  /* Motion — respects the mobile-first, low-latency UX goal */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 html {
   width: 100%;
   min-height: 100%;
@@ -10,24 +90,13 @@ body {
 
   overflow-x: hidden;
 
-  background: #fbfcff;
-  color: #07164f;
+  background: var(--color-canvas);
+  color: var(--color-ink);
 
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-img,
-svg {
-  max-width: 100%;
 }
 
 button,
@@ -46,7 +115,17 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid rgb(23 105 255 / 28%);
+textarea:focus-visible,
+[role='button']:focus-visible {
+  outline: 3px solid rgb(15 89 250 / 32%);
   outline-offset: 2px;
+}
+
+/* The dossier asks for fast field entry; never let iOS zoom on focus. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
 }
