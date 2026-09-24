@@ -53,6 +53,7 @@ describe('workspace navigation', () => {
       'Collision center',
       'Approvals',
       'Reports',
+      'Exports',
       'Messages',
     ]);
   });
@@ -132,6 +133,7 @@ describe('workspace navigation', () => {
       '/manager/collisions',
       '/manager/approvals',
       '/manager/reports',
+      '/manager/exports',
       '/messages',
     ]);
   });

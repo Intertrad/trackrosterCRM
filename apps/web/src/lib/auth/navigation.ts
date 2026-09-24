@@ -10,6 +10,7 @@ export type NavigationItemId =
   | 'messages'
   | 'dashboard'
   | 'imports'
+  | 'exports'
   | 'administration'
   | 'overrides'
   | 'team'
@@ -193,6 +194,13 @@ export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigat
           href: '/manager/reports',
           availability: 'ready',
           primary: true,
+        },
+        {
+          id: 'exports',
+          label: 'Exports',
+          icon: 'imports',
+          href: '/manager/exports',
+          availability: 'ready',
         },
         {
           id: 'messages',
