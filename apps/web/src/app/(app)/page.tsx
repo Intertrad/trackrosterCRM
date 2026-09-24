@@ -11,6 +11,8 @@ import {
   countsAsDueToday,
   resolveDueState,
 } from '@/components/prospector/due-state-badge';
+import { ContactActionButton } from '@/components/prospector/contact-action-button';
+import { LogOutcomeDrawer } from '@/components/prospector/log-outcome-drawer';
 import { PriorityRowMenu } from '@/components/prospector/priority-row-menu';
 import { TodayControls } from '@/components/prospector/today-controls';
 import { Alert } from '@/components/ui/alert';
@@ -303,6 +305,7 @@ export default function TodayPage() {
                   priority={priority}
                   state={states.get(priority.id) ?? 'upcoming'}
                   timeZone={timeZone}
+                  onLogged={() => void refresh()}
                 />
               ))}
             </ul>
@@ -587,14 +590,32 @@ function PriorityRow({
   priority,
   state,
   timeZone,
+  onLogged,
 }: {
   priority: ProspectorTodayPriority;
   state: DueState;
   timeZone: string;
+  onLogged: () => void;
 }) {
   const href = `/work-queue/${priority.campaignId}/${priority.campaignProspectId}`;
 
-  const actionLabel = priority.category === 'meeting' ? 'View prospect' : 'Log action';
+  /*
+   * A call or an email is handed to the device and the outcome captured here,
+   * so the prospector never leaves the day's list to do the day's work.
+   * Anything else opens the prospect, where the full record is.
+   */
+  const [logging, setLogging] = useState(false);
+
+  const action = (className?: string) => (
+    <ContactActionButton
+      channel={priority.channel}
+      phone={priority.establishment.phone}
+      prospectHref={href}
+      prospectName={priority.establishment.name}
+      onLogOutcome={() => setLogging(true)}
+      className={className}
+    />
+  );
 
   return (
     <li className="px-4 py-3.5 sm:px-6 sm:py-4">
@@ -645,7 +666,7 @@ function PriorityRow({
         </span>
 
         <span className="hidden shrink-0 items-center gap-1 sm:flex">
-          <LinkButton href={href}>{actionLabel}</LinkButton>
+          {action()}
 
           <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
         </span>
@@ -662,12 +683,24 @@ function PriorityRow({
       </div>
 
       <div className="mt-3 flex items-center gap-2 pl-[58px] sm:hidden">
-        <LinkButton href={href} className="flex-1">
-          {actionLabel}
-        </LinkButton>
+        {action('flex-1')}
 
         <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
       </div>
+
+      <LogOutcomeDrawer
+        open={logging}
+        onClose={() => setLogging(false)}
+        campaignId={priority.campaignId}
+        prospectId={priority.campaignProspectId}
+        establishmentName={priority.establishment.name}
+        reservation={null}
+        defaultChannel={priority.channel === 'email' ? 'email' : 'call'}
+        onCompleted={() => {
+          setLogging(false);
+          onLogged();
+        }}
+      />
     </li>
   );
 }

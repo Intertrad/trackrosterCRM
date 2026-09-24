@@ -55,6 +55,8 @@ export interface BackendProspectorTodayResponse {
 
       city: string | null;
 
+      phone?: string | null;
+
       latitude?: number | null;
 
       longitude?: number | null;
@@ -95,6 +97,9 @@ export function toBrowserProspectorTodayResponse(
         id: priority.establishment.id,
         name: priority.establishment.name,
         city: priority.establishment.city,
+        /* Absent on an API build that predates the dialling hand-off, which
+         * the row handles by opening the prospect instead. */
+        phone: priority.establishment.phone ?? null,
         /* Absent on an API build that predates the map, which the day's
          * visits handles by simply not plotting that stop. */
         latitude: priority.establishment.latitude ?? null,

@@ -90,6 +90,7 @@ export class ProspectorTodayService {
           id: priority.establishment.id,
           name: priority.establishment.name,
           city: priority.establishment.city,
+          phone: priority.establishment.phone,
           /* Postgres numeric arrives as a string; publish a number or null. */
           latitude: toCoordinate(priority.establishment.latitude),
           longitude: toCoordinate(priority.establishment.longitude),

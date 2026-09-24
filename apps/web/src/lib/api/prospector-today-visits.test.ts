@@ -20,7 +20,14 @@ function priority(
     isOverdue: false,
     category: 'follow_up',
     channel: 'visit',
-    establishment: { id: `e-${id}`, name: `Stop ${id}`, city: 'Verdun', latitude, longitude },
+    establishment: {
+      id: `e-${id}`,
+      name: `Stop ${id}`,
+      city: 'Verdun',
+      phone: null,
+      latitude,
+      longitude,
+    },
   };
 }
 

@@ -41,6 +41,12 @@ export interface ProspectorTodayPriority {
     city: string | null;
 
     /*
+     * The switchboard number, so the day's list can hand a call straight to
+     * the device's dialler. Null when none was ever recorded.
+     */
+    phone: string | null;
+
+    /*
      * Numeric columns arrive from the driver as strings. They are published
      * as numbers so a client never has to guess, and null when the
      * establishment has never been geocoded.

@@ -53,6 +53,8 @@ export interface ProspectorTodayRepositoryPriority {
 
     city: string | null;
 
+    phone: string | null;
+
     latitude: string | number | null;
 
     longitude: string | number | null;
@@ -167,6 +169,8 @@ export class ProspectorTodayRepository {
           name: establishments.name,
 
           city: establishments.city,
+
+          phone: establishments.phone,
 
           /*
            * Needed to plot the day's visits. Columns already exist on the

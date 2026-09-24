@@ -39,6 +39,9 @@ export interface ProspectorTodayPriority {
 
     city: string | null;
 
+    /** Switchboard number, so a call can be handed to the device's dialler. */
+    phone: string | null;
+
     /** Null when the establishment has never been geocoded. */
     latitude: number | null;
 
