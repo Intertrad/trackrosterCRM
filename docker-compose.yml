@@ -14,6 +14,10 @@ services:
 
     volumes:
       - trackroster_postgres_data:/var/lib/postgresql/data
+      # Provisions the non-privileged runtime role on a fresh database. Only
+      # runs when the data volume is empty, so an existing database needs the
+      # script applied by hand — it is idempotent.
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U trackroster -d trackroster']
