@@ -47,6 +47,8 @@ vi.mock('@/lib/api/work-queue-client', () => ({
   listWorkQueue: listWorkQueueMock,
 }));
 
+import { I18nProvider } from '@/lib/i18n/i18n-context';
+
 import MyProspectsPage from './page';
 
 const teamId = '11111111-1111-4111-8111-111111111111';
@@ -397,6 +399,26 @@ describe('WorkQueuePage', () => {
     await screen.findByRole('heading', { name: 'My prospects' });
 
     expect(screen.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('renders in French for a French membership, with no message keys left over', async () => {
+    render(
+      <I18nProvider locale="fr-FR">
+        <MyProspectsPage />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Mes prospects' })).toBeInTheDocument();
+    expect(screen.getByText(/1 établissement qui m’est attribué/)).toBeInTheDocument();
+    /* Both the status filter and the row badge translate. */
+    expect(screen.getAllByText('En cours').length).toBeGreaterThan(1);
+    expect(screen.getByText(/Appel · hier/)).toBeInTheDocument();
+
+    /*
+     * A key that reaches the DOM type-checks perfectly and reads as gibberish.
+     * Nothing else catches it, so the whole rendered page is scanned.
+     */
+    expect(document.body.textContent).not.toMatch(/\b(portfolio|nav|stage|next|when)\.[a-zA-Z.]+/);
   });
 
   it('opens already filtered when scoped search links here with a term', async () => {

@@ -19,6 +19,8 @@ vi.mock('@/lib/api/prospector-today-client', () => ({
   getProspectorToday: getProspectorTodayMock,
 }));
 
+import { I18nProvider } from '@/lib/i18n/i18n-context';
+
 import TodayPage from './page';
 
 const teamId = '11111111-1111-4111-8111-111111111111';
@@ -186,6 +188,24 @@ describe('TodayPage', () => {
       timeZone: 'Europe/Paris',
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('renders in French for a French membership, with no message keys left over', async () => {
+    render(
+      <I18nProvider locale="fr-FR">
+        <TodayPage />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByRole('heading', { name: "Aujourd'hui" })).toBeInTheDocument();
+    expect(screen.getByText(/Vos priorités du jour/)).toBeInTheDocument();
+    expect(screen.getByText('Prochaines actions')).toBeInTheDocument();
+    expect(screen.getByText('Progression du jour')).toBeInTheDocument();
+
+    /* A key that reaches the DOM type-checks perfectly and reads as gibberish. */
+    expect(document.body.textContent).not.toMatch(
+      /\b(today|nav|stage|due|channel|category|overview)\.[a-zA-Z.]+/,
+    );
   });
 
   it('plots only on-site work, not calls and emails', async () => {

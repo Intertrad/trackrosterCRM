@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, History, MoreHorizontal, UserRound } from 'lucide-react';
 
+import type { MessageKey } from '@/lib/i18n/dictionary';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 interface MenuLink {
   href: string;
-  label: string;
+  label: MessageKey;
   icon: typeof UserRound;
 }
 
@@ -20,6 +22,8 @@ interface MenuLink {
  * worse than no menu.
  */
 export function PriorityRowMenu({ prospectHref, label }: { prospectHref: string; label: string }) {
+  const { t } = useTranslation();
+
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -50,9 +54,9 @@ export function PriorityRowMenu({ prospectHref, label }: { prospectHref: string;
   }, [open]);
 
   const links: MenuLink[] = [
-    { href: prospectHref, label: 'View prospect', icon: UserRound },
-    { href: `${prospectHref}?tab=timeline`, label: 'Activity history', icon: History },
-    { href: '/follow-ups', label: 'All follow-ups', icon: CalendarClock },
+    { href: prospectHref, label: 'today.viewProspect', icon: UserRound },
+    { href: `${prospectHref}?tab=timeline`, label: 'today.activityHistory', icon: History },
+    { href: '/follow-ups', label: 'today.allFollowUps', icon: CalendarClock },
   ];
 
   return (
@@ -62,7 +66,7 @@ export function PriorityRowMenu({ prospectHref, label }: { prospectHref: string;
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={`More for ${label}`}
+        aria-label={t('today.moreFor', { name: label })}
         className={cn(
           'inline-flex size-9 items-center justify-center rounded-lg text-ink-muted',
           'transition-colors duration-150 hover:bg-surface-muted hover:text-ink',
@@ -91,7 +95,7 @@ export function PriorityRowMenu({ prospectHref, label }: { prospectHref: string;
               )}
             >
               <link.icon aria-hidden="true" className="size-[18px] text-ink-muted" />
-              {link.label}
+              {t(link.label)}
             </Link>
           ))}
         </div>

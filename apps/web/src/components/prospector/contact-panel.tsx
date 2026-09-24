@@ -9,6 +9,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { listProspectAddresses, listProspectContacts } from '@/lib/api/prospect-contact-client';
 import type { ProspectAddress, ProspectContact } from '@/lib/api/prospect-contact-types';
 import { contactDisplayName, formatAddress, sortContacts } from '@/lib/api/prospect-contact-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 /**
  * Named people and postal addresses held against an establishment.
@@ -22,6 +23,8 @@ import { contactDisplayName, formatAddress, sortContacts } from '@/lib/api/prosp
  * `ProspectWriteGuard` in a family the readiness audit has not certified.
  */
 export function ContactPanel({ establishmentId }: { establishmentId: string }) {
+  const { t } = useTranslation();
+
   const [contacts, setContacts] = useState<ProspectContact[] | null>(null);
   const [addresses, setAddresses] = useState<ProspectAddress[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +64,7 @@ export function ContactPanel({ establishmentId }: { establishmentId: string }) {
           return;
         }
 
-        setError('We could not load contact details.');
+        setError(t('contacts.loadError'));
       }
     },
     [establishmentId],
@@ -89,7 +92,7 @@ export function ContactPanel({ establishmentId }: { establishmentId: string }) {
 
   return (
     <Card>
-      <CardHeader title="Contacts" />
+      <CardHeader title={t('contacts.title')} />
 
       {loading ? (
         <div className="flex flex-col gap-2" aria-busy="true">
@@ -102,18 +105,21 @@ export function ContactPanel({ establishmentId }: { establishmentId: string }) {
       ) : (
         <div className="flex flex-col gap-4">
           {contacts.length > 0 ? (
-            <ul aria-label="Named contacts" className="flex flex-col divide-y divide-line-soft">
+            <ul
+              aria-label={t('contacts.named')}
+              className="flex flex-col divide-y divide-line-soft"
+            >
               {contacts.map((contact) => (
                 <li key={contact.id} className="flex flex-col gap-1 py-2.5 first:pt-0">
                   <span className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-navy">
-                      {contactDisplayName(contact)}
+                      {contactDisplayName(contact, t('contacts.unnamed'))}
                     </span>
 
                     {contact.isPrimary ? (
                       <Badge tone="brand">
                         <Star aria-hidden="true" className="mr-1 inline size-3" />
-                        Primary
+                        {t('contacts.primary')}
                       </Badge>
                     ) : null}
                   </span>
@@ -152,10 +158,10 @@ export function ContactPanel({ establishmentId }: { establishmentId: string }) {
           {addresses.length > 0 ? (
             <div>
               <h3 className="text-[13px] font-bold tracking-wide text-ink-muted uppercase">
-                Addresses
+                {t('contacts.addresses')}
               </h3>
 
-              <ul aria-label="Addresses" className="mt-2 flex flex-col gap-2">
+              <ul aria-label={t('contacts.addresses')} className="mt-2 flex flex-col gap-2">
                 {addresses.map((address) => (
                   <li key={address.id} className="flex items-start gap-2">
                     <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-ink-muted" />

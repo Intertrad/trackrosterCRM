@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, CircleAlert, CircleDot, MapPinned, Navigation, X } from 'lucide-react';
 
-import { ActionChannelIcon, getChannelLabel } from '@/components/prospector/action-channel-icon';
+import { ActionChannelIcon, getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import {
   type DueState,
   DueStateBadge,
@@ -32,19 +32,22 @@ import {
   type ProspectorTodayResponse,
 } from '@/lib/api/prospector-today-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { getNavigationForWorkspace } from '@/lib/auth/navigation';
+import type { MessageKey } from '@/lib/i18n/dictionary';
 import { cn } from '@/lib/ui/cn';
 
 type FilterId = 'all' | 'overdue' | 'due_today';
 
 const CATEGORY_LABELS = {
-  todo: 'To do',
-  follow_up: 'Follow-up',
-  meeting: 'Meeting',
-} as const;
+  todo: 'category.todo',
+  follow_up: 'category.follow_up',
+  meeting: 'category.meeting',
+} as const satisfies Record<ProspectorTodayPriority['category'], MessageKey>;
 
 export default function TodayPage() {
   const { activeWorkspace } = useAuth();
+  const { t } = useTranslation();
 
   /*
    * "/" is Today for a prospector and an overview for every other role, so
@@ -111,8 +114,8 @@ export default function TodayPage() {
 
         setError(
           caught instanceof ApiError && caught.statusCode === 401
-            ? 'Your session has expired. Please sign in again.'
-            : 'We could not load your day. Please try again.',
+            ? t('today.sessionExpired')
+            : t('today.loadError'),
         );
       }
     },
@@ -204,11 +207,10 @@ export default function TodayPage() {
   if (!teamId) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Today" subtitle="Your priorities for today" />
+        <PageHeader title={t('today.title')} subtitle={t('today.subtitle')} />
 
-        <Alert tone="info" title="Today is a team view.">
-          Your current workspace is not scoped to a team, so there is no personal daily queue to
-          show. Switch to a team workspace to see your priorities.
+        <Alert tone="info" title={t('today.teamScoped')}>
+          {t('today.teamScopedBody')}
         </Alert>
       </div>
     );
@@ -217,7 +219,7 @@ export default function TodayPage() {
   if (error && !today) {
     return (
       <div className="mx-auto max-w-2xl">
-        <Alert tone="danger" title="We could not load your day.">
+        <Alert tone="danger" title={t('today.loadErrorTitle')}>
           {error}
         </Alert>
 
@@ -237,8 +239,8 @@ export default function TodayPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Today"
-        subtitle={`${formatDay(today.day.date, timeZone)} · Your priorities for today`}
+        title={t('today.title')}
+        subtitle={`${formatDay(today.day.date, timeZone)} · ${t('today.subtitle')}`}
         action={
           <TodayControls
             dayLabel={formatDayShort(today.day.date, timeZone)}
@@ -253,14 +255,16 @@ export default function TodayPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
         <Card className="p-0 sm:p-0">
           <div className="border-b border-line-soft px-5 pt-5 pb-4 sm:px-6">
-            <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Next actions</h2>
+            <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
+              {t('today.nextActions')}
+            </h2>
 
             <div className="mt-4 flex flex-wrap gap-2">
               {(
                 [
-                  { id: 'all', label: 'All' },
-                  { id: 'overdue', label: 'Overdue' },
-                  { id: 'due_today', label: 'Due today' },
+                  { id: 'all', label: t('today.filter.all') },
+                  { id: 'overdue', label: t('today.filter.overdue') },
+                  { id: 'due_today', label: t('today.filter.dueToday') },
                 ] as const
               ).map((tab) => (
                 <button
@@ -298,7 +302,7 @@ export default function TodayPage() {
           {visible.length === 0 ? (
             <EmptyState filter={filter} totalToday={counts.all} />
           ) : (
-            <ul aria-label="Next actions" className="divide-y divide-line-soft">
+            <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
               {visible.map((priority) => (
                 <PriorityRow
                   key={priority.id}
@@ -317,28 +321,30 @@ export default function TodayPage() {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
         <Card>
-          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Progress today</h2>
+          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
+            {t('today.progress')}
+          </h2>
 
           <div className="mt-5 grid gap-5 sm:grid-cols-3">
             <ProgressTile
               icon={<CheckCircle2 aria-hidden="true" className="size-5 text-success" />}
               tone="bg-success-bg"
               value={today.summary.completedToday}
-              label="Actions completed"
+              label={t('today.completed')}
             />
 
             <ProgressTile
               icon={<CircleDot aria-hidden="true" className="size-5 text-brand" />}
               tone="bg-brand-tint"
               value={today.summary.actionsLeft}
-              label="Remaining today"
+              label={t('today.remaining')}
             />
 
             <ProgressTile
               icon={<CircleAlert aria-hidden="true" className="size-5 text-danger" />}
               tone="bg-danger-bg"
               value={today.summary.overdue}
-              label="Follow-ups overdue"
+              label={t('today.overdue')}
             />
           </div>
         </Card>
@@ -369,6 +375,8 @@ function TodaysVisits({
   visits: ReturnType<typeof buildVisits>;
   timeZone: string;
 }) {
+  const { t } = useTranslation();
+
   const points = visits.map((visit) => ({
     id: visit.priority.id,
     name: visit.priority.establishment.name,
@@ -385,11 +393,13 @@ function TodaysVisits({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
-            Today&apos;s visits
+            {t('today.visits')}
           </h2>
 
           <p className="mt-1 text-[14px] text-ink-muted">
-            {visits.length} stop{visits.length === 1 ? '' : 's'}
+            {t(visits.length === 1 ? 'today.stops.one' : 'today.stops', {
+              count: visits.length,
+            })}
             {total > 0 ? ` \u00b7 ${total.toFixed(1)} km total` : ''}
           </p>
         </div>
@@ -398,15 +408,13 @@ function TodaysVisits({
       </div>
 
       {visits.length === 0 ? (
-        <p className="py-12 text-center text-[15px] text-ink-muted">
-          No stop today has coordinates to plot.
-        </p>
+        <p className="py-12 text-center text-[15px] text-ink-muted">{t('today.noPlottableStop')}</p>
       ) : (
         <>
           <ProspectMap points={points} ordered className="mt-4 h-64 sm:h-72 xl:h-64" />
 
           <ol
-            aria-label="Today's visit order"
+            aria-label={t('today.visitOrder')}
             className="mt-4 flex flex-col divide-y divide-line-soft"
           >
             {visits.map((visit, index) => (
@@ -438,14 +446,12 @@ function TodaysVisits({
 
           <LinkButton href="/routes/new" variant="primary" className="mt-4 w-full">
             <Navigation aria-hidden="true" className="mr-2 size-[18px]" />
-            Open route
+            {t('today.openRoute')}
           </LinkButton>
 
           {/* Straight-line, because no routing provider is configured. A road
               distance would be a number we did not compute. */}
-          <p className="mt-3 text-[12px] text-ink-muted">
-            Distances are direct point-to-point, not driving distance.
-          </p>
+          <p className="mt-3 text-[12px] text-ink-muted">{t('today.directDistance')}</p>
         </>
       )}
     </Card>
@@ -472,6 +478,8 @@ function CollisionNotice({
   dismissed: boolean;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
+
   const byProspect = new Map(priorities.map((p) => [p.campaignProspectId, p]));
 
   const relevant = collisions.find(
@@ -483,12 +491,10 @@ function CollisionNotice({
   if (!relevant || dismissed) {
     return (
       <Card>
-        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Clear to proceed</h2>
+        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">{t('today.clear')}</h2>
 
         <p className="mt-2 text-[15px] text-ink-muted">
-          {relevant
-            ? 'The collision notice is hidden for this visit. It reappears on reload until the claim is resolved.'
-            : 'The anti-collision engine has not blocked any prospect on today\u2019s list.'}
+          {relevant ? t('today.collisionHidden') : t('today.clearBody')}
         </p>
       </Card>
     );
@@ -501,7 +507,7 @@ function CollisionNotice({
       <button
         type="button"
         onClick={onDismiss}
-        aria-label="Hide this collision notice"
+        aria-label={t('today.hideCollision')}
         className={cn(
           'absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-lg',
           'text-ink-muted transition-colors duration-150 hover:bg-surface hover:text-ink',
@@ -520,9 +526,9 @@ function CollisionNotice({
 
         <div className="min-w-0 flex-1">
           <h2 className="text-[17px] font-bold text-navy">
-            {relevant.decision === 'block'
-              ? 'Contact already reserved by another team'
-              : 'This contact needs an override'}
+            {t(
+              relevant.decision === 'block' ? 'today.collisionBlocked' : 'today.collisionOverride',
+            )}
           </h2>
 
           <p className="mt-0.5 text-[14px] text-ink-muted">
@@ -540,7 +546,7 @@ function CollisionNotice({
             href={`/work-queue/${priority.campaignId}/${priority.campaignProspectId}`}
             className="mt-4"
           >
-            View details
+            {t('today.viewDetails')}
           </LinkButton>
         </div>
       </div>
@@ -551,6 +557,8 @@ function CollisionNotice({
 function WorkspaceOverview() {
   const { activeWorkspace } = useAuth();
 
+  const { t } = useTranslation();
+
   const mode = activeWorkspace?.mode ?? 'prospector';
   const items = getNavigationForWorkspace(mode).filter(
     (item) => item.availability === 'ready' && item.href && item.href !== '/',
@@ -558,28 +566,23 @@ function WorkspaceOverview() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Overview"
-        subtitle="Coordinate prospecting across your teams, campaigns and territories."
-      />
+      <PageHeader title={t('nav.overview')} subtitle={t('overview.subtitle')} />
 
       <Card>
         <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
-          Available in this workspace
+          {t('overview.available')}
         </h2>
 
         <ul className="mt-4 flex flex-wrap gap-3">
           {items.map((item) => (
             <li key={item.id}>
-              <LinkButton href={item.href ?? '/'}>{item.label}</LinkButton>
+              <LinkButton href={item.href ?? '/'}>{t(item.label)}</LinkButton>
             </li>
           ))}
         </ul>
 
         {items.length === 0 ? (
-          <p className="mt-4 text-[15px] text-ink-muted">
-            No screens are available for this role yet.
-          </p>
+          <p className="mt-4 text-[15px] text-ink-muted">{t('overview.none')}</p>
         ) : null}
       </Card>
     </div>
@@ -597,6 +600,8 @@ function PriorityRow({
   timeZone: string;
   onLogged: () => void;
 }) {
+  const { t } = useTranslation();
+
   const href = `/work-queue/${priority.campaignId}/${priority.campaignProspectId}`;
 
   /*
@@ -653,11 +658,11 @@ function PriorityRow({
 
         <span className="hidden w-24 shrink-0 xl:block">
           <span className="block text-[15px] font-semibold text-ink">
-            {getChannelLabel(priority.channel)}
+            {t(getChannelLabelKey(priority.channel))}
           </span>
 
           <span className="block text-[14px] text-ink-muted">
-            {CATEGORY_LABELS[priority.category]}
+            {t(CATEGORY_LABELS[priority.category])}
           </span>
         </span>
 
@@ -676,7 +681,7 @@ function PriorityRow({
           name rather than disappearing between breakpoints. */}
       <div className="mt-3 flex items-center gap-3 pl-[58px] md:hidden">
         <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
-          {getChannelLabel(priority.channel)} · {CATEGORY_LABELS[priority.category]}
+          {t(getChannelLabelKey(priority.channel))} · {t(CATEGORY_LABELS[priority.category])}
         </span>
 
         <DueStateBadge state={state} />
@@ -737,11 +742,11 @@ function ProgressTile({
 }
 
 function EmptyState({ filter, totalToday }: { filter: FilterId; totalToday: number }) {
+  const { t } = useTranslation();
+
   if (filter !== 'all' && totalToday > 0) {
     return (
-      <p className="px-6 py-12 text-center text-[15px] text-ink-muted">
-        Nothing matches this filter right now.
-      </p>
+      <p className="px-6 py-12 text-center text-[15px] text-ink-muted">{t('today.noMatch')}</p>
     );
   }
 
@@ -749,19 +754,19 @@ function EmptyState({ filter, totalToday }: { filter: FilterId; totalToday: numb
     <div className="px-6 py-14 text-center">
       <CheckCircle2 aria-hidden="true" className="mx-auto size-10 text-success" />
 
-      <p className="mt-3 text-[18px] font-bold text-navy">Your day is clear</p>
+      <p className="mt-3 text-[18px] font-bold text-navy">{t('today.empty')}</p>
 
-      <p className="mt-1 text-[15px] text-ink-muted">
-        No actions are due. New work appears here as it is assigned.
-      </p>
+      <p className="mt-1 text-[15px] text-ink-muted">{t('today.emptyBody')}</p>
     </div>
   );
 }
 
 function TodaySkeleton() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex animate-pulse flex-col gap-6" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your day…</span>
+      <span className="sr-only">{t('today.loading')}</span>
 
       <div>
         <div className="h-9 w-40 rounded bg-line-soft" />

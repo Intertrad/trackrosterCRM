@@ -17,7 +17,7 @@ import {
   isNavigationItemActive,
   type WorkspaceNavigationItem,
 } from '@/lib/auth/navigation';
-import { getWorkspaceModeLabel } from '@/lib/auth/workspace';
+import { getWorkspaceModeLabelKey } from '@/lib/auth/workspace';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProfileMenu
             displayName={user.displayName}
             email={user.email}
-            roleLabel={getWorkspaceModeLabel(mode)}
+            roleLabel={t(getWorkspaceModeLabelKey(mode))}
             collapsed
             placement="down"
           />
@@ -148,7 +148,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProfileMenu
             displayName={user.displayName}
             email={user.email}
-            roleLabel={getWorkspaceModeLabel(mode)}
+            roleLabel={t(getWorkspaceModeLabelKey(mode))}
             collapsed={collapsed}
           />
         </div>

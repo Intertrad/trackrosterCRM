@@ -7,10 +7,11 @@ import {
   LIFECYCLE_ORDER,
   LIFECYCLE_STYLES,
   LifecycleBadge,
-  getLifecycleLabel,
+  getLifecycleLabelKey,
 } from '@/components/prospector/lifecycle-badge';
 import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
 import { Card } from '@/components/ui/card';
+import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 import { LinkButton } from '@/components/ui/link-button';
 import { listNearbyProspects } from '@/lib/api/nearby-client';
 import { formatDistanceMeters, type NearbyProspect } from '@/lib/api/nearby-types';
@@ -33,6 +34,8 @@ export function PortfolioMap({
   items: WorkQueueItem[];
   blockedProspectIds: ReadonlySet<string>;
 }) {
+  const { t } = useTranslation();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<string[] | null>(null);
 
@@ -86,7 +89,7 @@ export function PortfolioMap({
               'text-[13px] font-bold text-navy shadow-card',
             )}
           >
-            {visibleCount} of {points.length} visible
+            {t('portfolio.visible', { visible: visibleCount, total: points.length })}
           </span>
         </div>
 
@@ -105,13 +108,13 @@ export function PortfolioMap({
                 aria-hidden="true"
                 className={cn('size-2.5 rounded-full', LIFECYCLE_STYLES[stage].dot)}
               />
-              {getLifecycleLabel(stage)}
+              {t(getLifecycleLabelKey(stage))}
             </span>
           ))}
 
           {withoutCoordinates > 0 ? (
             <span className="text-[13px] text-ink-muted">
-              {withoutCoordinates} without coordinates
+              {t('portfolio.withoutCoordinates', { count: withoutCoordinates })}
             </span>
           ) : null}
         </div>
@@ -137,6 +140,8 @@ function SelectedProspect({
   blocked: boolean;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-line-soft px-5 py-4">
       <span className="min-w-0 flex-1">
@@ -150,12 +155,12 @@ function SelectedProspect({
           {blocked ? (
             <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-danger">
               <ShieldAlert aria-hidden="true" className="size-4" />
-              Blocked by another claim
+              {t('portfolio.blockedByClaim')}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-success">
               <ShieldCheck aria-hidden="true" className="size-4" />
-              No collision
+              {t('portfolio.noCollision')}
             </span>
           )}
         </span>
@@ -168,7 +173,7 @@ function SelectedProspect({
         variant="primary"
         href={`/work-queue/${item.campaign.id}/${item.campaignProspectId}`}
       >
-        Open prospect
+        {t('portfolio.openProspect')}
       </LinkButton>
 
       <button
@@ -176,7 +181,7 @@ function SelectedProspect({
         onClick={onDismiss}
         className="text-[14px] font-semibold text-ink-muted hover:text-ink"
       >
-        Close
+        {t('common.close')}
       </button>
     </div>
   );
@@ -189,6 +194,8 @@ function SelectedProspect({
  * so this can only ever list work the prospector already holds.
  */
 function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
+  const { t } = useTranslation();
+
   const [nearby, setNearby] = useState<NearbyProspect[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -218,7 +225,7 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
       .catch(() => {
         if (!controller.signal.aborted) {
           setNearby([]);
-          setError('We could not load what is nearby.');
+          setError(t('portfolio.nearbyError'));
         }
       });
 
@@ -228,11 +235,11 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
   if (!anchor) {
     return (
       <Card>
-        <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">Nearby</h2>
+        <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
+          {t('portfolio.nearby')}
+        </h2>
 
-        <p className="mt-2 text-[15px] text-ink-muted">
-          Select a prospect on the map to see the rest of your portfolio around it.
-        </p>
+        <p className="mt-2 text-[15px] text-ink-muted">{t('portfolio.nearbyPrompt')}</p>
       </Card>
     );
   }
@@ -243,12 +250,17 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
 
   return (
     <Card className="flex flex-col">
-      <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">Near {place}</h2>
+      <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
+        {t('portfolio.near', { place })}
+      </h2>
 
       <p className="mt-1 text-[14px] text-ink-muted">
         {nearby === null
-          ? 'Looking…'
-          : `${others.length} of my prospects within ${formatDistanceMeters(NEARBY_RADIUS_METERS)}`}
+          ? t('portfolio.nearbyLoading')
+          : t('portfolio.nearbyCount', {
+              count: others.length,
+              radius: formatDistanceMeters(NEARBY_RADIUS_METERS),
+            })}
       </p>
 
       {error ? <p className="mt-4 text-[14px] text-ink-muted">{error}</p> : null}
@@ -261,10 +273,10 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
         </div>
       ) : others.length === 0 && !error ? (
         <p className="mt-4 text-[14px] text-ink-muted">
-          Nothing else of yours is within {formatDistanceMeters(NEARBY_RADIUS_METERS)}.
+          {t('portfolio.nearbyEmpty', { radius: formatDistanceMeters(NEARBY_RADIUS_METERS) })}
         </p>
       ) : (
-        <ul aria-label={`Prospects near ${place}`} className="mt-4 flex flex-col gap-1.5">
+        <ul aria-label={t('portfolio.near', { place })} className="mt-4 flex flex-col gap-1.5">
           {others.map((entry) => (
             <li key={entry.id}>
               <span className="flex items-center gap-3 rounded-lg bg-surface-muted px-3 py-2.5">
@@ -279,7 +291,7 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
                   </span>
 
                   <span className="block truncate text-[13px] text-ink-muted">
-                    {stageLabel(entry.stages)}
+                    {stageLabel(entry.stages, t)}
                   </span>
                 </span>
 
@@ -294,12 +306,12 @@ function NearbyPanel({ anchor }: { anchor: WorkQueueItem | null }) {
 
       <LinkButton variant="primary" href="/routes/new" className="mt-4 w-full">
         <Navigation aria-hidden="true" className="mr-2 size-[18px]" />
-        Plan a round
+        {t('portfolio.planRound')}
       </LinkButton>
 
       <p className="mt-3 flex items-start gap-2 text-[12px] text-ink-muted">
         <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-        Only prospects assigned to you are shown — never territory-wide or unassigned records.
+        {t('portfolio.scopeNote')}
       </p>
     </Card>
   );
@@ -323,8 +335,8 @@ function dotFor(stages: string[] | undefined): string {
   return stage ? LIFECYCLE_STYLES[stage].dot : 'bg-line';
 }
 
-function stageLabel(stages: string[] | undefined): string {
+function stageLabel(stages: string[] | undefined, t: Translate): string {
   const stage = primaryStage(stages);
 
-  return stage ? getLifecycleLabel(stage) : 'Assigned';
+  return stage ? t(getLifecycleLabelKey(stage)) : t('stage.assigned');
 }

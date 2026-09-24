@@ -1,26 +1,30 @@
+import type { MessageKey } from '@/lib/i18n/dictionary';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 export type DueState = 'overdue' | 'due_soon' | 'due_today' | 'upcoming';
 
-const STATES: Record<DueState, { label: string; dot: string; text: string }> = {
-  overdue: { label: 'Overdue', dot: 'bg-danger', text: 'text-danger' },
+const STATES: Record<DueState, { label: MessageKey; dot: string; text: string }> = {
+  overdue: { label: 'due.overdue', dot: 'bg-danger', text: 'text-danger' },
   /* Amber reads as "next up", so the one action about to come due is
    * distinguishable from the rest of the day at a glance. */
-  due_soon: { label: 'Due today', dot: 'bg-warning', text: 'text-ink-soft' },
-  due_today: { label: 'Due today', dot: 'bg-success', text: 'text-ink-soft' },
-  upcoming: { label: 'Upcoming', dot: 'bg-brand-mid', text: 'text-ink-soft' },
+  due_soon: { label: 'due.today', dot: 'bg-warning', text: 'text-ink-soft' },
+  due_today: { label: 'due.today', dot: 'bg-success', text: 'text-ink-soft' },
+  upcoming: { label: 'due.upcoming', dot: 'bg-brand-mid', text: 'text-ink-soft' },
 };
 
 /** How close an action has to be before it is called out as imminent. */
 export const DUE_SOON_MINUTES = 60;
 
 export function DueStateBadge({ state }: { state: DueState }) {
+  const { t } = useTranslation();
+
   const config = STATES[state];
 
   return (
     <span className={cn('inline-flex items-center gap-2 text-[14px] font-medium', config.text)}>
       <span aria-hidden="true" className={cn('size-2 rounded-full', config.dot)} />
-      {config.label}
+      {t(config.label)}
     </span>
   );
 }

@@ -60,7 +60,7 @@ export interface ProspectAddressPage {
 }
 
 /** The label a contact is listed under when no name was recorded. */
-export function contactDisplayName(contact: ProspectContact): string {
+export function contactDisplayName(contact: ProspectContact, fallback = 'Unnamed contact'): string {
   const name = contact.name?.trim();
 
   if (name) {
@@ -69,7 +69,7 @@ export function contactDisplayName(contact: ProspectContact): string {
 
   /* A contact must carry at least one of name, email or phone, so falling
    * back to whichever exists is always something rather than a blank row. */
-  return contact.email?.trim() || contact.phone?.trim() || 'Unnamed contact';
+  return contact.email?.trim() || contact.phone?.trim() || fallback;
 }
 
 /** One line of postal address, skipping the parts that were never captured. */

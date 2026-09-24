@@ -19,7 +19,7 @@ import {
 import {
   LIFECYCLE_ORDER,
   LifecycleBadge,
-  getLifecycleLabel,
+  getLifecycleLabelKey,
 } from '@/components/prospector/lifecycle-badge';
 import { PortfolioMap } from '@/components/prospector/portfolio-map';
 import { Alert } from '@/components/ui/alert';
@@ -52,6 +52,7 @@ import type {
   WorkQueueLifecycleStage,
 } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 type ViewMode = 'list' | 'map';
@@ -66,6 +67,7 @@ export default function MyProspectsPage() {
 
 function MyProspectsView() {
   const { activeWorkspace } = useAuth();
+  const { t } = useTranslation();
 
   const teamId = activeWorkspace?.teamId ?? null;
 
@@ -116,8 +118,8 @@ function MyProspectsView() {
 
         setError(
           caught instanceof ApiError && caught.statusCode === 401
-            ? 'Your session has expired. Please sign in again.'
-            : 'We could not load your portfolio. Please try again.',
+            ? t('today.sessionExpired')
+            : t('portfolio.loadError'),
         );
       }
     },
@@ -210,10 +212,10 @@ function MyProspectsView() {
   if (!teamId) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="My prospects" />
+        <PageHeader title={t('portfolio.title')} />
 
-        <Alert tone="info" title="This view is scoped to a team.">
-          Switch to a team workspace to see the portfolio assigned to you.
+        <Alert tone="info" title={t('portfolio.teamScoped')}>
+          {t('portfolio.teamScopedBody')}
         </Alert>
       </div>
     );
@@ -222,7 +224,7 @@ function MyProspectsView() {
   if (error && !items) {
     return (
       <div className="mx-auto max-w-2xl">
-        <Alert tone="danger" title="We could not load your portfolio.">
+        <Alert tone="danger" title={t('portfolio.loadErrorTitle')}>
           {error}
         </Alert>
 
@@ -236,13 +238,15 @@ function MyProspectsView() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="My prospects"
+        title={t('portfolio.title')}
         subtitle={
           items === null
-            ? 'Loading your portfolio…'
+            ? t('portfolio.loading')
             : [
-                `${summary.assigned} establishment${summary.assigned === 1 ? '' : 's'} assigned to me`,
-                region,
+                t(summary.assigned === 1 ? 'portfolio.assigned.one' : 'portfolio.assigned', {
+                  count: summary.assigned,
+                }),
+                region ? t(region.key, region.values) : null,
               ]
                 .filter(Boolean)
                 .join(' · ')
@@ -253,50 +257,52 @@ function MyProspectsView() {
       {error ? <Alert tone="warning">{error}</Alert> : null}
 
       {!complete ? (
-        <Alert tone="warning" title="Showing the first part of your portfolio.">
-          It is larger than this screen reads in one go, so the totals below describe what was
-          loaded rather than every assignment.
+        <Alert tone="warning" title={t('portfolio.partialTitle')}>
+          {t('portfolio.partialBody')}
         </Alert>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput
-          label="Search my portfolio"
-          placeholder="Search my portfolio…"
+          label={t('portfolio.search')}
+          placeholder={`${t('portfolio.search')}…`}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="min-w-[240px] flex-1 [&_input]:rounded-full"
         />
 
         <FilterSelect
-          label="Status"
+          label={t('portfolio.status')}
           tone="brand"
           value={stage}
           onChange={(value) => setStage(value as WorkQueueLifecycleStage | 'all')}
           options={[
-            { value: 'all', label: 'All' },
-            ...LIFECYCLE_ORDER.map((id) => ({ value: id, label: getLifecycleLabel(id) })),
+            { value: 'all', label: t('portfolio.all') },
+            ...LIFECYCLE_ORDER.map((id) => ({ value: id, label: t(getLifecycleLabelKey(id)) })),
           ]}
         />
 
         <FilterSelect
-          label="Campaign"
+          label={t('portfolio.campaign')}
           tone="brand"
           value={campaignId}
           onChange={setCampaignId}
           options={[
-            { value: 'all', label: 'All' },
+            { value: 'all', label: t('portfolio.all') },
             ...campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name })),
           ]}
         />
 
         {view === 'list' ? (
           <FilterSelect
-            label="Sort"
+            label={t('portfolio.sort')}
             tone="brand"
             value={sort}
             onChange={(value) => setSort(value as PortfolioSort)}
-            options={Object.entries(SORT_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(SORT_LABELS).map(([value, label]) => ({
+              value,
+              label: t(label),
+            }))}
           />
         ) : null}
       </div>
@@ -319,7 +325,7 @@ function MyProspectsView() {
             {quick === filter.id ? (
               <Star aria-hidden="true" className="size-4 fill-current" />
             ) : null}
-            {filter.label}
+            {t(filter.label)}
           </button>
         ))}
       </div>
@@ -338,16 +344,33 @@ function MyProspectsView() {
             <Info aria-hidden="true" className="size-4 shrink-0" />
 
             {[
-              `${summary.assigned} assigned`,
-              `${summary.toContact} to contact`,
-              `${summary.followUpsDue} follow-up${summary.followUpsDue === 1 ? '' : 's'} due`,
-              `${summary.blocked} blocked by an anti-collision rule`,
+              t(
+                summary.assigned === 1
+                  ? 'portfolio.summary.assigned.one'
+                  : 'portfolio.summary.assigned',
+                {
+                  count: summary.assigned,
+                },
+              ),
+              t('portfolio.summary.toContact', { count: summary.toContact }),
+              t(
+                summary.followUpsDue === 1 ? 'portfolio.summary.due.one' : 'portfolio.summary.due',
+                {
+                  count: summary.followUpsDue,
+                },
+              ),
+              t(
+                summary.blocked === 1
+                  ? 'portfolio.summary.blocked.one'
+                  : 'portfolio.summary.blocked',
+                {
+                  count: summary.blocked,
+                },
+              ),
             ].join(' · ')}
           </span>
 
-          <span>
-            Showing {visible.length} of {summary.assigned}
-          </span>
+          <span>{t('portfolio.showing', { shown: visible.length, total: summary.assigned })}</span>
         </div>
       ) : null}
     </div>
@@ -355,16 +378,18 @@ function MyProspectsView() {
 }
 
 function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (next: ViewMode) => void }) {
+  const { t } = useTranslation();
+
   return (
     <div
       role="group"
-      aria-label="View"
+      aria-label={t('portfolio.view')}
       className="inline-flex gap-1 rounded-xl bg-surface-muted p-1"
     >
       {(
         [
-          { id: 'list', label: 'List', icon: List },
-          { id: 'map', label: 'Map', icon: MapIcon },
+          { id: 'list', label: 'portfolio.list', icon: List },
+          { id: 'map', label: 'portfolio.map', icon: MapIcon },
         ] as const
       ).map((option) => (
         <button
@@ -381,7 +406,7 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (next: ViewM
           )}
         >
           <option.icon aria-hidden="true" className="size-[18px]" />
-          {option.label}
+          {t(option.label)}
         </button>
       ))}
     </div>
@@ -398,6 +423,8 @@ function ProspectTable({
   /** Whether any filter is narrowing the portfolio right now. */
   filtered: boolean;
 }) {
+  const { t } = useTranslation();
+
   if (items.length === 0) {
     /*
      * A filtered-empty result and an empty portfolio mean opposite things —
@@ -407,9 +434,7 @@ function ProspectTable({
     return (
       <Card>
         <p className="py-14 text-center text-[15px] text-ink-muted">
-          {filtered
-            ? 'No prospect matches these filters.'
-            : 'No prospects are assigned to you yet.'}
+          {t(filtered ? 'portfolio.noMatch' : 'portfolio.empty')}
         </p>
       </Card>
     );
@@ -419,17 +444,25 @@ function ProspectTable({
     <div className="flex flex-col gap-2">
       {/* Column headings only where the row actually lays out in columns. */}
       <div className="hidden px-5 lg:grid lg:grid-cols-[minmax(0,2.1fr)_130px_110px_150px_minmax(0,1.3fr)_28px] lg:items-center lg:gap-4">
-        {['Establishment', 'Status', 'Campaign', 'Last action', 'Next step'].map((heading) => (
+        {(
+          [
+            'portfolio.establishment',
+            'portfolio.status',
+            'portfolio.campaign',
+            'portfolio.lastAction',
+            'portfolio.nextStep',
+          ] as const
+        ).map((heading) => (
           <span
             key={heading}
             className="text-[12px] font-bold tracking-[0.06em] text-ink-muted uppercase"
           >
-            {heading}
+            {t(heading)}
           </span>
         ))}
       </div>
 
-      <ul aria-label="My prospects" className="flex flex-col gap-2">
+      <ul aria-label={t('portfolio.title')} className="flex flex-col gap-2">
         {items.map((item) => (
           <ProspectRow
             key={item.campaignProspectId}
@@ -443,6 +476,8 @@ function ProspectTable({
 }
 
 function ProspectRow({ item, blocked }: { item: WorkQueueItem; blocked: boolean }) {
+  const { t } = useTranslation();
+
   const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
 
   const nextStep = deriveNextStep(item, blocked ? new Set([item.campaignProspectId]) : new Set());
@@ -481,7 +516,7 @@ function ProspectRow({ item, blocked }: { item: WorkQueueItem; blocked: boolean 
         </span>
 
         <span className="flex min-w-0 items-center justify-between gap-3 lg:contents">
-          <span className="truncate text-[14px] text-ink-soft">{lastActionLabel(item)}</span>
+          <span className="truncate text-[14px] text-ink-soft">{lastActionLabel(item, t)}</span>
 
           <span className="flex min-w-0 items-center">
             <NextStepLabel step={nextStep} />
@@ -507,6 +542,8 @@ const NEXT_STEP_STYLES: Record<NextStep['tone'], { text: string; icon: typeof Ph
 };
 
 function NextStepLabel({ step }: { step: NextStep }) {
+  const { t } = useTranslation();
+
   const style = NEXT_STEP_STYLES[step.tone];
 
   return (
@@ -515,15 +552,17 @@ function NextStepLabel({ step }: { step: NextStep }) {
     >
       <style.icon aria-hidden="true" className="size-4 shrink-0" />
 
-      <span className="truncate">{step.label}</span>
+      <span className="truncate">{t(step.label, step.values)}</span>
     </span>
   );
 }
 
 function PortfolioSkeleton() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-col gap-2" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your portfolio…</span>
+      <span className="sr-only">{t('portfolio.loading')}</span>
 
       {[0, 1, 2, 3, 4, 5].map((row) => (
         <div key={row} className="h-[76px] animate-pulse rounded-xl bg-line-soft" />

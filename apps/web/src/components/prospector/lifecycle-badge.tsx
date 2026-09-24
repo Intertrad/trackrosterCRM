@@ -1,6 +1,8 @@
 import type { WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
 
 export type LifecycleStageKey = WorkQueueLifecycleStage;
+import type { MessageKey } from '@/lib/i18n/dictionary';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 /*
@@ -8,21 +10,24 @@ import { cn } from '@/lib/ui/cn';
  * and every screen reads it rather than restating hex values.
  */
 export const LIFECYCLE_STYLES = {
-  to_contact: { label: 'To contact', dot: 'bg-brand', chip: 'bg-brand-tint text-brand' },
+  to_contact: { label: 'stage.to_contact', dot: 'bg-brand', chip: 'bg-brand-tint text-brand' },
   contact_made: {
-    label: 'Contact made',
+    label: 'stage.contact_made',
     dot: 'bg-brand-mid',
     chip: 'bg-brand-tint text-brand',
   },
   in_progress: {
-    label: 'In progress',
+    label: 'stage.in_progress',
     dot: 'bg-brand-mid',
     chip: 'bg-brand-tint text-brand',
   },
-  follow_up: { label: 'Follow-up', dot: 'bg-warning', chip: 'bg-warning-bg text-warning' },
-  qualified: { label: 'Qualified', dot: 'bg-lime-deep', chip: 'bg-success-bg text-success' },
-  converted: { label: 'Converted', dot: 'bg-success', chip: 'bg-success-bg text-success' },
-} as const satisfies Record<WorkQueueLifecycleStage, { label: string; dot: string; chip: string }>;
+  follow_up: { label: 'stage.follow_up', dot: 'bg-warning', chip: 'bg-warning-bg text-warning' },
+  qualified: { label: 'stage.qualified', dot: 'bg-lime-deep', chip: 'bg-success-bg text-success' },
+  converted: { label: 'stage.converted', dot: 'bg-success', chip: 'bg-success-bg text-success' },
+} as const satisfies Record<
+  WorkQueueLifecycleStage,
+  { label: MessageKey; dot: string; chip: string }
+>;
 
 export const LIFECYCLE_ORDER: WorkQueueLifecycleStage[] = [
   'to_contact',
@@ -33,7 +38,8 @@ export const LIFECYCLE_ORDER: WorkQueueLifecycleStage[] = [
   'converted',
 ];
 
-export function getLifecycleLabel(stage: WorkQueueLifecycleStage): string {
+/** The message key for a stage; call sites translate it themselves. */
+export function getLifecycleLabelKey(stage: WorkQueueLifecycleStage): MessageKey {
   return LIFECYCLE_STYLES[stage].label;
 }
 
@@ -44,6 +50,8 @@ export function LifecycleBadge({
   stage: WorkQueueLifecycleStage;
   className?: string;
 }) {
+  const { t } = useTranslation();
+
   const style = LIFECYCLE_STYLES[stage];
 
   return (
@@ -55,7 +63,7 @@ export function LifecycleBadge({
       )}
     >
       <span aria-hidden="true" className={cn('size-1.5 rounded-full', style.dot)} />
-      {style.label}
+      {t(style.label)}
     </span>
   );
 }

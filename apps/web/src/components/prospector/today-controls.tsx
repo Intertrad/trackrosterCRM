@@ -2,6 +2,7 @@
 
 import { CalendarDays, RefreshCw, UserRound } from 'lucide-react';
 
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 const PILL = cn(
@@ -32,13 +33,15 @@ export function TodayControls({
   refreshing: boolean;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       <button
         type="button"
         onClick={onRefresh}
         disabled={refreshing}
-        aria-label="Refresh today"
+        aria-label={t('today.refresh')}
         className={cn(
           'inline-flex size-11 shrink-0 items-center justify-center rounded-xl',
           'border border-line-soft bg-surface text-ink-muted',
@@ -55,7 +58,7 @@ export function TodayControls({
 
       <span className={PILL}>
         <UserRound aria-hidden="true" className="size-[18px] text-ink-muted" />
-        My prospects
+        {t('today.scope')}
       </span>
     </div>
   );

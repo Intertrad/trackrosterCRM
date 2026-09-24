@@ -124,6 +124,203 @@ export const DICTIONARY = {
     fr: 'Votre session a expiré. Veuillez vous reconnecter.',
   },
 
+  /* ---------- action categories ---------- */
+  'category.todo': { en: 'To do', fr: 'À faire' },
+  'category.follow_up': { en: 'Follow-up', fr: 'Relance' },
+  'category.meeting': { en: 'Meeting', fr: 'Rendez-vous' },
+
+  /* ---------- today, continued ---------- */
+  'today.teamScoped': { en: 'Today is a team view.', fr: "Aujourd'hui est une vue d'équipe." },
+  'today.teamScopedBody': {
+    en: 'Your current workspace is not scoped to a team, so there is no personal daily queue to show. Switch to a team workspace to see your priorities.',
+    fr: "Votre espace de travail n'est pas rattaché à une équipe : il n'y a donc pas de file de travail personnelle. Changez d'espace pour voir vos priorités.",
+  },
+  'today.loadErrorTitle': {
+    en: 'We could not load your day.',
+    fr: 'Impossible de charger votre journée.',
+  },
+  'today.loading': { en: 'Loading your day…', fr: 'Chargement de votre journée…' },
+  'today.dueSoon': { en: 'Due soon', fr: 'Bientôt due' },
+  'today.hideCollision': {
+    en: 'Hide this collision notice',
+    fr: 'Masquer cet avertissement de conflit',
+  },
+  'today.collisionBlocked': {
+    en: 'Contact already reserved by another team',
+    fr: 'Contact déjà réservé par une autre équipe',
+  },
+  'today.collisionOverride': {
+    en: 'This contact needs an override',
+    fr: 'Ce contact nécessite une dérogation',
+  },
+  'today.collisionHidden': {
+    en: 'The collision notice is hidden for this visit. It reappears on reload until the claim is resolved.',
+    fr: "L'avertissement est masqué pour cette visite. Il réapparaîtra au rechargement tant que le conflit n'est pas résolu.",
+  },
+  'today.collisionDetected': {
+    en: '{reason}. Detected {day} at {time}.',
+    fr: '{reason}. Détecté le {day} à {time}.',
+  },
+  'today.viewDetails': { en: 'View details', fr: 'Voir le détail' },
+
+  /* ---------- workspace overview ---------- */
+  'overview.subtitle': {
+    en: 'Coordinate prospecting across your teams, campaigns and territories.',
+    fr: 'Coordonnez la prospection entre vos équipes, campagnes et territoires.',
+  },
+  'overview.available': { en: 'Available in this workspace', fr: 'Disponible dans cet espace' },
+  'overview.none': {
+    en: 'No screens are available for this role yet.',
+    fr: "Aucun écran n'est encore disponible pour ce rôle.",
+  },
+
+  /* ---------- my prospects ---------- */
+  'portfolio.title': { en: 'My prospects', fr: 'Mes prospects' },
+  'portfolio.assigned': {
+    en: '{count} establishments assigned to me',
+    fr: '{count} établissements qui me sont attribués',
+  },
+  'portfolio.assigned.one': {
+    en: '{count} establishment assigned to me',
+    fr: '{count} établissement qui m’est attribué',
+  },
+  'portfolio.loading': { en: 'Loading your portfolio…', fr: 'Chargement de votre portefeuille…' },
+  'portfolio.teamScoped': {
+    en: 'This view is scoped to a team.',
+    fr: 'Cette vue est rattachée à une équipe.',
+  },
+  'portfolio.teamScopedBody': {
+    en: 'Switch to a team workspace to see the portfolio assigned to you.',
+    fr: "Changez d'espace de travail pour voir le portefeuille qui vous est attribué.",
+  },
+  'portfolio.loadErrorTitle': {
+    en: 'We could not load your portfolio.',
+    fr: 'Impossible de charger votre portefeuille.',
+  },
+  'portfolio.loadError': {
+    en: 'We could not load your portfolio. Please try again.',
+    fr: 'Impossible de charger votre portefeuille. Veuillez réessayer.',
+  },
+  'portfolio.partialTitle': {
+    en: 'Showing the first part of your portfolio.',
+    fr: 'Affichage de la première partie de votre portefeuille.',
+  },
+  'portfolio.partialBody': {
+    en: 'It is larger than this screen reads in one go, so the totals below describe what was loaded rather than every assignment.',
+    fr: "Il dépasse ce que cet écran lit en une fois : les totaux ci-dessous décrivent ce qui a été chargé, et non l'ensemble des attributions.",
+  },
+  'portfolio.search': { en: 'Search my portfolio', fr: 'Rechercher dans mon portefeuille' },
+  'portfolio.status': { en: 'Status', fr: 'Statut' },
+  'portfolio.campaign': { en: 'Campaign', fr: 'Campagne' },
+  'portfolio.sort': { en: 'Sort', fr: 'Trier' },
+  'portfolio.all': { en: 'All', fr: 'Tous' },
+  'portfolio.view': { en: 'View', fr: 'Affichage' },
+  'portfolio.list': { en: 'List', fr: 'Liste' },
+  'portfolio.map': { en: 'Map', fr: 'Carte' },
+  'portfolio.establishment': { en: 'Establishment', fr: 'Établissement' },
+  'portfolio.lastAction': { en: 'Last action', fr: 'Dernière action' },
+  'portfolio.nextStep': { en: 'Next step', fr: 'Prochaine étape' },
+  'portfolio.noMatch': {
+    en: 'No prospect matches these filters.',
+    fr: 'Aucun prospect ne correspond à ces filtres.',
+  },
+  'portfolio.empty': {
+    en: 'No prospects are assigned to you yet.',
+    fr: 'Aucun prospect ne vous est encore attribué.',
+  },
+  'portfolio.showing': { en: 'Showing {shown} of {total}', fr: '{shown} sur {total} affichés' },
+  /*
+   * Four separate counts rather than one sentence: French agrees the noun and
+   * the adjective with the number, so "1 relances dues" is simply wrong and a
+   * single compound key cannot express it.
+   */
+  'portfolio.summary.assigned': { en: '{count} assigned', fr: '{count} attribués' },
+  'portfolio.summary.assigned.one': { en: '{count} assigned', fr: '{count} attribué' },
+  'portfolio.summary.toContact': { en: '{count} to contact', fr: '{count} à contacter' },
+  'portfolio.summary.due': { en: '{count} follow-ups due', fr: '{count} relances dues' },
+  'portfolio.summary.due.one': { en: '{count} follow-up due', fr: '{count} relance due' },
+  'portfolio.summary.blocked': {
+    en: '{count} blocked by an anti-collision rule',
+    fr: '{count} bloqués par une règle anti-collision',
+  },
+  'portfolio.summary.blocked.one': {
+    en: '{count} blocked by an anti-collision rule',
+    fr: '{count} bloqué par une règle anti-collision',
+  },
+  'portfolio.region': { en: 'Region {code}', fr: 'Région {code}' },
+  'portfolio.regions': { en: 'Regions {codes}', fr: 'Régions {codes}' },
+  'portfolio.visible': { en: '{visible} of {total} visible', fr: '{visible} sur {total} visibles' },
+  'portfolio.withoutCoordinates': {
+    en: '{count} without coordinates',
+    fr: '{count} sans coordonnées',
+  },
+  'portfolio.nearby': { en: 'Nearby', fr: 'À proximité' },
+  'portfolio.nearbyPrompt': {
+    en: 'Select a prospect on the map to see the rest of your portfolio around it.',
+    fr: 'Sélectionnez un prospect sur la carte pour voir le reste de votre portefeuille autour.',
+  },
+  'portfolio.near': { en: 'Near {place}', fr: 'Autour de {place}' },
+  'portfolio.nearbyCount': {
+    en: '{count} of my prospects within {radius}',
+    fr: '{count} de mes prospects dans un rayon de {radius}',
+  },
+  'portfolio.nearbyLoading': { en: 'Looking…', fr: 'Recherche…' },
+  'portfolio.nearbyEmpty': {
+    en: 'Nothing else of yours is within {radius}.',
+    fr: "Vous n'avez rien d'autre dans un rayon de {radius}.",
+  },
+  'portfolio.nearbyError': {
+    en: 'We could not load what is nearby.',
+    fr: 'Impossible de charger les prospects à proximité.',
+  },
+  'portfolio.planRound': { en: 'Plan a round', fr: 'Planifier une tournée' },
+  'portfolio.scopeNote': {
+    en: 'Only prospects assigned to you are shown — never territory-wide or unassigned records.',
+    fr: 'Seuls les prospects qui vous sont attribués apparaissent — jamais les enregistrements du territoire ou non attribués.',
+  },
+  'portfolio.openProspect': { en: 'Open prospect', fr: 'Ouvrir le prospect' },
+  'portfolio.noCollision': { en: 'No collision', fr: 'Aucun conflit' },
+  'portfolio.blockedByClaim': {
+    en: 'Blocked by another claim',
+    fr: 'Bloqué par une autre réservation',
+  },
+
+  /* ---------- quick filters and sorting ---------- */
+  'filter.myFollowUps': { en: 'My follow-ups', fr: 'Mes relances' },
+  'filter.toContact': { en: 'To contact', fr: 'À contacter' },
+  'filter.dueThisWeek': { en: 'Due this week', fr: 'Dues cette semaine' },
+  'filter.dataGaps': { en: 'Data to complete', fr: 'Données à compléter' },
+  'sort.priority': { en: 'Priority', fr: 'Priorité' },
+  'sort.name': { en: 'Name', fr: 'Nom' },
+  'sort.recent': { en: 'Recent activity', fr: 'Activité récente' },
+
+  /* ---------- next step ---------- */
+  'next.blocked': { en: 'Blocked — cooldown', fr: 'Bloqué — délai de carence' },
+  'next.closed': { en: 'Closed', fr: 'Clôturé' },
+  'next.followUpOverdue': { en: 'Follow-up overdue', fr: 'Relance en retard' },
+  'next.followUpToday': { en: 'Follow-up today', fr: "Relance aujourd'hui" },
+  'next.followUpAt': { en: 'Follow-up · {when}', fr: 'Relance · {when}' },
+  'next.addContact': { en: 'Add contact person', fr: 'Ajouter un contact' },
+  'next.logAction': { en: 'Log next action', fr: 'Enregistrer la prochaine action' },
+
+  /* ---------- relative time ---------- */
+  'when.today': { en: 'today', fr: "aujourd'hui" },
+  'when.yesterday': { en: 'yesterday', fr: 'hier' },
+  'when.daysAgo': { en: '{count} days ago', fr: 'il y a {count} jours' },
+  'when.unknown': { en: 'unknown', fr: 'inconnu' },
+  'when.channelAt': { en: '{channel} · {when}', fr: '{channel} · {when}' },
+
+  /* ---------- contacts ---------- */
+  'contacts.title': { en: 'Contacts', fr: 'Contacts' },
+  'contacts.named': { en: 'Named contacts', fr: 'Contacts nommés' },
+  'contacts.addresses': { en: 'Addresses', fr: 'Adresses' },
+  'contacts.primary': { en: 'Primary', fr: 'Principal' },
+  'contacts.unnamed': { en: 'Unnamed contact', fr: 'Contact sans nom' },
+  'contacts.loadError': {
+    en: 'We could not load contact details.',
+    fr: 'Impossible de charger les coordonnées.',
+  },
+
   /* ---------- lifecycle ---------- */
   'stage.to_contact': { en: 'To contact', fr: 'À contacter' },
   'stage.contact_made': { en: 'Contact made', fr: 'Contact établi' },
@@ -131,6 +328,7 @@ export const DICTIONARY = {
   'stage.follow_up': { en: 'Follow-up', fr: 'Relance' },
   'stage.qualified': { en: 'Qualified', fr: 'Qualifié' },
   'stage.converted': { en: 'Converted', fr: 'Converti' },
+  'stage.assigned': { en: 'Assigned', fr: 'Attribué' },
 
   /* ---------- due state ---------- */
   'due.overdue': { en: 'Overdue', fr: 'En retard' },

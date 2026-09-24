@@ -5,7 +5,7 @@ import { LocateFixed, TriangleAlert } from 'lucide-react';
 
 import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
 import { MapLegend } from '@/components/prospector/map-surface';
-import { LIFECYCLE_ORDER, getLifecycleLabel } from '@/components/prospector/lifecycle-badge';
+import { LIFECYCLE_ORDER, getLifecycleLabelKey } from '@/components/prospector/lifecycle-badge';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -25,9 +25,11 @@ import type { TerritoryFeatureCollection } from '@/lib/api/territory-types';
 import { listWorkQueue } from '@/lib/api/work-queue-client';
 import type { WorkQueueItem, WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 export default function TerritoryMapPage() {
   const { activeWorkspace } = useAuth();
+  const { t } = useTranslation();
 
   const teamId = activeWorkspace?.teamId ?? null;
 
@@ -176,7 +178,7 @@ export default function TerritoryMapPage() {
           onChange={setStatus}
           options={[
             { value: 'all', label: 'All' },
-            ...LIFECYCLE_ORDER.map((value) => ({ value, label: getLifecycleLabel(value) })),
+            ...LIFECYCLE_ORDER.map((value) => ({ value, label: t(getLifecycleLabelKey(value)) })),
           ]}
         />
 

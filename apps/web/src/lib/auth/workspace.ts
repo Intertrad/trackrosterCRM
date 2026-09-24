@@ -1,4 +1,5 @@
 import type { AccessScope, SelfAccessGrant, UserRole } from '@/lib/api/auth-types';
+import type { MessageKey } from '@/lib/i18n/dictionary';
 
 export type WorkspaceMode = 'admin' | 'director' | 'manager' | 'prospector' | 'observer';
 
@@ -99,22 +100,23 @@ export function deriveAvailableWorkspaces(grants: SelfAccessGrant[]): WorkspaceO
   });
 }
 
-export function getWorkspaceModeLabel(mode: WorkspaceMode): string {
+/** The message key for a role; call sites translate it themselves. */
+export function getWorkspaceModeLabelKey(mode: WorkspaceMode): MessageKey {
   switch (mode) {
     case 'admin':
-      return 'Client Admin';
+      return 'role.admin';
 
     case 'director':
-      return 'Director';
+      return 'role.director';
 
     case 'manager':
-      return 'Manager';
+      return 'role.manager';
 
     case 'prospector':
-      return 'Prospector';
+      return 'role.prospector';
 
     case 'observer':
-      return 'Observer';
+      return 'role.observer';
   }
 }
 
