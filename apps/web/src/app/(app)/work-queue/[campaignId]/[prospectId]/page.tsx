@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ChevronRight, Database, Globe, MapPin, Phone, Send, UserRound } from 'lucide-react';
 
 import { CollisionBanner } from '@/components/prospector/collision-banner';
@@ -48,7 +49,13 @@ export default function ProspectDetailPage({
   const { activeWorkspace } = useAuth();
   const teamId = activeWorkspace?.teamId ?? null;
 
-  const [tab, setTab] = useState<TabId>('overview');
+  /* Deep-linkable, so a link can point straight at the timeline instead of
+   * landing on Overview and asking the reader to find it. */
+  const requestedTab = useSearchParams().get('tab');
+
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((entry) => entry.id === requestedTab) ? (requestedTab as TabId) : 'overview',
+  );
   const [detail, setDetail] = useState<WorkQueueProspectDetail | null>(null);
   const [collision, setCollision] = useState<ProspectCollisionDecision | null>(null);
   const [reservation, setReservation] = useState<ProspectReservationState | null>(null);

@@ -211,7 +211,21 @@ export function ProspectMap({
 
         mapRef.current = map;
 
-        setReady(true);
+        /*
+         * Wait for the style, not just the constructor. Adding a source or a
+         * layer before the style has loaded throws "Style is not done
+         * loading", which aborts the whole marker render — the failure that
+         * left the map blank with pins floating on it.
+         */
+        if (map.isStyleLoaded()) {
+          setReady(true);
+        } else {
+          map.once('load', () => {
+            if (!cancelled) {
+              setReady(true);
+            }
+          });
+        }
 
         map.on('error', () => setFailed(true));
       } catch {

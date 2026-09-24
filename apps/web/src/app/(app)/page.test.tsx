@@ -49,8 +49,8 @@ const todayResponse: ProspectorTodayResponse = {
       campaignProspectId,
       dueAt: '2026-09-20T09:00:00.000Z',
       isOverdue: true,
-      category: 'follow_up',
-      channel: 'call',
+      category: 'meeting',
+      channel: 'visit',
       establishment: {
         id: '55555555-5555-4555-8555-555555555555',
         name: 'Nancy central police station',
@@ -175,7 +175,7 @@ describe('TodayPage', () => {
      * numbered stop in the day's visits. */
     expect(screen.getAllByText('Nancy central police station')).toHaveLength(2);
     expect(screen.getByText('Nancy')).toBeInTheDocument();
-    expect(screen.getAllByText('Saint-Dié hospital').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Saint-Dié hospital')).toHaveLength(1);
     /* Due time shows on the action row and on its map stop. */
     expect(screen.getAllByText('11:00').length).toBeGreaterThan(0);
 
@@ -184,6 +184,22 @@ describe('TodayPage', () => {
       timeZone: 'Europe/Paris',
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('plots only on-site work, not calls and emails', async () => {
+    render(<TodayPage />);
+
+    await screen.findByRole('heading', { name: 'Today' });
+
+    /*
+     * Both fixtures carry coordinates, but only one is a visit. Counting a
+     * phone call as a stop would inflate the round the prospector is about
+     * to drive and the distance quoted for it.
+     */
+    const stops = screen.getByRole('list', { name: "Today's visit order" });
+
+    expect(within(stops).getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByText(/^1 stop/)).toBeInTheDocument();
   });
 
   it('links each priority to its prospect rather than inventing a detail view', async () => {
@@ -251,7 +267,7 @@ describe('TodayPage', () => {
     const pending = deferred<ProspectorTodayResponse>();
     getProspectorTodayMock.mockReturnValueOnce(pending.promise);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh today' }));
 
     /* A refresh must not blank the queue the prospector is working from. */
     expect(screen.getAllByText('Nancy central police station').length).toBeGreaterThan(0);

@@ -69,7 +69,7 @@ export interface ProspectorTodayResponse {
  *
  * The day's visits show a straight-line total, not a driving distance: no
  * routing provider is configured, so a road figure would be invented. The
- * label on screen says "direct" for the same reason.
+ * card carries a footnote saying so for the same reason.
  */
 export function haversineKm(
   a: { latitude: number; longitude: number },
@@ -105,10 +105,21 @@ export interface PlottedVisit {
  * establishment in the Gulf of Guinea is worse than one that is simply absent
  * from the map.
  */
+/**
+ * The day's physical stops, in due order.
+ *
+ * Only on-site work counts: a call or an email happens from wherever the
+ * prospector is, so plotting it would inflate both the stop count and the
+ * distance for a journey nobody is making.
+ */
 export function buildVisits(priorities: ProspectorTodayPriority[]): PlottedVisit[] {
   const visits: PlottedVisit[] = [];
 
   for (const priority of priorities) {
+    if (priority.channel !== 'visit') {
+      continue;
+    }
+
     const { latitude, longitude } = priority.establishment;
 
     if (

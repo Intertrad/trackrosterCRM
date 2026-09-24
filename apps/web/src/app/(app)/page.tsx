@@ -2,21 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-  CheckCircle2,
-  CircleAlert,
-  CircleDot,
-  MapPinned,
-  Navigation,
-  RefreshCw,
-} from 'lucide-react';
+import { CheckCircle2, CircleAlert, CircleDot, MapPinned, Navigation, X } from 'lucide-react';
 
 import { ActionChannelIcon, getChannelLabel } from '@/components/prospector/action-channel-icon';
 import {
   type DueState,
   DueStateBadge,
+  countsAsDueToday,
   resolveDueState,
 } from '@/components/prospector/due-state-badge';
+import { PriorityRowMenu } from '@/components/prospector/priority-row-menu';
+import { TodayControls } from '@/components/prospector/today-controls';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -70,6 +66,22 @@ export default function TodayPage() {
    * only surfaced as a single banner.
    */
   const [collisions, setCollisions] = useState<CollisionEvent[]>([]);
+
+  /* Dismissed for this visit only; the collision itself is not resolved by
+   * closing the notice, so it is not persisted. */
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
+
+  /*
+   * "Due soon" is relative to the clock, so it has to be re-evaluated as the
+   * day moves rather than frozen at the moment the page loaded.
+   */
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const load = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
@@ -150,10 +162,10 @@ export default function TodayPage() {
     return new Map(
       today.priorities.map((priority) => [
         priority.id,
-        resolveDueState(priority.dueAt, priority.isOverdue, today.day.endsAt),
+        resolveDueState(priority.dueAt, priority.isOverdue, today.day.endsAt, now),
       ]),
     );
-  }, [today]);
+  }, [now, today]);
 
   const counts = useMemo(() => {
     let overdue = 0;
@@ -161,7 +173,7 @@ export default function TodayPage() {
 
     for (const state of states.values()) {
       if (state === 'overdue') overdue += 1;
-      if (state === 'due_today') dueToday += 1;
+      if (countsAsDueToday(state)) dueToday += 1;
     }
 
     return { all: states.size, overdue, due_today: dueToday };
@@ -176,7 +188,11 @@ export default function TodayPage() {
       return today.priorities;
     }
 
-    return today.priorities.filter((priority) => states.get(priority.id) === filter);
+    return today.priorities.filter((priority) => {
+      const state = states.get(priority.id);
+
+      return filter === 'overdue' ? state === 'overdue' : countsAsDueToday(state ?? 'upcoming');
+    });
   }, [filter, states, today]);
 
   if (!isProspector) {
@@ -222,21 +238,17 @@ export default function TodayPage() {
         title="Today"
         subtitle={`${formatDay(today.day.date, timeZone)} · Your priorities for today`}
         action={
-          <Button
-            variant="secondary"
-            size="md"
-            loading={refreshing}
-            leadingIcon={<RefreshCw aria-hidden="true" className="size-[18px]" />}
-            onClick={() => void refresh()}
-          >
-            Refresh
-          </Button>
+          <TodayControls
+            dayLabel={formatDayShort(today.day.date, timeZone)}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+          />
         }
       />
 
       {error ? <Alert tone="warning">{error}</Alert> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
         <Card className="p-0 sm:p-0">
           <div className="border-b border-line-soft px-5 pt-5 pb-4 sm:px-6">
             <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Next actions</h2>
@@ -300,7 +312,7 @@ export default function TodayPage() {
         <TodaysVisits visits={visits} timeZone={timeZone} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
         <Card>
           <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Progress today</h2>
 
@@ -332,6 +344,8 @@ export default function TodayPage() {
           collisions={collisions}
           priorities={today.priorities}
           timeZone={timeZone}
+          dismissed={noticeDismissed}
+          onDismiss={() => setNoticeDismissed(true)}
         />
       </div>
     </div>
@@ -373,7 +387,7 @@ function TodaysVisits({
 
           <p className="mt-1 text-[14px] text-ink-muted">
             {visits.length} stop{visits.length === 1 ? '' : 's'}
-            {total > 0 ? ` · ${total.toFixed(1)} km direct` : ''}
+            {total > 0 ? ` \u00b7 ${total.toFixed(1)} km total` : ''}
           </p>
         </div>
 
@@ -386,7 +400,7 @@ function TodaysVisits({
         </p>
       ) : (
         <>
-          <ProspectMap points={points} ordered className="mt-4 h-56" />
+          <ProspectMap points={points} ordered className="mt-4 h-64 sm:h-72 xl:h-64" />
 
           <ol
             aria-label="Today's visit order"
@@ -413,15 +427,15 @@ function TodaysVisits({
                 </span>
 
                 <span className="w-16 shrink-0 text-right text-[13px] tabular-nums text-ink-muted">
-                  {visit.legKm === null ? '—' : `${visit.legKm.toFixed(1)} km`}
+                  {visit.legKm === null ? '\u2014' : `${visit.legKm.toFixed(1)} km`}
                 </span>
               </li>
             ))}
           </ol>
 
-          <LinkButton href="/routes/new" className="mt-4 w-full">
-            <Navigation aria-hidden="true" className="mr-2 size-4" />
-            Plan this round
+          <LinkButton href="/routes/new" variant="primary" className="mt-4 w-full">
+            <Navigation aria-hidden="true" className="mr-2 size-[18px]" />
+            Open route
           </LinkButton>
 
           {/* Straight-line, because no routing provider is configured. A road
@@ -446,10 +460,14 @@ function CollisionNotice({
   collisions,
   priorities,
   timeZone,
+  dismissed,
+  onDismiss,
 }: {
   collisions: CollisionEvent[];
   priorities: ProspectorTodayPriority[];
   timeZone: string;
+  dismissed: boolean;
+  onDismiss: () => void;
 }) {
   const byProspect = new Map(priorities.map((p) => [p.campaignProspectId, p]));
 
@@ -459,13 +477,15 @@ function CollisionNotice({
       (event.decision === 'block' || event.decision === 'require_override'),
   );
 
-  if (!relevant) {
+  if (!relevant || dismissed) {
     return (
       <Card>
         <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">Clear to proceed</h2>
 
         <p className="mt-2 text-[15px] text-ink-muted">
-          The anti-collision engine has not blocked any prospect on today&apos;s list.
+          {relevant
+            ? 'The collision notice is hidden for this visit. It reappears on reload until the claim is resolved.'
+            : 'The anti-collision engine has not blocked any prospect on today\u2019s list.'}
         </p>
       </Card>
     );
@@ -474,8 +494,20 @@ function CollisionNotice({
   const priority = byProspect.get(relevant.campaignProspectId)!;
 
   return (
-    <Card className="border-danger-border bg-danger-bg/40">
-      <div className="flex items-start gap-3.5">
+    <Card className="relative border-danger-border bg-danger-bg/40">
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Hide this collision notice"
+        className={cn(
+          'absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-lg',
+          'text-ink-muted transition-colors duration-150 hover:bg-surface hover:text-ink',
+        )}
+      >
+        <X aria-hidden="true" className="size-[18px]" />
+      </button>
+
+      <div className="flex items-start gap-3.5 pr-10">
         <span
           aria-hidden="true"
           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-danger text-white"
@@ -486,22 +518,23 @@ function CollisionNotice({
         <div className="min-w-0 flex-1">
           <h2 className="text-[17px] font-bold text-navy">
             {relevant.decision === 'block'
-              ? 'Contact blocked by another claim'
+              ? 'Contact already reserved by another team'
               : 'This contact needs an override'}
           </h2>
 
           <p className="mt-0.5 text-[14px] text-ink-muted">
             {priority.establishment.name}
-            {priority.establishment.city ? ` · ${priority.establishment.city}` : ''}
+            {priority.establishment.city ? ` \u00b7 ${priority.establishment.city}` : ''}
           </p>
 
           <p className="mt-2 text-[14px] text-ink-soft">
-            {reasonLabel(relevant.reasonCode)}. Detected {formatTime(relevant.createdAt, timeZone)}.
+            {reasonLabel(relevant.reasonCode)}. Detected{' '}
+            {formatDayShort(relevant.createdAt, timeZone)} at{' '}
+            {formatTime(relevant.createdAt, timeZone)}.
           </p>
 
           <LinkButton
             href={`/work-queue/${priority.campaignId}/${priority.campaignProspectId}`}
-            variant="secondary"
             className="mt-4"
           >
             View details
@@ -561,51 +594,80 @@ function PriorityRow({
 }) {
   const href = `/work-queue/${priority.campaignId}/${priority.campaignProspectId}`;
 
+  const actionLabel = priority.category === 'meeting' ? 'View prospect' : 'Log action';
+
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4 sm:px-6">
-      <span
-        className={cn(
-          'w-[52px] shrink-0 text-[15px] font-bold tabular-nums',
-          state === 'overdue' ? 'text-danger' : 'text-ink',
-        )}
-      >
-        {formatTime(priority.dueAt, timeZone)}
-      </span>
-
-      <ActionChannelIcon channel={priority.channel} />
-
-      <span className="min-w-0 flex-1 basis-48">
-        <Link
-          href={href}
-          className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+    <li className="px-4 py-3.5 sm:px-6 sm:py-4">
+      {/*
+        One row on a desktop, two stacked bands on a phone. The identity of
+        the action (time, channel, who) always leads; the controls move below
+        it rather than being squeezed or wrapped mid-line.
+      */}
+      <div className="flex items-start gap-3 sm:items-center">
+        <span
+          className={cn(
+            'w-[46px] shrink-0 pt-0.5 text-[15px] font-bold tabular-nums sm:w-[52px] sm:pt-0',
+            state === 'overdue' ? 'text-danger' : 'text-ink',
+          )}
         >
-          {priority.establishment.name}
-        </Link>
+          {formatTime(priority.dueAt, timeZone)}
+        </span>
 
-        {priority.establishment.city ? (
-          <span className="block truncate text-[14px] text-ink-muted">
-            {priority.establishment.city}
+        <ActionChannelIcon channel={priority.channel} className="size-9 sm:size-10" />
+
+        <span className="min-w-0 flex-1 pr-2">
+          <Link
+            href={href}
+            className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+          >
+            {priority.establishment.name}
+          </Link>
+
+          {priority.establishment.city ? (
+            <span className="block truncate text-[14px] text-ink-muted">
+              {priority.establishment.city}
+            </span>
+          ) : null}
+        </span>
+
+        <span className="hidden w-24 shrink-0 xl:block">
+          <span className="block text-[15px] font-semibold text-ink">
+            {getChannelLabel(priority.channel)}
           </span>
-        ) : null}
-      </span>
 
-      <span className="hidden w-32 shrink-0 md:block">
-        <span className="block text-[15px] font-semibold text-ink">
-          {getChannelLabel(priority.channel)}
+          <span className="block text-[14px] text-ink-muted">
+            {CATEGORY_LABELS[priority.category]}
+          </span>
         </span>
 
-        <span className="block text-[14px] text-ink-muted">
-          {CATEGORY_LABELS[priority.category]}
+        <span className="hidden w-[92px] shrink-0 md:block">
+          <DueStateBadge state={state} />
         </span>
-      </span>
 
-      <span className="w-28 shrink-0">
+        <span className="hidden shrink-0 items-center gap-1 sm:flex">
+          <LinkButton href={href}>{actionLabel}</LinkButton>
+
+          <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
+        </span>
+      </div>
+
+      {/* Below md the row has no status column, so the state moves under the
+          name rather than disappearing between breakpoints. */}
+      <div className="mt-3 flex items-center gap-3 pl-[58px] md:hidden">
+        <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
+          {getChannelLabel(priority.channel)} · {CATEGORY_LABELS[priority.category]}
+        </span>
+
         <DueStateBadge state={state} />
-      </span>
+      </div>
 
-      <LinkButton href={href} className="shrink-0">
-        {priority.category === 'meeting' ? 'View prospect' : 'Log action'}
-      </LinkButton>
+      <div className="mt-3 flex items-center gap-2 pl-[58px] sm:hidden">
+        <LinkButton href={href} className="flex-1">
+          {actionLabel}
+        </LinkButton>
+
+        <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
+      </div>
     </li>
   );
 }
@@ -705,6 +767,22 @@ function formatDay(value: string, timeZone: string): string {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
+    timeZone,
+  }).format(date);
+}
+
+/** "Mon, 21 Sep" — the compact form used in the header pill. */
+function formatDayShort(value: string, timeZone: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
     timeZone,
   }).format(date);
 }
