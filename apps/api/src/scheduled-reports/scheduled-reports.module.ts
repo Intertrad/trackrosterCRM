@@ -22,26 +22,12 @@ import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import { scheduledReportDeliveries, scheduledReports } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
+import { CreateScheduledReportDto, UpdateScheduledReportDto } from './scheduled-reports.dto.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 
 type Auth = AuthenticatedPrincipal;
-const keys = new Set([
-  'overview',
-  'workload',
-  'actions',
-  'funnel',
-  'conversions',
-  'follow-ups',
-  'coverage',
-  'collisions',
-  'data-quality',
-  'territories',
-  'forecast',
-]);
-const cadences = new Set(['daily', 'weekly', 'monthly']);
-const formats = new Set(['csv', 'xlsx', 'pdf']);
 @Injectable()
 export class ScheduledReportsService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
@@ -78,15 +64,12 @@ export class ScheduledReportsService {
         rows.length > Math.min(Math.max(limit, 1), 100) ? rows[rows.length - 2]!.id : null,
     };
   }
-  async create(a: Auth, d: any) {
-    if (
-      !keys.has(d.reportKey) ||
-      !cadences.has(d.cadence) ||
-      !formats.has(d.format) ||
-      !Array.isArray(d.recipients) ||
-      !d.recipients.length
-    )
-      throw new BadRequestException('Invalid report schedule');
+  async create(a: Auth, d: CreateScheduledReportDto) {
+    /*
+     * Key, cadence, format and the recipient list are validated by the DTO.
+     * The date still needs a runtime check: a well-formed ISO instant can
+     * legitimately be in the past, which a schedule cannot use.
+     */
     const next = new Date(d.nextRunAt ?? Date.now());
     if (Number.isNaN(next.getTime()) || next.getTime() < Date.now())
       throw new BadRequestException('nextRunAt must be in the future');
@@ -106,17 +89,13 @@ export class ScheduledReportsService {
       .returning();
     return r;
   }
-  async update(a: Auth, id: string, d: any) {
+  async update(a: Auth, id: string, d: UpdateScheduledReportDto) {
     await this.owned(a, id);
-    const patch: any = { updatedAt: sql`clock_timestamp()` };
-    if (d.cadence !== undefined) {
-      if (!cadences.has(d.cadence)) throw new BadRequestException('Invalid cadence');
-      patch.cadence = d.cadence;
-    }
-    if (d.format !== undefined) {
-      if (!formats.has(d.format)) throw new BadRequestException('Invalid format');
-      patch.format = d.format;
-    }
+    /* Named fields only: a key the DTO does not declare cannot reach
+     * the update. */
+    const patch: Record<string, unknown> = { updatedAt: sql`clock_timestamp()` };
+    if (d.cadence !== undefined) patch.cadence = d.cadence;
+    if (d.format !== undefined) patch.format = d.format;
     if (d.recipients !== undefined) {
       if (!Array.isArray(d.recipients) || !d.recipients.length)
         throw new BadRequestException('Recipients required');
@@ -167,13 +146,16 @@ export class ScheduledReportsController {
   @Get() list(@CurrentAuth() a: Auth, @Query('limit') l?: number, @Query('cursor') c?: string) {
     return this.s.list(a, l, c);
   }
-  @Post() @Idempotent('scheduled_report.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post() @Idempotent('scheduled_report.create') create(
+    @CurrentAuth() a: Auth,
+    @Body() d: CreateScheduledReportDto,
+  ) {
     return this.s.create(a, d);
   }
   @Patch(':scheduleId') update(
     @CurrentAuth() a: Auth,
     @Param('scheduleId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: UpdateScheduledReportDto,
   ) {
     return this.s.update(a, id, d);
   }

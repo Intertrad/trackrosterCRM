@@ -22,18 +22,11 @@ import { DatabaseModule } from '../database/database.module.js';
 import type { Database } from '../database/database.types.js';
 import { savedViews } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
+import { CreateSavedViewDto, ListSavedViewsDto, UpdateSavedViewDto } from './saved-views.dto.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 type Auth = AuthenticatedPrincipal;
-const resources = new Set([
-  'prospects',
-  'campaigns',
-  'activities',
-  'follow-ups',
-  'assignments',
-  'routes',
-]);
 @Injectable()
 export class SavedViewsService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
@@ -64,9 +57,11 @@ export class SavedViewsService {
       )
       .orderBy(desc(savedViews.updatedAt));
   }
-  async create(a: Auth, d: any) {
-    if (!resources.has(d.resource) || !d.name?.trim() || !d.filters || !Array.isArray(d.columns))
-      throw new BadRequestException('Invalid saved view');
+  async create(a: Auth, d: CreateSavedViewDto) {
+    /* Validation has already checked shape and membership of the resource
+     * set; this guards the one case it cannot express — an all-whitespace
+     * name that passes MinLength but is empty once trimmed. */
+    if (!d.name.trim()) throw new BadRequestException('Invalid saved view');
     if (d.name.trim().length > 120) throw new BadRequestException('View name is too long');
     const [v] = await this.db
       .insert(savedViews)
@@ -84,13 +79,19 @@ export class SavedViewsService {
       .returning();
     return v;
   }
-  async update(a: Auth, id: string, d: any) {
+  async update(a: Auth, id: string, d: UpdateSavedViewDto) {
     const current = await this.own(a, id);
     if (current.ownerId !== a.membershipId)
       throw new BadRequestException('Only the owner can edit this view');
-    const patch: any = { updatedAt: sql`clock_timestamp()` };
-    for (const k of ['name', 'filters', 'sort', 'columns', 'shared', 'isDefault'])
-      if (d[k] !== undefined) patch[k] = k === 'name' ? String(d[k]).trim() : d[k];
+    /* Columns are named rather than copied from the body, so a field the
+     * DTO does not declare can never reach the update. */
+    const patch: Record<string, unknown> = { updatedAt: sql`clock_timestamp()` };
+    if (d.name !== undefined) patch.name = d.name.trim();
+    if (d.filters !== undefined) patch.filters = d.filters;
+    if (d.sort !== undefined) patch.sort = d.sort;
+    if (d.columns !== undefined) patch.columns = d.columns;
+    if (d.shared !== undefined) patch.shared = d.shared;
+    if (d.isDefault !== undefined) patch.isDefault = d.isDefault;
     if (patch.name === '') throw new BadRequestException('View name is required');
     const [v] = await this.db
       .update(savedViews)
@@ -124,16 +125,19 @@ export class SavedViewsService {
 @UseGuards(AuthGuard)
 export class SavedViewsController {
   constructor(private readonly s: SavedViewsService) {}
-  @Get() list(@CurrentAuth() a: Auth, @Query('resource') r?: string) {
-    return this.s.list(a, r);
+  @Get() list(@CurrentAuth() a: Auth, @Query() q: ListSavedViewsDto) {
+    return this.s.list(a, q.resource);
   }
-  @Post() @Idempotent('saved_view.create') create(@CurrentAuth() a: Auth, @Body() d: any) {
+  @Post() @Idempotent('saved_view.create') create(
+    @CurrentAuth() a: Auth,
+    @Body() d: CreateSavedViewDto,
+  ) {
     return this.s.create(a, d);
   }
   @Patch(':viewId') update(
     @CurrentAuth() a: Auth,
     @Param('viewId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: UpdateSavedViewDto,
   ) {
     return this.s.update(a, id, d);
   }

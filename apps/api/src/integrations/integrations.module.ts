@@ -26,7 +26,12 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 type Auth = AuthenticatedPrincipal;
-import { ApiClientDto, WebhookDto, WebhookUpdateDto } from './integrations.dto.js';
+import {
+  ApiClientDto,
+  ConnectIntegrationDto,
+  WebhookDto,
+  WebhookUpdateDto,
+} from './integrations.dto.js';
 const hash = (v: string) => createHash('sha256').update(v).digest('hex');
 @Injectable()
 export class IntegrationsService {
@@ -261,9 +266,15 @@ export class IntegrationsController {
   @Post('integrations/:provider/connect') @Idempotent('integration.connect') connect(
     @CurrentAuth() a: Auth,
     @Param('provider') p: string,
-    @Body() d: Record<string, unknown>,
+    @Body() d: ConnectIntegrationDto,
   ) {
-    return this.s.connect(a, p, d);
+    /*
+     * Provider settings now arrive under `config` rather than as loose
+     * top-level keys. With validation switched on, forbidNonWhitelisted
+     * would reject the flat shape outright, so the payload is nested to
+     * keep provider-specific keys expressible while still being checked.
+     */
+    return this.s.connect(a, p, d.config ?? {});
   }
   @Get('integrations/:provider/callback') callback(
     @CurrentAuth() a: Auth,

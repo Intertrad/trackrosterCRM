@@ -25,6 +25,7 @@ import {
   tenantMemberships,
 } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
+import { AccessReviewDecisionDto, CreateComplianceReportDto } from './compliance.dto.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
@@ -84,14 +85,8 @@ export class ComplianceService {
       )
       .where(eq(tenantMemberships.tenantId, a.tenantId));
   }
-  async decision(
-    a: Auth,
-    id: string,
-    d: { membershipId: string; decision: 'approve' | 'revoke' | 'remediate'; reason?: string },
-  ) {
+  async decision(a: Auth, id: string, d: AccessReviewDecisionDto) {
     await this.review(a, id);
-    if (!['approve', 'revoke', 'remediate'].includes(d.decision))
-      throw new BadRequestException('Invalid decision');
     const [r] = await this.db
       .insert(accessReviewDecisions)
       .values({
@@ -133,9 +128,10 @@ export class ComplianceService {
       .where(eq(complianceReports.tenantId, a.tenantId))
       .orderBy(desc(complianceReports.createdAt));
   }
-  async createReport(a: Auth, d: { reportType: string; parameters?: Record<string, unknown> }) {
+  async createReport(a: Auth, d: CreateComplianceReportDto) {
     await this.admin(a);
-    if (!d.reportType?.trim()) throw new BadRequestException('reportType is required');
+    /* Guards the one case MinLength cannot: a name that is only whitespace. */
+    if (!d.reportType.trim()) throw new BadRequestException('reportType is required');
     const [r] = await this.db
       .insert(complianceReports)
       .values({
@@ -198,7 +194,7 @@ export class ComplianceController {
   @Post('access-reviews/:reviewId/decisions') decision(
     @CurrentAuth() a: Auth,
     @Param('reviewId', ParseUUIDPipe) id: string,
-    @Body() d: any,
+    @Body() d: AccessReviewDecisionDto,
   ) {
     return this.s.decision(a, id, d);
   }
@@ -213,7 +209,7 @@ export class ComplianceController {
   }
   @Post('compliance-reports') @Idempotent('compliance_report.create') create(
     @CurrentAuth() a: Auth,
-    @Body() d: any,
+    @Body() d: CreateComplianceReportDto,
   ) {
     return this.s.createReport(a, d);
   }

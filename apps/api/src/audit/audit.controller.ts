@@ -18,6 +18,7 @@ import { auditEvents, evidenceExports } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { EvidenceExportScopeDto } from './audit.dto.js';
 type Auth = AuthenticatedPrincipal;
 @Controller('audit')
 @UseGuards(AuthGuard)
@@ -136,7 +137,7 @@ export class AuditController {
   }
   @Post('evidence-exports') @HttpCode(202) async evidence(
     @CurrentAuth() a: Auth,
-    @Body() scope: Record<string, unknown>,
+    @Body() scope: EvidenceExportScopeDto,
   ) {
     await this.allowed(a);
     const [r] = await this.db
