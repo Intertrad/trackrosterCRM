@@ -15,6 +15,7 @@ export class ObjectStorageService {
         ? new S3Client({
             region: 'auto',
             endpoint,
+            forcePathStyle: this.config.get<string>('R2_FORCE_PATH_STYLE') === 'true',
             credentials: {
               accessKeyId: this.config.get<string>('R2_ACCESS_KEY_ID') ?? '',
               secretAccessKey: this.config.get<string>('R2_SECRET_ACCESS_KEY') ?? '',

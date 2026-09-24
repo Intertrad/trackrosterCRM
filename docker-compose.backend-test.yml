@@ -27,3 +27,14 @@ services:
     image: axllent/mailpit:v1.27
     ports:
       - '127.0.0.1:58025:8025'
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio-development-only
+    command: server /data --console-address ':9001'
+    ports:
+      - '127.0.0.1:59000:9000'
+      - '127.0.0.1:59001:9001'
+    tmpfs:
+      - /data
