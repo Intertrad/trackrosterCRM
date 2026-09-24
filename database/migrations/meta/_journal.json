@@ -505,6 +505,13 @@
       "when": 1790245000000,
       "tag": "0071_tenant_rls_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1790261192386,
+      "tag": "0072_authentication_membership_lookup",
+      "breakpoints": true
     }
   ]
 }

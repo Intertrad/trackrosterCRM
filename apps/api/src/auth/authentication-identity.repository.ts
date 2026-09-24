@@ -1,12 +1,9 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
 import { identities, type Identity } from '../database/schema/identities.js';
-import { tenantMemberships } from '../database/schema/tenant-memberships.js';
-import { tenants } from '../database/schema/tenants.js';
-import { users } from '../database/schema/users.js';
 import { authWorkspaceChallenges } from '../database/schema/auth-workspace-challenges.js';
 
 export interface ActiveAuthenticationMembership {
@@ -65,38 +62,36 @@ export class AuthenticationIdentityRepository {
     identityId: string,
     executor: DatabaseExecutor = this.database,
   ): Promise<ActiveAuthenticationMembership[]> {
-    return executor
-      .select({
-        identityId: tenantMemberships.identityId,
-        membershipId: tenantMemberships.id,
-        tenantId: tenantMemberships.tenantId,
-        tenantName: tenants.name,
-        displayName: tenantMemberships.displayName,
-        legacyUserId: users.id,
-      })
-      .from(tenantMemberships)
-      .innerJoin(
-        identities,
-        and(eq(identities.id, tenantMemberships.identityId), eq(identities.status, 'active')),
-      )
-      .innerJoin(
-        tenants,
-        and(eq(tenants.id, tenantMemberships.tenantId), eq(tenants.status, 'active')),
-      )
-      .leftJoin(
-        users,
-        and(
-          eq(users.id, tenantMemberships.id),
-          eq(users.tenantId, tenantMemberships.tenantId),
-          eq(users.email, identities.email),
-          eq(users.passwordHash, identities.passwordHash),
-          eq(users.status, 'active'),
-        ),
-      )
-      .where(
-        and(eq(tenantMemberships.identityId, identityId), eq(tenantMemberships.status, 'active')),
-      )
-      .orderBy(asc(tenants.name), asc(tenantMemberships.id));
+    /*
+     * Sign-in is the one operation that cannot be tenant-scoped: it is the
+     * operation that discovers which tenants apply. `identities` is already
+     * outside Row-Level Security for that reason, but the memberships behind
+     * it are not — so once the API connects as the non-privileged runtime
+     * role, the equivalent Drizzle join returns zero rows to an
+     * unauthenticated request and every sign-in fails with 401.
+     *
+     * The lookup therefore goes through a SECURITY DEFINER function with a
+     * pinned search_path, exposing only this projection for an identity the
+     * caller has already proven possession of. Widening the membership
+     * policy instead would trade the tenant boundary for one lookup.
+     */
+    const result = await executor.execute<{
+      identity_id: string;
+      membership_id: string;
+      tenant_id: string;
+      tenant_name: string;
+      display_name: string | null;
+      legacy_user_id: string | null;
+    }>(sql`SELECT * FROM trackroster_authentication_memberships(${identityId}::uuid)`);
+
+    return result.rows.map((row) => ({
+      identityId: row.identity_id,
+      membershipId: row.membership_id,
+      tenantId: row.tenant_id,
+      tenantName: row.tenant_name,
+      displayName: row.display_name,
+      legacyUserId: row.legacy_user_id,
+    }));
   }
 
   async createWorkspaceChallenge(
