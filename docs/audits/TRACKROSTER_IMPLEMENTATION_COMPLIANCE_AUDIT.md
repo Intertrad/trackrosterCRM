@@ -1,5 +1,25 @@
 # TrackRoster Implementation Compliance Audit
 
+> **Superseded in part — read [Remaining Work](../TRACKROSTER_REMAINING_WORK.md) first.**
+>
+> This audit records per-requirement detail as measured on 2026-09-24. Two of its
+> findings have since changed and are corrected here for anyone reading it standalone:
+>
+> - **§10 / §43 P0 "RLS inert" is resolved.** Migration 0073 sets FORCE ROW LEVEL
+>   SECURITY on all 81 tenant tables and the application now connects as
+>   `trackroster_app`. With no tenant context that role reads 0 rows from
+>   `organizations` where the owner reads 176, and `tenant-rls.integration.spec.ts`
+>   passes as the runtime role while failing as the owner. Four cross-tenant flows and
+>   24 guards were fixed alongside it.
+> - **§23 export authorization was a false positive**, corrected in place below.
+> - **§37 backup/restore** is recorded as "nothing exists"; in fact
+>   `docs/operations/BACKUP_RESTORE.md` exists but references no runnable tooling. The
+>   status is PARTIAL, not MISSING.
+>
+> For current status, blockers and estimates, use Remaining Work.
+
+---
+
 **Audit date:** 2026-09-25
 **Branch:** `codex/backend-completion` @ `e3328f8` (17 ahead of origin)
 **Method:** repository inspection, live database queries, and execution of the project's own test suites.

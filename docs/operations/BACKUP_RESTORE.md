@@ -2,16 +2,26 @@
 
 # TrackRoster Backup and Restore
 
-**Status:** Initial Draft
+**Status:** Initial Draft — requirements only, no tooling exists yet.
 
-Detailed backup implementation will be finalized before production.
+This document states what production must do. Nothing here is implemented: there is no
+backup script, no scheduled job, and no restore has been rehearsed. Tracked as TR-906
+in [Remaining Work](../TRACKROSTER_REMAINING_WORK.md).
+
+One constraint discovered while enforcing tenant isolation, which the restore procedure
+must account for: the application connects as the non-privileged `trackroster_app`
+role. A database restored without that role, or without the grants in
+`infrastructure/docker/postgres/init/01-runtime-role.sql`, will lock the application
+out of its own data even though the restore itself reports success.
 
 ## Scope
 
 The production backup strategy must cover:
 
 - PostgreSQL;
-- object storage when introduced;
+- object storage, which now exists — MinIO in Compose, with
+  `apps/api/src/providers/object-storage.service.ts` and the worker's artifact
+  storage writing to it;
 - critical infrastructure configuration.
 
 Redis must not be treated as the only owner of critical business history.

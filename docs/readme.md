@@ -85,6 +85,14 @@ Important technical decisions are documented using ADRs.
 
 ## Production Readiness
 
+**Start here:** [Remaining Work](./TRACKROSTER_REMAINING_WORK.md) is the execution
+source of truth for what is left before TrackRoster is production-ready — current
+status, verified gate results, the prioritised backlog with estimates, and the next
+ticket. The documents below are the per-area detail behind it; where any of them
+disagrees with Remaining Work, Remaining Work is newer.
+
+- [Remaining Work](./TRACKROSTER_REMAINING_WORK.md)
+- [Implementation compliance audit](./audits/TRACKROSTER_IMPLEMENTATION_COMPLIANCE_AUDIT.md)
 - [Production readiness index](./production/README.md)
 - [Schema source of truth](./production/SCHEMA_SOURCE_OF_TRUTH.md)
 - [Implemented API inventory](./production/API_INVENTORY.md)
