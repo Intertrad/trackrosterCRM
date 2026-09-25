@@ -14,6 +14,8 @@ import { and, eq, gt, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { withTenantContext } from '../database/tenant-context.js';
+import { discoverSweepWork, sweepByTenant } from '../database/tenant-sweep.js';
 import { auditEvents, exportJobs, tenants } from '../database/schema/index.js';
 import { ControlledExportService } from '../exports/controlled-export.service.js';
 import { ControlledExportRepository } from '../exports/controlled-export.repository.js';
@@ -309,47 +311,102 @@ export class ExportJobService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
-      await this.db
-        .update(exportJobs)
-        .set({ status: 'expired', contentBase64: null, downloadHash: null })
-        .where(
-          sql`${exportJobs.status}='completed' AND ${exportJobs.expiresAt}<=clock_timestamp()`,
-        );
-      const job = await this.db.transaction(async (tx) => {
-        const [j] = await tx
-          .select()
-          .from(exportJobs)
-          .where(
-            sql`${exportJobs.status}='queued' OR (${exportJobs.status}='processing' AND ${exportJobs.leaseUntil}<clock_timestamp())`,
-          )
-          .orderBy(exportJobs.createdAt)
-          .limit(1)
-          .for('update', { skipLocked: true });
-        if (!j) return null;
-        if (j.attempts >= 3) {
-          await tx
-            .update(exportJobs)
-            .set({ status: 'failed', failureCode: 'RETRY_LIMIT', leaseId: null, leaseUntil: null })
-            .where(eq(exportJobs.id, j.id));
-          return null;
-        }
-        const [claimed] = await tx
+      /*
+       * Both halves of this sweep used to open with a query that spanned every
+       * tenant, which returns nothing once the policies apply — leaving queued
+       * exports unprocessed and expired links live, silently. Discovery is now
+       * explicit and privileged; the work itself runs under each job's own
+       * tenant. See tenant-sweep.ts and migration 0078.
+       */
+      const expirable = await discoverSweepWork(
+        this.db,
+        sql`SELECT id, tenant_id FROM trackroster_expirable_export_jobs(100)`,
+      );
+
+      await sweepByTenant(this.db, expirable, (item, tx) =>
+        tx
           .update(exportJobs)
-          .set({
-            status: 'processing',
-            attempts: j.attempts + 1,
-            leaseId: randomUUID(),
-            leaseUntil: new Date(Date.now() + 5 * 60 * 1000),
-            updatedAt: sql`clock_timestamp()`,
-          })
-          .where(eq(exportJobs.id, j.id))
-          .returning();
-        return claimed!;
-      });
+          .set({ status: 'expired', contentBase64: null, downloadHash: null })
+          .where(
+            and(
+              eq(exportJobs.id, item.id),
+              sql`${exportJobs.status}='completed' AND ${exportJobs.expiresAt}<=clock_timestamp()`,
+            ),
+          ),
+      );
+
+      const candidates = await discoverSweepWork(
+        this.db,
+        sql`SELECT id, tenant_id FROM trackroster_claimable_export_jobs(10)`,
+      );
+
+      /*
+       * Candidates are not reservations: the discovery function takes no locks,
+       * so the row is still claimed here with FOR UPDATE SKIP LOCKED under its
+       * own tenant. Two nodes seeing the same candidate resolve exactly as they
+       * did when the claim was a single cross-tenant query — one takes it, the
+       * other moves to the next.
+       */
+      let job: typeof exportJobs.$inferSelect | null = null;
+
+      for (const candidate of candidates) {
+        job = await withTenantContext(this.db, candidate.tenant_id, async (tx) => {
+          const [j] = await tx
+            .select()
+            .from(exportJobs)
+            .where(
+              and(
+                eq(exportJobs.id, candidate.id),
+                sql`${exportJobs.status}='queued' OR (${exportJobs.status}='processing' AND ${exportJobs.leaseUntil}<clock_timestamp())`,
+              ),
+            )
+            .limit(1)
+            .for('update', { skipLocked: true });
+          if (!j) return null;
+          if (j.attempts >= 3) {
+            await tx
+              .update(exportJobs)
+              .set({
+                status: 'failed',
+                failureCode: 'RETRY_LIMIT',
+                leaseId: null,
+                leaseUntil: null,
+              })
+              .where(eq(exportJobs.id, j.id));
+            return null;
+          }
+          const [claimed] = await tx
+            .update(exportJobs)
+            .set({
+              status: 'processing',
+              attempts: j.attempts + 1,
+              leaseId: randomUUID(),
+              leaseUntil: new Date(Date.now() + 5 * 60 * 1000),
+              updatedAt: sql`clock_timestamp()`,
+            })
+            .where(eq(exportJobs.id, j.id))
+            .returning();
+          return claimed!;
+        });
+
+        if (job) break;
+      }
+
       if (!job) return;
       const actor = { tenantId: job.tenantId, membershipId: job.requesterId };
       try {
-        const plan = await this.prepare(actor, this.body(job.request), job.id);
+        /*
+         * prepare() re-resolves authority and scope and then reads the business
+         * rows, all through this.db — which resolves to whatever executor is
+         * ambient. Outside a scope that is the bare pool, so every one of those
+         * reads came back empty and the job could never complete. Serialization
+         * stays outside the scope deliberately: it is the slow part and has no
+         * database work, so holding a transaction across it would pin a
+         * connection for the length of a file build.
+         */
+        const plan = await withTenantContext(this.db, job.tenantId, () =>
+          this.prepare(actor, this.body(job.request), job.id),
+        );
         if (plan.authority.hash !== job.authorityHash)
           throw new ForbiddenException('Export authority changed');
         const file = await this.serializer.serialize({
@@ -362,7 +419,7 @@ export class ExportJobService implements OnModuleInit, OnModuleDestroy {
         });
         if (file.content.length > 20 * 1024 * 1024)
           throw new PayloadTooLargeException('Export file exceeds 20 MiB');
-        await this.db.transaction(async (tx) => {
+        await withTenantContext(this.db, job.tenantId, async (tx) => {
           await this.lock(actor, tx);
           const authority = await this.authority(actor, tx);
           if (authority.hash !== job.authorityHash)
@@ -398,28 +455,33 @@ export class ExportJobService implements OnModuleInit, OnModuleDestroy {
             );
         });
       } catch (e) {
-        await this.db
-          .update(exportJobs)
-          .set({
-            status: 'failed',
-            failureCode:
-              e instanceof ForbiddenException
-                ? 'AUTHORIZATION_CHANGED'
-                : e instanceof PayloadTooLargeException
-                  ? 'EXPORT_LIMIT'
-                  : 'GENERATION_FAILED',
-            leaseId: null,
-            leaseUntil: null,
-            contentBase64: null,
-            updatedAt: sql`clock_timestamp()`,
-          })
-          .where(
-            and(
-              eq(exportJobs.id, job.id),
-              eq(exportJobs.status, 'processing'),
-              eq(exportJobs.leaseId, job.leaseId!),
+        /* The failure record belongs to the job's tenant too — writing it
+           without the scope would silently record nothing and leave the job
+           stuck in `processing` until its lease expired. */
+        await withTenantContext(this.db, job.tenantId, (tx) =>
+          tx
+            .update(exportJobs)
+            .set({
+              status: 'failed',
+              failureCode:
+                e instanceof ForbiddenException
+                  ? 'AUTHORIZATION_CHANGED'
+                  : e instanceof PayloadTooLargeException
+                    ? 'EXPORT_LIMIT'
+                    : 'GENERATION_FAILED',
+              leaseId: null,
+              leaseUntil: null,
+              contentBase64: null,
+              updatedAt: sql`clock_timestamp()`,
+            })
+            .where(
+              and(
+                eq(exportJobs.id, job.id),
+                eq(exportJobs.status, 'processing'),
+                eq(exportJobs.leaseId, job.leaseId!),
+              ),
             ),
-          );
+        );
       }
     } finally {
       this.running = false;

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
+import { discoverSweepWork, sweepByTenant } from '../database/tenant-sweep.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import { reservationRecords, reservationEvents } from '../database/schema/index.js';
 import { RedisService } from '../redis/redis.service.js';
@@ -192,26 +193,38 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
     if (this.busy) return;
     this.busy = true;
     try {
-      const rows = await this.db
-        .select({ id: reservationRecords.id, tenantId: reservationRecords.tenantId })
-        .from(reservationRecords)
-        .where(inArray(reservationRecords.status, ['pending', 'active']))
-        .orderBy(reservationRecords.updatedAt, reservationRecords.id)
-        .limit(100);
-      let failure: unknown;
-      for (const row of rows) {
+      /*
+       * This sweep runs on a timer, so it has no tenant scope, and the backlog
+       * it reconciles is shared across tenants. A context-free read of
+       * reservation_records returns nothing once the policies apply, so
+       * reconciliation stopped happening at all — and unlike the export sweep
+       * nothing here is covered by a test, so it would have stopped in silence.
+       * Discovery is privileged and returns identifiers only; the refresh and
+       * the rotation both run under the record's own tenant. See
+       * tenant-sweep.ts and migration 0078.
+       */
+      const rows = await discoverSweepWork(
+        this.db,
+        sql`SELECT id, tenant_id FROM trackroster_reconcilable_reservations(100)`,
+      );
+
+      await sweepByTenant(this.db, rows, async (row) => {
+        let failure: unknown;
+
         try {
-          await this.refresh(row.tenantId, row.id);
+          await this.refresh(row.tenant_id, row.id);
         } catch (error) {
           failure = error;
         }
+
         // Rotate inspected rows even on a malformed Redis value so one record cannot starve others.
         await this.db
           .update(reservationRecords)
           .set({ updatedAt: sql`clock_timestamp()` })
           .where(eq(reservationRecords.id, row.id));
-      }
-      if (failure) throw failure;
+
+        if (failure) throw failure;
+      });
     } finally {
       this.busy = false;
     }
