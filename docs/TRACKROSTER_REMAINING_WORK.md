@@ -21,17 +21,17 @@ Tenant isolation is now genuinely enforced rather than nominally present, which 
 the single largest gap. The remaining blockers are narrow and well understood: one
 mechanism (tenant context for background work) and one hygiene task (a green gate).
 
-| Gate                       | Result                                                  |
-| -------------------------- | ------------------------------------------------------- |
-| `pnpm format:check`        | **PASS**                                                |
-| `pnpm typecheck`           | **PASS** — 5/5 packages                                 |
-| `pnpm build`               | **PASS** — 4/4 tasks                                    |
-| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain                 |
-| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)            |
-| api unit                   | **741 passed / 5 failed**                               |
-| api integration            | **575 passed / 7 failed** — all 7 pre-existing          |
-| worker unit                | **63 passed / 2 failed** — pre-existing, newly measured |
-| web                        | **494 passed / 0 failed**                               |
+| Gate                       | Result                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm format:check`        | **PASS**                                                                                                                                                |
+| `pnpm typecheck`           | **PASS** — 5/5 packages                                                                                                                                 |
+| `pnpm build`               | **PASS** — 4/4 tasks                                                                                                                                    |
+| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain                                                                                                                 |
+| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)                                                                                                            |
+| api unit                   | **741 passed / 5 failed**                                                                                                                               |
+| api integration            | **573–575 passed / 7–9 failed** — none attributable to the runtime role; the spread is two mail-dependent suites that are intermittently flaky (TR-910) |
+| worker unit                | **63 passed / 2 failed** — pre-existing, newly measured                                                                                                 |
+| web                        | **494 passed / 0 failed**                                                                                                                               |
 
 Tenant isolation and concurrency suites, run individually:
 
@@ -264,12 +264,12 @@ during password recovery. Fixed by 0075.
 
 ## Testing readiness
 
-| Suite           | Passing | Failing | Notes                                                                 |
-| --------------- | ------- | ------- | --------------------------------------------------------------------- |
-| api unit        | 741     | 5       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)           |
-| api integration | 575     | 7       | all pre-existing; TR-902's 5 cleared, plus 1 of the 8                 |
-| worker unit     | 63      | 2       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured |
-| web             | 494     | 0       |                                                                       |
+| Suite           | Passing | Failing | Notes                                                                                                                                            |
+| --------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| api unit        | 741     | 5       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)                                                                                      |
+| api integration | 573–575 | 7–9     | none from the runtime role; TR-902's 5 cleared plus 1 of the 8. The spread is TR-910 flakiness in `password-recovery` and `invitations-security` |
+| worker unit     | 63      | 2       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured                                                                            |
+| web             | 494     | 0       |                                                                                                                                                  |
 
 Gaps with no meaningful behavioural test: import deduplication against the dossier's
 key set, notification channel matrix, worker tenant isolation, Redis-unavailable
@@ -449,16 +449,16 @@ value but never used`, plus 10 `no-explicit-any` warnings. 8 integration failure
 
 ### P2
 
-| ID     | Module        | Problem                                                                 | Evidence                                                                   | Work                                                                              | Tests                                 | Est.   |
-| ------ | ------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------- | ------ |
-| TR-908 | reporting     | Territory dimension missing from dashboard filters                      | filters cover period, org, team, user, campaign                            | add territory to scope resolution and queries                                     | scope test per role                   | 4–6 h  |
-| TR-909 | consents      | Concurrent-opposition race lets an activity bypass a new block          | `consents` test fails as owner and as app role                             | diagnose; likely needs lock ordering or a stricter isolation level                | the existing failing test             | 4–8 h  |
-| TR-910 | email         | Mailpit not in Compose; recovery-token delivery is flaky                | `invitations-security` password-policy case fails ~3 in 10 on mailbox read | add Mailpit as a Compose service; make `emailedToken` poll with a deadline        | the flaky test, 20 consecutive passes | 2–4 h  |
-| TR-911 | reservations  | Redis lock has no PostgreSQL backstop                                   | audit §8                                                                   | add an advisory-lock fallback                                                     | Redis-unavailable test                | 6–8 h  |
-| TR-912 | observability | No structured logging, metrics or tracing                               | no `pino`/`winston`/OpenTelemetry in `apps/api`; no logger in `main.ts`    | structured request logging with tenant and request id, `/metrics`, error tracking | log assertion test                    | 8–12 h |
-| TR-913 | audit         | Audit-row immutability under the app role unverified                    | audit §22                                                                  | `REVOKE UPDATE, DELETE` on `audit_events` from the runtime role                   | test that an update fails             | 2–3 h  |
-| TR-914 | database      | 0071/0073 are one-shot; a new `tenant_id` table silently gets no policy | both iterate `information_schema` once                                     | assert catalogue coverage in `tenant-rls`, or add an event trigger                | coverage test over `pg_class`         | 2–3 h  |
-| TR-915 | storage       | Object storage failure paths untested                                   | `providers/object-storage.service.ts` has no failure tests                 | add unavailable/partial-write tests                                               | those tests                           | 3–5 h  |
+| ID     | Module        | Problem                                                                 | Evidence                                                                                                                                                                                                                                                                      | Work                                                                                               | Tests                                            | Est.   |
+| ------ | ------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------ |
+| TR-908 | reporting     | Territory dimension missing from dashboard filters                      | filters cover period, org, team, user, campaign                                                                                                                                                                                                                               | add territory to scope resolution and queries                                                      | scope test per role                              | 4–6 h  |
+| TR-909 | consents      | Concurrent-opposition race lets an activity bypass a new block          | `consents` test fails as owner and as app role                                                                                                                                                                                                                                | diagnose; likely needs lock ordering or a stricter isolation level                                 | the existing failing test                        | 4–8 h  |
+| TR-910 | email         | Mailpit not in Compose; recovery-token delivery is flaky                | `invitations-security` (1 case) and `password-recovery` (3 cases) fail intermittently on a mailbox read. Both pass in isolation and fail when run after other suites, so it is delivery timing and accumulated state, not logic. Observed before TR-902, so not caused by it. | add Mailpit as a Compose service; make `emailedToken` poll with a deadline instead of reading once | both suites, 20 consecutive passes in a full run | 3–5 h  |
+| TR-911 | reservations  | Redis lock has no PostgreSQL backstop                                   | audit §8                                                                                                                                                                                                                                                                      | add an advisory-lock fallback                                                                      | Redis-unavailable test                           | 6–8 h  |
+| TR-912 | observability | No structured logging, metrics or tracing                               | no `pino`/`winston`/OpenTelemetry in `apps/api`; no logger in `main.ts`                                                                                                                                                                                                       | structured request logging with tenant and request id, `/metrics`, error tracking                  | log assertion test                               | 8–12 h |
+| TR-913 | audit         | Audit-row immutability under the app role unverified                    | audit §22                                                                                                                                                                                                                                                                     | `REVOKE UPDATE, DELETE` on `audit_events` from the runtime role                                    | test that an update fails                        | 2–3 h  |
+| TR-914 | database      | 0071/0073 are one-shot; a new `tenant_id` table silently gets no policy | both iterate `information_schema` once                                                                                                                                                                                                                                        | assert catalogue coverage in `tenant-rls`, or add an event trigger                                 | coverage test over `pg_class`                    | 2–3 h  |
+| TR-915 | storage       | Object storage failure paths untested                                   | `providers/object-storage.service.ts` has no failure tests                                                                                                                                                                                                                    | add unavailable/partial-write tests                                                                | those tests                                      | 3–5 h  |
 
 ### P3
 
@@ -482,7 +482,7 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 | #   | ID     | Priority | Title                                 | Est.    |
 | --- | ------ | -------- | ------------------------------------- | ------- |
 | 1   | TR-904 | P0       | Restore a green gate                  | 12–20 h |
-| 2   | TR-910 | P2       | Mailpit in Compose (do before TR-904) | 2–4 h   |
+| 2   | TR-910 | P2       | Mailpit in Compose (do before TR-904) | 3–5 h   |
 | 3   | TR-914 | P2       | RLS catalogue coverage guard          | 2–3 h   |
 | 4   | TR-913 | P2       | Audit immutability under the app role | 2–3 h   |
 | 5   | TR-906 | P1       | Backup and rehearsed restore          | 8–12 h  |
