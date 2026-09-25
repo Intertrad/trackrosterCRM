@@ -3,9 +3,9 @@ import { FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/ui/cn';
 
 /*
- * Marks a screen whose figures come from src/lib/fixtures/manager-preview.ts
- * rather than the API. Without this a reviewer could read placeholder numbers
- * as production data, which is the one way a design-first build goes wrong.
+ * Marks a screen whose figures are placeholders rather than API data. Without
+ * this a reviewer could read placeholder numbers as production data, which is
+ * the one way a design-first build goes wrong.
  */
 export function PreviewNotice({ className }: { className?: string }) {
   return (
