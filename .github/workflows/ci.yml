@@ -17,7 +17,15 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
+      # The application connects as the non-privileged runtime role, so the
+      # tenant RLS policies apply to it here exactly as they do in a deployed
+      # environment. Pointing this at the owner instead would leave the
+      # policies inert and the gate would prove nothing about tenant
+      # isolation — tenant-rls.integration.spec.ts fails when it is.
+      DATABASE_URL: postgresql://trackroster_app:trackroster_app@127.0.0.1:5432/trackroster
+      # The owner. DDL and cross-tenant fixture seeding only.
+      DATABASE_MIGRATION_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
+      DATABASE_SEED_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
       REDIS_URL: redis://127.0.0.1:6379
       NODE_ENV: test
       JWT_ACCESS_SECRET: trackroster-ci-access-secret-0123456789-abcdefghijklmnopqrstuvwxyz
@@ -70,6 +78,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Provision the non-privileged runtime role
+        # The service container does not read
+        # infrastructure/docker/postgres/init, which is what provisions this
+        # role for local development, so it is applied explicitly. Idempotent.
+        run: |
+          PGPASSWORD=trackroster psql \
+            -h 127.0.0.1 -p 5432 -U trackroster -d trackroster \
+            -v ON_ERROR_STOP=1 \
+            -f infrastructure/docker/postgres/init/01-runtime-role.sql
 
       - name: Verify migration integrity
         run: pnpm db:migrations:check
