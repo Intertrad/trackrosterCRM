@@ -357,6 +357,43 @@ describe('Prospect consent and opposition', () => {
     expect(replay.statusCode, replay.body).toBe(409);
     expect(replay.json().code).toBe('CONTACT_BLOCKED');
   });
+  it('evaluates opposition against the live clock, so a lock wait cannot be outrun', async () => {
+    /*
+     * The behavioural case below is the real assertion; this one names the
+     * reason it can fail, because it has already regressed once.
+     *
+     * 0038 made trackroster_consent_blocked VOLATILE and moved it to
+     * clock_timestamp() precisely so the guard decides after its lock wait.
+     * 0060 then extended it to follow merge families and rewrote it as STABLE
+     * with statement_timestamp(), which silently reinstated the bypass: the
+     * guard asked what was blocked when its statement started rather than what
+     * is blocked now, and answered honestly. 0080 restored it.
+     *
+     * A redefinition that drops either property brings the bypass back, so both
+     * are asserted here — a failure points at the cause instead of at a race.
+     */
+    const definition = await db.execute<{ volatility: string; body: string }>(
+      sql`select case p.provolatile when 'v' then 'VOLATILE' when 's' then 'STABLE' when 'i' then 'IMMUTABLE' end as volatility,
+                 pg_get_functiondef(p.oid) as body
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and p.proname = 'trackroster_consent_blocked'`,
+    );
+    const consentBlocked = definition.rows[0];
+
+    expect(consentBlocked, 'trackroster_consent_blocked must exist').toBeDefined();
+    expect(consentBlocked!.volatility, 'must be VOLATILE or the planner inlines it').toBe(
+      'VOLATILE',
+    );
+    expect(
+      consentBlocked!.body,
+      'must resolve against clock_timestamp(), not the statement clock',
+    ).toContain('clock_timestamp()');
+    expect(
+      consentBlocked!.body,
+      'statement_timestamp() is what made an activity outrun a concurrent opposition',
+    ).not.toContain('statement_timestamp()');
+  });
+
   it('serializes an activity behind concurrent opposition so it cannot bypass the new block', async () => {
     let pending!: Promise<unknown>;
     await db.transaction(async (tx) => {
