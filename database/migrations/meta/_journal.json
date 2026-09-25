@@ -547,6 +547,13 @@
       "when": 1790326738995,
       "tag": "0077_pending_action_effects",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1790335441576,
+      "tag": "0078_background_sweep_discovery",
+      "breakpoints": true
     }
   ]
 }
