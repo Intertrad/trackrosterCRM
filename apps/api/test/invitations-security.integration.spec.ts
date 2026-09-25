@@ -6,6 +6,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
+import { readTokenFromMessage, waitForNewMessage } from './support/mailbox.js';
 import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -57,24 +58,12 @@ describe('Invitations and tenant security settings', () => {
       headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), 'idempotency-key': key },
     });
   async function emailedToken(email: string) {
-    // Deliver all currently queued messages (other tests can run concurrently).
-    let id: string | undefined;
-    for (let i = 0; i < 20; i++) {
-      await mail.dispatchPending();
-      const result = (await (
-        await fetch(
-          `${process.env.MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
-        )
-      ).json()) as { messages: { ID: string }[] };
-      id = result.messages.find((row) => !messageIds.includes(row.ID))?.ID;
-      if (id) break;
-    }
-    expect(id).toBeDefined();
-    messageIds.push(id!);
-    const detail = (await (
-      await fetch(`${process.env.MAILPIT_URL}/api/v1/message/${id}`)
-    ).json()) as { Text: string };
-    return /#token=([A-Za-z0-9_-]{43})/.exec(detail.Text)![1]!;
+    const id = await waitForNewMessage(email, {
+      deliver: () => mail.dispatchPending(),
+      seen: messageIds,
+    });
+
+    return readTokenFromMessage(id);
   }
   async function enableMfa(email: string, access: string) {
     const enrollment = await request('/auth/mfa/enroll', { password }, access);

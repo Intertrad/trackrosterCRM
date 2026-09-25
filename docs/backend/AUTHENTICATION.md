@@ -4,7 +4,7 @@ Implemented on 2026-09-22. Frontend pages are outside this stage. These APIs sup
 
 ## Local configuration
 
-Use the existing disposable stack with `docker compose -p trackroster-backend-validation -f docker-compose.backend-test.yml up -d`. Mailpit is available at http://127.0.0.1:58025. It captures messages locally; no external SMTP relay is configured.
+The main stack now provides Mailpit itself: `docker compose up -d` publishes it at http://127.0.0.1:58025, so account email works without a second stack. The disposable backend-validation stack (`docker compose -p trackroster-backend-validation -f docker-compose.backend-test.yml up -d`) still carries its own Mailpit on that same port, so run one mailbox at a time. It captures messages locally; no external SMTP relay is configured.
 
 For an ordinary development API instance, configure:
 

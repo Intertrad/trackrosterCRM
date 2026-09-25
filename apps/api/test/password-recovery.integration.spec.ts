@@ -19,6 +19,7 @@ import {
 import { PasswordService } from '../src/auth/password.service.js';
 import { AuthMailService } from '../src/auth/auth-mail.service.js';
 import { tokenHash } from '../src/auth/mfa-crypto.js';
+import { readTokenFromMessage, waitForNewMessage } from './support/mailbox.js';
 
 describe('Password recovery with a local mailbox', () => {
   let app: NestFastifyApplication, db: Database, mail: AuthMailService;
@@ -81,17 +82,16 @@ describe('Password recovery with a local mailbox', () => {
     expect(unknown.statusCode).toBe(202);
     expect(known.json()).toEqual(unknown.json());
     expect(known.json().token).toBeUndefined();
-    await mail.dispatchPending();
-    const search = await fetch(
-      `${process.env.MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
-    );
-    const messages = (await search.json()) as { messages: { ID: string }[] };
-    expect(messages.messages).toHaveLength(1);
-    messageIds.push(messages.messages[0]!.ID);
-    const detail = (await (
-      await fetch(`${process.env.MAILPIT_URL}/api/v1/message/${messageIds[0]}`)
-    ).json()) as { Text: string };
-    token = /#token=([A-Za-z0-9_-]{43})/.exec(detail.Text)![1]!;
+    /*
+     * Polled rather than read once: this dispatched, searched and asserted on a
+     * length in a single turn, so it failed whenever delivery or Mailpit's
+     * indexing had not caught up yet.
+     */
+    const messageId = await waitForNewMessage(email, {
+      deliver: () => mail.dispatchPending(),
+      seen: messageIds,
+    });
+    token = await readTokenFromMessage(messageId);
     const rows = await db
       .select()
       .from(authPasswordResets)
