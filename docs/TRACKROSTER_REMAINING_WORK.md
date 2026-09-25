@@ -440,19 +440,65 @@ worked, because visibility was never the problem.
 a redefinition dropping either fails with a message naming the cause rather than as a
 race. Verified by reapplying 0060's definition and watching it go red.
 
-##### TR-916 — The reservation "durable intent" is not durable _(P1, new)_
+##### TR-916 — The reservation "durable intent" is not durable _(P1)_
 
-- **Evidence:** `reservation-lifecycle` > "fails before Redis on intent failure and
-  recovers uncertain claim confirmation" fails 3 of 3. With `ledger.confirm` forced
-  to reject, `repo.findCurrent` returns a lease from Redis while
-  `reservation_records` has **no row at all**, so the test dereferences undefined.
-- **Diagnosis:** `prepare()` writes the intent inside the request transaction, so a
-  failing `confirm` rolls it back. Redis keeps the lease, Postgres keeps nothing, and
-  `reconcile()` has nothing to promote — the uncertain-claim recovery the design
-  depends on cannot work.
-- **Work required:** commit the intent in its own transaction, before Redis is
-  touched, so an uncertain confirm leaves a reconcilable row.
-- **Estimate:** **8–14 h**
+**Attempted and reverted on 2026-09-25.** The obvious fix deadlocks. That is worth more
+than the attempt, so it is recorded here with the evidence.
+
+- **Evidence of the defect:** `reservation-lifecycle` > "fails before Redis on intent
+  failure and recovers uncertain claim confirmation" fails 3 of 3. With `ledger.confirm`
+  forced to reject, `repo.findCurrent` returns a lease from Redis while
+  `reservation_records` has **no row**, so the test dereferences undefined.
+- **Diagnosis:** the claim writes the intent, acquires a Redis lease, then confirms —
+  deliberately in that order, so a failure after the acquisition leaves something to
+  reconcile. But `prepare()` writes inside the request transaction, so a failing
+  `confirm` rolls the intent back while Redis keeps the lease. `refresh()` is written
+  correctly and would promote a `pending` record whose lease is live; it never finds one.
+
+**Why the obvious fix does not work.** Committing the intent on its own pooled connection
+(an autonomous transaction) hangs the claim path. Measured, not predicted:
+
+```
+pid 18133  active               insert into "reservation_records" …   Lock/transactionid
+pid 18135  idle in transaction  select "campaign_prospect_assignments" …   ← blocker
+pg_blocking_pids(18133) = {18135}
+```
+
+18135 is the request transaction; it is idle because it is awaiting `prepare`. 18133 is the
+intent write, waiting for 18135 to end. Postgres cannot see the application-level edge, so
+there is no deadlock to detect and it **hangs until the test timeout** rather than erroring.
+Three other cases in that suite broke the same way, and `afterAll` timed out because the
+connection was never released.
+
+The overlap is inherent rather than incidental: `reservation_records` carries the
+`campaign_open_work_guard` trigger, which takes `campaigns … FOR SHARE` and
+`establishments … FOR SHARE OF e`. `FOR SHARE` conflicts with `FOR NO KEY UPDATE`, which
+is what the claim path already holds. So any second connection inserting that row while
+the request is mid-flight can block on the request itself. The table's own constraints are
+not the problem — it has a single FK, to `tenants`, needing only `FOR KEY SHARE`.
+
+**Two designs that can work:**
+
+1. _An intent log with no trigger_ — lowest risk. Append the intent to a dedicated
+   table carrying only a `tenants` FK and no guard trigger, so an independent write needs
+   only `FOR KEY SHARE` and cannot block on the request. Reconciliation reads that log and
+   materialises or repairs `reservation_records`. Deadlock-free by construction; costs a
+   table and a change to `reconcile`.
+2. _Take the claim out of the request-wide transaction_ — most correct. A handler that
+   performs an irreversible external side effect cannot be atomic with it, so wrapping it
+   in one transaction is the actual mistake. Let this route opt out
+   (`TenantTransactionInterceptor` would need to honour a decorator) and have the claim
+   manage its own transactions, making the intent commit genuinely top-level. Larger
+   change, and the handler's other writes lose their shared atomicity, which has to be
+   reasoned about rather than assumed.
+
+Do not retry the naive autonomous transaction. It is the third thing in this codebase that
+looked like a one-line fix and was not.
+
+- **Tests required:** the existing case, plus one asserting the claim path does not block
+  when the intent is written while the request holds its locks.
+- **Estimate:** **10–16 h** for design 1, **16–24 h** for design 2 (raised from 8–14 h:
+  the simple version is now known not to work).
 
 ##### The lint error is still not mine to fix
 
@@ -557,7 +603,7 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 
 | #   | ID     | Priority | Title                                     | Est.    |
 | --- | ------ | -------- | ----------------------------------------- | ------- |
-| 1   | TR-916 | P1       | Reservation durable intent is not durable | 8–14 h  |
+| 1   | TR-916 | P1       | Reservation durable intent is not durable | 10–16 h |
 | 2   | TR-918 | P2       | Tenant mutex deadlock at 6 more sites     | 6–10 h  |
 | 3   | TR-917 | P2       | Mail delivery throughput                  | 4–6 h   |
 | 4   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
@@ -647,8 +693,9 @@ request transaction, so a failing confirm rolls it back and leaves Redis holding
 that Postgres cannot reconcile — the uncertain-claim recovery the design depends on
 cannot work. The integration suite runs **579–582 of 583**, with TR-916 the only stable failure; the
 spread is `password-recovery` losing its race against the shared mail backlog, which is
-TR-917 and is a throughput defect rather than a second blocker. Estimated **8–14 h** to a
-defensible pilot, or **12–20 h** to a gate that is green every run.
+TR-917 and is a throughput defect rather than a second blocker. Estimated **10–16 h** to a
+defensible pilot, or **14–22 h** to a gate that is green every run — raised because the
+straightforward fix for TR-916 is now known to deadlock.
 
 ## Production readiness
 
@@ -658,21 +705,27 @@ Estimated **145–225 h** total.
 
 ## Next ticket to implement
 
-**TR-916 — Make the reservation's durable intent actually durable.**
+**TR-916 — Make the reservation's durable intent durable, via an intent log.**
 
-The last integration failure, and the last pilot blocker. `prepare()` writes the intent
-inside the request transaction, so when `confirm` fails the intent rolls back with it:
-Redis keeps the lease, `reservation_records` has no row, and `reconcile()` has nothing to
-promote. The test dereferences undefined precisely there, which is why it read as a test
-bug for so long.
+Still the last stable integration failure and the last pilot blocker, but the shape of the
+work is now known. `prepare()` writes the intent inside the request transaction, so a
+failing `confirm` rolls it back: Redis keeps the lease, `reservation_records` has no row,
+and `reconcile()` has nothing to promote.
 
-More mechanical than TR-909 was: commit the intent in its own transaction, before Redis
-is touched, so an uncertain confirm leaves a row that reconciliation can find. Watch the
-ordering — the point of writing it first is that it survives everything after it — and
-check what `reconcile()` expects to find, since it is the other half of the contract and
-is now exercised by the sweep work from TR-902.
+**Read TR-916 above before starting.** The obvious fix — committing the intent on its own
+connection — was attempted and reverted this session because it hangs the claim path, with
+the `pg_blocking_pids` evidence recorded there. `reservation_records` carries a guard
+trigger that takes `FOR SHARE` on `campaigns` and `establishments`, which conflicts with
+locks the request already holds, and Postgres cannot see the application-level cycle, so it
+does not error — it hangs.
+
+Take design 1: an append-only intent table with no guard trigger and only a `tenants`
+foreign key, which an independent write can reach needing just `FOR KEY SHARE`. Have
+`reconcile()` read it. Design 2 — taking the claim out of the request-wide transaction — is
+more correct and worth considering if this path is going to keep growing, since a handler
+that performs an irreversible external side effect cannot meaningfully be atomic with it.
 
 After it, the backend is pilot-ready on the evidence available: tenant isolation,
 background work, authorization, evidence immutability, anti-collision concurrency,
-idempotency and consent enforcement are all verified, with a green gate apart from one
-line of lint WIP that belongs to someone else.
+idempotency and consent enforcement are all verified, with a green gate apart from TR-917's
+mail flakiness and one line of lint WIP that belongs to someone else.
