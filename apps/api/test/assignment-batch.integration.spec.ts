@@ -8,7 +8,7 @@ import { configureHttpApplication } from '../src/config/http-application.js';
 import { DATABASE } from '../src/database/database.constants.js';
 import { getSeedDatabase } from './support/seed.js';
 import { withTenantContext } from '../src/database/tenant-context.js';
-import type { Database } from '../src/database/database.types.js';
+import type { Database, DatabaseTransaction } from '../src/database/database.types.js';
 import {
   auditEvents,
   assignmentRules,
@@ -613,22 +613,49 @@ describe('Bulk assignment and saved rules', () => {
     const rule = (await createRule()).json();
     const ids = [await prospect(), await prospect()];
     const original = applicationDb.transaction.bind(applicationDb);
+    let auditWrites = 0;
+
+    /*
+     * The wrapper has to re-wrap nested transactions, and that is the whole
+     * difficulty here.
+     *
+     * The interceptor opens the request's transaction, and the batch service
+     * then opens its own inside it, which PostgreSQL makes a savepoint. A proxy
+     * that only intercepts `insert` hands back the *real* executor for
+     * `transaction`, so every write the service performed through that inner
+     * executor went straight past the counter and the synthetic failure never
+     * fired — the batch simply succeeded and the case read as a missing
+     * rollback. Repositories resolve their executor through AsyncLocalStorage
+     * rather than taking one as an argument, so there is no other seam to inject
+     * at from outside.
+     */
+    const withFailingAudit = (executor: DatabaseTransaction): DatabaseTransaction =>
+      new Proxy(executor, {
+        get(target, key, receiver) {
+          if (key === 'insert')
+            return (table: Parameters<Database['insert']>[0]) => {
+              if (table === auditEvents && ++auditWrites === 2)
+                throw new Error('Synthetic audit storage failure');
+
+              return target.insert(table);
+            };
+
+          if (key === 'transaction')
+            return (
+              nested: (transaction: DatabaseTransaction) => Promise<unknown>,
+              nestedConfig?: unknown,
+            ) =>
+              (target.transaction as (...args: unknown[]) => Promise<unknown>)(
+                (inner: DatabaseTransaction) => nested(withFailingAudit(inner)),
+                nestedConfig,
+              );
+
+          return Reflect.get(target, key, receiver);
+        },
+      }) as DatabaseTransaction;
+
     vi.spyOn(applicationDb, 'transaction').mockImplementation((callback, config) =>
-      original(async (tx) => {
-        let auditWrites = 0;
-        const wrapped = new Proxy(tx, {
-          get(target, key, receiver) {
-            if (key === 'insert')
-              return (table: Parameters<Database['insert']>[0]) => {
-                if (table === auditEvents && ++auditWrites === 2)
-                  throw new Error('Synthetic audit storage failure');
-                return target.insert(table);
-              };
-            return Reflect.get(target, key, receiver);
-          },
-        });
-        return callback(wrapped);
-      }, config),
+      original(async (tx) => callback(withFailingAudit(tx)), config),
     );
     const result = await batch(ids, { ruleId: rule.id });
     expect(result.statusCode, result.body).toBe(500);
