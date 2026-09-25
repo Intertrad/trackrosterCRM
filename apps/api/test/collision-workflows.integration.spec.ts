@@ -14,6 +14,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
+import { DATABASE } from '../src/database/database.constants.js';
 import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -43,7 +44,7 @@ import {
 } from '../src/database/schema/index.js';
 import { PasswordService } from '../src/auth/password.service.js';
 describe('Collision evidence and override request workflows', () => {
-  let app: NestFastifyApplication, db: Database;
+  let app: NestFastifyApplication, db: Database, applicationDb: Database;
   const tenantId = randomUUID(),
     foreignTenantId = randomUUID(),
     admin = randomUUID(),
@@ -97,6 +98,14 @@ describe('Collision evidence and override request workflows', () => {
     await configureHttpApplication(app);
     await app.init();
     db = getSeedDatabase();
+
+    /*
+     * Immutability is enforced by revoking UPDATE and DELETE from the runtime
+     * role (migration 0079), so it has to be asserted through the connection the
+     * application uses. The seed connection is the owner and keeps the privilege,
+     * which is why this assertion passed a rewrite straight through.
+     */
+    applicationDb = app.get(DATABASE);
     app.get(ActionEffectsService).onModuleDestroy();
     await db
       .insert(tenants)
@@ -350,11 +359,13 @@ describe('Collision evidence and override request workflows', () => {
     expect(first.json()).toMatchObject({ reasonCode: 'RECENT_CONTACT', overrideable: true });
     expect(first.body).not.toContain(activity.id);
     await expect(
-      db
+      applicationDb
         .update(collisionEvents)
         .set({ reasonCode: 'ACTIVE_ASSIGNMENT' })
         .where(eq(collisionEvents.id, eventId)),
-    ).rejects.toThrow();
+      /* 42501 insufficient_privilege: the grant refuses it, not a check or a
+         trigger, so the guarantee holds however the application is written. */
+    ).rejects.toMatchObject({ cause: { code: '42501' } });
     await check();
     const page = await call('GET', '/collision-events?limit=1', undefined, member);
     expect(page.json().items).toHaveLength(1);
