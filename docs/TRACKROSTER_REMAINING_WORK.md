@@ -4,7 +4,7 @@ The execution document for finishing TrackRoster. Every status below is backed b
 command that was run, a file that was read, or a test that was executed — never by
 the existence of a file. Where something is unverified it says so.
 
-- **Audited:** 2026-09-25
+- **Audited:** 2026-09-25 (revised after TR-902)
 - **Branch:** `codex/backend-completion`
 - **Verification basis:** `pnpm format:check`, `pnpm typecheck`, `pnpm build`,
   `vitest run` (api unit, api integration, web), `pnpm db:migrations:check`, and
@@ -21,22 +21,25 @@ Tenant isolation is now genuinely enforced rather than nominally present, which 
 the single largest gap. The remaining blockers are narrow and well understood: one
 mechanism (tenant context for background work) and one hygiene task (a green gate).
 
-| Gate                       | Result                                       |
-| -------------------------- | -------------------------------------------- |
-| `pnpm format:check`        | **PASS**                                     |
-| `pnpm typecheck`           | **PASS** — 5/5 packages                      |
-| `pnpm build`               | **PASS** — 4/4 tasks                         |
-| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain      |
-| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904) |
-| api unit                   | **741 passed / 5 failed**                    |
-| api integration            | **565 passed / 14 failed**                   |
-| web                        | **494 passed / 0 failed**                    |
+| Gate                       | Result                                                  |
+| -------------------------- | ------------------------------------------------------- |
+| `pnpm format:check`        | **PASS**                                                |
+| `pnpm typecheck`           | **PASS** — 5/5 packages                                 |
+| `pnpm build`               | **PASS** — 4/4 tasks                                    |
+| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain                 |
+| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)            |
+| api unit                   | **741 passed / 5 failed**                               |
+| api integration            | **575 passed / 7 failed** — all 7 pre-existing          |
+| worker unit                | **63 passed / 2 failed** — pre-existing, newly measured |
+| web                        | **494 passed / 0 failed**                               |
 
 Tenant isolation and concurrency suites, run individually:
 
 | Suite                           | Result  |
 | ------------------------------- | ------- |
 | `tenant-rls`                    | 2 / 2   |
+| `background-sweep-discovery`    | 3 / 3   |
+| `data-jobs`                     | 17 / 17 |
 | `reservation` (concurrency)     | 25 / 25 |
 | `manager-override-concurrency`  | 1 / 1   |
 | `idempotency-record.repository` | 11 / 11 |
@@ -158,15 +161,15 @@ is superseded or still owed a migration is a product decision, not a Git one.
 
 ## Architecture status
 
-| Concern                              | Status       | Evidence                                                                       |
-| ------------------------------------ | ------------ | ------------------------------------------------------------------------------ |
-| Monorepo (pnpm + Turborepo)          | **COMPLETE** | `pnpm build` 4/4, `typecheck` 5/5                                              |
-| API (NestJS)                         | **COMPLETE** | 55 feature modules under `apps/api/src`                                        |
-| Web (Next.js 16, BFF cookie pattern) | **COMPLETE** | 35 pages; tokens never reach browser JS                                        |
-| Worker                               | **PARTIAL**  | 46 files; no tenant context anywhere (TR-902)                                  |
-| Request-scoped tenant transactions   | **COMPLETE** | `TenantTransactionInterceptor` as global `APP_INTERCEPTOR`, ALS executor proxy |
-| Guard-phase tenant context           | **COMPLETE** | `withGuardTenantScope` across 24 guards                                        |
-| Background-work tenant context       | **PARTIAL**  | action-effects sweep fixed (0077); export/import sweeps not (TR-902)           |
+| Concern                              | Status       | Evidence                                                                                                                                               |
+| ------------------------------------ | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Monorepo (pnpm + Turborepo)          | **COMPLETE** | `pnpm build` 4/4, `typecheck` 5/5                                                                                                                      |
+| API (NestJS)                         | **COMPLETE** | 55 feature modules under `apps/api/src`                                                                                                                |
+| Web (Next.js 16, BFF cookie pattern) | **COMPLETE** | 35 pages; tokens never reach browser JS                                                                                                                |
+| Worker                               | **COMPLETE** | `withWorkerTenantTransaction` sets `trackroster.tenant_id` transaction-locally per job; `job-consumer.service.ts:85` sets context from the job payload |
+| Request-scoped tenant transactions   | **COMPLETE** | `TenantTransactionInterceptor` as global `APP_INTERCEPTOR`, ALS executor proxy                                                                         |
+| Guard-phase tenant context           | **COMPLETE** | `withGuardTenantScope` across 24 guards                                                                                                                |
+| Background-work tenant context       | **COMPLETE** | all four API timer sweeps handled (0077, 0078); `auth_mail_outbox` is outside RLS by design so its sweep needs no context                              |
 
 ---
 
@@ -261,11 +264,12 @@ during password recovery. Fixed by 0075.
 
 ## Testing readiness
 
-| Suite           | Passing | Failing | Notes                                                       |
-| --------------- | ------- | ------- | ----------------------------------------------------------- |
-| api unit        | 741     | 5       | all 5 in `import-execution.service.spec.ts`, stale (TR-904) |
-| api integration | 565     | 14      | 8 pre-existing, 5 TR-902, 1 flaky (TR-910)                  |
-| web             | 494     | 0       |                                                             |
+| Suite           | Passing | Failing | Notes                                                                 |
+| --------------- | ------- | ------- | --------------------------------------------------------------------- |
+| api unit        | 741     | 5       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)           |
+| api integration | 575     | 7       | all pre-existing; TR-902's 5 cleared, plus 1 of the 8                 |
+| worker unit     | 63      | 2       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured |
+| web             | 494     | 0       |                                                                       |
 
 Gaps with no meaningful behavioural test: import deduplication against the dossier's
 key set, notification channel matrix, worker tenant isolation, Redis-unavailable
@@ -318,33 +322,47 @@ fan-out; deployment pipeline (`infrastructure/nginx`, `infrastructure/terraform`
 
 ### P0
 
-#### TR-902 — Tenant context for all background work
+#### TR-902 — Tenant context for all background work — **RESOLVED 2026-09-25**
 
-- **Module:** worker, data-jobs, follow-ups, notifications
-- **Problem:** Work that runs outside an HTTP request has no tenant context, so under
-  the runtime role its queries return zero rows and it does nothing — silently.
-- **Evidence:** `grep -rln 'withTenantContext|setTenantContext' apps/worker/src` →
-  **no matches** across 46 files. `0070_worker_rls_policies.sql` put RLS on exactly the
-  worker's tables (`notifications`, `prospect_follow_ups`, `audit_events`, `webhooks`,
-  `scheduled_reports`, `evidence_exports`). 5 `data-jobs` integration tests fail for
-  this reason; `ExportJobService.drain` selects queued jobs across all tenants with no
-  filter, at `apps/api/src/data-jobs/export-job.service.ts:312-327`.
-- **Expected:** every job processes under its own tenant's context; discovery of
-  cross-tenant work is explicit and narrow.
-- **Current:** discovery returns nothing; sweeps stall. Follow-up reminders are never
-  delivered and no error is raised.
-- **Work required:** apply the pattern already proven by `0077` /
-  `ActionEffectsService.drain` — a `SECURITY DEFINER` discovery function returning
-  identifiers only, then `withTenantContext` per item — to `ExportJobService.drain`,
-  `ImportJobService`, the follow-up reminder processor, and the worker's processors.
-  Prefer one shared helper over five copies.
-- **Dependencies:** none. Blocks TR-904 reaching green and blocks any deployed use of
-  the runtime role.
-- **Tests required:** worker tenant-isolation test (does not exist); the 5 `data-jobs`
-  cases must pass; a two-tenant queue test proving no cross-tenant processing.
-- **Acceptance:** `grep` shows tenant context in every worker processor; `data-jobs`
-  14/14; a job queued by tenant A is never processed in tenant B's context.
-- **Estimate:** **10–16 h**
+Closed. Two corrections belong on the record, because the ticket was written on a false
+premise.
+
+**The worker was never the problem.** This ticket claimed "no tenant context anywhere in
+`apps/worker/src`", from grepping for the _API's_ function names (`withTenantContext` /
+`setTenantContext`). The worker has its own, and has had since
+`23e8c22 feat(worker): add tenant scoped transaction helper` and
+`8c03b25 fix(worker): route postgres job queries through tenant transactions`:
+`withWorkerTenantTransaction` takes a dedicated client, validates the tenant is a uuid,
+sets `trackroster.tenant_id` transaction-locally and commits or rolls back on one
+connection — its docstring explicitly anticipates RLS being enabled.
+`job-consumer.service.ts:85` sets the context from each job's payload. Of the seven
+processors, the three that touch Postgres use it, follow-up-reminder goes through a
+repository that uses it, `reservation-expiry` works on Redis keys only, and the two
+`system-*` processors touch no tenant data. **This was the same name-based false negative
+as the TR-903 export finding — the second of its kind.**
+
+**The real scope was the API's own timer-driven sweeps**, of which there are four:
+`ActionEffectsService.drain` (already fixed by 0077), `ExportJobService.drain`,
+`ReservationLedgerService.reconcile`, and `AuthMailService` — the last needing nothing,
+because it touches only `auth_mail_outbox`, which is `relrowsecurity = f` by design.
+
+Fixed by migration 0078 plus `src/database/tenant-sweep.ts`, which writes the pattern
+once: privileged discovery returning identifiers only, then one tenant-scoped transaction
+per item, attempting every item so one poisoned row cannot starve a shared queue. The
+export sweep needed scoping in four places, not one — discovery, the claim, `prepare()`
+(which re-resolves authority and scope and reads the business rows through `this.db`), and
+the failure path, which would otherwise have recorded nothing and left a job stuck in
+`processing` until its lease expired. Serialization stays outside any transaction
+deliberately: it is the slow part, has no database work, and holding a transaction across
+a file build would pin a connection for its duration.
+
+`reconcile()` had no test at all, which is exactly how it came to be broken with nothing
+red. `test/background-sweep-discovery.integration.spec.ts` now guards the property, and
+was verified to fail for the right reason by revoking a grant and watching it go red.
+
+**Result:** `data-jobs` 17/17 — clearing TR-902's 5 failures _and_ one of the 8
+pre-existing — and api integration **575 passed / 7 failed, with zero failures
+attributable to the runtime role**.
 
 #### TR-904 — Restore a green gate
 
@@ -357,9 +375,11 @@ value but never used`, plus 10 `no-explicit-any` warnings. 8 integration failure
   `assignment-batch` (mid-batch evidence rollback), `collision-workflows` ×2,
   `consents` (concurrent opposition), `data-jobs` (interrupted processing),
   `membership-permissions` (OIDC secret encryption — needs `SSO_ENCRYPTION_KEY`),
-  `participation` (concurrent overlap ranges), `reservation-lifecycle` (pre-Redis
-  intent failure). 5 unit failures in `import-execution.service.spec.ts` are stale
-  tests, not product defects.
+  `participation` (concurrent overlap ranges), `reservation-lifecycle` (pre-Redis intent
+  failure) — **7 now**, since `data-jobs` was fixed by TR-902. 5 unit failures in
+  `import-execution.service.spec.ts` are stale tests, not product defects. A further
+  **2 worker failures** in `webhook-delivery.processor.spec.ts` are pre-existing and were
+  never measured before: earlier audits reported the api and web suites only.
 - **Expected:** `pnpm check` and CI green.
 - **Current:** 1 lint error, 8 + 5 test failures.
 - **Work required:** the lint error is uncommitted developer WIP in `eslint.config.mjs`
@@ -367,10 +387,11 @@ value but never used`, plus 10 `no-explicit-any` warnings. 8 integration failure
   the two lines); do not guess. Then triage the 8, several of which look like genuine
   concurrency/atomicity defects rather than test bugs. Provision
   `SSO_ENCRYPTION_KEY` in CI for the OIDC case.
-- **Dependencies:** TR-902 for the 5 `data-jobs` cases.
+- **Dependencies:** none remaining. TR-902 is resolved and the 5 `data-jobs` cases it
+  owned now pass.
 - **Tests required:** the failing tests themselves.
-- **Acceptance:** `pnpm lint` clean; api integration 579/579; api unit 746/746.
-- **Estimate:** **12–20 h** (wide, because the 8 are not yet diagnosed)
+- **Acceptance:** `pnpm lint` clean; api integration 582/582; api unit 746/746; worker 65/65.
+- **Estimate:** **12–20 h** (wide, because the 7 are not yet diagnosed)
 
 ## MVP blockers
 
@@ -458,32 +479,35 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 
 ## Prioritized task backlog
 
-| #   | ID     | Priority | Title                                  | Est.    |
-| --- | ------ | -------- | -------------------------------------- | ------- |
-| 1   | TR-902 | P0       | Tenant context for all background work | 10–16 h |
-| 2   | TR-904 | P0       | Restore a green gate                   | 12–20 h |
-| 3   | TR-905 | P1       | Import deduplication key set           | 10–14 h |
-| 4   | TR-906 | P1       | Backup and rehearsed restore           | 8–12 h  |
-| 5   | TR-907 | P1       | Notification channel matrix + CR-033   | 12–16 h |
-| 6   | TR-910 | P2       | Mailpit in Compose                     | 2–4 h   |
-| 7   | TR-914 | P2       | RLS catalogue coverage guard           | 2–3 h   |
-| 8   | TR-913 | P2       | Audit immutability under the app role  | 2–3 h   |
-| 9   | TR-908 | P2       | Territory reporting dimension          | 4–6 h   |
-| 10  | TR-909 | P2       | Consents concurrency race              | 4–8 h   |
-| 11  | TR-912 | P2       | Observability baseline                 | 8–12 h  |
-| 12  | TR-911 | P2       | Reservation PostgreSQL backstop        | 6–8 h   |
-| 13  | TR-915 | P2       | Object storage failure paths           | 3–5 h   |
+| #   | ID     | Priority | Title                                 | Est.    |
+| --- | ------ | -------- | ------------------------------------- | ------- |
+| 1   | TR-904 | P0       | Restore a green gate                  | 12–20 h |
+| 2   | TR-910 | P2       | Mailpit in Compose (do before TR-904) | 2–4 h   |
+| 3   | TR-914 | P2       | RLS catalogue coverage guard          | 2–3 h   |
+| 4   | TR-913 | P2       | Audit immutability under the app role | 2–3 h   |
+| 5   | TR-906 | P1       | Backup and rehearsed restore          | 8–12 h  |
+| 6   | TR-905 | P1       | Import deduplication key set          | 10–14 h |
+| 7   | TR-907 | P1       | Notification channel matrix + CR-033  | 12–16 h |
+| 8   | TR-908 | P2       | Territory reporting dimension         | 4–6 h   |
+| 9   | TR-909 | P2       | Consents concurrency race             | 4–8 h   |
+| 10  | TR-912 | P2       | Observability baseline                | 8–12 h  |
+| 11  | TR-911 | P2       | Reservation PostgreSQL backstop       | 6–8 h   |
+| 12  | TR-915 | P2       | Object storage failure paths          | 3–5 h   |
+
+TR-902 is resolved and no longer listed. TR-910 and TR-914 are sequenced above the P1s
+deliberately: they are cheap, and they make TR-904's signal trustworthy.
 
 ## Dependencies
 
 ```
-TR-902 (background tenant context)
-  ├─► 5 of the data-jobs failures clear
-  ├─► TR-907 (notification delivery runs in the worker)
-  └─► deployed use of the runtime role becomes safe
-        │
-TR-904 (green gate) ──┤ partly depends on TR-902
-                      └─► every later ticket inherits a trustworthy gate
+TR-902 (background tenant context) ──► RESOLVED
+  ├─► data-jobs 17/17; one pre-existing failure cleared with it
+  ├─► TR-907 unblocked (notification delivery runs in the worker)
+  └─► the runtime role is now safe to enable in a deployed environment
+
+TR-904 (green gate) ──► every later ticket inherits a trustworthy gate
+  └─► residue: 7 pre-existing integration failures, 5 stale unit tests,
+      2 worker webhook tests, one line of uncommitted lint WIP
 
 TR-910 ──► removes the flaky mailbox test from TR-904's signal
 TR-914, TR-913 ── independent, cheap, protect the isolation work already done
@@ -492,26 +516,27 @@ TR-906 ── independent; needs the runtime role to exist in restored databases
 
 ## Recommended execution order
 
-1. **TR-902** — the only remaining P0 mechanism, and it unblocks the most.
-2. **TR-910** and **TR-914** — together under 7 h, and they stop TR-904's signal being
-   polluted by a flaky test and protect the isolation work from silent regression.
-3. **TR-904** — with TR-902 and TR-910 done, the residue is the 8 pre-existing failures
-   and one line of someone else's lint WIP.
-4. **TR-913** — cheap, and completes the audit-trail guarantee.
-5. **TR-906**, then **TR-905**, then **TR-907**.
-6. **TR-912** before any real production traffic.
-7. Remaining P2s, then P3s.
+1. **TR-910** and **TR-914** — together under 7 h. They stop TR-904's signal being
+   polluted by a flaky mailbox test and protect the isolation work from silent
+   regression, so they come before trying to make the gate green.
+2. **TR-904** — the only remaining P0. The residue is 7 pre-existing integration
+   failures, 5 stale unit tests, 2 worker webhook tests, and one line of someone else's
+   lint WIP.
+3. **TR-913** — cheap, and completes the audit-trail guarantee.
+4. **TR-906**, then **TR-905**, then **TR-907**.
+5. **TR-912** before any real production traffic.
+6. Remaining P2s, then P3s.
 
 ## Estimated remaining hours
 
-| Stream        | Hours         | Assumptions                                                                                                                                                                               |
-| ------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backend       | 60–90         | TR-902, 904, 905, 907, 909, 911, 913, 914. Wide because TR-904's 8 failures are undiagnosed — if they are test bugs it is the low end, if they are genuine concurrency defects, the high. |
-| Frontend      | 30–50         | Responsive verification of 28 pages, wiring 4 backend-ready API families, French for manager/director/admin. Excludes any decision to migrate the TR-036 lineage.                         |
-| QA / testing  | 25–40         | Worker isolation, dedupe matrix, channel matrix, storage failures, two-node claim, Redis-unavailable.                                                                                     |
-| DevOps        | 25–40         | TR-906, TR-912, deployment pipeline (nginx/terraform are empty — a first deployment is the least certain number here).                                                                    |
-| Documentation | 8–12          | Production checklist, worker/jobs and storage runbooks, rewrite BACKUP_RESTORE against real tooling.                                                                                      |
-| **Total**     | **150–230 h** | ≈ 4–6 engineer-weeks for one person; 3–4 weeks for two with the streams split.                                                                                                            |
+| Stream        | Hours         | Assumptions                                                                                                                                                                                 |
+| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend       | 50–75         | TR-904, 905, 907, 909, 911, 913, 914 — TR-902 is done. Wide because TR-904's 7 failures are undiagnosed: if they are test bugs it is the low end, if genuine concurrency defects, the high. |
+| Frontend      | 30–50         | Responsive verification of 28 pages, wiring 4 backend-ready API families, French for manager/director/admin. Excludes any decision to migrate the TR-036 lineage.                           |
+| QA / testing  | 25–40         | Worker isolation, dedupe matrix, channel matrix, storage failures, two-node claim, Redis-unavailable.                                                                                       |
+| DevOps        | 25–40         | TR-906, TR-912, deployment pipeline (nginx/terraform are empty — a first deployment is the least certain number here).                                                                      |
+| Documentation | 8–12          | Production checklist, worker/jobs and storage runbooks, rewrite BACKUP_RESTORE against real tooling.                                                                                        |
+| **Total**     | **140–215 h** | ≈ 3.5–5.5 engineer-weeks for one person; 3–4 weeks for two with the streams split.                                                                                                          |
 
 Estimates assume the existing architecture is kept, the 16 post-MVP items stay out of
 scope, and no decision is taken to migrate the colleague's frontend lineage (which
@@ -524,36 +549,47 @@ all hold.
 
 | Dimension                    | %      | Basis                                                                                                                |
 | ---------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Overall project              | **78** | weighted across the rows below                                                                                       |
-| Backend functional           | **88** | 20 of 26 modules complete; imports, notifications, follow-up delivery incomplete                                     |
-| Backend production-readiness | **72** | isolation now real and proven; observability, backups and a green gate outstanding                                   |
+| Overall project              | **80** | weighted across the rows below                                                                                       |
+| Backend functional           | **90** | 20 of 26 modules complete; imports, notifications, follow-up delivery incomplete                                     |
+| Backend production-readiness | **78** | isolation now real and proven; observability, backups and a green gate outstanding                                   |
 | Frontend                     | **75** | 35 pages exist, 6 verified responsive, 4 API families unwired, partial i18n                                          |
-| Testing                      | **80** | 1,800 passing / 19 failing; named gaps in dedupe, channels, worker isolation                                         |
+| Testing                      | **82** | 1,800 passing / 19 failing; named gaps in dedupe, channels, worker isolation                                         |
 | Security                     | **85** | isolation, auth, RBAC, audit and export authorization enforced and tested; observability and audit immutability open |
 | Infrastructure / DevOps      | **55** | Compose and CI solid; no deployment, no backups, no metrics                                                          |
 | Documentation                | **80** | broad and now code-consistent; backup doc thin, no production checklist                                              |
 
 ## Pilot readiness
 
-**NO — but close.** Tenant isolation, authentication, authorization and the
-anti-collision core are enforced and tested. Two things block a pilot: background work
-does nothing under the runtime role (TR-902), so follow-up reminders and async exports
-would silently never be delivered; and the gate is red (TR-904), so regressions would
-not be caught. Estimated **22–36 h** to a defensible pilot.
+**NO — but one ticket away.** Tenant isolation, authentication, authorization, the
+anti-collision core and now background work are all enforced and tested end to end, with
+**zero integration failures attributable to the runtime role**. The single remaining pilot
+blocker is the gate (TR-904): 7 pre-existing integration failures, several of which look
+like genuine concurrency or atomicity defects rather than test bugs, plus a lint error in
+uncommitted WIP. Estimated **12–20 h** to a defensible pilot, or **~26 h** taking TR-910
+and TR-914 first.
 
 ## Production readiness
 
 **NO.** Beyond pilot: no backup has ever been restored (TR-906) and there is no
 observability (TR-912) — an incident would be neither diagnosable nor recoverable.
-Estimated **150–230 h** total.
+Estimated **140–215 h** total.
 
 ## Next ticket to implement
 
-**TR-902 — Tenant context for all background work.**
+**TR-904 — Restore a green gate.**
 
-It is the only remaining P0 mechanism; it is what makes enabling the runtime role in a
-deployed environment safe; it clears 5 of the 14 integration failures; it unblocks
-TR-907; and the pattern is already proven in this codebase by `0077` and
-`ActionEffectsService.drain`, so it is implementation rather than design. Its failure
-mode is also the worst available — silent, with no error — which is the strongest
-argument for doing it before anything cosmetic.
+TR-902 is resolved, so this is the only remaining P0 and the last thing between the
+backend and a defensible pilot. It matters more than its size suggests: every ticket after
+it inherits the gate, and this session alone found three defects that existed only because
+nothing was watching — a guard-phase context bug, a silently stalled reconciliation sweep
+with no test at all, and two worker failures that had never been measured.
+
+Triage the 7 pre-existing integration failures before the lint error. Several of them —
+mid-batch evidence rollback, concurrent opposition, concurrent overlap ranges, pre-Redis
+intent failure — are concurrency and atomicity cases, and if they are genuine defects
+rather than test bugs they are more serious than anything else left on this list. Take
+TR-910 first if you want their signal clean.
+
+The lint error is one line of uncommitted WIP in `eslint.config.mjs` that declares
+`__dirname` and never uses it. **Ask its author** whether it is wanted rather than
+guessing; it is not this backlog's code.
