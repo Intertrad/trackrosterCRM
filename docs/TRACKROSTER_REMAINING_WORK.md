@@ -4,7 +4,7 @@ The execution document for finishing TrackRoster. Every status below is backed b
 command that was run, a file that was read, or a test that was executed — never by
 the existence of a file. Where something is unverified it says so.
 
-- **Audited:** 2026-09-25 (revised after TR-902)
+- **Audited:** 2026-09-25 (revised after TR-902 and TR-904)
 - **Branch:** `codex/backend-completion`
 - **Verification basis:** `pnpm format:check`, `pnpm typecheck`, `pnpm build`,
   `vitest run` (api unit, api integration, web), `pnpm db:migrations:check`, and
@@ -28,7 +28,7 @@ mechanism (tenant context for background work) and one hygiene task (a green gat
 | `pnpm build`               | **PASS** — 4/4 tasks                                                                                                                                    |
 | `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain                                                                                                                 |
 | `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)                                                                                                            |
-| api unit                   | **741 passed / 5 failed**                                                                                                                               |
+| api unit                   | **746 passed / 0 failed**                                                                                                                               |
 | api integration            | **573–575 passed / 7–9 failed** — none attributable to the runtime role; the spread is two mail-dependent suites that are intermittently flaky (TR-910) |
 | worker unit                | **63 passed / 2 failed** — pre-existing, newly measured                                                                                                 |
 | web                        | **494 passed / 0 failed**                                                                                                                               |
@@ -264,12 +264,12 @@ during password recovery. Fixed by 0075.
 
 ## Testing readiness
 
-| Suite           | Passing | Failing | Notes                                                                                                                                            |
-| --------------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| api unit        | 741     | 5       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)                                                                                      |
-| api integration | 573–575 | 7–9     | none from the runtime role; TR-902's 5 cleared plus 1 of the 8. The spread is TR-910 flakiness in `password-recovery` and `invitations-security` |
-| worker unit     | 63      | 2       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured                                                                            |
-| web             | 494     | 0       |                                                                                                                                                  |
+| Suite           | Passing                                                                                   | Failing | Notes                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| api unit        | 746                                                                                       | 0       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)                                                                                      |
+| api integration | **577–580 passed / 2–5 failed** — 2 stable defects (TR-909, TR-916); the spread is TR-917 | 7–9     | none from the runtime role; TR-902's 5 cleared plus 1 of the 8. The spread is TR-910 flakiness in `password-recovery` and `invitations-security` |
+| worker unit     | 65                                                                                        | 0       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured                                                                            |
+| web             | 494                                                                                       | 0       |                                                                                                                                                  |
 
 Gaps with no meaningful behavioural test: import deduplication against the dossier's
 key set, notification channel matrix, worker tenant isolation, Redis-unavailable
@@ -364,34 +364,90 @@ was verified to fail for the right reason by revoking a grant and watching it go
 pre-existing — and api integration **575 passed / 7 failed, with zero failures
 attributable to the runtime role**.
 
-#### TR-904 — Restore a green gate
+#### TR-904 — Restore a green gate — **MOSTLY RESOLVED, 2 defects remain**
 
-- **Module:** CI, lint, tests
-- **Problem:** `pnpm lint` fails and 8 integration tests fail, so CI cannot pass and
-  the gate cannot be trusted to catch regressions.
-- **Evidence:** `pnpm lint` → `eslint.config.mjs:10:7 error '__dirname' is assigned a
-value but never used`, plus 10 `no-explicit-any` warnings. 8 integration failures
-  reproduce as owner **and** as the runtime role, so they predate the RLS work:
-  `assignment-batch` (mid-batch evidence rollback), `collision-workflows` ×2,
-  `consents` (concurrent opposition), `data-jobs` (interrupted processing),
-  `membership-permissions` (OIDC secret encryption — needs `SSO_ENCRYPTION_KEY`),
-  `participation` (concurrent overlap ranges), `reservation-lifecycle` (pre-Redis intent
-  failure) — **7 now**, since `data-jobs` was fixed by TR-902. 5 unit failures in
-  `import-execution.service.spec.ts` are stale tests, not product defects. A further
-  **2 worker failures** in `webhook-delivery.processor.spec.ts` are pre-existing and were
-  never measured before: earlier audits reported the api and web suites only.
-- **Expected:** `pnpm check` and CI green.
-- **Current:** 1 lint error, 8 + 5 test failures.
-- **Work required:** the lint error is uncommitted developer WIP in `eslint.config.mjs`
-  — **its author should decide** whether `__dirname` is wanted (use it) or not (remove
-  the two lines); do not guess. Then triage the 8, several of which look like genuine
-  concurrency/atomicity defects rather than test bugs. Provision
-  `SSO_ENCRYPTION_KEY` in CI for the OIDC case.
-- **Dependencies:** none remaining. TR-902 is resolved and the 5 `data-jobs` cases it
-  owned now pass.
-- **Tests required:** the failing tests themselves.
-- **Acceptance:** `pnpm lint` clean; api integration 582/582; api unit 746/746; worker 65/65.
-- **Estimate:** **12–20 h** (wide, because the 7 are not yet diagnosed)
+Integration went from **14 failures to 2**, and api unit, worker and web are all
+green. Nine of the twelve were not product defects; five were, and two of those are
+still open.
+
+**Fixed, and they were real defects:**
+
+1. **Territory assignment and campaign member creation deadlocked under concurrency**
+   — returning 500 where the caller expects 409. These routes are idempotent, so the
+   handler already holds `FOR KEY SHARE` on the tenant row (the idempotency record's
+   foreign key) and then asks for `FOR UPDATE`, which is the one mode key share
+   conflicts with. Two concurrent requests each wait for the other; PostgreSQL calls
+   it 40P01 and nothing maps that to a conflict. Fixed by taking the mutex with `FOR
+NO KEY UPDATE`, which is compatible with key share and still exclusive against
+   itself — the mode assignment-batch, consents, reservation-rule, outcome-settings
+   and import deduplication already used. **Latent, not new:** the guard-phase tenant
+   scope added a round trip that changed the interleaving enough to make it reproduce
+   every time rather than occasionally.
+2. **The evidence tables were not immutable.** Three cases asserted that a collision
+   event's reason code, an override request's decision reason and audit rows cannot
+   be rewritten, and nothing enforced any of it. Migration 0079 revokes UPDATE and
+   DELETE on `collision_events` and `audit_events` from the runtime role (no call
+   site updates or deletes either; INSERT stays for the API and worker) and adds a
+   trigger refusing any update to an override request that is no longer pending,
+   since that one is legitimately written once at decision time. This also closes
+   what TR-913 asked for.
+3. **The mid-batch rollback guarantee had never actually been exercised.** Its
+   synthetic audit failure never fired: the proxy intercepted `insert` on the
+   request's transaction but handed back the real executor for `transaction`, so
+   every write through the service's nested savepoint bypassed it and the batch
+   simply succeeded. With the wrapper re-wrapping nested transactions the guarantee
+   is verified — 500, no assignments, no audit rows, cursor unmoved, retry succeeds.
+
+**Fixed, and they were test defects:** the OIDC case needed `SSO_ENCRYPTION_KEY`
+(now supplied by the integration config rather than depending on a developer's
+`.env`); `import-execution`'s five cases counted raw `database.transaction` calls
+and missed the one `withTenantContext` adds; the worker's two webhook cases used a
+placeholder tenant id and a bare `{ query }` double, both predating the tenant
+transaction helper. api unit **746/746**, worker **65/65**, web **494/494**.
+
+**Still open — 2 genuine product defects, each now precisely diagnosed:**
+
+##### TR-909 — An activity can bypass a concurrent opposition _(P1, raised from P2)_
+
+- **Evidence:** `consents` > "serializes an activity behind concurrent opposition so
+  it cannot bypass the new block" fails **4 runs out of 4 in isolation**, returning
+  `{ ok: true }` where `PCC01` is expected. It is not flaky; it is a race whose bad
+  interleaving is reliable when the suite runs alone and sometimes lost under full
+  load, which is why earlier runs looked intermittent.
+- **Why it matters:** an activity is recorded against a prospect who has just
+  opposed. That is a consent-compliance failure, not a test nuisance.
+- **Note:** this already resisted one diagnosis — a previous session hypothesised
+  that `trackroster_consent_blocked` being STABLE caused a stale post-lock snapshot,
+  tested it, and reverted. Budget for real design work: lock ordering, or serialisable
+  isolation for this path.
+- **Estimate:** **6–10 h**
+
+##### TR-916 — The reservation "durable intent" is not durable _(P1, new)_
+
+- **Evidence:** `reservation-lifecycle` > "fails before Redis on intent failure and
+  recovers uncertain claim confirmation" fails 3 of 3. With `ledger.confirm` forced
+  to reject, `repo.findCurrent` returns a lease from Redis while
+  `reservation_records` has **no row at all**, so the test dereferences undefined.
+- **Diagnosis:** `prepare()` writes the intent inside the request transaction, so a
+  failing `confirm` rolls it back. Redis keeps the lease, Postgres keeps nothing, and
+  `reconcile()` has nothing to promote — the uncertain-claim recovery the design
+  depends on cannot work.
+- **Work required:** commit the intent in its own transaction, before Redis is
+  touched, so an uncertain confirm leaves a reconcilable row.
+- **Estimate:** **8–14 h**
+
+##### The lint error is still not mine to fix
+
+`eslint.config.mjs:10` declares `__dirname` and never uses it — uncommitted developer
+WIP. Its author should decide whether to use it or drop the two lines. Everything else
+lints clean; the remaining 10 are `no-explicit-any` warnings.
+
+##### Mail suites: much better, not deterministic
+
+`password-recovery` and `invitations-security` were failing in most full runs and are
+now stable in isolation (4–5 consecutive clean runs each) and usually clean in a full
+run, but `password-recovery` still fails occasionally under full-suite load. The
+residual cause is a **product throughput limit**, recorded as TR-917.
 
 ## MVP blockers
 
@@ -449,16 +505,18 @@ value but never used`, plus 10 `no-explicit-any` warnings. 8 integration failure
 
 ### P2
 
-| ID     | Module        | Problem                                                                 | Evidence                                                                                                                                                                                                                                                                      | Work                                                                                               | Tests                                            | Est.   |
-| ------ | ------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------ |
-| TR-908 | reporting     | Territory dimension missing from dashboard filters                      | filters cover period, org, team, user, campaign                                                                                                                                                                                                                               | add territory to scope resolution and queries                                                      | scope test per role                              | 4–6 h  |
-| TR-909 | consents      | Concurrent-opposition race lets an activity bypass a new block          | `consents` test fails as owner and as app role                                                                                                                                                                                                                                | diagnose; likely needs lock ordering or a stricter isolation level                                 | the existing failing test                        | 4–8 h  |
-| TR-910 | email         | Mailpit not in Compose; recovery-token delivery is flaky                | `invitations-security` (1 case) and `password-recovery` (3 cases) fail intermittently on a mailbox read. Both pass in isolation and fail when run after other suites, so it is delivery timing and accumulated state, not logic. Observed before TR-902, so not caused by it. | add Mailpit as a Compose service; make `emailedToken` poll with a deadline instead of reading once | both suites, 20 consecutive passes in a full run | 3–5 h  |
-| TR-911 | reservations  | Redis lock has no PostgreSQL backstop                                   | audit §8                                                                                                                                                                                                                                                                      | add an advisory-lock fallback                                                                      | Redis-unavailable test                           | 6–8 h  |
-| TR-912 | observability | No structured logging, metrics or tracing                               | no `pino`/`winston`/OpenTelemetry in `apps/api`; no logger in `main.ts`                                                                                                                                                                                                       | structured request logging with tenant and request id, `/metrics`, error tracking                  | log assertion test                               | 8–12 h |
-| TR-913 | audit         | Audit-row immutability under the app role unverified                    | audit §22                                                                                                                                                                                                                                                                     | `REVOKE UPDATE, DELETE` on `audit_events` from the runtime role                                    | test that an update fails                        | 2–3 h  |
-| TR-914 | database      | 0071/0073 are one-shot; a new `tenant_id` table silently gets no policy | both iterate `information_schema` once                                                                                                                                                                                                                                        | assert catalogue coverage in `tenant-rls`, or add an event trigger                                 | coverage test over `pg_class`                    | 2–3 h  |
-| TR-915 | storage       | Object storage failure paths untested                                   | `providers/object-storage.service.ts` has no failure tests                                                                                                                                                                                                                    | add unavailable/partial-write tests                                                                | those tests                                      | 3–5 h  |
+| ID     | Module        | Problem                                                                                                                                                                                                                                                                                                                                                                                                                               | Evidence                                                                                                                                                                                                                                                                      | Work                                                                                                                                                           | Tests                                                                                    | Est.   |
+| ------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------ |
+| TR-908 | reporting     | Territory dimension missing from dashboard filters                                                                                                                                                                                                                                                                                                                                                                                    | filters cover period, org, team, user, campaign                                                                                                                                                                                                                               | add territory to scope resolution and queries                                                                                                                  | scope test per role                                                                      | 4–6 h  |
+| TR-909 | consents      | Concurrent-opposition race lets an activity bypass a new block                                                                                                                                                                                                                                                                                                                                                                        | `consents` test fails as owner and as app role                                                                                                                                                                                                                                | diagnose; likely needs lock ordering or a stricter isolation level                                                                                             | the existing failing test                                                                | 4–8 h  |
+| TR-910 | email         | Mailpit not in Compose; recovery-token delivery is flaky                                                                                                                                                                                                                                                                                                                                                                              | `invitations-security` (1 case) and `password-recovery` (3 cases) fail intermittently on a mailbox read. Both pass in isolation and fail when run after other suites, so it is delivery timing and accumulated state, not logic. Observed before TR-902, so not caused by it. | add Mailpit as a Compose service; make `emailedToken` poll with a deadline instead of reading once                                                             | both suites, 20 consecutive passes in a full run                                         | 3–5 h  |
+| TR-911 | reservations  | Redis lock has no PostgreSQL backstop                                                                                                                                                                                                                                                                                                                                                                                                 | audit §8                                                                                                                                                                                                                                                                      | add an advisory-lock fallback                                                                                                                                  | Redis-unavailable test                                                                   | 6–8 h  |
+| TR-912 | observability | No structured logging, metrics or tracing                                                                                                                                                                                                                                                                                                                                                                                             | no `pino`/`winston`/OpenTelemetry in `apps/api`; no logger in `main.ts`                                                                                                                                                                                                       | structured request logging with tenant and request id, `/metrics`, error tracking                                                                              | log assertion test                                                                       | 8–12 h |
+| TR-913 | audit         | Audit-row immutability under the app role unverified                                                                                                                                                                                                                                                                                                                                                                                  | audit §22                                                                                                                                                                                                                                                                     | `REVOKE UPDATE, DELETE` on `audit_events` from the runtime role                                                                                                | test that an update fails                                                                | 2–3 h  |
+| TR-914 | database      | 0071/0073 are one-shot; a new `tenant_id` table silently gets no policy                                                                                                                                                                                                                                                                                                                                                               | both iterate `information_schema` once                                                                                                                                                                                                                                        | assert catalogue coverage in `tenant-rls`, or add an event trigger                                                                                             | coverage test over `pg_class`                                                            | 2–3 h  |
+| TR-917 | email         | `dispatchPending` delivers **one** message per call on a 1s timer, so the API caps at ~1 email/second, and one unreachable recipient costs a 5s timeout — dropping it to ~1 per 5s. An invitation burst never catches up, and the resulting shared-outbox backlog is what still makes `password-recovery` fail occasionally under full-suite load. The HTTP call also runs inside the transaction, pinning a connection for up to 5s. | `src/auth/auth-mail.service.ts`: `setInterval(…, 1000)` and `.limit(1)` inside one `db.transaction`                                                                                                                                                                           | expire once, then deliver a bounded batch, each message in its own transaction, with the HTTP call outside it                                                  | 25 queued messages delivered within one tick; both mail suites clean across 10 full runs | 4–6 h  |
+| TR-918 | concurrency   | Nine services take the tenant mutex with `FOR UPDATE` and **six sit behind idempotent routes**, so each is exposed to the same key-share upgrade deadlock TR-904 fixed in participation                                                                                                                                                                                                                                               | `resource-scope`, `territory`, `prospect-access`, `membership`, `campaign-lifecycle`, `campaign`, `workspace-administration` vs. the `no key update` precedent in assignment-batch, consents, reservation-rule, outcome-settings, import-deduplication                        | change each to `for('no key update')` — but write a concurrency test per route first, because the fix is one word and the risk is assuming rather than proving | a two-request test per affected route, red before and green after                        | 6–10 h |
+| TR-915 | storage       | Object storage failure paths untested                                                                                                                                                                                                                                                                                                                                                                                                 | `providers/object-storage.service.ts` has no failure tests                                                                                                                                                                                                                    | add unavailable/partial-write tests                                                                                                                            | those tests                                                                              | 3–5 h  |
 
 ### P3
 
@@ -479,23 +537,25 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 
 ## Prioritized task backlog
 
-| #   | ID     | Priority | Title                                 | Est.    |
-| --- | ------ | -------- | ------------------------------------- | ------- |
-| 1   | TR-904 | P0       | Restore a green gate                  | 12–20 h |
-| 2   | TR-910 | P2       | Mailpit in Compose (do before TR-904) | 3–5 h   |
-| 3   | TR-914 | P2       | RLS catalogue coverage guard          | 2–3 h   |
-| 4   | TR-913 | P2       | Audit immutability under the app role | 2–3 h   |
-| 5   | TR-906 | P1       | Backup and rehearsed restore          | 8–12 h  |
-| 6   | TR-905 | P1       | Import deduplication key set          | 10–14 h |
-| 7   | TR-907 | P1       | Notification channel matrix + CR-033  | 12–16 h |
-| 8   | TR-908 | P2       | Territory reporting dimension         | 4–6 h   |
-| 9   | TR-909 | P2       | Consents concurrency race             | 4–8 h   |
-| 10  | TR-912 | P2       | Observability baseline                | 8–12 h  |
-| 11  | TR-911 | P2       | Reservation PostgreSQL backstop       | 6–8 h   |
-| 12  | TR-915 | P2       | Object storage failure paths          | 3–5 h   |
+| #   | ID     | Priority | Title                                     | Est.    |
+| --- | ------ | -------- | ----------------------------------------- | ------- |
+| 1   | TR-909 | P1       | Activity bypasses concurrent opposition   | 6–10 h  |
+| 2   | TR-916 | P1       | Reservation durable intent is not durable | 8–14 h  |
+| 3   | TR-918 | P2       | Tenant mutex deadlock at 6 more sites     | 6–10 h  |
+| 4   | TR-917 | P2       | Mail delivery throughput                  | 4–6 h   |
+| 5   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
+| 6   | TR-913 | P2       | Audit immutability under the app role     | 2–3 h   |
+| 7   | TR-906 | P1       | Backup and rehearsed restore              | 8–12 h  |
+| 8   | TR-905 | P1       | Import deduplication key set              | 10–14 h |
+| 9   | TR-907 | P1       | Notification channel matrix + CR-033      | 12–16 h |
+| 10  | TR-908 | P2       | Territory reporting dimension             | 4–6 h   |
+| 11  | TR-912 | P2       | Observability baseline                    | 8–12 h  |
+| 12  | TR-911 | P2       | Reservation PostgreSQL backstop           | 6–8 h   |
+| 13  | TR-915 | P2       | Object storage failure paths              | 3–5 h   |
 
-TR-902 is resolved and no longer listed. TR-910 and TR-914 are sequenced above the P1s
-deliberately: they are cheap, and they make TR-904's signal trustworthy.
+TR-902 and TR-910 are resolved and no longer listed. TR-904 is resolved except for the
+two defects it uncovered, which lead this list as TR-909 and TR-916. TR-913 remains
+only for tables beyond the two that 0079 covered.
 
 ## Dependencies
 
@@ -529,14 +589,14 @@ TR-906 ── independent; needs the runtime role to exist in restored databases
 
 ## Estimated remaining hours
 
-| Stream        | Hours         | Assumptions                                                                                                                                                                                 |
-| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backend       | 50–75         | TR-904, 905, 907, 909, 911, 913, 914 — TR-902 is done. Wide because TR-904's 7 failures are undiagnosed: if they are test bugs it is the low end, if genuine concurrency defects, the high. |
-| Frontend      | 30–50         | Responsive verification of 28 pages, wiring 4 backend-ready API families, French for manager/director/admin. Excludes any decision to migrate the TR-036 lineage.                           |
-| QA / testing  | 25–40         | Worker isolation, dedupe matrix, channel matrix, storage failures, two-node claim, Redis-unavailable.                                                                                       |
-| DevOps        | 25–40         | TR-906, TR-912, deployment pipeline (nginx/terraform are empty — a first deployment is the least certain number here).                                                                      |
-| Documentation | 8–12          | Production checklist, worker/jobs and storage runbooks, rewrite BACKUP_RESTORE against real tooling.                                                                                        |
-| **Total**     | **140–215 h** | ≈ 3.5–5.5 engineer-weeks for one person; 3–4 weeks for two with the streams split.                                                                                                          |
+| Stream        | Hours         | Assumptions                                                                                                                                                                                                                                            |
+| ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Backend       | 58–88         | TR-909, 916, 918, 905, 907, 911, 914, 917. Narrower than before: the two pilot blockers are now diagnosed rather than unknown, but TR-909 is genuine design work and TR-918 needs a concurrency test per route before its one-word fix can be trusted. |
+| Frontend      | 30–50         | Responsive verification of 28 pages, wiring 4 backend-ready API families, French for manager/director/admin. Excludes any decision to migrate the TR-036 lineage.                                                                                      |
+| QA / testing  | 25–40         | Worker isolation, dedupe matrix, channel matrix, storage failures, two-node claim, Redis-unavailable.                                                                                                                                                  |
+| DevOps        | 25–40         | TR-906, TR-912, deployment pipeline (nginx/terraform are empty — a first deployment is the least certain number here).                                                                                                                                 |
+| Documentation | 8–12          | Production checklist, worker/jobs and storage runbooks, rewrite BACKUP_RESTORE against real tooling.                                                                                                                                                   |
+| **Total**     | **145–225 h** | ≈ 3.5–5.5 engineer-weeks for one person; 3–4 weeks for two with the streams split.                                                                                                                                                                     |
 
 Estimates assume the existing architecture is kept, the 16 post-MVP items stay out of
 scope, and no decision is taken to migrate the colleague's frontend lineage (which
@@ -560,36 +620,43 @@ all hold.
 
 ## Pilot readiness
 
-**NO — but one ticket away.** Tenant isolation, authentication, authorization, the
-anti-collision core and now background work are all enforced and tested end to end, with
-**zero integration failures attributable to the runtime role**. The single remaining pilot
-blocker is the gate (TR-904): 7 pre-existing integration failures, several of which look
-like genuine concurrency or atomicity defects rather than test bugs, plus a lint error in
-uncommitted WIP. Estimated **12–20 h** to a defensible pilot, or **~26 h** taking TR-910
-and TR-914 first.
+**NO — two defects away.** Tenant isolation, authentication, authorization, background
+work, the anti-collision core, evidence immutability and mid-batch rollback are all
+enforced and verified, with zero integration failures attributable to the runtime role.
+api unit, worker and web are green.
+
+The two blockers are no longer unknowns. **TR-909**: an activity can be recorded against
+a prospect who has just opposed — a consent-compliance failure, reproducible 4 runs out
+of 4. **TR-916**: the reservation durable intent rolls back with its request, so the
+uncertain-claim recovery the design relies on cannot work. Both were hiding behind
+"pre-existing failure" until this pass diagnosed them. Estimated **14–24 h** to a
+defensible pilot.
 
 ## Production readiness
 
 **NO.** Beyond pilot: no backup has ever been restored (TR-906) and there is no
 observability (TR-912) — an incident would be neither diagnosable nor recoverable.
-Estimated **140–215 h** total.
+Estimated **145–225 h** total.
 
 ## Next ticket to implement
 
-**TR-904 — Restore a green gate.**
+**TR-909 — Stop an activity bypassing a concurrent opposition.**
 
-TR-902 is resolved, so this is the only remaining P0 and the last thing between the
-backend and a defensible pilot. It matters more than its size suggests: every ticket after
-it inherits the gate, and this session alone found three defects that existed only because
-nothing was watching — a guard-phase context bug, a silently stalled reconciliation sweep
-with no test at all, and two worker failures that had never been measured.
+It is the most serious thing left. An activity recorded concurrently with a new
+opposition is accepted instead of blocked: the case returns `{ ok: true }` where it
+expects `PCC01`, **4 runs out of 4 in isolation**. That means an activity can be logged
+against a prospect who has just withdrawn consent, which is a compliance failure rather
+than a test nuisance, and it is the kind of defect that is far cheaper to fix now than to
+explain later.
 
-Triage the 7 pre-existing integration failures before the lint error. Several of them —
-mid-batch evidence rollback, concurrent opposition, concurrent overlap ranges, pre-Redis
-intent failure — are concurrency and atomicity cases, and if they are genuine defects
-rather than test bugs they are more serious than anything else left on this list. Take
-TR-910 first if you want their signal clean.
+Expect real design work rather than a one-line fix. A previous session hypothesised that
+`trackroster_consent_blocked` being STABLE gave the post-lock read a stale snapshot,
+tested it, and reverted — so that explanation is already eliminated. The likely shapes are
+lock ordering between the opposition write and the activity check, or serialisable
+isolation for this one path. Write the failing interleaving as a test you can run in
+isolation first; it reproduces reliably there, which is the advantage you have.
 
-The lint error is one line of uncommitted WIP in `eslint.config.mjs` that declares
-`__dirname` and never uses it. **Ask its author** whether it is wanted rather than
-guessing; it is not this backlog's code.
+**TR-916** is the other pilot blocker and is better understood — the reservation intent
+is written inside the request transaction, so a failing confirm rolls it back and leaves
+Redis holding a lease that Postgres cannot reconcile. If you want a smaller win first,
+that one is more mechanical.
