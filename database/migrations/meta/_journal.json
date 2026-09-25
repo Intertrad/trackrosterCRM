@@ -512,6 +512,13 @@
       "when": 1790261192386,
       "tag": "0072_authentication_membership_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790323992588,
+      "tag": "0073_force_row_level_security",
+      "breakpoints": true
     }
   ]
 }
