@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
 import * as schema from '../../src/database/schema/index.js';
+import { runWithTenantExecutor } from '../../src/database/request-tenant-executor.js';
 import type { Database } from '../../src/database/database.types.js';
 
 /**
@@ -54,4 +55,37 @@ export async function closeSeedDatabase(): Promise<void> {
 
   pool = undefined;
   database = undefined;
+}
+
+/**
+ * Runs fixture code with the privileged connection installed as the ambient
+ * executor.
+ *
+ * Suites that build fixtures through container-resolved repositories rather
+ * than raw inserts have a problem that `getSeedDatabase()` alone does not
+ * solve: those repositories hold the *application's* connection, and default
+ * to it whenever the caller passes no executor. Outside a request there is no
+ * tenant scope, so once the application connects as `trackroster_app` the RLS
+ * policies reject the write — including the cross-tenant fixtures that make
+ * isolation testable at all.
+ *
+ * `createRequestAwareDatabase` already resolves every repository call against
+ * whatever executor is ambient, so entering the scope with a privileged
+ * transaction redirects all of them at once, without rebinding each
+ * repository or threading an executor through every call.
+ *
+ * The scope installs the connection itself rather than a transaction, so that
+ * fixtures mixing repository calls with direct `getSeedDatabase()` writes all
+ * land on one connection and can see each other. Wrapping them in a
+ * transaction instead leaves the direct writes on a second pooled connection,
+ * where the uncommitted rows are invisible and foreign keys fail. No tenant
+ * context is set because the privileged role bypasses RLS regardless.
+ *
+ * Only fixture work belongs inside. An `application.inject` call made in this
+ * scope would run the request itself on the privileged connection and quietly
+ * stop exercising RLS, which is the opposite of the point — perform logins and
+ * assertions outside it.
+ */
+export function withSeedScope<T>(work: () => Promise<T>): Promise<T> {
+  return runWithTenantExecutor(getSeedDatabase(), work);
 }

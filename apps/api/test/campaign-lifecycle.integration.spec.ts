@@ -6,7 +6,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   actions,
@@ -78,7 +78,7 @@ describe('Campaign lifecycle APIs', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     await db
       .insert(tenants)
       .values([tenant, foreignTenant].map((id) => ({ id, name: id, slug: id })));

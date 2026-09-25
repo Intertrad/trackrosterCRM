@@ -5,7 +5,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import { withTenantContext } from '../src/database/tenant-context.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -122,7 +122,7 @@ describe('Canonical assignment lifecycle', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     await db
       .insert(tenants)
       .values([tenantId, foreignTenantId].map((id) => ({ id, name: id, slug: id })));
@@ -196,32 +196,26 @@ describe('Canonical assignment lifecycle', () => {
         .values({ tenantId, campaignId: campaign, territoryId: territory });
     });
     await withTenantContext(db, foreignTenantId, async (tx) => {
-      await tx
-        .insert(tenantMemberships)
-        .values({
-          id: foreign,
-          identityId: foreign,
-          tenantId: foreignTenantId,
-          status: 'active',
-          activatedAt: sql`now()`,
-        });
-      await tx
-        .insert(userAccessGrants)
-        .values({
-          tenantId: foreignTenantId,
-          userId: foreign,
-          role: 'client_admin',
-          scopeType: 'tenant',
-        });
-      await tx
-        .insert(campaigns)
-        .values({
-          id: foreignCampaign,
-          tenantId: foreignTenantId,
-          organizationId: foreignOrg,
-          name: foreignCampaign,
-          status: 'active',
-        });
+      await tx.insert(tenantMemberships).values({
+        id: foreign,
+        identityId: foreign,
+        tenantId: foreignTenantId,
+        status: 'active',
+        activatedAt: sql`now()`,
+      });
+      await tx.insert(userAccessGrants).values({
+        tenantId: foreignTenantId,
+        userId: foreign,
+        role: 'client_admin',
+        scopeType: 'tenant',
+      });
+      await tx.insert(campaigns).values({
+        id: foreignCampaign,
+        tenantId: foreignTenantId,
+        organizationId: foreignOrg,
+        name: foreignCampaign,
+        status: 'active',
+      });
     });
     for (const id of actors) {
       const result = await app.inject({

@@ -14,7 +14,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   reservationRecords,
@@ -79,7 +79,7 @@ describe('Canonical follow-ups and dashboards', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     app.get(ActionEffectsService).onModuleDestroy();
     await db
       .insert(tenants)

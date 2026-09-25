@@ -10,7 +10,7 @@ import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import type { AuthenticationTokens, WorkspaceSelectionChallenge } from '../src/auth/auth.types.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import { accountSettings } from '../src/database/schema/account-settings.js';
 import { auditEvents } from '../src/database/schema/audit-events.js';
@@ -43,7 +43,7 @@ describe('Account and native workspace authentication', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    database = app.get(DATABASE);
+    database = getSeedDatabase();
     await database
       .insert(tenants)
       .values(tenantIds.map((id) => ({ id, name: `Workspace ${id}`, slug: `workspace-${id}` })));
@@ -436,13 +436,13 @@ describe('Account and native workspace authentication', () => {
   it('suspends one native membership without suspending other workspaces', async () => {
     const a = await login(),
       b = await login(memberB);
-    await app.get(UserRepository).updateStatus(tenantA, memberA, 'suspended');
+    await withSeedScope(() => app.get(UserRepository).updateStatus(tenantA, memberA, 'suspended'));
     expect(
       (await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(a) })).statusCode,
     ).toBe(401);
     expect(
       (await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(b) })).statusCode,
     ).toBe(200);
-    await app.get(UserRepository).updateStatus(tenantA, memberA, 'active');
+    await withSeedScope(() => app.get(UserRepository).updateStatus(tenantA, memberA, 'active'));
   });
 });

@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   auditEvents,
@@ -47,7 +47,7 @@ describe('Workspace administration HTTP authorization and persistence', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     await db
       .insert(tenants)
       .values([tenantId, otherTenantId].map((id) => ({ id, name: id, slug: id })));
@@ -483,13 +483,15 @@ describe('Workspace administration HTTP authorization and persistence', () => {
       return team;
     });
     try {
-      const pending = app.get(CampaignProspectAssignmentService).assign({
-        tenantId,
-        actorUserId: adminId,
-        campaignId,
-        campaignProspectId: prospectId,
-        teamId: raceTeamId,
-      });
+      const pending = withSeedScope(() =>
+        app.get(CampaignProspectAssignmentService).assign({
+          tenantId,
+          actorUserId: adminId,
+          campaignId,
+          campaignProspectId: prospectId,
+          teamId: raceTeamId,
+        }),
+      );
       const assertion = expect(pending).rejects.toThrow('Team is not active');
       await validated;
       const deactivated = await app.inject({
@@ -512,12 +514,14 @@ describe('Workspace administration HTTP authorization and persistence', () => {
 
   it('prevents removal or suspension of the last administrator', async () => {
     await expect(
-      app.get(UserRepository).updateStatus(tenantId, adminId, 'suspended'),
+      withSeedScope(() => app.get(UserRepository).updateStatus(tenantId, adminId, 'suspended')),
     ).rejects.toThrow('last active tenant administrator');
     await expect(
-      app
-        .get(AccessGrantService)
-        .revoke({ tenantId, actorUserId: adminId, userId: adminId, grantId: adminGrantId }),
+      withSeedScope(() =>
+        app
+          .get(AccessGrantService)
+          .revoke({ tenantId, actorUserId: adminId, userId: adminId, grantId: adminGrantId }),
+      ),
     ).rejects.toThrow('last active tenant administrator');
   });
 
@@ -576,9 +580,11 @@ describe('Workspace administration HTTP authorization and persistence', () => {
         payload,
       });
       expect(first.statusCode).toBe(200);
-      await app
-        .get(AccessGrantService)
-        .revoke({ tenantId, actorUserId: adminId, userId: managerId, grantId: grant!.id });
+      await withSeedScope(() =>
+        app
+          .get(AccessGrantService)
+          .revoke({ tenantId, actorUserId: adminId, userId: managerId, grantId: grant!.id }),
+      );
       const replay = await app.inject({
         method: 'PATCH',
         url: '/api/v1/tenant',
@@ -599,14 +605,16 @@ describe('Workspace administration HTTP authorization and persistence', () => {
     try {
       const results = await Promise.allSettled(
         [adminId, managerId].map((id) =>
-          app.get(UserRepository).updateStatus(tenantId, id, 'suspended'),
+          withSeedScope(() => app.get(UserRepository).updateStatus(tenantId, id, 'suspended')),
         ),
       );
       expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
       expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
     } finally {
-      await app.get(UserRepository).updateStatus(tenantId, adminId, 'active');
-      await app.get(UserRepository).updateStatus(tenantId, managerId, 'active');
+      await withSeedScope(() => app.get(UserRepository).updateStatus(tenantId, adminId, 'active'));
+      await withSeedScope(() =>
+        app.get(UserRepository).updateStatus(tenantId, managerId, 'active'),
+      );
       await db.delete(userAccessGrants).where(eq(userAccessGrants.id, secondGrant[0]!.id));
     }
   });

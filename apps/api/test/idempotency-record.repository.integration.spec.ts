@@ -113,7 +113,14 @@ describe('idempotency record repository integration', () => {
 
     database = getSeedDatabase();
 
-    repository = application.get(IdempotencyRecordRepository);
+    /*
+     * Built against the seed (owner) connection rather than resolved from the
+     * container. These cases drive the repository directly, with no request
+     * and so no tenant scope, which is exactly what RLS refuses once the
+     * application connects as `trackroster_app`. The SQL under test is
+     * unchanged; only the connection executing it is privileged.
+     */
+    repository = new IdempotencyRecordRepository(getSeedDatabase());
 
     const tenantService = application.get(TenantService);
 

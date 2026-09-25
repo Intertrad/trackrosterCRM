@@ -26,7 +26,7 @@ import { OrganizationService } from '../src/organizations/organization.service.j
 import { TeamService } from '../src/teams/team.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
-import { getSeedDatabase } from './support/seed.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 interface WorkQueueHttpResponse {
   items: Array<{
@@ -176,314 +176,318 @@ describe('Work Queue HTTP integration', () => {
 
     database = getSeedDatabase();
 
-    const tenantService = application.get(TenantService);
+    /* Fixtures span several tenants and run through container-resolved
+       repositories, so they need the privileged executor; see withSeedScope. */
+    await withSeedScope(async () => {
+      const tenantService = application.get(TenantService);
 
-    const organizationService = application.get(OrganizationService);
+      const organizationService = application.get(OrganizationService);
 
-    const teamService = application.get(TeamService);
+      const teamService = application.get(TeamService);
 
-    const userRepository = application.get(UserRepository);
+      const userRepository = application.get(UserRepository);
 
-    const passwordService = application.get(PasswordService);
+      const passwordService = application.get(PasswordService);
 
-    const grantRepository = application.get(UserAccessGrantRepository);
+      const grantRepository = application.get(UserAccessGrantRepository);
 
-    const establishmentService = application.get(EstablishmentService);
+      const establishmentService = application.get(EstablishmentService);
 
-    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
-    /*
-     * Tenant
-     */
-    const tenant = await tenantService.create({
-      name: `Work Queue Tenant ${suffix}`,
+      /*
+       * Tenant
+       */
+      const tenant = await tenantService.create({
+        name: `Work Queue Tenant ${suffix}`,
 
-      slug: `work-queue-${suffix}`,
-    });
-
-    tenantId = tenant.id;
-
-    /*
-     * Organization
-     */
-    const organization = await organizationService.create({
-      tenantId,
-
-      name: 'Work Queue France',
-
-      slug: `work-queue-france-${suffix}`,
-    });
-
-    organizationId = organization.id;
-
-    /*
-     * Two teams let us prove that a team query
-     * cannot escape the caller's real grant.
-     */
-    const team = await teamService.create({
-      tenantId,
-
-      organizationId,
-
-      name: 'Paris Work Queue',
-
-      slug: `paris-work-queue-${suffix}`,
-    });
-
-    teamId = team.id;
-
-    const otherTeam = await teamService.create({
-      tenantId,
-
-      organizationId,
-
-      name: 'Lyon Work Queue',
-
-      slug: `lyon-work-queue-${suffix}`,
-    });
-
-    otherTeamId = otherTeam.id;
-
-    /*
-     * Users
-     */
-    const prospectorEmail = `work-queue-prospector-${suffix}@trackroster.test`;
-
-    const otherProspectorEmail = `work-queue-other-${suffix}@trackroster.test`;
-
-    const managerEmail = `work-queue-manager-${suffix}@trackroster.test`;
-
-    const passwordHash = await passwordService.hash(password);
-
-    const prospector = await userRepository.create({
-      tenantId,
-
-      email: prospectorEmail,
-
-      passwordHash,
-
-      status: 'active',
-    });
-
-    const otherProspector = await userRepository.create({
-      tenantId,
-
-      email: otherProspectorEmail,
-
-      passwordHash,
-
-      status: 'active',
-    });
-
-    const manager = await userRepository.create({
-      tenantId,
-
-      email: managerEmail,
-
-      passwordHash,
-
-      status: 'active',
-    });
-
-    /*
-     * Real backend grants.
-     */
-    await grantRepository.create({
-      tenantId,
-
-      userId: prospector.id,
-
-      role: 'prospector',
-
-      scopeType: 'team',
-
-      organizationId,
-
-      teamId,
-    });
-
-    await grantRepository.create({
-      tenantId,
-
-      userId: otherProspector.id,
-
-      role: 'prospector',
-
-      scopeType: 'team',
-
-      organizationId,
-
-      teamId,
-    });
-
-    await grantRepository.create({
-      tenantId,
-
-      userId: manager.id,
-
-      role: 'manager',
-
-      scopeType: 'team',
-
-      organizationId,
-
-      teamId,
-    });
-
-    /*
-     * Establishments
-     */
-    const establishment = await establishmentService.create({
-      tenantId,
-
-      name: 'Queue Clinic Paris',
-
-      addressLine1: '10 Rue de Rivoli',
-
-      postalCode: '75001',
-
-      city: 'Paris',
-
-      countryCode: 'FR',
-
-      phone: '+33100000000',
-
-      website: 'https://queue-clinic.example',
-
-      source: 'manual',
-    });
-
-    const otherEstablishment = await establishmentService.create({
-      tenantId,
-
-      name: 'Other Queue Clinic',
-
-      addressLine1: '20 Rue de Rivoli',
-
-      postalCode: '75001',
-
-      city: 'Paris',
-
-      countryCode: 'FR',
-
-      source: 'manual',
-    });
-
-    /*
-     * Active campaign.
-     */
-    const [campaign] = await getDatabase()
-      .insert(campaigns)
-      .values({
-        tenantId,
-
-        organizationId,
-
-        name: 'Work Queue Campaign',
-
-        status: 'active',
-      })
-      .returning();
-
-    if (!campaign) {
-      throw new Error('Failed to create Work Queue campaign');
-    }
-
-    campaignId = campaign.id;
-
-    /*
-     * Two campaign prospects.
-     */
-    const [prospect] = await getDatabase()
-      .insert(campaignProspects)
-      .values({
-        tenantId,
-
-        campaignId,
-
-        establishmentId: establishment.id,
-
-        status: 'active',
-
-        lifecycleStage: 'in_progress',
-      })
-      .returning();
-
-    const [otherProspect] = await getDatabase()
-      .insert(campaignProspects)
-      .values({
-        tenantId,
-
-        campaignId,
-
-        establishmentId: otherEstablishment.id,
-
-        status: 'active',
-
-        lifecycleStage: 'follow_up',
-      })
-      .returning();
-
-    if (!prospect || !otherProspect) {
-      throw new Error('Failed to create Work Queue prospects');
-    }
-
-    prospectId = prospect.id;
-    otherProspectId = otherProspect.id;
-
-    /*
-     * One assignment belongs to our test
-     * Prospector. The other belongs to another
-     * Prospector in the same team.
-     *
-     * The queue must return only the first.
-     */
-    const [assignment] = await getDatabase()
-      .insert(campaignProspectAssignments)
-      .values({
-        tenantId,
-
-        campaignId,
-
-        campaignProspectId: prospect.id,
-
-        organizationId,
-
-        teamId,
-
-        assignedUserId: prospector.id,
-
-        assignedAt: new Date('2026-09-16T08:00:00.000Z'),
-      })
-      .returning();
-
-    await getDatabase()
-      .insert(campaignProspectAssignments)
-      .values({
-        tenantId,
-
-        campaignId,
-
-        campaignProspectId: otherProspect.id,
-
-        organizationId,
-
-        teamId,
-
-        assignedUserId: otherProspector.id,
-
-        assignedAt: new Date('2026-09-16T07:00:00.000Z'),
+        slug: `work-queue-${suffix}`,
       });
 
-    if (!assignment) {
-      throw new Error('Failed to create Work Queue assignment');
-    }
+      tenantId = tenant.id;
 
-    assignmentId = assignment.id;
+      /*
+       * Organization
+       */
+      const organization = await organizationService.create({
+        tenantId,
 
-    prospectorAccessToken = (await login(prospectorEmail)).accessToken;
+        name: 'Work Queue France',
 
-    managerAccessToken = (await login(managerEmail)).accessToken;
+        slug: `work-queue-france-${suffix}`,
+      });
+
+      organizationId = organization.id;
+
+      /*
+       * Two teams let us prove that a team query
+       * cannot escape the caller's real grant.
+       */
+      const team = await teamService.create({
+        tenantId,
+
+        organizationId,
+
+        name: 'Paris Work Queue',
+
+        slug: `paris-work-queue-${suffix}`,
+      });
+
+      teamId = team.id;
+
+      const otherTeam = await teamService.create({
+        tenantId,
+
+        organizationId,
+
+        name: 'Lyon Work Queue',
+
+        slug: `lyon-work-queue-${suffix}`,
+      });
+
+      otherTeamId = otherTeam.id;
+
+      /*
+       * Users
+       */
+      const prospectorEmail = `work-queue-prospector-${suffix}@trackroster.test`;
+
+      const otherProspectorEmail = `work-queue-other-${suffix}@trackroster.test`;
+
+      const managerEmail = `work-queue-manager-${suffix}@trackroster.test`;
+
+      const passwordHash = await passwordService.hash(password);
+
+      const prospector = await userRepository.create({
+        tenantId,
+
+        email: prospectorEmail,
+
+        passwordHash,
+
+        status: 'active',
+      });
+
+      const otherProspector = await userRepository.create({
+        tenantId,
+
+        email: otherProspectorEmail,
+
+        passwordHash,
+
+        status: 'active',
+      });
+
+      const manager = await userRepository.create({
+        tenantId,
+
+        email: managerEmail,
+
+        passwordHash,
+
+        status: 'active',
+      });
+
+      /*
+       * Real backend grants.
+       */
+      await grantRepository.create({
+        tenantId,
+
+        userId: prospector.id,
+
+        role: 'prospector',
+
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId,
+      });
+
+      await grantRepository.create({
+        tenantId,
+
+        userId: otherProspector.id,
+
+        role: 'prospector',
+
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId,
+      });
+
+      await grantRepository.create({
+        tenantId,
+
+        userId: manager.id,
+
+        role: 'manager',
+
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId,
+      });
+
+      /*
+       * Establishments
+       */
+      const establishment = await establishmentService.create({
+        tenantId,
+
+        name: 'Queue Clinic Paris',
+
+        addressLine1: '10 Rue de Rivoli',
+
+        postalCode: '75001',
+
+        city: 'Paris',
+
+        countryCode: 'FR',
+
+        phone: '+33100000000',
+
+        website: 'https://queue-clinic.example',
+
+        source: 'manual',
+      });
+
+      const otherEstablishment = await establishmentService.create({
+        tenantId,
+
+        name: 'Other Queue Clinic',
+
+        addressLine1: '20 Rue de Rivoli',
+
+        postalCode: '75001',
+
+        city: 'Paris',
+
+        countryCode: 'FR',
+
+        source: 'manual',
+      });
+
+      /*
+       * Active campaign.
+       */
+      const [campaign] = await getDatabase()
+        .insert(campaigns)
+        .values({
+          tenantId,
+
+          organizationId,
+
+          name: 'Work Queue Campaign',
+
+          status: 'active',
+        })
+        .returning();
+
+      if (!campaign) {
+        throw new Error('Failed to create Work Queue campaign');
+      }
+
+      campaignId = campaign.id;
+
+      /*
+       * Two campaign prospects.
+       */
+      const [prospect] = await getDatabase()
+        .insert(campaignProspects)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          establishmentId: establishment.id,
+
+          status: 'active',
+
+          lifecycleStage: 'in_progress',
+        })
+        .returning();
+
+      const [otherProspect] = await getDatabase()
+        .insert(campaignProspects)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          establishmentId: otherEstablishment.id,
+
+          status: 'active',
+
+          lifecycleStage: 'follow_up',
+        })
+        .returning();
+
+      if (!prospect || !otherProspect) {
+        throw new Error('Failed to create Work Queue prospects');
+      }
+
+      prospectId = prospect.id;
+      otherProspectId = otherProspect.id;
+
+      /*
+       * One assignment belongs to our test
+       * Prospector. The other belongs to another
+       * Prospector in the same team.
+       *
+       * The queue must return only the first.
+       */
+      const [assignment] = await getDatabase()
+        .insert(campaignProspectAssignments)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: prospect.id,
+
+          organizationId,
+
+          teamId,
+
+          assignedUserId: prospector.id,
+
+          assignedAt: new Date('2026-09-16T08:00:00.000Z'),
+        })
+        .returning();
+
+      await getDatabase()
+        .insert(campaignProspectAssignments)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId: otherProspect.id,
+
+          organizationId,
+
+          teamId,
+
+          assignedUserId: otherProspector.id,
+
+          assignedAt: new Date('2026-09-16T07:00:00.000Z'),
+        });
+
+      if (!assignment) {
+        throw new Error('Failed to create Work Queue assignment');
+      }
+
+      assignmentId = assignment.id;
+
+      prospectorAccessToken = (await login(prospectorEmail)).accessToken;
+
+      managerAccessToken = (await login(managerEmail)).accessToken;
+    });
   });
 
   afterAll(async () => {

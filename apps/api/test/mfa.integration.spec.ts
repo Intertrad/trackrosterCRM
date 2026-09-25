@@ -6,7 +6,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   identities,
@@ -62,7 +62,7 @@ describe('Authenticator MFA', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     await db.insert(tenants).values({ id: tenantId, name: 'MFA test', slug: `mfa-${tenantId}` });
     await db.insert(identities).values({
       id: identityId,

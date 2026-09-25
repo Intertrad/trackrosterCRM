@@ -16,7 +16,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import { withTenantContext } from '../src/database/tenant-context.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -91,7 +91,7 @@ describe('Actions, outcomes and unified timelines', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     app.get(ActionEffectsService).onModuleDestroy();
     await db
       .insert(tenants)
@@ -113,19 +113,17 @@ describe('Actions, outcomes and unified timelines', () => {
       .insert(identities)
       .values(actors.map((id) => ({ id, email: `${id}@example.test`, passwordHash })));
     await withTenantContext(db, tenantId, async (tx) => {
-      await tx
-        .insert(tenantMemberships)
-        .values(
-          actors
-            .filter((id) => id !== foreign)
-            .map((id) => ({
-              id,
-              identityId: id,
-              tenantId,
-              status: 'active' as const,
-              activatedAt: sql`now()`,
-            })),
-        );
+      await tx.insert(tenantMemberships).values(
+        actors
+          .filter((id) => id !== foreign)
+          .map((id) => ({
+            id,
+            identityId: id,
+            tenantId,
+            status: 'active' as const,
+            activatedAt: sql`now()`,
+          })),
+      );
       await tx.insert(userAccessGrants).values([
         { tenantId, userId: admin, role: 'client_admin', scopeType: 'tenant' },
         {
@@ -137,28 +135,24 @@ describe('Actions, outcomes and unified timelines', () => {
           teamId: team,
         },
       ]);
-      await tx
-        .insert(campaigns)
-        .values(
-          [campaign, otherCampaign].map((id) => ({
-            id,
-            tenantId,
-            organizationId: org,
-            name: id,
-            status: 'active' as const,
-          })),
-        );
-      await tx
-        .insert(establishments)
-        .values(
-          [establishment, otherEstablishment].map((id) => ({
-            id,
-            tenantId,
-            name: id,
-            normalizedName: id,
-            countryCode: 'FR',
-          })),
-        );
+      await tx.insert(campaigns).values(
+        [campaign, otherCampaign].map((id) => ({
+          id,
+          tenantId,
+          organizationId: org,
+          name: id,
+          status: 'active' as const,
+        })),
+      );
+      await tx.insert(establishments).values(
+        [establishment, otherEstablishment].map((id) => ({
+          id,
+          tenantId,
+          name: id,
+          normalizedName: id,
+          countryCode: 'FR',
+        })),
+      );
       await tx.insert(establishmentContacts).values([
         { id: contact, tenantId, establishmentId: establishment, name: 'Contact' },
         { id: otherContact, tenantId, establishmentId: otherEstablishment, name: 'Other' },
@@ -167,36 +161,30 @@ describe('Actions, outcomes and unified timelines', () => {
         { id: prospect, tenantId, campaignId: campaign, establishmentId: establishment },
         { id: otherProspect, tenantId, campaignId: otherCampaign, establishmentId: establishment },
       ]);
-      await tx
-        .insert(campaignProspectAssignments)
-        .values({
-          id: assignment,
-          tenantId,
-          campaignId: campaign,
-          campaignProspectId: prospect,
-          organizationId: org,
-          teamId: team,
-          assignedUserId: member,
-        });
+      await tx.insert(campaignProspectAssignments).values({
+        id: assignment,
+        tenantId,
+        campaignId: campaign,
+        campaignProspectId: prospect,
+        organizationId: org,
+        teamId: team,
+        assignedUserId: member,
+      });
     });
     await withTenantContext(db, foreignTenantId, async (tx) => {
-      await tx
-        .insert(tenantMemberships)
-        .values({
-          id: foreign,
-          identityId: foreign,
-          tenantId: foreignTenantId,
-          status: 'active',
-          activatedAt: sql`now()`,
-        });
-      await tx
-        .insert(userAccessGrants)
-        .values({
-          tenantId: foreignTenantId,
-          userId: foreign,
-          role: 'client_admin',
-          scopeType: 'tenant',
-        });
+      await tx.insert(tenantMemberships).values({
+        id: foreign,
+        identityId: foreign,
+        tenantId: foreignTenantId,
+        status: 'active',
+        activatedAt: sql`now()`,
+      });
+      await tx.insert(userAccessGrants).values({
+        tenantId: foreignTenantId,
+        userId: foreign,
+        role: 'client_admin',
+        scopeType: 'tenant',
+      });
     });
     for (const id of actors) {
       const r = await app.inject({

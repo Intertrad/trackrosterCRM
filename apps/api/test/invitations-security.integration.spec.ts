@@ -6,7 +6,7 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   identities,
@@ -109,7 +109,7 @@ describe('Invitations and tenant security settings', () => {
     });
     await configureHttpApplication(app);
     await app.init();
-    db = app.get(DATABASE);
+    db = getSeedDatabase();
     mail = app.get(AuthMailService);
     await mail.onModuleDestroy();
     await db.insert(tenants).values(

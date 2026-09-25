@@ -17,7 +17,7 @@ import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
-import { getSeedDatabase } from './support/seed.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 describe('Authentication integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -298,7 +298,9 @@ describe('Authentication integration', () => {
     const identity = getIdentity();
     const tokens = await login();
 
-    await userRepository.updateStatus(identity.tenantId, identity.userId, 'suspended');
+    await withSeedScope(() =>
+      userRepository.updateStatus(identity.tenantId, identity.userId, 'suspended'),
+    );
 
     try {
       const protectedResponse = await getApp().inject({
@@ -322,7 +324,9 @@ describe('Authentication integration', () => {
 
       expect(loginResponse.statusCode).toBe(401);
     } finally {
-      await userRepository.updateStatus(identity.tenantId, identity.userId, 'active');
+      await withSeedScope(() =>
+        userRepository.updateStatus(identity.tenantId, identity.userId, 'active'),
+      );
     }
 
     const reactivatedOldTokenResponse = await getApp().inject({

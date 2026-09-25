@@ -79,7 +79,13 @@ describe('Authentication session schema integration', () => {
     });
 
     database = getSeedDatabase();
-    authSessionRepository = app.get(AuthSessionRepository);
+    /*
+     * Built on the seed (owner) connection rather than resolved from the
+     * container: these cases drive the repository directly, with no request
+     * and so no tenant scope, which RLS refuses once the application connects
+     * as `trackroster_app`. The SQL under test is unchanged.
+     */
+    authSessionRepository = new AuthSessionRepository(getSeedDatabase());
 
     const tenantService = app.get(TenantService);
     const userRepository = app.get(UserRepository);
