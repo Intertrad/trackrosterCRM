@@ -31,6 +31,16 @@ export default defineConfig({
     env: {
       AUTH_RATE_LIMIT_IP: '1000000',
       AUTH_RATE_LIMIT_ACCOUNT: '1000000',
+
+      /*
+       * Storing an OIDC client secret needs a 32-byte key, and without one the
+       * endpoint correctly answers 503 rather than persisting the secret in
+       * clear. That is the right behaviour, but it meant the OIDC coverage
+       * depended on whether the developer happened to have this set locally, so
+       * the suite provides its own. A fixed value keeps the encrypt/decrypt
+       * assertions deterministic; it is a test key and protects nothing.
+       */
+      SSO_ENCRYPTION_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
     },
   },
 });
