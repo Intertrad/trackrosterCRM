@@ -115,11 +115,28 @@ export class ParticipationService {
     };
   }
   private async lock(auth: AuthenticatedPrincipal, tx: DatabaseExecutor) {
+    /*
+     * `no key update`, not `update`, and the difference is a deadlock.
+     *
+     * These routes are idempotent, so by the time the handler runs the
+     * interceptor has already inserted an idempotency record — and that row's
+     * foreign key to `tenants` takes a FOR KEY SHARE lock on this very tuple.
+     * Asking for FOR UPDATE afterwards is a lock upgrade, and FOR UPDATE is the
+     * one mode FOR KEY SHARE conflicts with: two concurrent requests each hold
+     * KEY SHARE and each wait for the other to release it, which PostgreSQL
+     * resolves as deadlock (40P01) rather than as the 409 the caller expects.
+     *
+     * FOR NO KEY UPDATE is compatible with FOR KEY SHARE, so the upgrade no
+     * longer conflicts, while remaining exclusive against itself — which is all
+     * this lock is for: serialising concurrent writers within one tenant.
+     * assignment-batch, consents, reservation-rule and outcome-settings already
+     * use this mode for the same reason.
+     */
     await tx
       .select({ id: tenants.id })
       .from(tenants)
       .where(eq(tenants.id, auth.tenantId))
-      .for('update');
+      .for('no key update');
   }
   private async subject(auth: AuthenticatedPrincipal, input: CreateInput, tx: DatabaseExecutor) {
     if (Boolean(input.membershipId) === Boolean(input.teamId))

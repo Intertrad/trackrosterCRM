@@ -5,6 +5,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
+import { DATABASE } from '../src/database/database.constants.js';
 import { getSeedDatabase } from './support/seed.js';
 import { withTenantContext } from '../src/database/tenant-context.js';
 import type { Database } from '../src/database/database.types.js';
@@ -33,7 +34,7 @@ import {
 import { PasswordService } from '../src/auth/password.service.js';
 import { AssignmentBatchService } from '../src/assignments/assignment-batch.service.js';
 describe('Bulk assignment and saved rules', () => {
-  let app: NestFastifyApplication, db: Database;
+  let app: NestFastifyApplication, db: Database, applicationDb: Database;
   const tenantId = randomUUID(),
     foreignTenantId = randomUUID(),
     admin = randomUUID(),
@@ -126,6 +127,16 @@ describe('Bulk assignment and saved rules', () => {
     await configureHttpApplication(app);
     await app.init();
     db = getSeedDatabase();
+
+    /*
+     * Fixtures use the privileged connection, but the mid-batch rollback case
+     * injects a fault into the transaction the *request* runs in, so it has to
+     * spy on the connection the application actually uses. Those are two
+     * different objects and the distinction is easy to lose: spying on the seed
+     * handle intercepts nothing the request does, the batch simply succeeds, and
+     * the test reads as a missing rollback rather than a mis-aimed spy.
+     */
+    applicationDb = app.get(DATABASE);
     await db
       .insert(tenants)
       .values([tenantId, foreignTenantId].map((id) => ({ id, name: id, slug: id })));
@@ -601,8 +612,8 @@ describe('Bulk assignment and saved rules', () => {
   it('rolls back assignments, cursor and audit when evidence persistence fails mid-batch', async () => {
     const rule = (await createRule()).json();
     const ids = [await prospect(), await prospect()];
-    const original = db.transaction.bind(db);
-    vi.spyOn(db, 'transaction').mockImplementation((callback, config) =>
+    const original = applicationDb.transaction.bind(applicationDb);
+    vi.spyOn(applicationDb, 'transaction').mockImplementation((callback, config) =>
       original(async (tx) => {
         let auditWrites = 0;
         const wrapped = new Proxy(tx, {
