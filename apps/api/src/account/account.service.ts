@@ -67,28 +67,31 @@ export class AccountService {
     };
   }
 
+  /*
+   * Read through a definer function (migration 0076). This lists every
+   * workspace the account belongs to, which is a cross-tenant question, while
+   * the request itself is scoped to the workspace the caller is currently in —
+   * so under RLS a direct query returns only that one and the switcher has
+   * nothing to switch to. The function is restricted to the caller's own
+   * identity, so it discloses no more than the session already does.
+   */
   async memberships(auth: AuthenticatedPrincipal) {
-    return this.database
-      .select({
-        membershipId: tenantMemberships.id,
-        tenantId: tenants.id,
-        tenantName: tenants.name,
-        displayName: tenantMemberships.displayName,
-        current: sql<boolean>`${tenantMemberships.id} = ${auth.membershipId}`,
-        roles: sql<string[]>`(SELECT coalesce(jsonb_agg(DISTINCT CASE role
-        WHEN 'client_admin' THEN 'tenant_admin' WHEN 'observer' THEN 'auditor' ELSE role::text END), '[]'::jsonb)
-        FROM (SELECT role FROM user_access_grants WHERE tenant_id = ${tenantMemberships.tenantId} AND user_id = ${tenantMemberships.id} UNION SELECT role FROM membership_resource_scopes WHERE tenant_id = ${tenantMemberships.tenantId} AND user_id = ${tenantMemberships.id}) role_grants)`,
-      })
-      .from(tenantMemberships)
-      .innerJoin(tenants, eq(tenants.id, tenantMemberships.tenantId))
-      .where(
-        and(
-          eq(tenantMemberships.identityId, auth.identityId),
-          eq(tenantMemberships.status, 'active'),
-          eq(tenants.status, 'active'),
-        ),
-      )
-      .orderBy(asc(tenants.name), asc(tenantMemberships.id));
+    const result = await this.database.execute<{
+      membership_id: string;
+      tenant_id: string;
+      tenant_name: string;
+      display_name: string | null;
+      roles: string[];
+    }>(sql`SELECT * FROM trackroster_identity_workspaces(${auth.identityId}::uuid)`);
+
+    return result.rows.map((row) => ({
+      membershipId: row.membership_id,
+      tenantId: row.tenant_id,
+      tenantName: row.tenant_name,
+      displayName: row.display_name,
+      current: row.membership_id === auth.membershipId,
+      roles: row.roles,
+    }));
   }
 
   async permissions(auth: AuthenticatedPrincipal, executor: DatabaseExecutor = this.database) {

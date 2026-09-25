@@ -25,6 +25,7 @@ import { AuthMailService } from '../auth/auth-mail.service.js';
 import { PasswordService } from '../auth/password.service.js';
 import { SecurityPolicyService } from '../auth/security-policy.service.js';
 import { MfaService } from '../auth/mfa.service.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { tokenHash } from '../auth/mfa-crypto.js';
 import { AcceptInvitationDto, CreateInvitationDto } from './invitation.dto.js';
 
@@ -244,8 +245,29 @@ export class InvitationService {
       .innerJoin(identities, eq(identities.id, tenantMemberships.identityId))
       .innerJoin(tenants, eq(tenants.id, membershipInvitations.tenantId));
   }
+  /*
+   * Invitation acceptance is unauthenticated, so there is no tenant context to
+   * read `membership_invitations` under, and its RLS policy answers a
+   * context-free read with zero rows. This resolves the tenant the token
+   * belongs to through a definer function that returns nothing else (migration
+   * 0074), so the lookup and the writes that follow can run under the normal
+   * policies. Validity is still decided by `valid()`, not here.
+   */
+  private async tenantForToken(hash: string): Promise<string | null> {
+    const result = await this.db.execute<{ tenant_id: string | null }>(
+      sql`select trackroster_invitation_tenant(${hash}) as tenant_id`,
+    );
+
+    return result.rows[0]?.tenant_id ?? null;
+  }
+
   async preview(token: string) {
-    const [row] = await this.invitationQuery(this.db).where(this.valid(tokenHash(token)));
+    const hash = tokenHash(token);
+    const tenantId = await this.tenantForToken(hash);
+    if (!tenantId) throw new NotFoundException('Invalid or expired invitation');
+    const [row] = await withTenantContext(this.db, tenantId, (tx) =>
+      this.invitationQuery(tx).where(this.valid(hash)),
+    );
     if (!row) throw new NotFoundException('Invalid or expired invitation');
     const [local, domain] = row.identity.email.split('@');
     return {
@@ -258,9 +280,13 @@ export class InvitationService {
   }
   async accept(token: string, input: AcceptInvitationDto) {
     const hash = tokenHash(token);
-    const [candidate] = await this.invitationQuery(this.db).where(this.valid(hash));
+    const invitationTenantId = await this.tenantForToken(hash);
+    if (!invitationTenantId) throw new BadRequestException('Invalid or expired invitation');
+    const [candidate] = await withTenantContext(this.db, invitationTenantId, (tx) =>
+      this.invitationQuery(tx).where(this.valid(hash)),
+    );
     if (!candidate) throw new BadRequestException('Invalid or expired invitation');
-    const result = await this.db.transaction(async (tx) => {
+    const result = await withTenantContext(this.db, invitationTenantId, async (tx) => {
       await tx
         .select({ id: identities.id })
         .from(identities)

@@ -519,6 +519,34 @@
       "when": 1790323992588,
       "tag": "0073_force_row_level_security",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1790325967233,
+      "tag": "0074_invitation_tenant_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1790326064905,
+      "tag": "0075_identity_security_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1790326490812,
+      "tag": "0076_identity_workspaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1790326738995,
+      "tag": "0077_pending_action_effects",
+      "breakpoints": true
     }
   ]
 }

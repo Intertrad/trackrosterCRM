@@ -2,6 +2,7 @@ import { ReservationLedgerService } from '../reservations/reservation-ledger.ser
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import type { Database } from '../database/database.types.js';
 import { actionEffects } from '../database/schema/index.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
@@ -31,16 +32,21 @@ export class ActionEffectsService implements OnModuleInit, OnModuleDestroy {
     if (this.busy) return;
     this.busy = true;
     try {
-      const pending = await this.db
-        .select({ id: actionEffects.id })
-        .from(actionEffects)
-        .where(sql`${actionEffects.deliveredAt} IS NULL`)
-        .orderBy(actionEffects.createdAt, actionEffects.id)
-        .limit(25);
+      /*
+       * The queue is shared across tenants and this sweep runs on a timer, not
+       * in a request, so there is no tenant scope to discover work under. The
+       * definer function (migration 0077) returns identifiers only; each item
+       * is then processed under its own tenant's context below, so the writes
+       * stay subject to the ordinary policies.
+       */
+      const discovered = await this.db.execute<{ id: string; tenant_id: string }>(
+        sql`SELECT id, tenant_id FROM trackroster_pending_action_effects(25)`,
+      );
+      const pending = discovered.rows;
       let failure: unknown;
       for (const item of pending) {
         try {
-          await this.db.transaction(async (tx) => {
+          await withTenantContext(this.db, item.tenant_id, async (tx) => {
             const [effect] = await tx
               .select()
               .from(actionEffects)

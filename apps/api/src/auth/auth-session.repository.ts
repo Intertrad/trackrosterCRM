@@ -9,7 +9,7 @@ import { tenants } from '../database/schema/tenants.js';
 import { tenantSecurityPolicies } from '../database/schema/security-policies.js';
 import { auditEvents } from '../database/schema/audit-events.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
-import { withTenantContext } from '../database/tenant-context.js';
+import { setTenantContext, withTenantContext } from '../database/tenant-context.js';
 
 export interface AuthenticationSessionPrincipal {
   sessionId: string;
@@ -114,6 +114,9 @@ export class AuthSessionRepository {
     createSession: (executor: DatabaseExecutor) => Promise<T>,
   ): Promise<T> {
     return this.database.transaction(async (transaction) => {
+      /* The source session and its audit row belong to the tenant being left,
+         so this transaction runs under that tenant's context. */
+      await setTenantContext(transaction, principal.tenantId);
       // Follow the same identity -> session lock order as credential/MFA changes.
       // Otherwise a switch could create a session while an identity-triggered
       // revocation waits on the source session using an older statement snapshot.
@@ -139,6 +142,11 @@ export class AuthSessionRepository {
         throw new UnauthorizedException('Session is no longer active');
       }
       const result = await createSession(transaction);
+      /* createSession inserts into the *destination* tenant and sets the
+         context to it. Everything below writes to the source tenant again —
+         the revocation and its audit row — so the context is restored rather
+         than left pointing at the workspace being joined. */
+      await setTenantContext(transaction, principal.tenantId);
       await transaction
         .update(authSessions)
         .set({
@@ -166,26 +174,31 @@ export class AuthSessionRepository {
     newRefreshTokenHash: string,
     expiresAt: Date,
   ): Promise<AuthSession | null> {
-    const [session] = await this.database
-      .update(authSessions)
-      .set({
-        refreshTokenHash: newRefreshTokenHash,
-        expiresAt,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .where(
-        and(
-          eq(authSessions.id, principal.sessionId),
-          eq(authSessions.identityId, principal.identityId),
-          eq(authSessions.membershipId, principal.membershipId),
-          eq(authSessions.tenantId, principal.tenantId),
-          eq(authSessions.refreshTokenHash, currentRefreshTokenHash),
-          isNull(authSessions.revokedAt),
-          gt(authSessions.expiresAt, sql`CURRENT_TIMESTAMP`),
-          gt(authSessions.absoluteExpiresAt, sql`CURRENT_TIMESTAMP`),
-        ),
-      )
-      .returning();
+    /* Refresh presents no access token, so no interceptor has opened a tenant
+       scope — but the refresh token itself carries the tenant, so the scope is
+       opened here rather than letting RLS hide the session and read as reuse. */
+    const [session] = await withTenantContext(this.database, principal.tenantId, (tx) =>
+      tx
+        .update(authSessions)
+        .set({
+          refreshTokenHash: newRefreshTokenHash,
+          expiresAt,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(
+          and(
+            eq(authSessions.id, principal.sessionId),
+            eq(authSessions.identityId, principal.identityId),
+            eq(authSessions.membershipId, principal.membershipId),
+            eq(authSessions.tenantId, principal.tenantId),
+            eq(authSessions.refreshTokenHash, currentRefreshTokenHash),
+            isNull(authSessions.revokedAt),
+            gt(authSessions.expiresAt, sql`CURRENT_TIMESTAMP`),
+            gt(authSessions.absoluteExpiresAt, sql`CURRENT_TIMESTAMP`),
+          ),
+        )
+        .returning(),
+    );
 
     return session ?? null;
   }
@@ -195,6 +208,7 @@ export class AuthSessionRepository {
     reason: 'logout' | 'refresh_reuse',
   ): Promise<boolean> {
     return this.database.transaction(async (transaction) => {
+      await setTenantContext(transaction, principal.tenantId);
       const [session] = await transaction
         .update(authSessions)
         .set({
