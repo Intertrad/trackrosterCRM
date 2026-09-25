@@ -20,6 +20,7 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { CanonicalFollowUpService } from './canonical-follow-up.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 export class UpdateFollowUpDto {
   @ValidateIf((_o, v) => v !== undefined)
   @IsISO8601({ strict: true })
@@ -38,13 +39,16 @@ class CancelFollowUpDto {
 export class FollowUpWriteGuard implements CanActivate {
   constructor(private readonly service: CanonicalFollowUpService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: { followUpId: string } }>();
-    if (!isUUID(r.params.followUpId))
-      throw new BadRequestException('Valid follow-up identifier required');
-    await this.service.row(r.auth, r.params.followUpId, true);
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: { followUpId: string } }>();
+      if (!isUUID(r.params.followUpId))
+        throw new BadRequestException('Valid follow-up identifier required');
+      await this.service.row(r.auth, r.params.followUpId, true);
+      return true;
+    });
   }
 }
 @Controller('follow-ups')

@@ -19,17 +19,21 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { CreateConsentDto, ListConsentsDto } from './consent.dto.js';
 import { ConsentService } from './consent.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ConsentWriteGuard implements CanActivate {
   constructor(private readonly service: ConsentService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: { prospectId: string } }>();
-    if (!isUUID(r.params.prospectId))
-      throw new BadRequestException('Valid prospect identifier required');
-    await this.service.authorize(r.auth, r.params.prospectId, true);
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: { prospectId: string } }>();
+      if (!isUUID(r.params.prospectId))
+        throw new BadRequestException('Valid prospect identifier required');
+      await this.service.authorize(r.auth, r.params.prospectId, true);
+      return true;
+    });
   }
 }
 @Controller('prospects/:prospectId/consents')

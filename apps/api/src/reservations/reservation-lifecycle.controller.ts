@@ -31,40 +31,47 @@ import {
   ReservationListDto,
   ReservationRulePatchDto,
 } from './reservation-lifecycle.dto.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ReservationLifecycleGuard implements CanActivate {
   constructor(private readonly service: ReservationLifecycleService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: { reservationId?: string };
-      body: ClaimReservationDto;
-      routeOptions: { url: string };
-    }>();
-    if (r.params.reservationId) {
-      if (!isUUID(r.params.reservationId))
-        throw new BadRequestException('Valid reservation ID required');
-      await this.service.authorizeMutation(
-        r.auth,
-        r.params.reservationId,
-        r.routeOptions.url.split('/').at(-1) as 'heartbeat' | 'extend' | 'release',
-      );
-    } else {
-      if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
-        throw new BadRequestException('Valid campaign and prospect IDs required');
-      await this.service.authorizeClaim(r.auth, r.body);
-    }
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: { reservationId?: string };
+        body: ClaimReservationDto;
+        routeOptions: { url: string };
+      }>();
+      if (r.params.reservationId) {
+        if (!isUUID(r.params.reservationId))
+          throw new BadRequestException('Valid reservation ID required');
+        await this.service.authorizeMutation(
+          r.auth,
+          r.params.reservationId,
+          r.routeOptions.url.split('/').at(-1) as 'heartbeat' | 'extend' | 'release',
+        );
+      } else {
+        if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
+          throw new BadRequestException('Valid campaign and prospect IDs required');
+        await this.service.authorizeClaim(r.auth, r.body);
+      }
+      return true;
+    });
   }
 }
 @Injectable()
 export class ReservationRuleGuard implements CanActivate {
   constructor(private readonly service: ReservationRuleService) {}
   async canActivate(c: ExecutionContext) {
-    await this.service.authorize(
-      c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
-    );
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      await this.service.authorize(
+        c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
+      );
+      return true;
+    });
   }
 }
 @Controller('reservation-rules')

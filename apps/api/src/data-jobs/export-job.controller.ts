@@ -21,19 +21,23 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { DownloadExportDto, ExportRequestDto, JobListDto } from './data-jobs.dto.js';
 import { ExportJobService } from './export-job.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ExportJobGuard implements CanActivate {
   constructor(private readonly service: ExportJobService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: { exportId?: string } }>();
-    if (r.params.exportId) {
-      if (!isUUID(r.params.exportId))
-        throw new BadRequestException('Valid export identifier required');
-      await this.service.row(r.auth, r.params.exportId);
-    } else await this.service.authority(r.auth);
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: { exportId?: string } }>();
+      if (r.params.exportId) {
+        if (!isUUID(r.params.exportId))
+          throw new BadRequestException('Valid export identifier required');
+        await this.service.row(r.auth, r.params.exportId);
+      } else await this.service.authority(r.auth);
+      return true;
+    });
   }
 }
 @Controller('exports')

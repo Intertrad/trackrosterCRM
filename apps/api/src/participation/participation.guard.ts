@@ -12,6 +12,7 @@ import {
   type ResourceKind,
 } from '../resource-scopes/resource-scope.service.js';
 import { ParticipationService } from './participation.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 const key = 'participation-write';
 export const ParticipationWrite = (kind: ResourceKind, create = false) =>
   SetMetadata(key, { kind, create });
@@ -23,27 +24,30 @@ export class ParticipationGuard implements CanActivate {
     private readonly scopes: ResourceScopeService,
   ) {}
   async canActivate(context: ExecutionContext) {
-    const { kind, create } = this.reflector.get<{ kind: ResourceKind; create: boolean }>(
-      key,
-      context.getHandler(),
-    );
-    const req = context.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: Record<string, string>;
-      body?: Record<string, unknown>;
-    }>();
-    const id = create
-      ? kind === 'campaign'
-        ? req.params.campaignId
-        : req.body?.territoryId
-      : req.params.id;
-    if (
-      typeof id !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    )
-      throw new BadRequestException('Valid resource identifier required');
-    if (create) await this.scopes.require(req.auth, kind, id, 'manage');
-    else await this.service.requireMutation(req.auth, kind, id);
-    return true;
+    const scoped = context.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const { kind, create } = this.reflector.get<{ kind: ResourceKind; create: boolean }>(
+        key,
+        context.getHandler(),
+      );
+      const req = context.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: Record<string, string>;
+        body?: Record<string, unknown>;
+      }>();
+      const id = create
+        ? kind === 'campaign'
+          ? req.params.campaignId
+          : req.body?.territoryId
+        : req.params.id;
+      if (
+        typeof id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      )
+        throw new BadRequestException('Valid resource identifier required');
+      if (create) await this.scopes.require(req.auth, kind, id, 'manage');
+      else await this.service.requireMutation(req.auth, kind, id);
+      return true;
+    });
   }
 }

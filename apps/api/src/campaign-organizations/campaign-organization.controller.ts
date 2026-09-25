@@ -29,17 +29,21 @@ import {
   UpdateCampaignOrganizationDto,
 } from './campaign-organization.dto.js';
 import { CampaignOrganizationService } from './campaign-organization.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class CampaignOrganizationGuard implements CanActivate {
   constructor(private readonly service: CampaignOrganizationService) {}
   async canActivate(context: ExecutionContext) {
-    const req = context
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: { campaignId: string } }>();
-    if (!isUUID(req.params.campaignId))
-      throw new BadRequestException('Valid campaign identifier required');
-    await this.service.authorize(req.auth, req.params.campaignId);
-    return true;
+    const scoped = context.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const req = context
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: { campaignId: string } }>();
+      if (!isUUID(req.params.campaignId))
+        throw new BadRequestException('Valid campaign identifier required');
+      await this.service.authorize(req.auth, req.params.campaignId);
+      return true;
+    });
   }
 }
 @Controller('campaigns/:campaignId/organizations')

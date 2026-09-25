@@ -30,6 +30,7 @@ import {
   UnassignedListDto,
   UpdateAssignmentDto,
 } from './assignment-lifecycle.dto.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class AssignmentLifecycleGuard implements CanActivate {
   constructor(
@@ -37,26 +38,29 @@ export class AssignmentLifecycleGuard implements CanActivate {
     private readonly batches: AssignmentBatchService,
   ) {}
   async canActivate(c: ExecutionContext) {
-    const r = c.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: { assignmentId?: string };
-      body: CreateAssignmentDto;
-    }>();
-    if (r.params.assignmentId) {
-      if (!isUUID(r.params.assignmentId))
-        throw new BadRequestException('Valid assignment ID required');
-      await this.service.authorize(r.auth, r.params.assignmentId);
-      if (r.body?.teamId) {
-        if (!isUUID(r.body.teamId)) throw new BadRequestException('Valid team ID required');
-        const row = await this.service.row(r.auth, r.params.assignmentId);
-        await this.batches.authorize(r.auth, row.campaignId, [r.body.teamId]);
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: { assignmentId?: string };
+        body: CreateAssignmentDto;
+      }>();
+      if (r.params.assignmentId) {
+        if (!isUUID(r.params.assignmentId))
+          throw new BadRequestException('Valid assignment ID required');
+        await this.service.authorize(r.auth, r.params.assignmentId);
+        if (r.body?.teamId) {
+          if (!isUUID(r.body.teamId)) throw new BadRequestException('Valid team ID required');
+          const row = await this.service.row(r.auth, r.params.assignmentId);
+          await this.batches.authorize(r.auth, row.campaignId, [r.body.teamId]);
+        }
+      } else {
+        if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.teamId))
+          throw new BadRequestException('Valid campaign and team IDs required');
+        await this.batches.authorize(r.auth, r.body.campaignId, [r.body.teamId]);
       }
-    } else {
-      if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.teamId))
-        throw new BadRequestException('Valid campaign and team IDs required');
-      await this.batches.authorize(r.auth, r.body.campaignId, [r.body.teamId]);
-    }
-    return true;
+      return true;
+    });
   }
 }
 @Controller('assignments')

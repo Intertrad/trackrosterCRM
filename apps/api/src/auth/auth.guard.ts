@@ -12,6 +12,7 @@ import { AuthSessionRepository } from './auth-session.repository.js';
 import { AuthenticatedRequest } from './auth.types.js';
 import { TokenService } from './token.service.js';
 import { setRequestTenantContext } from '../database/tenant-context-store.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -81,7 +82,14 @@ export class AuthGuard implements CanActivate {
       identityId: payload.sub,
     });
 
-    await this.permissions.enforceRequest(request.auth, request);
+    /* enforceRequest reads tenant-scoped permission rows, and guards run
+       before TenantTransactionInterceptor, so the scope has to be opened
+       here — by this point the tenant comes from a verified token. */
+    const auth = request.auth;
+
+    await withGuardTenantScope(payload.tenantId, () =>
+      this.permissions.enforceRequest(auth, request),
+    );
     return true;
   }
 }

@@ -18,17 +18,21 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { GeographicAllocationDto } from './allocation.dto.js';
 import { GeographicAllocationService } from './allocation.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class GeographicAllocationGuard implements CanActivate {
   constructor(private readonly service: GeographicAllocationService) {}
   async canActivate(context: ExecutionContext) {
-    const req = context
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: { campaignId: string } }>();
-    if (!isUUID(req.params.campaignId))
-      throw new BadRequestException('Valid campaign identifier required');
-    await this.service.authorize(req.auth, req.params.campaignId);
-    return true;
+    const scoped = context.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const req = context
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: { campaignId: string } }>();
+      if (!isUUID(req.params.campaignId))
+        throw new BadRequestException('Valid campaign identifier required');
+      await this.service.authorize(req.auth, req.params.campaignId);
+      return true;
+    });
   }
 }
 @Controller('campaigns/:campaignId/geographic-allocation')

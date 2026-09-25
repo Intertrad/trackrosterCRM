@@ -30,6 +30,7 @@ import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { OutcomeSettingsService, ACTION_TYPES, BEHAVIORS } from './outcome-settings.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 class OutcomeDto {
   @IsString() @Matches(/^[a-z][a-z0-9_]{0,39}$/) code!: string;
   @IsString() @Matches(/\S/) @MaxLength(100) label!: string;
@@ -54,10 +55,13 @@ class SettingsDto {
 class SettingsGuard implements CanActivate {
   constructor(private readonly service: OutcomeSettingsService) {}
   async canActivate(c: ExecutionContext) {
-    await this.service.authorize(
-      c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
-    );
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      await this.service.authorize(
+        c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
+      );
+      return true;
+    });
   }
 }
 @Controller('settings/default-statuses')

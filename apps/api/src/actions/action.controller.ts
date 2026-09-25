@@ -31,30 +31,34 @@ import {
   UpdateActionDto,
 } from './action.dto.js';
 import { ActionService } from './action.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ActionWriteGuard implements CanActivate {
   constructor(private readonly service: ActionService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: { actionId?: string };
-      body: CreateActionDto;
-      routeOptions: { url: string };
-    }>();
-    if (r.params.actionId) {
-      if (!isUUID(r.params.actionId)) throw new BadRequestException('Valid action ID required');
-      await this.service.authorize(
-        r.auth,
-        r.params.actionId,
-        true,
-        /\/(start|complete)$/.test(r.routeOptions.url),
-      );
-    } else {
-      if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
-        throw new BadRequestException('Valid campaign and prospect IDs required');
-      await this.service.authorizeCreate(r.auth, r.body);
-    }
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: { actionId?: string };
+        body: CreateActionDto;
+        routeOptions: { url: string };
+      }>();
+      if (r.params.actionId) {
+        if (!isUUID(r.params.actionId)) throw new BadRequestException('Valid action ID required');
+        await this.service.authorize(
+          r.auth,
+          r.params.actionId,
+          true,
+          /\/(start|complete)$/.test(r.routeOptions.url),
+        );
+      } else {
+        if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
+          throw new BadRequestException('Valid campaign and prospect IDs required');
+        await this.service.authorizeCreate(r.auth, r.body);
+      }
+      return true;
+    });
   }
 }
 @Controller('actions')

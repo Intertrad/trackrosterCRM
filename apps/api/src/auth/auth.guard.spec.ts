@@ -10,6 +10,7 @@ import { AuthSessionRepository } from './auth-session.repository.js';
 import { AuthGuard } from './auth.guard.js';
 import { AuthenticatedRequest } from './auth.types.js';
 import { TokenService } from './token.service.js';
+import { registerGuardDatabaseStub } from '../database/guard-tenant-scope.testing.js';
 
 const identityId = '11111111-1111-4111-8111-111111111111';
 const membershipId = '22222222-2222-4222-8222-222222222222';
@@ -23,6 +24,7 @@ describe('AuthGuard', () => {
   let guard: AuthGuard;
 
   beforeEach(() => {
+    registerGuardDatabaseStub();
     tokenService = {
       verifyAccessToken: vi.fn(),
     } as unknown as TokenService;

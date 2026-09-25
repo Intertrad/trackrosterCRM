@@ -24,27 +24,31 @@ import { DatabaseModule } from '../database/database.module.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { CreateObjectiveDto, ObjectiveListDto, UpdateObjectiveDto } from './objective.dto.js';
 import { ObjectiveService } from './objective.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ObjectiveWriteGuard implements CanActivate {
   constructor(private readonly service: ObjectiveService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: Actor; params: { objectiveId?: string }; body?: CreateObjectiveDto }>();
-    if (r.params.objectiveId) {
-      if (!isUUID(r.params.objectiveId))
-        throw new BadRequestException('Valid objective ID required');
-      await this.service.row(r.auth, r.params.objectiveId, true);
-    } else {
-      if (
-        !r.body ||
-        !isUUID(r.body.organizationId) ||
-        (r.body.teamId !== undefined && !isUUID(r.body.teamId))
-      )
-        throw new BadRequestException('Valid organization/team required');
-      await this.service.authorizeCreate(r.auth, r.body);
-    }
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: Actor; params: { objectiveId?: string }; body?: CreateObjectiveDto }>();
+      if (r.params.objectiveId) {
+        if (!isUUID(r.params.objectiveId))
+          throw new BadRequestException('Valid objective ID required');
+        await this.service.row(r.auth, r.params.objectiveId, true);
+      } else {
+        if (
+          !r.body ||
+          !isUUID(r.body.organizationId) ||
+          (r.body.teamId !== undefined && !isUUID(r.body.teamId))
+        )
+          throw new BadRequestException('Valid organization/team required');
+        await this.service.authorizeCreate(r.auth, r.body);
+      }
+      return true;
+    });
   }
 }
 @Controller('objectives')

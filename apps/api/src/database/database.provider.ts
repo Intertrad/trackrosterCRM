@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import { DATABASE, DATABASE_POOL } from './database.constants.js';
 import * as schema from './schema/index.js';
 import { createRequestAwareDatabase } from './request-tenant-executor.js';
+import { registerGuardDatabase } from './guard-tenant-scope.js';
 
 export const databaseProviders: Provider[] = [
   {
@@ -37,11 +38,17 @@ export const databaseProviders: Provider[] = [
     inject: [DATABASE_POOL],
 
     useFactory: (pool: Pool) => {
-      return createRequestAwareDatabase(
+      const database = createRequestAwareDatabase(
         drizzle(pool, {
           schema,
         }),
       );
+
+      /* Guards run before the tenant interceptor and need this to open their
+         own tenant scope; see guard-tenant-scope.ts. */
+      registerGuardDatabase(database);
+
+      return database;
     },
   },
 ];

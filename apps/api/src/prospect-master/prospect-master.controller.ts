@@ -40,22 +40,27 @@ import {
 } from './prospect-master.dto.js';
 import { CreateEstablishmentContactDto } from '../establishment-contacts/dto/create-establishment-contact.dto.js';
 import { UpdateEstablishmentContactDto } from '../establishment-contacts/dto/update-establishment-contact.dto.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ProspectWriteGuard implements CanActivate {
   constructor(private readonly service: ProspectMasterService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; params: Record<string, string> }>();
-    for (const v of Object.values(r.params))
-      if (!isUUID(v)) throw new BadRequestException('Invalid resource identifier');
-    if (r.params.prospectId) await this.service.access.prospect(r.auth, r.params.prospectId, true);
-    else if (r.params.addressId)
-      await this.service.childParent(r.auth, 'address', r.params.addressId, true);
-    else if (r.params.contactId)
-      await this.service.childParent(r.auth, 'contact', r.params.contactId, true);
-    else await this.service.access.admin(r.auth);
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; params: Record<string, string> }>();
+      for (const v of Object.values(r.params))
+        if (!isUUID(v)) throw new BadRequestException('Invalid resource identifier');
+      if (r.params.prospectId)
+        await this.service.access.prospect(r.auth, r.params.prospectId, true);
+      else if (r.params.addressId)
+        await this.service.childParent(r.auth, 'address', r.params.addressId, true);
+      else if (r.params.contactId)
+        await this.service.childParent(r.auth, 'contact', r.params.contactId, true);
+      else await this.service.access.admin(r.auth);
+      return true;
+    });
   }
 }
 @Controller('prospects')

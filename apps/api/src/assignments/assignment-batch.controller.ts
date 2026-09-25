@@ -31,42 +31,49 @@ import {
 } from './assignment-batch.dto.js';
 import { AssignmentBatchService } from './assignment-batch.service.js';
 import { AssignmentRuleService } from './assignment-rule.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class AssignmentBatchGuard implements CanActivate {
   constructor(private readonly service: AssignmentBatchService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c
-      .switchToHttp()
-      .getRequest<{ auth: AuthenticatedPrincipal; body: AssignmentBatchDto }>();
-    if (
-      !isUUID(r.body?.campaignId) ||
-      (r.body.teamId != null && !isUUID(r.body.teamId)) ||
-      (r.body.ruleId != null && !isUUID(r.body.ruleId))
-    )
-      throw new BadRequestException('Valid campaign and target IDs required');
-    await this.service.authorizeBatch(r.auth, r.body);
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c
+        .switchToHttp()
+        .getRequest<{ auth: AuthenticatedPrincipal; body: AssignmentBatchDto }>();
+      if (
+        !isUUID(r.body?.campaignId) ||
+        (r.body.teamId != null && !isUUID(r.body.teamId)) ||
+        (r.body.ruleId != null && !isUUID(r.body.ruleId))
+      )
+        throw new BadRequestException('Valid campaign and target IDs required');
+      await this.service.authorizeBatch(r.auth, r.body);
+      return true;
+    });
   }
 }
 @Injectable()
 export class AssignmentRuleGuard implements CanActivate {
   constructor(private readonly service: AssignmentBatchService) {}
   async canActivate(c: ExecutionContext) {
-    const r = c.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: { ruleId?: string };
-      body?: { campaignId?: string };
-      query?: { campaignId?: string };
-    }>();
-    if (r.params.ruleId) {
-      if (!isUUID(r.params.ruleId)) throw new BadRequestException('Valid rule ID required');
-      await this.service.rule(r.auth, r.params.ruleId);
-    } else {
-      const id = r.body?.campaignId ?? r.query?.campaignId;
-      if (!id || !isUUID(id)) throw new BadRequestException('Valid campaign ID required');
-      await this.service.authorize(r.auth, id, null);
-    }
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = c.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: { ruleId?: string };
+        body?: { campaignId?: string };
+        query?: { campaignId?: string };
+      }>();
+      if (r.params.ruleId) {
+        if (!isUUID(r.params.ruleId)) throw new BadRequestException('Valid rule ID required');
+        await this.service.rule(r.auth, r.params.ruleId);
+      } else {
+        const id = r.body?.campaignId ?? r.query?.campaignId;
+        if (!id || !isUUID(id)) throw new BadRequestException('Valid campaign ID required');
+        await this.service.authorize(r.auth, id, null);
+      }
+      return true;
+    });
   }
 }
 @Controller('assignments')

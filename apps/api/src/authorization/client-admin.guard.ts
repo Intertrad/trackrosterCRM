@@ -9,6 +9,7 @@ import {
 
 import { AuthenticatedRequest } from '../auth/auth.types.js';
 import { AuthorizationService } from './authorization.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 
 @Injectable()
 export class ClientAdminGuard implements CanActivate {
@@ -18,21 +19,29 @@ export class ClientAdminGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const scoped = context
 
-    if (!request.auth) {
-      throw new UnauthorizedException('Authentication required');
-    }
+      .switchToHttp()
 
-    const isClientAdmin = await this.authorizationService.isClientAdmin(
-      request.auth.tenantId,
-      request.auth.userId,
-    );
+      .getRequest<{ auth?: { tenantId?: string } }>();
 
-    if (!isClientAdmin) {
-      throw new ForbiddenException('Client administrator access required');
-    }
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    return true;
+      if (!request.auth) {
+        throw new UnauthorizedException('Authentication required');
+      }
+
+      const isClientAdmin = await this.authorizationService.isClientAdmin(
+        request.auth.tenantId,
+        request.auth.userId,
+      );
+
+      if (!isClientAdmin) {
+        throw new ForbiddenException('Client administrator access required');
+      }
+
+      return true;
+    });
   }
 }

@@ -25,30 +25,34 @@ import {
   OverrideReasonDto,
 } from './collision-workflow.dto.js';
 import { CollisionWorkflowService } from './collision-workflow.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class CollisionWorkflowGuard implements CanActivate {
   constructor(private readonly service: CollisionWorkflowService) {}
   async canActivate(context: ExecutionContext) {
-    const r = context.switchToHttp().getRequest<{
-      auth: AuthenticatedPrincipal;
-      params: { collisionId?: string; requestId?: string };
-      body: CheckCollisionDto;
-      routeOptions: { url: string };
-    }>();
-    if (r.params.collisionId) {
-      if (!isUUID(r.params.collisionId))
-        throw new BadRequestException('Valid collision ID required');
-      await this.service.authorizeRequest(r.auth, r.params.collisionId);
-    } else if (r.params.requestId) {
-      if (!isUUID(r.params.requestId)) throw new BadRequestException('Valid request ID required');
-      const op = r.routeOptions.url.split('/').at(-1) as 'approve' | 'reject' | 'cancel';
-      await this.service.authorizeDecision(r.auth, r.params.requestId, op);
-    } else {
-      if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
-        throw new BadRequestException('Valid campaign and prospect IDs required');
-      await this.service.authorizeCheck(r.auth, r.body);
-    }
-    return true;
+    const scoped = context.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const r = context.switchToHttp().getRequest<{
+        auth: AuthenticatedPrincipal;
+        params: { collisionId?: string; requestId?: string };
+        body: CheckCollisionDto;
+        routeOptions: { url: string };
+      }>();
+      if (r.params.collisionId) {
+        if (!isUUID(r.params.collisionId))
+          throw new BadRequestException('Valid collision ID required');
+        await this.service.authorizeRequest(r.auth, r.params.collisionId);
+      } else if (r.params.requestId) {
+        if (!isUUID(r.params.requestId)) throw new BadRequestException('Valid request ID required');
+        const op = r.routeOptions.url.split('/').at(-1) as 'approve' | 'reject' | 'cancel';
+        await this.service.authorizeDecision(r.auth, r.params.requestId, op);
+      } else {
+        if (!isUUID(r.body?.campaignId) || !isUUID(r.body?.campaignProspectId))
+          throw new BadRequestException('Valid campaign and prospect IDs required');
+        await this.service.authorizeCheck(r.auth, r.body);
+      }
+      return true;
+    });
   }
 }
 @Controller()

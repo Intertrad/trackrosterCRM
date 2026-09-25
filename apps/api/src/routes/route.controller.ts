@@ -34,26 +34,30 @@ import {
   UpdateStopDto,
 } from './route.dto.js';
 import { RouteService } from './route.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class RouteWriteGuard implements CanActivate {
   constructor(private readonly service: RouteService) {}
   async canActivate(c: ExecutionContext) {
-    const req = c.switchToHttp().getRequest<{
-      auth: Actor;
-      params: { routeId?: string; stopId?: string };
-      body?: { teamId?: string };
-    }>();
-    if (req.params.stopId) {
-      if (!isUUID(req.params.stopId)) throw new BadRequestException('Valid stop ID required');
-      await this.service.stopRoute(req.auth, req.params.stopId);
-    } else if (req.params.routeId) {
-      if (!isUUID(req.params.routeId)) throw new BadRequestException('Valid route ID required');
-      await this.service.row(req.auth, req.params.routeId, true);
-    } else {
-      if (!isUUID(req.body?.teamId)) throw new BadRequestException('Valid team ID required');
-      await this.service.authorizeCreate(req.auth, req.body!.teamId!);
-    }
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      const req = c.switchToHttp().getRequest<{
+        auth: Actor;
+        params: { routeId?: string; stopId?: string };
+        body?: { teamId?: string };
+      }>();
+      if (req.params.stopId) {
+        if (!isUUID(req.params.stopId)) throw new BadRequestException('Valid stop ID required');
+        await this.service.stopRoute(req.auth, req.params.stopId);
+      } else if (req.params.routeId) {
+        if (!isUUID(req.params.routeId)) throw new BadRequestException('Valid route ID required');
+        await this.service.row(req.auth, req.params.routeId, true);
+      } else {
+        if (!isUUID(req.body?.teamId)) throw new BadRequestException('Valid team ID required');
+        await this.service.authorizeCreate(req.auth, req.body!.teamId!);
+      }
+      return true;
+    });
   }
 }
 @Controller('routes')

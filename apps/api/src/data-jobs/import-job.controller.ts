@@ -29,14 +29,18 @@ import {
   JobListDto,
 } from './data-jobs.dto.js';
 import { ImportJobService } from './import-job.service.js';
+import { withGuardTenantScope } from '../database/guard-tenant-scope.js';
 @Injectable()
 export class ImportJobGuard implements CanActivate {
   constructor(private readonly service: ImportJobService) {}
   async canActivate(c: ExecutionContext) {
-    await this.service.authorize(
-      c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
-    );
-    return true;
+    const scoped = c.switchToHttp().getRequest<{ auth?: { tenantId?: string } }>();
+    return withGuardTenantScope(scoped.auth?.tenantId, async () => {
+      await this.service.authorize(
+        c.switchToHttp().getRequest<{ auth: AuthenticatedPrincipal }>().auth,
+      );
+      return true;
+    });
   }
 }
 @Controller('imports')
