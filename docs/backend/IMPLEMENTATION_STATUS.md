@@ -1,5 +1,11 @@
 # Backend implementation status
 
+> This file records **feature** completion. For the production-readiness work — tenant
+> isolation enforcement, the defects it uncovered, and what is left before a pilot — see
+> [BACKEND_HARDENING.md](./BACKEND_HARDENING.md), and
+> [TRACKROSTER_REMAINING_WORK.md](../TRACKROSTER_REMAINING_WORK.md) for the backlog.
+> A feature being listed below does not mean it is production-ready.
+
 ## Current implementation note — 2026-09-23
 
 The backend now includes platform administrator authorization, tenant administration,

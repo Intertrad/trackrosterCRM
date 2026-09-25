@@ -92,6 +92,7 @@ ticket. The documents below are the per-area detail behind it; where any of them
 disagrees with Remaining Work, Remaining Work is newer.
 
 - [Remaining Work](./TRACKROSTER_REMAINING_WORK.md)
+- [Backend hardening record](./backend/BACKEND_HARDENING.md) — what was done to the backend, what it proved, and the defects it found
 - [Implementation compliance audit](./audits/TRACKROSTER_IMPLEMENTATION_COMPLIANCE_AUDIT.md)
 - [Production readiness index](./production/README.md)
 - [Schema source of truth](./production/SCHEMA_SOURCE_OF_TRUTH.md)
