@@ -4,7 +4,7 @@ The execution document for finishing TrackRoster. Every status below is backed b
 command that was run, a file that was read, or a test that was executed — never by
 the existence of a file. Where something is unverified it says so.
 
-- **Audited:** 2026-09-25 (revised after TR-902 and TR-904)
+- **Audited:** 2026-09-25 (revised after TR-902, TR-904 and TR-909)
 - **Branch:** `codex/backend-completion`
 - **Verification basis:** `pnpm format:check`, `pnpm typecheck`, `pnpm build`,
   `vitest run` (api unit, api integration, web), `pnpm db:migrations:check`, and
@@ -21,17 +21,17 @@ Tenant isolation is now genuinely enforced rather than nominally present, which 
 the single largest gap. The remaining blockers are narrow and well understood: one
 mechanism (tenant context for background work) and one hygiene task (a green gate).
 
-| Gate                       | Result                                                                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm format:check`        | **PASS**                                                                                                                                                |
-| `pnpm typecheck`           | **PASS** — 5/5 packages                                                                                                                                 |
-| `pnpm build`               | **PASS** — 4/4 tasks                                                                                                                                    |
-| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain                                                                                                                 |
-| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)                                                                                                            |
-| api unit                   | **746 passed / 0 failed**                                                                                                                               |
-| api integration            | **573–575 passed / 7–9 failed** — none attributable to the runtime role; the spread is two mail-dependent suites that are intermittently flaky (TR-910) |
-| worker unit                | **63 passed / 2 failed** — pre-existing, newly measured                                                                                                 |
-| web                        | **494 passed / 0 failed**                                                                                                                               |
+| Gate                       | Result                                        |
+| -------------------------- | --------------------------------------------- |
+| `pnpm format:check`        | **PASS**                                      |
+| `pnpm typecheck`           | **PASS** — 5/5 packages                       |
+| `pnpm build`               | **PASS** — 4/4 tasks                          |
+| `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain       |
+| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)  |
+| api unit                   | **746 passed / 0 failed**                     |
+| api integration            | **582 passed / 1 failed** — the one is TR-916 |
+| worker unit                | **65 passed / 0 failed**                      |
+| web                        | **494 passed / 0 failed**                     |
 
 Tenant isolation and concurrency suites, run individually:
 
@@ -264,12 +264,12 @@ during password recovery. Fixed by 0075.
 
 ## Testing readiness
 
-| Suite           | Passing                                                                                   | Failing | Notes                                                                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| api unit        | 746                                                                                       | 0       | all 5 in `import-execution.service.spec.ts`, stale (TR-904)                                                                                      |
-| api integration | **577–580 passed / 2–5 failed** — 2 stable defects (TR-909, TR-916); the spread is TR-917 | 7–9     | none from the runtime role; TR-902's 5 cleared plus 1 of the 8. The spread is TR-910 flakiness in `password-recovery` and `invitations-security` |
-| worker unit     | 65                                                                                        | 0       | `webhook-delivery.processor.spec.ts`, pre-existing and newly measured                                                                            |
-| web             | 494                                                                                       | 0       |                                                                                                                                                  |
+| Suite           | Passing | Failing | Notes                                                                                        |
+| --------------- | ------- | ------- | -------------------------------------------------------------------------------------------- |
+| api unit        | 746     | 0       | the five stale `import-execution` cases were repaired under TR-904                           |
+| api integration | 582     | 1       | TR-916 only; the mail flakiness is gone since TR-910, the rest fixed under TR-904 and TR-909 |
+| worker unit     | 65      | 0       | the two webhook cases were repaired under TR-904                                             |
+| web             | 494     | 0       |                                                                                              |
 
 Gaps with no meaningful behavioural test: import deduplication against the dossier's
 key set, notification channel matrix, worker tenant isolation, Redis-unavailable
@@ -361,7 +361,7 @@ red. `test/background-sweep-discovery.integration.spec.ts` now guards the proper
 was verified to fail for the right reason by revoking a grant and watching it go red.
 
 **Result:** `data-jobs` 17/17 — clearing TR-902's 5 failures _and_ one of the 8
-pre-existing — and api integration **575 passed / 7 failed, with zero failures
+pre-existing — and api integration **582 passed / 1 failed, with zero failures
 attributable to the runtime role**.
 
 #### TR-904 — Restore a green gate — **MOSTLY RESOLVED, 2 defects remain**
@@ -407,20 +407,38 @@ transaction helper. api unit **746/746**, worker **65/65**, web **494/494**.
 
 **Still open — 2 genuine product defects, each now precisely diagnosed:**
 
-##### TR-909 — An activity can bypass a concurrent opposition _(P1, raised from P2)_
+##### TR-909 — An activity could bypass a concurrent opposition — **RESOLVED 2026-09-25**
 
-- **Evidence:** `consents` > "serializes an activity behind concurrent opposition so
-  it cannot bypass the new block" fails **4 runs out of 4 in isolation**, returning
-  `{ ok: true }` where `PCC01` is expected. It is not flaky; it is a race whose bad
-  interleaving is reliable when the suite runs alone and sometimes lost under full
-  load, which is why earlier runs looked intermittent.
-- **Why it matters:** an activity is recorded against a prospect who has just
-  opposed. That is a consent-compliance failure, not a test nuisance.
-- **Note:** this already resisted one diagnosis — a previous session hypothesised
-  that `trackroster_consent_blocked` being STABLE caused a stale post-lock snapshot,
-  tested it, and reverted. Budget for real design work: lock ordering, or serialisable
-  isolation for this path.
-- **Estimate:** **6–10 h**
+Closed, and it was a regression rather than a gap.
+
+The serialisation was never at fault. `trackroster_guard_contact_operation` takes
+`FOR SHARE` on the establishment before checking, and the opposition write takes
+`FOR UPDATE` on the same row, so an activity does wait. What went wrong is what it
+evaluated once the wait ended. Measured from inside the trigger on the failing case:
+
+```
+statement start   42.950919
+consent effective 42.982199   committed while the writer waited
+lock released     42.987203   36ms later
+```
+
+`statement_timestamp()` is the start of the top-level statement, so after a 36 ms wait
+the guard asked what was blocked 36 ms ago and answered honestly: nothing. The row was
+visible throughout — the same snapshot queried with `clock_timestamp()` found it. The
+predicate excluded it, not the snapshot.
+
+Migration 0038 is titled `consent_live_clock` and its comment reads "including after a
+lock wait": it made the function VOLATILE and moved it to `clock_timestamp()` for exactly
+this case. 0060 then extended it to follow merge families and rewrote it as STABLE with
+`statement_timestamp()`, reinstating the bug its predecessor had named. **0080 restores
+the clock and keeps 0060's recursion.**
+
+This also explains the earlier failed attempt: changing volatility alone could not have
+worked, because visibility was never the problem.
+
+`consents` is 9/9 across four runs, and the spec now asserts both properties directly —
+a redefinition dropping either fails with a message naming the cause rather than as a
+race. Verified by reapplying 0060's definition and watching it go red.
 
 ##### TR-916 — The reservation "durable intent" is not durable _(P1, new)_
 
@@ -539,21 +557,20 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 
 | #   | ID     | Priority | Title                                     | Est.    |
 | --- | ------ | -------- | ----------------------------------------- | ------- |
-| 1   | TR-909 | P1       | Activity bypasses concurrent opposition   | 6–10 h  |
-| 2   | TR-916 | P1       | Reservation durable intent is not durable | 8–14 h  |
-| 3   | TR-918 | P2       | Tenant mutex deadlock at 6 more sites     | 6–10 h  |
-| 4   | TR-917 | P2       | Mail delivery throughput                  | 4–6 h   |
-| 5   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
-| 6   | TR-913 | P2       | Audit immutability under the app role     | 2–3 h   |
-| 7   | TR-906 | P1       | Backup and rehearsed restore              | 8–12 h  |
-| 8   | TR-905 | P1       | Import deduplication key set              | 10–14 h |
-| 9   | TR-907 | P1       | Notification channel matrix + CR-033      | 12–16 h |
-| 10  | TR-908 | P2       | Territory reporting dimension             | 4–6 h   |
-| 11  | TR-912 | P2       | Observability baseline                    | 8–12 h  |
-| 12  | TR-911 | P2       | Reservation PostgreSQL backstop           | 6–8 h   |
-| 13  | TR-915 | P2       | Object storage failure paths              | 3–5 h   |
+| 1   | TR-916 | P1       | Reservation durable intent is not durable | 8–14 h  |
+| 2   | TR-918 | P2       | Tenant mutex deadlock at 6 more sites     | 6–10 h  |
+| 3   | TR-917 | P2       | Mail delivery throughput                  | 4–6 h   |
+| 4   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
+| 5   | TR-913 | P2       | Audit immutability under the app role     | 2–3 h   |
+| 6   | TR-906 | P1       | Backup and rehearsed restore              | 8–12 h  |
+| 7   | TR-905 | P1       | Import deduplication key set              | 10–14 h |
+| 8   | TR-907 | P1       | Notification channel matrix + CR-033      | 12–16 h |
+| 9   | TR-908 | P2       | Territory reporting dimension             | 4–6 h   |
+| 10  | TR-912 | P2       | Observability baseline                    | 8–12 h  |
+| 11  | TR-911 | P2       | Reservation PostgreSQL backstop           | 6–8 h   |
+| 12  | TR-915 | P2       | Object storage failure paths              | 3–5 h   |
 
-TR-902 and TR-910 are resolved and no longer listed. TR-904 is resolved except for the
+TR-902, TR-909 and TR-910 are resolved and no longer listed. TR-904 is resolved except for the
 two defects it uncovered, which lead this list as TR-909 and TR-916. TR-913 remains
 only for tables beyond the two that 0079 covered.
 
@@ -620,17 +637,18 @@ all hold.
 
 ## Pilot readiness
 
-**NO — two defects away.** Tenant isolation, authentication, authorization, background
+**NO — one defect away.** Tenant isolation, authentication, authorization, background
 work, the anti-collision core, evidence immutability and mid-batch rollback are all
 enforced and verified, with zero integration failures attributable to the runtime role.
 api unit, worker and web are green.
 
-The two blockers are no longer unknowns. **TR-909**: an activity can be recorded against
-a prospect who has just opposed — a consent-compliance failure, reproducible 4 runs out
-of 4. **TR-916**: the reservation durable intent rolls back with its request, so the
-uncertain-claim recovery the design relies on cannot work. Both were hiding behind
-"pre-existing failure" until this pass diagnosed them. Estimated **14–24 h** to a
-defensible pilot.
+One blocker remains. **TR-916**: the reservation durable intent is written inside the
+request transaction, so a failing confirm rolls it back and leaves Redis holding a lease
+that Postgres cannot reconcile — the uncertain-claim recovery the design depends on
+cannot work. The integration suite runs **579–582 of 583**, with TR-916 the only stable failure; the
+spread is `password-recovery` losing its race against the shared mail backlog, which is
+TR-917 and is a throughput defect rather than a second blocker. Estimated **8–14 h** to a
+defensible pilot, or **12–20 h** to a gate that is green every run.
 
 ## Production readiness
 
@@ -640,23 +658,21 @@ Estimated **145–225 h** total.
 
 ## Next ticket to implement
 
-**TR-909 — Stop an activity bypassing a concurrent opposition.**
+**TR-916 — Make the reservation's durable intent actually durable.**
 
-It is the most serious thing left. An activity recorded concurrently with a new
-opposition is accepted instead of blocked: the case returns `{ ok: true }` where it
-expects `PCC01`, **4 runs out of 4 in isolation**. That means an activity can be logged
-against a prospect who has just withdrawn consent, which is a compliance failure rather
-than a test nuisance, and it is the kind of defect that is far cheaper to fix now than to
-explain later.
+The last integration failure, and the last pilot blocker. `prepare()` writes the intent
+inside the request transaction, so when `confirm` fails the intent rolls back with it:
+Redis keeps the lease, `reservation_records` has no row, and `reconcile()` has nothing to
+promote. The test dereferences undefined precisely there, which is why it read as a test
+bug for so long.
 
-Expect real design work rather than a one-line fix. A previous session hypothesised that
-`trackroster_consent_blocked` being STABLE gave the post-lock read a stale snapshot,
-tested it, and reverted — so that explanation is already eliminated. The likely shapes are
-lock ordering between the opposition write and the activity check, or serialisable
-isolation for this one path. Write the failing interleaving as a test you can run in
-isolation first; it reproduces reliably there, which is the advantage you have.
+More mechanical than TR-909 was: commit the intent in its own transaction, before Redis
+is touched, so an uncertain confirm leaves a row that reconciliation can find. Watch the
+ordering — the point of writing it first is that it survives everything after it — and
+check what `reconcile()` expects to find, since it is the other half of the contract and
+is now exercised by the sweep work from TR-902.
 
-**TR-916** is the other pilot blocker and is better understood — the reservation intent
-is written inside the request transaction, so a failing confirm rolls it back and leaves
-Redis holding a lease that Postgres cannot reconcile. If you want a smaller win first,
-that one is more mechanical.
+After it, the backend is pilot-ready on the evidence available: tenant isolation,
+background work, authorization, evidence immutability, anti-collision concurrency,
+idempotency and consent enforcement are all verified, with a green gate apart from one
+line of lint WIP that belongs to someone else.
