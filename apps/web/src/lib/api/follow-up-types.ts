@@ -14,6 +14,16 @@ export type ProspectFollowUpOwnership = 'user' | 'team';
  *
  * is intentionally not exposed to the UI.
  */
+/**
+ * The three kinds of next action the domain defines.
+ *
+ * `meeting` is an appointment, and it is a category rather than a status — an
+ * appointment can be overdue, due today or upcoming like anything else.
+ */
+export type ProspectFollowUpCategory = 'todo' | 'follow_up' | 'meeting';
+
+export type ProspectFollowUpChannel = 'call' | 'email' | 'message' | 'visit' | 'letter';
+
 export interface ProspectFollowUp {
   id: string;
 
@@ -26,6 +36,11 @@ export interface ProspectFollowUp {
   dueAt: string;
 
   status: ProspectFollowUpStatus;
+
+  /* Both are returned by the API and were missing from this type. */
+  category: ProspectFollowUpCategory;
+
+  channel: ProspectFollowUpChannel | null;
 
   ownership: ProspectFollowUpOwnership;
 

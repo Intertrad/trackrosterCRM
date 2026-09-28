@@ -66,6 +66,10 @@ const followUp: FollowUpQueueItem = {
 
   status: 'pending',
 
+  category: 'follow_up',
+
+  channel: 'call',
+
   ownership: 'user',
 
   completedAt: null,

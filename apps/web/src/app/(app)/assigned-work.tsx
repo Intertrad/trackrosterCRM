@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/api-error';
 import { listWorkQueue } from '@/lib/api/work-queue-client';
+import { classifyFollowUp } from '@/lib/follow-ups/due';
+import { cn } from '@/lib/ui/cn';
 import type { WorkQueueItem, WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
 
 /*
@@ -197,11 +199,27 @@ function WorkRow({ item }: { item: WorkQueueItem }) {
           </span>
         </span>
 
-        {/* A pending follow-up is why this one might be urgent. */}
+        {/*
+         * A pending follow-up is why this one might be urgent, and whether it is
+         * late is decided by the same classifier the follow-up list uses — so a
+         * prospect cannot read as overdue on one screen and on time on the other.
+         */}
         {item.nextFollowUp ? (
-          <span className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-warning">
+          <span
+            className={cn(
+              'flex shrink-0 items-center gap-1 text-[13px] font-semibold',
+              classifyFollowUp({ dueAt: item.nextFollowUp.dueAt, status: 'pending' }) === 'overdue'
+                ? 'text-danger'
+                : 'text-warning',
+            )}
+          >
             <CalendarClock aria-hidden="true" className="size-4" />
-            <span className="sr-only">Follow-up due </span>
+            {/* Stated, not carried by colour. */}
+            <span className="sr-only">
+              {classifyFollowUp({ dueAt: item.nextFollowUp.dueAt, status: 'pending' }) === 'overdue'
+                ? 'Follow-up overdue since '
+                : 'Follow-up due '}
+            </span>
             {formatDay(item.nextFollowUp.dueAt)}
           </span>
         ) : null}

@@ -19,6 +19,7 @@ import {
 } from '@/lib/api/follow-up-client';
 import type { FollowUpQueueItem } from '@/lib/api/follow-up-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { classifyFollowUp, endOfLocalDay, isAppointment } from '@/lib/follow-ups/due';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
@@ -131,12 +132,24 @@ export default function ActionsPage() {
 
   const counts = useMemo(() => {
     const all = items ?? [];
-    const now = Date.now();
+
+    /*
+     * One classifier, shared with Ma journée. This counted overdue with its own
+     * comparison and the row below did the same again — three places agreeing until
+     * one of them stopped.
+     */
+    const now = new Date();
+    const dayEnd = endOfLocalDay(now);
+
+    const states = all.map((item) => classifyFollowUp(item, now, dayEnd));
 
     return {
       todo: all.filter((item) => item.status === 'pending').length,
-      overdue: all.filter(
-        (item) => item.status === 'pending' && new Date(item.dueAt).getTime() < now,
+      overdue: states.filter((state) => state === 'overdue').length,
+      today: states.filter((state) => state === 'today').length,
+      upcoming: states.filter((state) => state === 'upcoming').length,
+      appointments: all.filter(
+        (item, index) => isAppointment(item) && states[index] !== 'completed',
       ).length,
       completed: all.filter((item) => item.status === 'completed').length,
     };
@@ -379,7 +392,8 @@ function ActionRow({
 }) {
   const { t } = useTranslation();
 
-  const overdue = item.status === 'pending' && new Date(item.dueAt).getTime() < Date.now();
+  /* The shared classifier, so this row and the counts above cannot disagree. */
+  const overdue = classifyFollowUp(item) === 'overdue';
 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">

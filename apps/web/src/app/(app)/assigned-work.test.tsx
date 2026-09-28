@@ -218,4 +218,26 @@ describe('assigned work on Ma journée', () => {
       expect(control.className).toContain('min-h-11');
     }
   });
+
+  /*
+   * §24. The same follow-up must not read as overdue on one screen and on time on
+   * the other. Both now go through one classifier, and this holds that here.
+   */
+  it('marks a late follow-up as overdue, using the shared classifier', async () => {
+    listWorkQueueMock.mockResolvedValue(
+      page([
+        item({
+          nextFollowUp: { id: 'f-1', dueAt: '2020-01-01T09:00:00.000Z' },
+          lifecycleStage: 'follow_up',
+        }),
+      ]),
+    );
+
+    render(<AssignedWork teamId={teamId} />);
+
+    /* Said in words for a screen reader, not carried by the colour alone. */
+    await waitFor(() => expect(screen.getByText(/Follow-up overdue since/)).toBeInTheDocument());
+
+    expect(screen.queryByText(/^Follow-up due/)).not.toBeInTheDocument();
+  });
 });

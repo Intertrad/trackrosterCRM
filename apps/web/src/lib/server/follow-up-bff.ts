@@ -1,6 +1,8 @@
 import type {
   FollowUpQueueItem,
   ProspectFollowUp,
+  ProspectFollowUpCategory,
+  ProspectFollowUpChannel,
   ProspectFollowUpStatus,
 } from '@/lib/api/follow-up-types';
 import type { WorkQueueProspectDetail } from '@/lib/api/work-queue-types';
@@ -31,6 +33,17 @@ export interface BackendProspectFollowUp {
   createdAt: string;
 
   updatedAt: string;
+
+  /*
+   * Both are part of the API's follow-up response and were being dropped here.
+   * This mapper reconstructs the object field by field rather than spreading it,
+   * which is the right shape for renaming campaignProspectId and deriving
+   * ownership — but it means anything not listed is silently lost, and the
+   * category is what tells an appointment from a task.
+   */
+  category: ProspectFollowUpCategory;
+
+  channel: ProspectFollowUpChannel | null;
 }
 
 export interface BackendProspectFollowUpListResponse {
@@ -60,6 +73,10 @@ export function toBrowserProspectFollowUp(followUp: BackendProspectFollowUp): Pr
     dueAt: followUp.dueAt,
 
     status: followUp.status,
+
+    category: followUp.category,
+
+    channel: followUp.channel,
 
     ownership: followUp.assignedUserId === null ? 'team' : 'user',
 

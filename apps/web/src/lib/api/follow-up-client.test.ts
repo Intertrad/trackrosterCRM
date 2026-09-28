@@ -49,6 +49,10 @@ describe('follow-up-client', () => {
 
     status: 'pending',
 
+    category: 'follow_up',
+
+    channel: 'call',
+
     ownership: 'user',
 
     completedAt: null,
