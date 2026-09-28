@@ -29,7 +29,15 @@ BEGIN
   END IF;
 END $$;
 
-GRANT CONNECT ON DATABASE trackroster TO trackroster_app;
+-- The database name is read from the connection rather than hardcoded, so this
+-- same script bootstraps the development database and the beta one
+-- (docker-compose.beta.yml, database `trackroster_beta`). GRANT takes an
+-- identifier and not an expression, hence the format().
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO trackroster_app', current_database());
+END $$;
+
 GRANT USAGE ON SCHEMA public TO trackroster_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trackroster_app;

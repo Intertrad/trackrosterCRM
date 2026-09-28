@@ -1,0 +1,148 @@
+# The TrackRoster Beta stack: a persistent, isolated local environment for
+# certifying the real prospect référentiel end to end.
+#
+# Why this is a separate stack rather than a tenant in the development database.
+#
+# The integration suites clean up after themselves properly — every DELETE in
+# apps/*/test is scoped to the fixture's own tenant, id or per-run slug, and the
+# one TRUNCATE is a negative assertion that migration 0051's statement-level
+# BEFORE TRUNCATE trigger refuses. So they cannot *delete* another tenant's
+# rows.
+#
+# They can still *mutate* them. Every timer-driven sweep in the API discovers
+# its work through a SECURITY DEFINER function that deliberately crosses the
+# tenant boundary — trackroster_reconcilable_reservations,
+# trackroster_pending_action_effects, trackroster_claimable_export_jobs,
+# trackroster_expirable_export_jobs (migrations 0077 and 0078). They carry no
+# tenant predicate, because the backlog they drain is shared. Any API or worker
+# process pointed at a database therefore reconciles, drains and expires rows
+# belonging to *every* tenant in it, and each function is LIMIT-bounded and
+# FIFO, so unrelated rows also compete for the sweep budget.
+#
+# Concretely: a reservation a beta prospector is holding can be reconciled to
+# 'expired' by a sweep belonging to somebody else's test run, and the failure
+# looks like a product bug rather than a shared-environment artefact. That is
+# precisely what a live certification must not be exposed to.
+#
+# Isolation here is a separate container, a separate named volume, a separate
+# port and a separate database name. The distinct database name is deliberate:
+# if a connection string is ever pointed at the wrong port, it fails outright
+# instead of quietly succeeding against the other environment.
+#
+# The role split from docker-compose.yml is reproduced exactly — owner for DDL
+# and fixtures, non-privileged `trackroster_app` for the application, so
+# FORCE ROW LEVEL SECURITY is actually exercised. docker-compose.backend-test.yml
+# deliberately does not do this (it connects as the image superuser, which holds
+# BYPASSRLS), which is fine for a disposable suite and wrong for an environment
+# whose tenant isolation is part of what is being certified.
+#
+#   docker compose -p trackroster-beta -f docker-compose.beta.yml up -d
+#
+# Every port is bound to loopback only. Nothing here is reachable off the host.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: trackroster-beta-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: trackroster_beta
+      POSTGRES_USER: trackroster
+      POSTGRES_PASSWORD: trackroster
+
+    ports:
+      - '127.0.0.1:5434:5432'
+
+    volumes:
+      # Persistent, unlike the disposable backend-test stack: this database
+      # holds the real référentiel between sessions.
+      - trackroster_beta_postgres_data:/var/lib/postgresql/data
+      # The same runtime-role bootstrap the development stack uses. It runs only
+      # while the data volume is empty, and it is idempotent.
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U trackroster -d trackroster_beta']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: trackroster-beta-redis
+    restart: unless-stopped
+
+    ports:
+      - '127.0.0.1:6380:6379'
+
+    volumes:
+      # Reservation leases live in Redis and are reconciled against the ledger.
+      # Losing them on a restart would manufacture 'lost' evidence that no
+      # product behaviour caused, so this one persists too.
+      - trackroster_beta_redis_data:/data
+
+    command: ['redis-server', '--appendonly', 'yes']
+
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Object storage for controlled exports, behind a profile.
+  #
+  # The development stack declares MinIO too and it is not running there either:
+  # minio/minio is not anonymously pullable from this host, and the R2_* settings
+  # are blank in .env.example, so neither environment has object storage today.
+  # Keeping it behind a profile means the beta stack comes up without it and
+  # nothing pretends otherwise — export download coverage is explicitly out of
+  # scope for this certification until storage is provisioned.
+  #
+  #   docker compose -p trackroster-beta -f docker-compose.beta.yml --profile storage up -d
+  minio:
+    profiles: ['storage']
+    image: minio/minio:latest
+    container_name: trackroster-beta-minio
+    restart: unless-stopped
+
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio-development-only
+
+    command: server /data --console-address ':9001'
+
+    ports:
+      - '127.0.0.1:9002:9000'
+      - '127.0.0.1:9003:9001'
+
+    volumes:
+      - trackroster_beta_minio_data:/data
+
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Beta's own mailbox. 58025 is already taken by whichever of the development
+  # or backend-test stacks is up, and beta invitations must not land in a
+  # mailbox somebody else is draining.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: trackroster-beta-mailpit
+    restart: unless-stopped
+
+    ports:
+      - '127.0.0.1:58026:8025'
+
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:8025/readyz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  trackroster_beta_postgres_data:
+  trackroster_beta_redis_data:
+  trackroster_beta_minio_data:
