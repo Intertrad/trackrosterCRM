@@ -798,4 +798,140 @@ describe('Actions, outcomes and unified timelines', () => {
       await db.insert(userAccessGrants).values(grant!);
     }
   });
+
+  /*
+   * TR-937. Manager reporting has to answer who worked which establishment in which
+   * campaign. The row carried only ids, so the names are projected in the same
+   * query — additively, and without touching the authorization that decides which
+   * rows exist at all.
+   */
+  describe('activity display projection', () => {
+    beforeAll(async () => {
+      await db
+        .update(tenantMemberships)
+        .set({ displayName: 'Zain Prospecteur' })
+        .where(eq(tenantMemberships.id, member));
+    });
+
+    it('names the actor, the establishment and the campaign on each row', async () => {
+      expect((await create({ assigneeMembershipId: member }, admin)).statusCode).toBe(201);
+
+      const response = await call('GET', '/actions?limit=100');
+
+      expect(response.statusCode, response.body).toBe(200);
+
+      const row = response
+        .json()
+        .items.find(
+          (item: { actor: { membershipId: string } }) => item.actor.membershipId === member,
+        );
+
+      expect(row).toBeDefined();
+      expect(row.actor.displayName).toBe('Zain Prospecteur');
+      expect(row.establishment).toMatchObject({ id: establishment, name: establishment });
+      expect(row.campaign).toMatchObject({ id: campaign, name: campaign });
+      /* Organization comes through the campaign, which is the only relationship. */
+      expect(row.organization).toMatchObject({ id: org });
+    });
+
+    /*
+     * The integrity case, and the reason it holds is a constraint rather than care:
+     * the composite foreign key actions_prospect_fk ties
+     * (tenant_id, campaign_id, campaign_prospect_id, establishment_id) to
+     * campaign_prospects, so an action cannot name an establishment its campaign
+     * prospect does not have. The projection reads that column, not the subject.
+     */
+    it('projects the establishment of the action campaign prospect, not its subject text', async () => {
+      const created = await call(
+        'POST',
+        '/actions',
+        {
+          campaignId: campaign,
+          campaignProspectId: prospect,
+          type: 'call',
+          subject: 'Totally unrelated free text — Some Other Place',
+        },
+        member,
+      );
+
+      expect(created.statusCode, created.body).toBe(201);
+
+      const response = await call('GET', '/actions?limit=100');
+
+      const row = response
+        .json()
+        .items.find((item: { id: string }) => item.id === created.json().id);
+
+      /* The subject says one thing; the projection reports the relationship. */
+      expect(row.subject).toContain('Some Other Place');
+      expect(row.establishment.id).toBe(establishment);
+      expect(row.establishment.name).toBe(establishment);
+    });
+
+    it('leaves the authorized row set exactly as it was', async () => {
+      expect((await create({ assigneeMembershipId: member }, admin)).statusCode).toBe(201);
+
+      /*
+       * The projection joins only to resolve names. A scoped member reaches these
+       * actions through their own assignment; someone outside that scope sees none,
+       * and no join may change that.
+       */
+      const own = await call('GET', '/actions?limit=100', undefined, member);
+      const outside = await call('GET', '/actions?limit=100', undefined, outsider);
+
+      expect(own.statusCode).toBe(200);
+      expect(own.json().items.length).toBeGreaterThan(0);
+
+      expect(outside.statusCode).toBe(200);
+      expect(outside.json().items).toEqual([]);
+    });
+
+    it('resolves no context across a tenant boundary', async () => {
+      expect((await create({ assigneeMembershipId: member }, admin)).statusCode).toBe(201);
+
+      const other = await call('GET', '/actions?limit=100', undefined, foreign);
+
+      expect(other.statusCode).toBe(200);
+      /* Nothing of this tenant is listed, so nothing of it can be named. */
+      expect(other.json().items).toEqual([]);
+    });
+
+    it('keeps the campaign and assignee filters and the cursor working', async () => {
+      expect((await create({ assigneeMembershipId: member }, admin)).statusCode).toBe(201);
+
+      const filtered = await call(
+        'GET',
+        `/actions?limit=100&campaignId=${campaign}&assigneeMembershipId=${member}`,
+      );
+
+      expect(filtered.statusCode, filtered.body).toBe(200);
+      expect(filtered.json().items.length).toBeGreaterThan(0);
+
+      for (const item of filtered.json().items) {
+        expect(item.campaign.id).toBe(campaign);
+        expect(item.actor.membershipId).toBe(member);
+      }
+
+      /* A campaign with no actions is an empty list, not an error. */
+      const none = await call('GET', `/actions?limit=100&campaignId=${otherCampaign}`);
+
+      expect(none.statusCode).toBe(200);
+
+      /* The cursor still pages, and still carries the display context. */
+      const firstPage = await call('GET', '/actions?limit=1');
+
+      expect(firstPage.json().items).toHaveLength(1);
+      expect(firstPage.json().items[0].establishment).toBeDefined();
+
+      if (firstPage.json().nextCursor) {
+        const secondPage = await call(
+          'GET',
+          `/actions?limit=1&cursor=${firstPage.json().nextCursor}`,
+        );
+
+        expect(secondPage.statusCode).toBe(200);
+        expect(secondPage.json().items[0]?.id).not.toBe(firstPage.json().items[0].id);
+      }
+    });
+  });
 });

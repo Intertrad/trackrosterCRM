@@ -25,6 +25,7 @@ import { StatTile } from '@/components/ui/stat-tile';
 import { ApiError } from '@/lib/api/api-error';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
 import type { ManagerDashboardResponse } from '@/lib/api/manager-dashboard-types';
+import { RecentActivity } from '@/components/manager/recent-activity';
 import { listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
 import { listOverrideRequests } from '@/lib/api/override-client';
@@ -142,9 +143,23 @@ export default function TeamOverviewPage() {
     const withCapacity = roster.filter((row) => row.capacityPercent !== null);
 
     return {
-      portfolio: data?.assignments.current ?? 0,
-      remaining: data?.followUps.pending ?? 0,
+      /*
+       * Every one of these is a server aggregate, named for what the backend
+       * actually counts.
+       *
+       * `assignments.current` counts assignments that have not ended, so it is the
+       * work still open — not a total ever assigned. There is no completed-assignment
+       * count, which means assigned = completed + remaining is not a relationship
+       * this data supports, and labelling any of these "Assigned" or deriving a
+       * "Completed" from subtraction would be a number a manager makes decisions on
+       * and should not.
+       */
+      openAssignments: data?.assignments.current ?? 0,
+      pendingFollowUps: data?.followUps.pending ?? 0,
       overdue: data?.followUps.overdue ?? 0,
+      activitiesInPeriod: data?.activities.total ?? 0,
+      activeProspectors: data?.activities.activeProspectors ?? 0,
+      followUpsCompleted: data?.followUps.completedInRange ?? 0,
 
       /* Averaging over members without a target would understate the load. */
       capacity: withCapacity.length
@@ -209,8 +224,8 @@ export default function TeamOverviewPage() {
           <StatTile
             icon={<Users aria-hidden="true" className="size-6" />}
             tone="success"
-            value={totals.portfolio}
-            label="Active portfolio"
+            value={totals.openAssignments}
+            label="Open assignments"
           />
         </Card>
 
@@ -218,8 +233,9 @@ export default function TeamOverviewPage() {
           <StatTile
             icon={<CircleDot aria-hidden="true" className="size-6" />}
             tone="neutral"
-            value={totals.remaining}
-            label="Remaining"
+            value={totals.pendingFollowUps}
+            /* Pending follow-ups, not remaining work — those are different counts. */
+            label="Pending follow-ups"
           />
         </Card>
 
@@ -240,7 +256,42 @@ export default function TeamOverviewPage() {
             label="Capacity used"
           />
         </Card>
+
+        {/* Counted over the selected period, by the server. */}
+        <Card>
+          <StatTile
+            icon={<BarChart3 aria-hidden="true" className="size-6" />}
+            tone="brand"
+            value={totals.activitiesInPeriod}
+            label="Activity in period"
+          />
+        </Card>
+
+        <Card>
+          <StatTile
+            icon={<Users aria-hidden="true" className="size-6" />}
+            tone="neutral"
+            value={totals.activeProspectors}
+            label="Active prospectors"
+          />
+        </Card>
+
+        <Card>
+          <StatTile
+            icon={<CircleDot aria-hidden="true" className="size-6" />}
+            tone="success"
+            value={totals.followUpsCompleted}
+            label="Follow-ups completed"
+          />
+        </Card>
       </div>
+
+      {/*
+       * What the team actually did, from the action feed rather than the aggregates
+       * above — a different question and a different source. Nothing in it computes a
+       * total from the rows it fetched.
+       */}
+      <RecentActivity members={memberships ?? []} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
         <Card className="p-0 sm:p-0">

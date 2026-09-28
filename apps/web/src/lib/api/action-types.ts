@@ -46,12 +46,33 @@ export interface ActionRecord {
   id: string;
   campaignId: string;
   campaignProspectId: string;
+  establishmentId: string;
   type: ActionType;
   subject: string;
   status: ActionStatus;
   outcomeCode: OutcomeCode | null;
   dueAt: string | null;
   completedAt: string | null;
+
+  /*
+   * Display context, projected by the API in the same query.
+   *
+   * Manager reporting has to say who worked which establishment in which campaign,
+   * and the ids alone cannot. `subject` is presentation text and must never be
+   * parsed for this: the establishment here comes from the action's own relation,
+   * which a composite foreign key ties to its campaign prospect.
+   *
+   * A name can be null when the record it belongs to no longer carries one; the id
+   * beside it is always present.
+   */
+  actor: { membershipId: string; displayName: string | null };
+
+  establishment: { id: string; name: string | null };
+
+  campaign: { id: string; name: string | null };
+
+  /* Reached through the campaign, which is the only relationship there is. */
+  organization: { id: string; name: string | null } | null;
 }
 
 export interface CreateActionInput {

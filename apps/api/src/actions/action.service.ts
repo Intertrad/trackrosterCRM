@@ -25,6 +25,7 @@ import {
   contactConsents,
   establishments,
   establishmentContacts,
+  organizations,
   prospectActivities,
   prospectFollowUps,
   tenantMemberships,
@@ -105,9 +106,64 @@ export class ActionService {
   async list(auth: AuthenticatedPrincipal, q: ListActionsDto): Promise<any> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, auth.tenantId, () => this.list(auth, q));
+    /*
+     * The action rows, plus the names needed to read them.
+     *
+     * Manager reporting has to answer who worked which establishment in which
+     * campaign, and the row itself carries only ids. Resolving those in the browser
+     * would be four requests per row; resolving them from `subject` would be reading
+     * presentation text as if it were relational truth. So they are projected here,
+     * in the one query.
+     *
+     * The establishment is taken from the action's own establishment_id, and that is
+     * sound rather than convenient: the composite foreign key `actions_prospect_fk`
+     * constrains (tenant_id, campaign_id, campaign_prospect_id, establishment_id)
+     * against campaign_prospects, so an action cannot name an establishment its
+     * campaign prospect does not have. The database is the guarantee.
+     *
+     * Every join is a LEFT JOIN on purpose. The authorization predicate below is
+     * unchanged and decides which actions exist for this caller; a LEFT JOIN adds
+     * columns and can never add or remove a row, so the authorized row set is
+     * identical to before. An inner join would silently drop an authorized action
+     * whose campaign or assignee had since been removed, which would be an
+     * authorization change disguised as a display one.
+     */
     const rows = await this.db
-      .select()
+      .select({
+        action: actions,
+
+        actorDisplayName: tenantMemberships.displayName,
+        establishmentName: establishments.name,
+        campaignName: campaigns.name,
+        organizationId: campaigns.organizationId,
+        organizationName: organizations.name,
+      })
       .from(actions)
+      .leftJoin(
+        tenantMemberships,
+        and(
+          eq(tenantMemberships.tenantId, actions.tenantId),
+          eq(tenantMemberships.id, actions.assigneeMembershipId),
+        ),
+      )
+      .leftJoin(
+        establishments,
+        and(
+          eq(establishments.tenantId, actions.tenantId),
+          eq(establishments.id, actions.establishmentId),
+        ),
+      )
+      .leftJoin(
+        campaigns,
+        and(eq(campaigns.tenantId, actions.tenantId), eq(campaigns.id, actions.campaignId)),
+      )
+      .leftJoin(
+        organizations,
+        and(
+          eq(organizations.tenantId, actions.tenantId),
+          eq(organizations.id, campaigns.organizationId),
+        ),
+      )
       .where(
         and(
           eq(actions.tenantId, auth.tenantId),
@@ -123,8 +179,29 @@ export class ActionService {
       .orderBy(actions.id)
       .limit(q.limit + 1);
     return {
-      items: rows.slice(0, q.limit).map((r) => ({ ...r, etag: resourceETag(r) })),
-      nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
+      items: rows.slice(0, q.limit).map((r) => ({
+        ...r.action,
+
+        /* Computed over the action alone, so existing ETags do not change. */
+        etag: resourceETag(r.action),
+
+        /*
+         * Display context, additive. Named `actor` rather than `assignee` because
+         * this is who performed the work the row records.
+         */
+        actor: {
+          membershipId: r.action.assigneeMembershipId,
+          displayName: r.actorDisplayName,
+        },
+
+        establishment: { id: r.action.establishmentId, name: r.establishmentName },
+
+        campaign: { id: r.action.campaignId, name: r.campaignName },
+
+        organization:
+          r.organizationId === null ? null : { id: r.organizationId, name: r.organizationName },
+      })),
+      nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.action.id : null,
     };
   }
   async detail(auth: AuthenticatedPrincipal, id: string): Promise<any> {
