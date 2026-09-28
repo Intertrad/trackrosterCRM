@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
   CalendarPlus,
@@ -27,6 +27,8 @@ import {
   type OutcomeCode,
 } from '@/lib/api/action-types';
 import { completeAction, createAction, startAction } from '@/lib/api/action-client';
+import { getOutcomeSettings } from '@/lib/api/outcome-settings-client';
+import { outcomesForChannel, type OutcomeDefinition } from '@/lib/api/outcome-settings-types';
 import type { ProspectReservationState } from '@/lib/api/work-queue-types';
 import { cn } from '@/lib/ui/cn';
 
@@ -49,14 +51,29 @@ const OUTCOME_ICONS: Partial<Record<OutcomeCode, typeof Phone>> = {
   completed: CheckCircle2,
 };
 
-const OFFERED_OUTCOMES: OutcomeCode[] = [
+/*
+ * What to offer when the tenant's configuration cannot be read.
+ *
+ * Deliberately a fallback rather than the source. A tenant renames and retires its
+ * outcomes, so a fixed list offers ones nobody uses and hides the ones they added —
+ * but refusing to let a prospector record a call they have just made, because a
+ * settings read failed, would be worse than offering the defaults. The API accepts
+ * any well-formed code, so a record written from these is still valid.
+ */
+const FALLBACK_OUTCOMES: OutcomeDefinition[] = [
   'no_answer',
   'contacted',
   'interested',
   'qualified',
   'not_interested',
   'do_not_contact',
-];
+].map((code) => ({
+  code,
+  label: OUTCOME_LABELS[code as OutcomeCode],
+  behavior: code,
+  enabled: true,
+  actionTypes: [],
+}));
 
 const LIFECYCLE_OPTIONS: Array<{ value: ActionLifecycleStage; label: string }> = [
   { value: 'contact_made', label: 'Contact made' },
@@ -107,6 +124,56 @@ export function LogOutcomeDrawer({
    */
   const idempotencyKey = useMemo(() => (open ? crypto.randomUUID() : ''), [open]);
 
+  /*
+   * The tenant's own outcome vocabulary, read while the drawer is open. Null until
+   * it arrives or fails, at which point the defaults stand in.
+   */
+  const [configured, setConfigured] = useState<OutcomeDefinition[] | null>(null);
+  const [configFailed, setConfigFailed] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    getOutcomeSettings(controller.signal)
+      .then((settings) => {
+        if (!controller.signal.aborted) {
+          setConfigured(settings.outcomes);
+          setConfigFailed(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setConfigured(null);
+          setConfigFailed(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [open]);
+
+  /*
+   * Narrowed to the chosen channel: "no answer" belongs to a call, not an e-mail,
+   * and a retired outcome is never offered even though its history survives.
+   */
+  const offered = useMemo(
+    () => outcomesForChannel(configured ?? FALLBACK_OUTCOMES, channel),
+    [configured, channel],
+  );
+
+  /*
+   * A channel change can retire the chosen outcome. Leaving it selected would
+   * submit an outcome the tenant does not offer for this channel.
+   */
+  useEffect(() => {
+    setOutcome((current) =>
+      current && offered.some((option) => option.code === current) ? current : null,
+    );
+  }, [offered]);
+
   const ownsReservation = reservation?.state === 'owned';
 
   async function submit(): Promise<void> {
@@ -130,7 +197,11 @@ export function LogOutcomeDrawer({
           campaignId,
           campaignProspectId: prospectId,
           type: channel,
-          subject: `${OUTCOME_LABELS[outcome]} — ${establishmentName}`.slice(0, 255),
+          subject:
+            `${offered.find((option) => option.code === outcome)?.label ?? outcome} — ${establishmentName}`.slice(
+              0,
+              255,
+            ),
         },
         `${idempotencyKey}-create`,
       );
@@ -210,20 +281,32 @@ export function LogOutcomeDrawer({
           <p className="mt-1 text-[13px] font-medium text-danger">Please select an outcome</p>
         ) : null}
 
+        {/*
+         * Said rather than silent: the prospector is choosing from the shipped
+         * defaults, which may not be the wording their tenant configured.
+         */}
+        {configFailed ? (
+          <p className="mt-1 text-[13px] text-ink-muted">
+            Your workspace&rsquo;s outcomes could not be loaded, so the standard ones are shown.
+          </p>
+        ) : null}
+
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {OFFERED_OUTCOMES.map((code) => {
-            const Icon = OUTCOME_ICONS[code] ?? CheckCircle2;
+          {offered.map((option) => {
+            /* An icon for the codes shipped by default; the rest get a neutral one. */
+            const Icon = OUTCOME_ICONS[option.code as OutcomeCode] ?? CheckCircle2;
 
             return (
               <ChoiceTile
-                key={code}
+                key={option.code}
                 icon={<Icon aria-hidden="true" className="size-5" />}
-                label={OUTCOME_LABELS[code]}
-                selected={outcome === code}
+                /* The tenant's own wording, not the frontend's. */
+                label={option.label}
+                selected={outcome === option.code}
                 onSelect={() => {
-                  setOutcome(code);
+                  setOutcome(option.code as OutcomeCode);
                   setOutcomeError(false);
-                  setCreateFollowUp(OUTCOMES_SUGGESTING_FOLLOW_UP.has(code));
+                  setCreateFollowUp(OUTCOMES_SUGGESTING_FOLLOW_UP.has(option.code as OutcomeCode));
                 }}
               />
             );
