@@ -24,9 +24,14 @@ import {
   type ProspectContact,
 } from '@/lib/api/prospect-contact-types';
 import { getProspect } from '@/lib/api/prospect-client';
-import { prospectDepartment, type ProspectDetail } from '@/lib/api/prospect-types';
+import {
+  prospectDepartment,
+  type ProspectCampaignMembership,
+  type ProspectDetail,
+} from '@/lib/api/prospect-types';
 
 import { CampaignContext } from './campaign-context';
+import { EstablishmentTimeline } from './establishment-timeline';
 
 /*
  * The establishment workspace.
@@ -59,6 +64,17 @@ function ProspectWorkspace() {
   const prospectId = params?.prospectId ?? '';
 
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+
+  /*
+   * Held here so the history can read the same memberships the context section
+   * loaded, instead of asking for them a second time.
+   */
+  const [memberships, setMemberships] = useState<ProspectCampaignMembership[]>([]);
+
+  const onMemberships = useCallback(
+    (items: ProspectCampaignMembership[]) => setMemberships(items),
+    [],
+  );
   const [error, setError] = useState<ApiError | Error | null>(null);
   const [attempt, setAttempt] = useState(0);
 
@@ -298,7 +314,14 @@ function ProspectWorkspace() {
        * Loaded on its own so it cannot take the record above it down, and
        * because its contract is the newest thing on this page.
        */}
-      <CampaignContext prospectId={prospect.id} />
+      <CampaignContext prospectId={prospect.id} onMemberships={onMemberships} />
+
+      {/*
+       * Assembled from the memberships above. There is no establishment-level
+       * activity endpoint by design — activity belongs to a campaign prospect —
+       * so this merges the existing scoped timelines rather than duplicating them.
+       */}
+      <EstablishmentTimeline memberships={memberships} />
     </div>
   );
 }

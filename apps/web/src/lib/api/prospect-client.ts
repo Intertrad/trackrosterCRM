@@ -1,4 +1,5 @@
 import { browserJson } from './browser-json';
+import type { ProspectTimelinePage } from './work-queue-types';
 import type {
   ProspectCampaignMembershipPage,
   ProspectDetail,
@@ -62,4 +63,37 @@ export function listProspectCampaignMemberships(
     `/api/prospects/${encodeURIComponent(prospectId)}/campaign-memberships`,
     { cache: 'no-store', signal },
   );
+}
+
+/**
+ * One bounded page of a campaign prospect's activity history.
+ *
+ * The identifiers come from the campaign-membership read, which is what makes an
+ * establishment's history reachable at all. Authorization stays with the API: a
+ * membership the caller cannot see answers 404 here too, so the ids are not a way
+ * around the per-membership filtering.
+ */
+export function getCampaignProspectTimeline(
+  campaignId: string,
+  campaignProspectId: string,
+  options: { limit?: number; cursor?: string } = {},
+  signal?: AbortSignal,
+): Promise<ProspectTimelinePage> {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  }
+
+  const search = params.toString();
+  const path =
+    `/api/campaigns/${encodeURIComponent(campaignId)}` +
+    `/prospects/${encodeURIComponent(campaignProspectId)}/timeline`;
+
+  return browserJson<ProspectTimelinePage>(search ? `${path}?${search}` : path, {
+    cache: 'no-store',
+    signal,
+  });
 }

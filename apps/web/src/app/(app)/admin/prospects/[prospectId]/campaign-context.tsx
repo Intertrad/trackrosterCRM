@@ -25,7 +25,18 @@ import type { ProspectCampaignMembership } from '@/lib/api/prospect-types';
  * multi-entity model this product is built on: OFTI and GFTIJ both holding one
  * establishment is normal, and the reservation layer is what settles the clash.
  */
-export function CampaignContext({ prospectId }: { prospectId: string }) {
+export function CampaignContext({
+  prospectId,
+  onMemberships,
+}: {
+  prospectId: string;
+  /*
+   * Reported upward so the activity history can use the same memberships rather
+   * than fetching them again. This section keeps its own loading, error and retry;
+   * only the result is shared.
+   */
+  onMemberships?: (memberships: ProspectCampaignMembership[]) => void;
+}) {
   const [items, setItems] = useState<ProspectCampaignMembership[] | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -40,6 +51,7 @@ export function CampaignContext({ prospectId }: { prospectId: string }) {
 
         if (!signal?.aborted) {
           setItems(page.items);
+          onMemberships?.(page.items);
         }
       } catch (caught) {
         if (signal?.aborted) {
@@ -53,7 +65,7 @@ export function CampaignContext({ prospectId }: { prospectId: string }) {
         );
       }
     },
-    [prospectId],
+    [onMemberships, prospectId],
   );
 
   useEffect(() => {
