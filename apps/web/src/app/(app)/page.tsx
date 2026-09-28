@@ -25,6 +25,8 @@ import { ApiError } from '@/lib/api/api-error';
 import { listCollisionEvents } from '@/lib/api/collision-client';
 import { reasonLabel, type CollisionEvent } from '@/lib/api/collision-types';
 import { getProspectorToday } from '@/lib/api/prospector-today-client';
+
+import { AssignedWork } from './assigned-work';
 import {
   buildVisits,
   totalVisitKm,
@@ -357,6 +359,20 @@ export default function TodayPage() {
           onDismiss={() => setNoticeDismissed(true)}
         />
       </div>
+
+      {/*
+       * The other half of the day.
+       *
+       * `prospector/today` builds its priorities from follow-ups alone, so a
+       * prospect assigned this morning has no follow-up and appeared nowhere — the
+       * day read as empty to someone who had just been given work. This section is
+       * the caller's own assignments, from the work queue, which the API scopes to
+       * their team and user id.
+       *
+       * Loaded separately so a failure here leaves the day's progress and
+       * priorities readable.
+       */}
+      <AssignedWork teamId={teamId} />
     </div>
   );
 }

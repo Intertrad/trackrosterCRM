@@ -6,10 +6,13 @@ import '@testing-library/jest-dom/vitest';
 
 import type { ProspectorTodayResponse } from '@/lib/api/prospector-today-types';
 
-const { useAuthMock, getProspectorTodayMock } = vi.hoisted(() => ({
+const { listWorkQueueMock, useAuthMock, getProspectorTodayMock } = vi.hoisted(() => ({
+  listWorkQueueMock: vi.fn(),
   useAuthMock: vi.fn(),
   getProspectorTodayMock: vi.fn(),
 }));
+
+vi.mock('@/lib/api/work-queue-client', () => ({ listWorkQueue: listWorkQueueMock }));
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: useAuthMock,
@@ -115,6 +118,12 @@ function setProspectorWorkspace(selectedTeamId = teamId): void {
 describe('TodayPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+
+    /* Ma journée now also renders the caller's own assignments. */
+    listWorkQueueMock.mockResolvedValue({
+      items: [],
+      page: { limit: 25, hasMore: false, nextCursor: null },
+    });
 
     vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
       locale: 'en-US',
@@ -335,5 +344,53 @@ describe('TodayPage', () => {
 
     expect((await screen.findAllByText('Second team prospect')).length).toBeGreaterThan(0);
     expect(screen.queryByText('Nancy central police station')).not.toBeInTheDocument();
+  });
+
+  /*
+   * TR-933's definition of done, at page level: a prospect an administrator
+   * assigned has no follow-up yet, so prospector/today's priorities cannot carry it.
+   * It reaches the day through the caller's own assignments instead.
+   */
+  it('shows an assignment with no follow-up beside the day priorities', async () => {
+    listWorkQueueMock.mockResolvedValue({
+      items: [
+        {
+          campaignProspectId: 'cp-assigned',
+          lifecycleStage: 'to_contact',
+          latestActivity: null,
+          nextFollowUp: null,
+          campaign: { id: 'campaign-1', name: 'Gendarmeries 2026' },
+          assignment: {
+            id: 'assignment-1',
+            organizationId: 'org-1',
+            teamId,
+            assignedAt: '2026-09-28T08:00:00.000Z',
+          },
+          establishment: {
+            id: 'est-1',
+            regionId: null,
+            name: 'Brigade tout juste attribuee',
+            addressLine1: null,
+            postalCode: '20200',
+            city: 'Bastia',
+            countryCode: 'FR',
+            latitude: null,
+            longitude: null,
+            phone: null,
+            website: null,
+            status: 'active',
+          },
+        },
+      ],
+      page: { limit: 25, hasMore: false, nextCursor: null },
+    });
+
+    render(<TodayPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Brigade tout juste attribuee')).toBeInTheDocument(),
+    );
+
+    expect(listWorkQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId }));
   });
 });
