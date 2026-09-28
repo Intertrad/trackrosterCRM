@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CircleAlert, Send, Users, X } from 'lucide-react';
+import { CircleAlert, FolderPlus, Send, Users, X } from 'lucide-react';
 
 import { MemberCell } from '@/components/manager/member-cell';
 import { Alert } from '@/components/ui/alert';
@@ -28,8 +28,18 @@ import {
   type UnassignedProspect,
 } from '@/lib/api/assignment-types';
 import { ESTABLISHMENT_CATEGORIES, type EstablishmentCategory } from '@/lib/api/import-types';
+import { DEPARTMENT_SHAPE } from '@/lib/api/prospect-types';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
-import { listCampaigns } from '@/lib/api/campaign-client';
+import {
+  applyCampaignEnrolment,
+  listCampaigns,
+  previewCampaignEnrolment,
+} from '@/lib/api/campaign-client';
+import {
+  hasEnrolmentSelection,
+  type CampaignEnrolmentResult,
+  type CampaignEnrolmentSelection,
+} from '@/lib/api/campaign-types';
 import { listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
 import { listTeams } from '@/lib/api/team-client';
@@ -42,6 +52,32 @@ import { resolvePeriod } from '@/components/manager/manager-filters';
 import { cn } from '@/lib/ui/cn';
 
 const TARGET_TEAM_REQUIRED = 'Select a target team before previewing assignments.';
+
+const SELECTION_REQUIRED =
+  'Select at least one criterion to define the establishments to add to the campaign.';
+
+/*
+ * The filter selection, serialized once.
+ *
+ * Both operations on this page go through this: bulk enrolment, which chooses
+ * establishments from the shared référentiel, and the dispatch queue, which shows
+ * the campaign prospects nobody owns. They must be described by the same criteria
+ * or the page lies about what it just did, and a second copy of this mapping is how
+ * that happens. The API keeps its half of the same guarantee with one shared filter
+ * helper.
+ */
+function buildSelection(fields: {
+  appliedSearch: string;
+  category: EstablishmentCategory | '';
+  department: string;
+}): CampaignEnrolmentSelection {
+  return {
+    ...(fields.appliedSearch ? { search: fields.appliedSearch } : {}),
+    ...(fields.category ? { category: fields.category } : {}),
+    /* A half-typed department is not a filter; the API refuses `9` on its shape. */
+    ...(DEPARTMENT_SHAPE.test(fields.department) ? { department: fields.department } : {}),
+  };
+}
 
 export default function AssignmentsPage() {
   const { activeWorkspace } = useAuth();
@@ -94,6 +130,13 @@ export default function AssignmentsPage() {
   const [department, setDepartment] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetMemberId, setTargetMemberId] = useState<string | null>(null);
+
+  /*
+   * Enrolment is a different operation from assignment and keeps its own state, so
+   * that neither one's result can be mistaken for the other's.
+   */
+  const [enrolment, setEnrolment] = useState<CampaignEnrolmentResult | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
 
   const [preview, setPreview] = useState<AssignmentBatchResult | null>(null);
   const [previewing, setPreviewing] = useState(false);
@@ -259,6 +302,22 @@ export default function AssignmentsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  /*
+   * The one selection, used for both operations.
+   *
+   * This is the invariant the API's shared filter helper exists to guarantee, held
+   * up on this side: what is enrolled and what then appears in the dispatch queue
+   * are described by the same criteria, from the same state. Two objects here would
+   * eventually disagree, and the way that shows up is "I added 4,000 prospects and
+   * the queue is empty".
+   *
+   * A half-typed department is left out rather than sent: `9` is not a department
+   * and the API refuses it on its shape rule.
+   */
+  const selection = buildSelection({ appliedSearch, category, department });
+
+  const hasSelection = hasEnrolmentSelection(selection);
+
   const loadUnassigned = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!campaignId) {
@@ -277,10 +336,7 @@ export default function AssignmentsPage() {
              * and judged before deciding who receives it.
              */
             ...(effectiveTeamId ? { teamId: effectiveTeamId } : {}),
-            ...(appliedSearch ? { search: appliedSearch } : {}),
-            ...(category ? { category } : {}),
-            /* Two digits, or three overseas; anything shorter is still typing. */
-            ...(/^(?:\d{2}|9[78]\d)$/.test(department) ? { department } : {}),
+            ...buildSelection({ appliedSearch, category, department }),
             limit: MAX_BATCH_SIZE,
           },
           signal,
@@ -312,6 +368,11 @@ export default function AssignmentsPage() {
 
     setSelected(new Set());
     setPreview(null);
+    /*
+     * The enrolment counts belonged to the previous filters. Keeping them would
+     * report a population the page is no longer showing.
+     */
+    setEnrolment(null);
     setUnassigned(null);
     void loadUnassigned(controller.signal);
 
@@ -348,6 +409,61 @@ export default function AssignmentsPage() {
    * page is broken.
    */
   const missingTargetTeam = isAdmin && !effectiveTeamId;
+
+  /*
+   * Step one: put establishments into the campaign.
+   *
+   * Enrolment is guarded by ClientAdminGuard upstream, so it is offered to an
+   * administrator only — a manager would be answering 403. The preview writes
+   * nothing and exists so the counts are the server's rather than a guess.
+   */
+  async function runEnrolmentPreview(): Promise<void> {
+    if (!campaignId || !hasSelection) {
+      return;
+    }
+
+    setEnrolling(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      setEnrolment(await previewCampaignEnrolment(campaignId, selection));
+    } catch (caught) {
+      setEnrolment(null);
+      setError(describeEnrolmentError(caught));
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  async function runEnrolment(): Promise<void> {
+    if (!campaignId || !hasSelection) {
+      return;
+    }
+
+    setEnrolling(true);
+    setError(null);
+
+    try {
+      const result = await applyCampaignEnrolment(campaignId, selection);
+
+      setEnrolment(result);
+      setNotice(
+        `${result.enrolled} establishment${result.enrolled === 1 ? '' : 's'} added to the campaign.`,
+      );
+
+      /*
+       * Re-read the queue instead of inserting rows locally. Whether a new
+       * membership is dispatchable depends on oppositions and on other campaigns
+       * working the same establishment, which only the server knows.
+       */
+      await loadUnassigned();
+    } catch (caught) {
+      setError(describeEnrolmentError(caught));
+    } finally {
+      setEnrolling(false);
+    }
+  }
 
   async function runPreview(): Promise<void> {
     if (!campaignId || selected.size === 0) {
@@ -476,6 +592,8 @@ export default function AssignmentsPage() {
              * A different campaign may belong to a different organization, so the
              * chosen team may no longer be a legal target.
              */
+            setEnrolment(null);
+
             if (isAdmin) {
               setTargetTeamId('');
               setPreview(null);
@@ -563,6 +681,87 @@ export default function AssignmentsPage() {
           />
         </div>
       </div>
+
+      {/*
+       * Two operations, kept visibly apart. Adding an establishment to a campaign
+       * and assigning a campaign prospect to somebody are different decisions with
+       * different authority, and one button doing both would hide which happened.
+       */}
+      {isAdmin ? (
+        <Card>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
+              1. Add establishments to the campaign
+            </h2>
+
+            <Badge tone="neutral">Référentiel</Badge>
+          </div>
+
+          <p className="mb-4 text-[14px] text-ink-muted">
+            The filters above choose from the shared base. Adding is additive: an establishment
+            already in the campaign stays as it is, and one somebody excluded stays excluded.
+          </p>
+
+          {/*
+           * Said before the action is offered rather than after a 400. An empty
+           * selection would mean the entire référentiel.
+           */}
+          {!hasSelection ? <Alert tone="info">{SELECTION_REQUIRED}</Alert> : null}
+
+          {enrolment ? (
+            <dl className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Row label="Matching">{enrolment.matched}</Row>
+              <Row label={enrolment.mode === 'apply' ? 'Added' : 'To add'}>
+                {enrolment.mode === 'apply' ? enrolment.enrolled : enrolment.enrollable}
+              </Row>
+              <Row label="Already in">{enrolment.alreadyActive}</Row>
+              <Row label="Excluded, kept">{enrolment.alreadyExcluded}</Row>
+            </dl>
+          ) : null}
+
+          {/* None of these three is a failure. */}
+          {enrolment && enrolment.matched === 0 ? (
+            <Alert tone="info">No establishment in the shared base matches these filters.</Alert>
+          ) : null}
+
+          {enrolment && enrolment.matched > 0 && enrolment.enrollable === 0 ? (
+            <Alert tone="info">
+              Nothing to add: every matching establishment is already in this campaign.
+            </Alert>
+          ) : null}
+
+          {enrolment?.truncated ? (
+            <Alert tone="warning">
+              {enrolment.matched} match and {enrolment.selected} were taken. Narrow the filters or
+              run it again to continue.
+            </Alert>
+          ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <Button
+              variant="secondary"
+              loading={enrolling}
+              disabled={!campaignId || !hasSelection}
+              onClick={() => void runEnrolmentPreview()}
+            >
+              Check the selection
+            </Button>
+
+            <Button
+              loading={enrolling}
+              disabled={!campaignId || !hasSelection || enrolment?.enrollable === 0}
+              leadingIcon={<FolderPlus aria-hidden="true" className="size-[18px]" />}
+              onClick={() => void runEnrolment()}
+            >
+              Add to the campaign
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">
+        {isAdmin ? '2. Assign campaign prospects' : 'Assign campaign prospects'}
+      </h2>
 
       <Card>
         <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
@@ -853,6 +1052,38 @@ function ListSkeleton() {
       ))}
     </ul>
   );
+}
+
+/*
+ * Enrolment failures get their own words.
+ *
+ * describeBatchError below speaks about assigning — "not authorized to assign in
+ * this campaign", "assignments changed while you were working" — and reusing it
+ * here would tell an administrator the wrong thing about which of the two
+ * operations was refused, and why.
+ */
+function describeEnrolmentError(error: unknown): string {
+  if (!(error instanceof ApiError)) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  switch (error.statusCode) {
+    /* The API names the field it rejected, including the empty selection. */
+    case 400:
+      return error.message || 'One of the filters is not valid.';
+
+    case 403:
+      return 'Only a tenant administrator can add establishments to a campaign.';
+
+    case 404:
+      return 'That campaign no longer exists.';
+
+    case 409:
+      return 'This campaign is no longer editable.';
+
+    default:
+      return 'We could not add the establishments. Please try again.';
+  }
 }
 
 function describeBatchError(error: unknown): string {

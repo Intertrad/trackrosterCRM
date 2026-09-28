@@ -4,12 +4,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
+import { ApiError } from '@/lib/api/api-error';
 import type { UnassignedProspect } from '@/lib/api/assignment-types';
 
 const {
   useAuthMock,
   getWorkQueueOptionsMock,
   listCampaignsMock,
+  previewCampaignEnrolmentMock,
+  applyCampaignEnrolmentMock,
   listTeamsMock,
   listMembershipsMock,
   getManagerDashboardMock,
@@ -20,6 +23,8 @@ const {
   useAuthMock: vi.fn(),
   getWorkQueueOptionsMock: vi.fn(),
   listCampaignsMock: vi.fn(),
+  previewCampaignEnrolmentMock: vi.fn(),
+  applyCampaignEnrolmentMock: vi.fn(),
   listTeamsMock: vi.fn(),
   listMembershipsMock: vi.fn(),
   getManagerDashboardMock: vi.fn(),
@@ -31,7 +36,11 @@ const {
 vi.mock('@/lib/auth/auth-context', () => ({ useAuth: useAuthMock }));
 vi.mock('@/lib/api/work-queue-client', () => ({ getWorkQueueOptions: getWorkQueueOptionsMock }));
 vi.mock('@/lib/api/membership-client', () => ({ listMemberships: listMembershipsMock }));
-vi.mock('@/lib/api/campaign-client', () => ({ listCampaigns: listCampaignsMock }));
+vi.mock('@/lib/api/campaign-client', () => ({
+  listCampaigns: listCampaignsMock,
+  previewCampaignEnrolment: previewCampaignEnrolmentMock,
+  applyCampaignEnrolment: applyCampaignEnrolmentMock,
+}));
 vi.mock('@/lib/api/team-client', () => ({ listTeams: listTeamsMock }));
 vi.mock('@/lib/api/manager-dashboard-client', () => ({
   getManagerDashboard: getManagerDashboardMock,
@@ -555,5 +564,299 @@ describe('admin dispatch with an explicit target team', () => {
     );
 
     expect(screen.getByLabelText<HTMLSelectElement>('Target team').value).toBe('');
+  });
+});
+
+/*
+ * TR-932. The workspace now carries both operations, and the point of the ticket is
+ * that they stay distinct: adding an establishment to a campaign and assigning a
+ * campaign prospect to somebody are different decisions with different authority.
+ */
+describe('campaign enrolment inside the assignment workspace', () => {
+  const organizationId = '77777777-7777-4777-8777-777777777777';
+  const teamA = '99999999-9999-4999-8999-999999999999';
+
+  function enrolmentResult(over: Record<string, unknown> = {}) {
+    return {
+      campaignId,
+      mode: 'preview' as const,
+      matched: 4524,
+      selected: 4524,
+      truncated: false,
+      enrollable: 4390,
+      enrolled: 0,
+      alreadyActive: 118,
+      alreadyExcluded: 16,
+      limit: 10_000,
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    useAuthMock.mockReturnValue({
+      activeWorkspace: {
+        key: 'tenant:client_admin:-:-',
+        mode: 'admin' as const,
+        role: 'client_admin' as const,
+        scopeType: 'tenant' as const,
+        organizationId: null,
+        teamId: null,
+      },
+    });
+
+    listCampaignsMock.mockResolvedValue({
+      items: [
+        {
+          id: campaignId,
+          tenantId: 't',
+          organizationId,
+          name: 'Gendarmeries 2026',
+          description: null,
+          status: 'active',
+          startsAt: null,
+          endsAt: null,
+        },
+      ],
+      nextCursor: null,
+    });
+
+    listTeamsMock.mockResolvedValue({
+      items: [
+        { id: teamA, tenantId: 't', organizationId, name: 'Paris Field Team', status: 'active' },
+      ],
+      nextCursor: null,
+    });
+
+    listMembershipsMock.mockResolvedValue({
+      items: [
+        {
+          id: memberId,
+          identityId: '66666666-6666-4666-8666-666666666666',
+          email: 'amel.diallo@example.test',
+          displayName: 'Amel Diallo',
+          status: 'active' as const,
+          roles: ['prospector'],
+          capacity: 120,
+        },
+      ],
+      nextCursor: null,
+    });
+
+    getManagerDashboardMock.mockResolvedValue(null);
+    listUnassignedProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: null });
+    previewCampaignEnrolmentMock.mockResolvedValue(enrolmentResult());
+    applyCampaignEnrolmentMock.mockResolvedValue(
+      enrolmentResult({ mode: 'apply', enrolled: 4390 }),
+    );
+    previewAssignmentMock.mockResolvedValue({
+      campaignId,
+      ruleId: null,
+      mode: 'preview',
+      canApply: true,
+      assigned: 0,
+      proposed: 1,
+      conflicts: 0,
+      decisions: [{ prospectId: 'p', outcome: 'proposed' }],
+    });
+  });
+
+  afterEach(cleanup);
+
+  it('keeps the two operations labelled and separate', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText('1. Add establishments to the campaign')).toBeInTheDocument(),
+    );
+
+    expect(screen.getByText('2. Assign campaign prospects')).toBeInTheDocument();
+
+    /* Two distinct actions, neither doing the other's job. */
+    expect(screen.getByRole('button', { name: /Add to the campaign/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Preview/ })).toBeInTheDocument();
+  });
+
+  it('refuses to enrol until a criterion is chosen', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Select at least one criterion to define the establishments to add to the campaign.',
+        ),
+      ).toBeInTheDocument(),
+    );
+
+    /* An empty selection would mean the whole référentiel. */
+    expect(screen.getByRole('button', { name: /Add to the campaign/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Check the selection' })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Add to the campaign/ })).toBeEnabled(),
+    );
+  });
+
+  /*
+   * The invariant the whole ticket turns on: what is filtered, what is enrolled and
+   * what the dispatch queue shows must be one population. Both requests are built
+   * from one serializer, and this asserts they agree.
+   */
+  it('enrols and queries the queue with the same criteria', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+    fireEvent.change(screen.getByLabelText('Department'), { target: { value: '974' } });
+
+    await waitFor(() =>
+      expect(listUnassignedProspectsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'prospection', department: '974' }),
+        expect.anything(),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Add to the campaign/ }));
+
+    await waitFor(() => expect(applyCampaignEnrolmentMock).toHaveBeenCalled());
+
+    const enrolled = applyCampaignEnrolmentMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    const queried = listUnassignedProspectsMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+    expect(enrolled).toMatchObject({ category: 'prospection', department: '974' });
+    expect(queried.category).toBe(enrolled.category);
+    expect(queried.department).toBe(enrolled.department);
+  });
+
+  it('does not send a half-typed department to either operation', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+    fireEvent.change(screen.getByLabelText('Department'), { target: { value: '9' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Add to the campaign/ }));
+
+    await waitFor(() => expect(applyCampaignEnrolmentMock).toHaveBeenCalled());
+
+    expect(applyCampaignEnrolmentMock.mock.calls[0]?.[1]).not.toHaveProperty('department');
+  });
+
+  it('re-reads the dispatch queue from the server after enrolling', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    const before = listUnassignedProspectsMock.mock.calls.length;
+
+    fireEvent.click(screen.getByRole('button', { name: /Add to the campaign/ }));
+
+    /* Server truth, not a row inserted into local state. */
+    await waitFor(() =>
+      expect(listUnassignedProspectsMock.mock.calls.length).toBeGreaterThan(before),
+    );
+
+    expect(screen.getByText(/4390 establishments added to the campaign/)).toBeInTheDocument();
+  });
+
+  it('previews without enrolling, and reports outcomes that are not failures', async () => {
+    previewCampaignEnrolmentMock.mockResolvedValue(
+      enrolmentResult({ matched: 134, enrollable: 0, alreadyActive: 118, alreadyExcluded: 16 }),
+    );
+
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/every matching establishment is already/)).toBeInTheDocument(),
+    );
+
+    /* A preview must not write, and nothing to add is not an error. */
+    expect(applyCampaignEnrolmentMock).not.toHaveBeenCalled();
+    expect(screen.getByText('Excluded, kept')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Add to the campaign/ })).toBeDisabled();
+  });
+
+  it('discards enrolment counts when the filters change under them', async () => {
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
+
+    await waitFor(() => expect(screen.getByText('Matching')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'cra' } });
+
+    /* Counts for the previous filters would describe a population no longer shown. */
+    await waitFor(() => expect(screen.queryByText('Matching')).not.toBeInTheDocument());
+  });
+
+  it('shows the API validation rather than a generic failure', async () => {
+    applyCampaignEnrolmentMock.mockRejectedValue(
+      new ApiError({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Tenant administrator required',
+        error: 'Forbidden',
+      }),
+    );
+
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(listUnassignedProspectsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'prospection' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add to the campaign/ }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('Only a tenant administrator can add establishments to a campaign.'),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('does not offer enrolment to a team-scoped manager', async () => {
+    useAuthMock.mockReturnValue({
+      activeWorkspace: {
+        key: 'team:manager:o:t',
+        mode: 'manager' as const,
+        role: 'manager' as const,
+        scopeType: 'team' as const,
+        organizationId: 'o',
+        teamId,
+      },
+    });
+
+    getWorkQueueOptionsMock.mockResolvedValue({
+      campaigns: [{ id: campaignId, name: 'Gendarmeries 2026' }],
+    });
+
+    render(<AssignmentsPage />);
+
+    await waitFor(() => expect(screen.getByText('Brigade de Bastia')).toBeInTheDocument());
+
+    /*
+     * Enrolment is guarded by ClientAdminGuard upstream, so a manager would be
+     * offered a button that answers 403.
+     */
+    expect(screen.queryByText('1. Add establishments to the campaign')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Add to the campaign/ })).not.toBeInTheDocument();
+    /* Their own workflow is untouched. */
+    expect(screen.getByRole('button', { name: /Preview 0 prospects/ })).toBeInTheDocument();
   });
 });
