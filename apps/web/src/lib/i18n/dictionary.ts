@@ -27,6 +27,7 @@ export const DICTIONARY = {
   'nav.reports': { en: 'Reports', fr: 'Rapports' },
   'nav.exports': { en: 'Exports', fr: 'Exports' },
   'nav.imports': { en: 'Imports', fr: 'Imports' },
+  'nav.referential': { en: 'Prospect base', fr: 'Base de prospects' },
   'nav.collisions': { en: 'Collision center', fr: 'Centre des conflits' },
   'nav.approvals': { en: 'Approvals', fr: 'Validations' },
   'nav.overrides': { en: 'Overrides', fr: 'Dérogations' },

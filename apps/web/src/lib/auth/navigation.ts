@@ -5,6 +5,7 @@ import type { WorkspaceMode } from './workspace';
 
 export type NavigationItemId =
   | 'overview'
+  | 'referential'
   | 'work_queue'
   | 'map'
   | 'follow_ups'
@@ -99,6 +100,7 @@ const OVERVIEW: WorkspaceNavigationItem = {
  */
 export const NAVIGATION_FEATURE: Partial<Record<NavigationItemId, FeatureKey>> = {
   overview: 'work_queue',
+  referential: 'prospect_reads',
   work_queue: 'work_queue',
   map: 'prospect_reads',
   follow_ups: 'follow_ups',
@@ -152,11 +154,20 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           availability: 'ready',
           primary: true,
         },
+        /*
+         * The shared référentiel. Administration only, because an establishment
+         * outside every campaign is visible to a tenant-scoped grant alone — the
+         * API's rule, not a navigation preference.
+         *
+         * Primary, and imports gives up its place rather than the bar growing to
+         * five: the base is what an administrator opens daily, and an import is
+         * occasional.
+         */
         {
-          id: 'imports',
-          label: 'nav.imports',
-          icon: 'imports',
-          href: '/admin/imports',
+          id: 'referential',
+          label: 'nav.referential',
+          icon: 'prospects',
+          href: '/admin/prospects',
           availability: 'ready',
           primary: true,
         },
@@ -167,6 +178,13 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/admin/audit',
           availability: 'ready',
           primary: true,
+        },
+        {
+          id: 'imports',
+          label: 'nav.imports',
+          icon: 'imports',
+          href: '/admin/imports',
+          availability: 'ready',
         },
         /*
          * Bulk campaign enrolment sits under administration rather than the

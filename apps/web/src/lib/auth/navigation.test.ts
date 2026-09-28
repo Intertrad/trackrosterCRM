@@ -24,22 +24,37 @@ describe('workspace navigation', () => {
     ]);
   });
 
+  /*
+   * The référentiel took the place imports held, which is a deliberate change of
+   * the earlier handoff rather than a drift. The V2 walkthrough lists Prospects as
+   * its third administration screen and Import as its twenty-first, and the base is
+   * what an administrator opens daily while an import is occasional. The bar still
+   * holds four, so something had to move rather than be added.
+   */
   it('gives the client admin the administration order from the design handoff', () => {
     const items = getNavigationForWorkspace('admin');
 
     expect(items.map((item) => item.id).slice(0, 4)).toEqual([
       'administration',
       'users',
-      'imports',
+      'referential',
       'audit',
     ]);
 
-    /* The four administration screens must be reachable, not just listed. */
+    /* Every administration screen must be reachable, not just listed. */
     expect(
       items
-        .filter((item) => ['administration', 'users', 'imports', 'audit'].includes(item.id))
+        .filter((item) =>
+          ['administration', 'users', 'referential', 'audit', 'imports'].includes(item.id),
+        )
         .map((item) => item.href),
-    ).toEqual(['/admin/overview', '/admin/users', '/admin/imports', '/admin/audit']);
+    ).toEqual([
+      '/admin/overview',
+      '/admin/users',
+      '/admin/prospects',
+      '/admin/audit',
+      '/admin/imports',
+    ]);
   });
 
   it('gives the manager the oversight order from the design handoff', () => {
