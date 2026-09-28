@@ -1,4 +1,10 @@
 import { establishmentFilterConditions } from '../establishments/establishment-filters.js';
+import {
+  prospectCampaignMembershipQuery,
+  toProspectCampaignMembership,
+  type ProspectCampaignMembership,
+  type ProspectCampaignMembershipRow,
+} from './prospect-campaign-context.js';
 import { visibleField } from '../prospect-enrichment/field-visibility.js';
 import {
   customFieldDefinitions as fields,
@@ -188,6 +194,32 @@ export class ProspectMasterService {
         .sort(),
     };
   }
+  /*
+   * The campaigns that hold this establishment, and what each one has made of it.
+   *
+   * Two gates, deliberately. The establishment itself is checked first through the
+   * same access the detail endpoint uses, so an establishment the caller may not
+   * see answers 404 and discloses nothing. Each membership is then filtered on its
+   * own: being able to see the establishment does not mean being able to see every
+   * campaign in the tenant, and a director of one entity must not learn what
+   * another entity is working.
+   *
+   * An establishment with no membership is an empty list, not a 404 — it exists and
+   * nobody has enrolled it, which is a normal state for most of the référentiel.
+   */
+  async campaignMemberships(
+    a: AuthenticatedPrincipal,
+    id: string,
+  ): Promise<{ items: ProspectCampaignMembership[] }> {
+    await this.access.prospect(a, id, false);
+
+    const rows = await this.db.execute<ProspectCampaignMembershipRow>(
+      prospectCampaignMembershipQuery(a, id),
+    );
+
+    return { items: rows.rows.map(toProspectCampaignMembership) };
+  }
+
   create(a: AuthenticatedPrincipal, input: CreateProspectDto) {
     return this.transaction(a, async (tx) => {
       await this.access.admin(a, tx);

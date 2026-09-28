@@ -85,6 +85,22 @@ export class ProspectMasterController {
   ) {
     return this.service.get(a, id);
   }
+  /*
+   * The operational context of a shared establishment: which campaigns hold it,
+   * for which organization, and the current assignment, latest activity and next
+   * follow-up of each. A summary, not a history — it carries the
+   * campaignProspectId the existing scoped endpoints need.
+   *
+   * Declared above the :prospectId writes so the static segment cannot be read as
+   * an identifier.
+   */
+  @Get(':prospectId/campaign-memberships')
+  campaignMemberships(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Param('prospectId', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.service.campaignMemberships(a, id);
+  }
   @Patch(':prospectId')
   @UseGuards(ProspectWriteGuard)
   @UseInterceptors(ResourceETagInterceptor)

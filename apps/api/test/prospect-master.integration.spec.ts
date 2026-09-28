@@ -22,6 +22,8 @@ import {
   membershipResourceScopes,
   membershipScopeDenials,
   organizations,
+  prospectActivities,
+  prospectFollowUps,
   teams,
   tenantMemberships,
   tenantRolePermissions,
@@ -30,6 +32,7 @@ import {
   userAccessGrants,
 } from '../src/database/schema/index.js';
 import { PasswordService } from '../src/auth/password.service.js';
+import type { ProspectCampaignMembership } from '../src/prospect-master/prospect-campaign-context.js';
 describe('Prospect master APIs', () => {
   let app: NestFastifyApplication, db: Database;
   const tenant = randomUUID(),
@@ -216,6 +219,206 @@ describe('Prospect master APIs', () => {
    * enrolment, which is what makes "secteur = prospection, département = 974" one
    * population across all three rather than three dialects.
    */
+  /*
+   * TR-930. An establishment id could not reach its operational state: activities,
+   * follow-ups, assignments and reservations all key to a campaign prospect, and
+   * nothing mapped an establishment to its memberships. This is that bridge, and
+   * the identifier it returns is what makes the existing scoped endpoints usable
+   * from the référentiel.
+   */
+  describe('campaign memberships', () => {
+    const secondOrg = randomUUID(),
+      secondCampaign = randomUUID(),
+      secondMembership = randomUUID(),
+      lonely = randomUUID(),
+      followUp = randomUUID();
+
+    beforeEach(async () => {
+      /*
+       * A second organization holding the same establishment. This is the case the
+       * five-entity design turns on: OFTI and GFTIJ may both work one establishment,
+       * and that is enrolment rather than collision — collision is decided when one
+       * of them tries to reserve it.
+       */
+      await db
+        .insert(organizations)
+        .values({ id: secondOrg, tenantId: tenant, name: 'Zed Second entity', slug: secondOrg });
+
+      await db.insert(campaigns).values({
+        id: secondCampaign,
+        tenantId: tenant,
+        organizationId: secondOrg,
+        name: 'Zed Second campaign',
+        status: 'active',
+      });
+
+      await db.insert(campaignProspects).values({
+        id: secondMembership,
+        tenantId: tenant,
+        campaignId: secondCampaign,
+        establishmentId: places[0]!,
+      });
+
+      /* An establishment nobody has enrolled — the normal state of the base. */
+      await db.insert(establishments).values({
+        id: lonely,
+        tenantId: tenant,
+        name: 'Zed Never enrolled',
+        normalizedName: 'zed never enrolled',
+        countryCode: 'FR',
+      });
+
+      await db.insert(prospectActivities).values({
+        tenantId: tenant,
+        campaignId: campaign,
+        campaignProspectId: prospects[0]!,
+        establishmentId: places[0]!,
+        assignmentId: assignments[0]!,
+        userId: member,
+        reservationId: randomUUID(),
+        type: 'call',
+        occurredAt: new Date('2026-09-26T10:42:00.000Z'),
+      });
+
+      await db.insert(prospectFollowUps).values({
+        id: followUp,
+        tenantId: tenant,
+        campaignId: campaign,
+        campaignProspectId: prospects[0]!,
+        establishmentId: places[0]!,
+        assignmentId: assignments[0]!,
+        createdBy: member,
+        dueAt: new Date('2026-09-30T09:00:00.000Z'),
+        category: 'follow_up',
+        status: 'pending',
+      });
+
+      /* Excluded on purpose: TR-924 leaves it alone, so the read must show it. */
+      await db
+        .update(campaignProspects)
+        .set({ status: 'excluded' })
+        .where(eq(campaignProspects.id, prospects[5]!));
+    });
+
+    afterEach(async () => {
+      await db.delete(prospectFollowUps).where(eq(prospectFollowUps.tenantId, tenant));
+      await db.delete(prospectActivities).where(eq(prospectActivities.tenantId, tenant));
+      await db.delete(campaignProspects).where(eq(campaignProspects.id, secondMembership));
+      await db.delete(establishments).where(eq(establishments.id, lonely));
+      await db.delete(campaigns).where(eq(campaigns.id, secondCampaign));
+      await db.delete(organizations).where(eq(organizations.id, secondOrg));
+      await db
+        .update(campaignProspects)
+        .set({ status: 'active' })
+        .where(eq(campaignProspects.id, prospects[5]!));
+    });
+
+    const memberships = async (id: string, actor = admin) => {
+      const response = await call('GET', `/prospects/${id}/campaign-memberships`, undefined, actor);
+
+      expect(response.statusCode, response.body).toBe(200);
+
+      return response.json().items as ProspectCampaignMembership[];
+    };
+
+    it('lists every campaign holding the establishment, one row per organization', async () => {
+      const items = await memberships(places[0]!);
+
+      /* Two campaigns in the first entity plus one in the second. */
+      expect(items).toHaveLength(3);
+
+      const organizations = items.map((item) => item.organization.name);
+
+      /*
+       * Two distinct entities, neither filtered out because the other got there
+       * first. Collapsing them into one status would erase the multi-entity model.
+       */
+      expect(new Set(organizations).size).toBe(2);
+      expect(organizations).toContain('Zed Second entity');
+
+      /* The bridge: every row carries the id the scoped endpoints need. */
+      for (const item of items) {
+        expect(item.campaignProspectId).toMatch(/^[0-9a-f-]{36}$/);
+      }
+    });
+
+    it('shows an excluded membership rather than hiding it', async () => {
+      const items = await memberships(places[0]!);
+
+      const statuses = items.map((item) => item.membership.status);
+
+      expect(statuses).toContain('excluded');
+      expect(statuses).toContain('active');
+    });
+
+    it('summarises the current assignment, latest activity and next follow-up', async () => {
+      const items = await memberships(places[0]!);
+
+      const worked = items.find((item) => item.campaignProspectId === prospects[0]);
+
+      expect(worked).toBeDefined();
+
+      /* The current assignment is the one that has not ended. */
+      expect(worked!.assignment).toMatchObject({
+        id: assignments[0],
+        status: 'active',
+        teamId: team,
+        assignedUserId: member,
+      });
+
+      expect(worked!.latestActivity).toMatchObject({
+        type: 'call',
+        occurredAt: '2026-09-26T10:42:00.000Z',
+      });
+
+      expect(worked!.nextFollowUp).toMatchObject({
+        id: followUp,
+        dueAt: '2026-09-30T09:00:00.000Z',
+        status: 'pending',
+      });
+
+      /* A membership nobody owns says so instead of borrowing another's. */
+      const untouched = items.find((item) => item.campaignProspectId === secondMembership);
+
+      expect(untouched!.assignment).toBeNull();
+      expect(untouched!.latestActivity).toBeNull();
+      expect(untouched!.nextFollowUp).toBeNull();
+    });
+
+    it('answers an empty list for an establishment no campaign holds', async () => {
+      /* It exists and nobody enrolled it. That is not a missing record. */
+      expect(await memberships(lonely)).toEqual([]);
+    });
+
+    it('discloses nothing about another tenant establishment', async () => {
+      expect(
+        (await call('GET', `/prospects/${places[4]}/campaign-memberships`, undefined, admin))
+          .statusCode,
+      ).toBe(404);
+
+      /* And the reverse direction, from the other tenant's own administrator. */
+      expect(
+        (await call('GET', `/prospects/${places[0]}/campaign-memberships`, undefined, foreign))
+          .statusCode,
+      ).toBe(404);
+    });
+
+    it('does not let seeing the establishment reveal every campaign in the tenant', async () => {
+      /*
+       * The scoped member reaches this establishment through their own team's
+       * assignment, so they see that membership — and must not see the second
+       * entity's campaign, which is none of their business. Filtering per
+       * membership rather than per establishment is what makes that true.
+       */
+      const items = await memberships(places[0]!, member);
+
+      const organizations = items.map((item) => item.organization.name);
+
+      expect(organizations).not.toContain('Zed Second entity');
+      expect(items.length).toBeLessThan(3);
+    });
+  });
+
   describe('référentiel filters', () => {
     const referential = Array.from({ length: 4 }, () => randomUUID());
 
