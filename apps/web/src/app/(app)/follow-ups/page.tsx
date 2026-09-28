@@ -8,29 +8,46 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Dialog } from '@/components/ui/dialog';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
+import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
 import {
   cancelProspectFollowUp,
   completeProspectFollowUp,
   listFollowUpQueue,
+  rescheduleProspectFollowUp,
 } from '@/lib/api/follow-up-client';
 import type { FollowUpQueueItem } from '@/lib/api/follow-up-types';
 import { useAuth } from '@/lib/auth/auth-context';
-import { classifyFollowUp, endOfLocalDay, isAppointment } from '@/lib/follow-ups/due';
+import { classifyFollowUp, compareByDue, endOfLocalDay, isAppointment } from '@/lib/follow-ups/due';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
-type TabId = 'todo' | 'overdue' | 'completed';
+/*
+ * The three groups a prospector actually works from, plus the settled history.
+ * They are derived from one classified dataset rather than fetched per tab, so a
+ * count and the list beneath it cannot come from different conditions.
+ */
+type TabId = 'overdue' | 'today' | 'upcoming' | 'completed';
 
 export default function ActionsPage() {
   const { activeWorkspace } = useAuth();
   const { t } = useTranslation();
   const teamId = activeWorkspace?.teamId ?? null;
 
-  const [tab, setTab] = useState<TabId>('todo');
+  const [tab, setTab] = useState<TabId>('overdue');
+
+  /* The follow-up being rescheduled, or null when the dialog is closed. */
+  const [rescheduling, setRescheduling] = useState<FollowUpQueueItem | null>(null);
+
+  /*
+   * Grouping happens over the fetched set, so if it is full the groups describe the
+   * first hundred rather than everything. Said rather than left to be discovered.
+   */
+  const [truncated, setTruncated] = useState(false);
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<FollowUpQueueItem[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -71,12 +88,16 @@ export default function ActionsPage() {
       }
 
       try {
-        const response = await listFollowUpQueue({
-          teamId,
-          limit: 100,
-          ...(tab === 'overdue' ? { overdue: true } : {}),
-          signal,
-        });
+        /*
+         * Everything once, rather than a filtered request per tab. A prospector's
+         * own follow-ups are naturally bounded — tens, not thousands — and one
+         * dataset is what lets every count and every list come from the same
+         * classification. The API's `overdue` filter is not used here for the same
+         * reason: it would be a second definition of the word.
+         */
+        const response = await listFollowUpQueue({ teamId, limit: 100, signal });
+
+        setTruncated(response.items.length >= 100);
 
         if (signal?.aborted) {
           return;
@@ -96,7 +117,7 @@ export default function ActionsPage() {
         );
       }
     },
-    [tab, teamId],
+    [teamId],
   );
 
   useEffect(() => {
@@ -108,52 +129,51 @@ export default function ActionsPage() {
     return () => controller.abort();
   }, [load]);
 
-  const visible = useMemo(() => {
-    if (!items) {
-      return [];
-    }
+  const classified = useMemo(() => {
+    const now = new Date();
+    const dayEnd = endOfLocalDay(now);
 
-    const byTab = items.filter((item) =>
-      tab === 'completed' ? item.status === 'completed' : item.status === 'pending',
-    );
+    /*
+     * Classified once, shared with Ma journée. The counts and the rendered rows are
+     * both read off this, so "count says 4, list shows 3" cannot happen — there is
+     * only one condition.
+     */
+    return (items ?? []).map((item) => ({ item, state: classifyFollowUp(item, now, dayEnd) }));
+  }, [items]);
+
+  const counts = useMemo(
+    () => ({
+      overdue: classified.filter((row) => row.state === 'overdue').length,
+      today: classified.filter((row) => row.state === 'today').length,
+      upcoming: classified.filter((row) => row.state === 'upcoming').length,
+      /* Settled records are kept out of every active count. */
+      completed: classified.filter((row) => row.state === 'completed').length,
+    }),
+    [classified],
+  );
+
+  /*
+   * The rows for the chosen group, from the same classification the counts use, in
+   * ascending due order — oldest first when late, soonest first otherwise.
+   */
+  const visible = useMemo(() => {
+    const inGroup = classified
+      .filter((row) => row.state === tab)
+      .sort((left, right) => compareByDue(left.item, right.item))
+      .map((row) => row.item);
 
     const query = search.trim().toLowerCase();
 
     if (!query) {
-      return byTab;
+      return inGroup;
     }
 
-    return byTab.filter(
+    return inGroup.filter(
       (item) =>
         item.establishmentName.toLowerCase().includes(query) ||
         item.campaignName.toLowerCase().includes(query),
     );
-  }, [items, search, tab]);
-
-  const counts = useMemo(() => {
-    const all = items ?? [];
-
-    /*
-     * One classifier, shared with Ma journée. This counted overdue with its own
-     * comparison and the row below did the same again — three places agreeing until
-     * one of them stopped.
-     */
-    const now = new Date();
-    const dayEnd = endOfLocalDay(now);
-
-    const states = all.map((item) => classifyFollowUp(item, now, dayEnd));
-
-    return {
-      todo: all.filter((item) => item.status === 'pending').length,
-      overdue: states.filter((state) => state === 'overdue').length,
-      today: states.filter((state) => state === 'today').length,
-      upcoming: states.filter((state) => state === 'upcoming').length,
-      appointments: all.filter(
-        (item, index) => isAppointment(item) && states[index] !== 'completed',
-      ).length,
-      completed: all.filter((item) => item.status === 'completed').length,
-    };
-  }, [items]);
+  }, [classified, search, tab]);
 
   function toggle(id: string): void {
     setSelected((current) => {
@@ -266,8 +286,9 @@ export default function ActionsPage() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            { id: 'todo', label: 'actions.tab.todo' },
             { id: 'overdue', label: 'actions.tab.overdue' },
+            { id: 'today', label: 'actions.tab.today' },
+            { id: 'upcoming', label: 'actions.tab.upcoming' },
             { id: 'completed', label: 'actions.tab.completed' },
           ] as const
         ).map((item) => (
@@ -317,7 +338,16 @@ export default function ActionsPage() {
             </p>
 
             <p className="mt-1 text-[14px] text-ink-muted">
-              {t(tab === 'overdue' ? 'actions.noOverdue' : 'actions.emptyBody')}
+              {/* Each group says what is empty; one generic line would not. */}
+              {t(
+                tab === 'overdue'
+                  ? 'actions.empty.overdue'
+                  : tab === 'today'
+                    ? 'actions.empty.today'
+                    : tab === 'upcoming'
+                      ? 'actions.empty.upcoming'
+                      : 'actions.emptyBody',
+              )}
             </p>
           </div>
         </Card>
@@ -330,6 +360,7 @@ export default function ActionsPage() {
                 item={item}
                 selected={selected.has(item.id)}
                 onToggle={() => toggle(item.id)}
+                onReschedule={() => setRescheduling(item)}
               />
             ))}
           </ul>
@@ -377,18 +408,170 @@ export default function ActionsPage() {
           </button>
         </div>
       ) : null}
+      {truncated ? <p className="text-[13px] text-ink-muted">{t('actions.truncated')}</p> : null}
+
+      {/*
+       * Reschedule uses the shared Dialog, which already traps focus, restores it to
+       * the trigger on close and answers Escape.
+       */}
+      <RescheduleDialog
+        followUp={rescheduling}
+        teamId={teamId ?? ''}
+        onClose={() => setRescheduling(null)}
+        onRescheduled={() => {
+          setRescheduling(null);
+          /* Server truth, so the card moves group because the server says so. */
+          void load();
+        }}
+      />
     </div>
   );
+}
+
+/*
+ * Moving a follow-up to a new moment.
+ *
+ * The date and time are read in the reader's own zone and combined into one
+ * instant, which is what the API stores and what the shared classifier then reads
+ * back — one conversion path, so a follow-up rescheduled to this afternoon
+ * classifies as today rather than landing a day out.
+ */
+function RescheduleDialog({
+  followUp,
+  teamId,
+  onClose,
+  onRescheduled,
+}: {
+  followUp: FollowUpQueueItem | null;
+  teamId: string;
+  onClose: () => void;
+  onRescheduled: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('10:00');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /* One key per dialog opening, reused across retries of the same intent. */
+  const idempotencyKey = useMemo(() => (followUp ? crypto.randomUUID() : ''), [followUp]);
+
+  useEffect(() => {
+    if (!followUp) {
+      return;
+    }
+
+    const due = new Date(followUp.dueAt);
+
+    setDate(Number.isNaN(due.getTime()) ? '' : toDateInput(due));
+    setTime(Number.isNaN(due.getTime()) ? '10:00' : toTimeInput(due));
+    setError(null);
+  }, [followUp]);
+
+  async function confirm(): Promise<void> {
+    if (!followUp || !date) {
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+
+    try {
+      await rescheduleProspectFollowUp({
+        campaignId: followUp.campaignId,
+        prospectId: followUp.prospectId,
+        followUpId: followUp.id,
+        teamId,
+        /* Local wall time to an instant, once. */
+        dueAt: new Date(`${date}T${time}`).toISOString(),
+        idempotencyKey,
+      });
+
+      onRescheduled();
+    } catch {
+      /*
+       * The dialog stays open and the follow-up keeps its current date. Nothing was
+       * moved locally, so there is no optimistic state to unwind.
+       */
+      setError(t('actions.reschedule.failed'));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={followUp !== null}
+      title={t('actions.reschedule.title')}
+      description={followUp ? followUp.establishmentName : undefined}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={pending}>
+            {t('common.cancel')}
+          </Button>
+
+          {/* Disabled while in flight, so repeated taps cannot send two PATCHes. */}
+          <Button loading={pending} disabled={pending || !date} onClick={() => void confirm()}>
+            {t('actions.reschedule.confirm')}
+          </Button>
+        </>
+      }
+    >
+      {followUp ? (
+        <div className="flex flex-col gap-4">
+          <p className="text-[14px] text-ink-muted">
+            {t('actions.reschedule.current')}: {formatDate(followUp.dueAt)}{' '}
+            {formatTime(followUp.dueAt)}
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TextField
+              label={t('actions.reschedule.newDate')}
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
+
+            <TextField
+              label={t('actions.reschedule.newTime')}
+              type="time"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+            />
+          </div>
+
+          {error ? <Alert tone="danger">{error}</Alert> : null}
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}
+
+/* Local calendar date for a date input, not the UTC one. */
+function toDateInput(value: Date): string {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function toTimeInput(value: Date): string {
+  return `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
 }
 
 function ActionRow({
   item,
   selected,
   onToggle,
+  onReschedule,
 }: {
   item: FollowUpQueueItem;
   selected: boolean;
   onToggle: () => void;
+  onReschedule: () => void;
 }) {
   const { t } = useTranslation();
 
@@ -430,6 +613,22 @@ function ActionRow({
         {t(item.ownership === 'team' ? 'actions.owner.team' : 'actions.owner.you')}
       </Badge>
 
+      {/*
+       * An appointment keeps its time group and is marked here instead. Moving every
+       * meeting into a bucket of its own would hide an overdue one from Overdue,
+       * which is the list it most needs to be in.
+       */}
+      {isAppointment(item) ? (
+        <Badge tone="brand" className="shrink-0">
+          {t('actions.appointment')}
+        </Badge>
+      ) : null}
+
+      {/* The channel the next action is meant to use, when one was recorded. */}
+      {item.channel ? (
+        <span className="shrink-0 text-[13px] text-ink-muted capitalize">{item.channel}</span>
+      ) : null}
+
       <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
         {t(
           item.status === 'completed'
@@ -439,6 +638,16 @@ function ActionRow({
               : 'actions.status.open',
         )}
       </Badge>
+
+      {/*
+       * Only a pending follow-up can be moved. A completed or cancelled one is
+       * settled, and the API offers no reopening.
+       */}
+      {item.status === 'pending' ? (
+        <Button variant="secondary" className="shrink-0" onClick={onReschedule}>
+          {t('actions.reschedule')}
+        </Button>
+      ) : null}
     </li>
   );
 }

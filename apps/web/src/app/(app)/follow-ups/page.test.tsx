@@ -139,7 +139,10 @@ describe('FollowUpsPage', () => {
     await screen.findByRole('heading', { name: 'Actions' });
 
     expect(screen.getByText('Gérez vos appels, emails, visites et relances')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /À faire/ })).toBeInTheDocument();
+    /* The three operational groups, in French, replacing the old À faire tab. */
+    expect(screen.getByRole('button', { name: /En retard/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Aujourd/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /À venir/ })).toBeInTheDocument();
 
     /* A key that reaches the DOM type-checks perfectly and reads as gibberish. */
     expect(document.body.textContent).not.toMatch(/\b(actions|nav|today)\.[a-zA-Z.]+/);
@@ -148,27 +151,45 @@ describe('FollowUpsPage', () => {
   it('loads the selected team operational queue', async () => {
     render(<FollowUpsPage />);
 
-    expect(await screen.findByText('Paris Clinic')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(listFollowUpQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId })),
+    );
 
-    expect(listFollowUpQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId }));
+    /* The fixture is due in 2027, so it is upcoming rather than overdue. */
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
+
+    expect(await screen.findByText('Paris Clinic')).toBeInTheDocument();
   });
 
-  it('asks the backend for overdue work rather than filtering locally', async () => {
+  /*
+   * This deliberately reverses an earlier decision, and the reason matters.
+   *
+   * The page used to ask the API for the overdue set while computing its own counts
+   * over the fetched page — two definitions of overdue, and the mismatch shows up as
+   * a count that disagrees with the list under it. One fetch classified by the shared
+   * helper is the stronger guarantee: every group and every count read the same rows
+   * through the same condition.
+   *
+   * The cost is that grouping describes the fetched set, which the page discloses
+   * when it is full. A prospector's own pending follow-ups are bounded in the tens.
+   */
+  it('groups one fetched set rather than asking the API per tab', async () => {
     render(<FollowUpsPage />);
 
-    await screen.findByText('Paris Clinic');
+    await waitFor(() => expect(listFollowUpQueueMock).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button', { name: /Overdue/ }));
+    expect(listFollowUpQueueMock.mock.calls[0]?.[0]).not.toHaveProperty('overdue');
 
-    await waitFor(() => {
-      expect(listFollowUpQueueMock).toHaveBeenCalledWith(
-        expect.objectContaining({ teamId, overdue: true }),
-      );
-    });
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
+
+    /* Switching group is a re-classification, not another request. */
+    expect(listFollowUpQueueMock).toHaveBeenCalledTimes(1);
   });
 
   it('completes selected follow-ups and reloads the authoritative queue', async () => {
     render(<FollowUpsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
 
     await screen.findByText('Paris Clinic');
 
@@ -194,6 +215,8 @@ describe('FollowUpsPage', () => {
 
     render(<FollowUpsPage />);
 
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
+
     await screen.findByText('Paris Clinic');
 
     fireEvent.click(screen.getByRole('checkbox', { name: /Select follow-up for Paris Clinic/ }));
@@ -206,6 +229,8 @@ describe('FollowUpsPage', () => {
     const firstKey = completeProspectFollowUpMock.mock.calls[0]?.[0]?.idempotencyKey;
 
     expect(firstKey).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
 
     await screen.findByText('Paris Clinic');
 
@@ -227,6 +252,8 @@ describe('FollowUpsPage', () => {
     completeProspectFollowUpMock.mockRejectedValue(new Error('nope'));
 
     render(<FollowUpsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
 
     await screen.findByText('Paris Clinic');
 
@@ -251,5 +278,232 @@ describe('FollowUpsPage', () => {
     expect(
       await screen.findByText('We could not load your actions. Please try again.'),
     ).toBeInTheDocument();
+  });
+
+  /*
+   * §30/§31. Grouping and counts come from one classified dataset, so a count and
+   * the list beneath it cannot be produced by different conditions.
+   */
+  describe('grouping', () => {
+    function at(dueAt: string, over: Partial<FollowUpQueueItem> = {}): FollowUpQueueItem {
+      return { ...followUp, id: dueAt, dueAt, ...over };
+    }
+
+    const past = '2020-01-01T09:00:00.000Z';
+    const future = '2099-01-01T09:00:00.000Z';
+
+    it('files each record in its own group and counts what it renders', async () => {
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [
+          at(past, { establishmentName: 'Late one' }),
+          at(past.replace('2020', '2021'), { establishmentName: 'Late two' }),
+          at(future, { establishmentName: 'Later' }),
+          at(past, {
+            id: 'done',
+            status: 'completed',
+            completedAt: past,
+            establishmentName: 'Finished',
+          }),
+          at(past, {
+            id: 'gone',
+            status: 'cancelled',
+            cancelledAt: past,
+            establishmentName: 'Dropped',
+          }),
+        ],
+      });
+
+      render(<FollowUpsPage />);
+
+      /* Two overdue, and the count says two. */
+      await waitFor(() => expect(screen.getByText('Late one')).toBeInTheDocument());
+
+      expect(screen.getByText('Late two')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Overdue/ })).toHaveTextContent('2');
+
+      /* Settled records are in no active group and in no active count. */
+      expect(screen.queryByText('Finished')).not.toBeInTheDocument();
+      expect(screen.queryByText('Dropped')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
+
+      expect(screen.getByText('Later')).toBeInTheDocument();
+      expect(screen.queryByText('Late one')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Completed/ }));
+
+      expect(screen.getByText('Finished')).toBeInTheDocument();
+    });
+
+    /*
+     * §3/§9. An appointment keeps its time group. Moving every meeting to a bucket
+     * of its own would hide an overdue one from Overdue.
+     */
+    it('keeps an overdue appointment in Overdue and marks it', async () => {
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [at(past, { category: 'meeting', establishmentName: 'Prefecture' })],
+      });
+
+      render(<FollowUpsPage />);
+
+      await waitFor(() => expect(screen.getByText('Prefecture')).toBeInTheDocument());
+
+      /* In words, not by colour. */
+      expect(screen.getByText('Appointment')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Overdue/ })).toHaveTextContent('1');
+    });
+
+    it('shows the recorded channel for the next action', async () => {
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [at(past, { channel: 'visit', establishmentName: 'Prefecture' })],
+      });
+
+      render(<FollowUpsPage />);
+
+      await waitFor(() => expect(screen.getByText('visit')).toBeInTheDocument());
+    });
+
+    it('says which group is empty rather than showing one blank table', async () => {
+      listFollowUpQueueMock.mockResolvedValue({ items: [at(future)] });
+
+      render(<FollowUpsPage />);
+
+      /* Nothing overdue, and the page says so specifically. */
+      await waitFor(() => expect(screen.getByText('No overdue follow-ups.')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /Today/ }));
+
+      expect(screen.getByText('Nothing else due today.')).toBeInTheDocument();
+    });
+  });
+
+  /* §32/§33. Reschedule, and the bucket transition it has to cause. */
+  describe('reschedule', () => {
+    const past = '2020-01-01T09:00:00.000Z';
+
+    beforeEach(() => {
+      rescheduleProspectFollowUpMock.mockResolvedValue(undefined);
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [{ ...followUp, dueAt: past, establishmentName: 'Late one' }],
+      });
+    });
+
+    async function openDialog() {
+      render(<FollowUpsPage />);
+
+      await waitFor(() => expect(screen.getByText('Late one')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reschedule' }));
+
+      await waitFor(() => expect(screen.getByLabelText('New date')).toBeInTheDocument());
+    }
+
+    it('opens with the current due date and sends the new one', async () => {
+      await openDialog();
+
+      /* The operator sees what they are changing. */
+      expect(screen.getByText(/Currently due/)).toBeInTheDocument();
+      expect(screen.getByLabelText<HTMLInputElement>('New date').value).toBe('2020-01-01');
+
+      fireEvent.change(screen.getByLabelText('New date'), { target: { value: '2099-03-04' } });
+      fireEvent.change(screen.getByLabelText('New time'), { target: { value: '14:30' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+      await waitFor(() => expect(rescheduleProspectFollowUpMock).toHaveBeenCalled());
+
+      const sent = rescheduleProspectFollowUpMock.mock.calls[0]?.[0] as Record<string, string>;
+
+      expect(sent.followUpId).toBe(followUp.id);
+      expect(sent.campaignId).toBe(followUp.campaignId);
+      expect(sent.prospectId).toBe(followUp.prospectId);
+      /* A canonical instant, not a semantic string. */
+      expect(sent.dueAt).toMatch(/^2099-03-04T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(sent.idempotencyKey).toBeTruthy();
+    });
+
+    /*
+     * §33. The card moves because the server was re-read, not because an array was
+     * edited locally.
+     */
+    it('moves the follow-up out of Overdue and into Upcoming', async () => {
+      await openDialog();
+
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [{ ...followUp, dueAt: '2099-03-04T14:30:00.000Z', establishmentName: 'Late one' }],
+      });
+
+      fireEvent.change(screen.getByLabelText('New date'), { target: { value: '2099-03-04' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+      await waitFor(() => expect(listFollowUpQueueMock).toHaveBeenCalledTimes(2));
+
+      /* Gone from Overdue... */
+      await waitFor(() => expect(screen.queryByText('Late one')).not.toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
+
+      /* ...and present in Upcoming, on the refetched truth. */
+      expect(screen.getByText('Late one')).toBeInTheDocument();
+    });
+
+    it('refuses a second submission while the first is in flight', async () => {
+      let release: (() => void) | undefined;
+
+      rescheduleProspectFollowUpMock.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            release = () => resolve();
+          }),
+      );
+
+      await openDialog();
+
+      const confirm = screen.getByRole('button', { name: 'Confirm' });
+
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+
+      await waitFor(() => expect(rescheduleProspectFollowUpMock).toHaveBeenCalledTimes(1));
+
+      release?.();
+    });
+
+    it('keeps the dialog usable and the date unchanged when it fails', async () => {
+      rescheduleProspectFollowUpMock.mockRejectedValue(new Error('nope'));
+
+      await openDialog();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+      await waitFor(() => expect(screen.getByText(/could not be rescheduled/)).toBeInTheDocument());
+
+      /* Still open, still editable, and nothing was moved optimistically. */
+      expect(screen.getByLabelText('New date')).toBeInTheDocument();
+      expect(listFollowUpQueueMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers no reschedule for a settled follow-up', async () => {
+      listFollowUpQueueMock.mockResolvedValue({
+        items: [
+          {
+            ...followUp,
+            dueAt: past,
+            status: 'completed',
+            completedAt: past,
+            establishmentName: 'Finished',
+          },
+        ],
+      });
+
+      render(<FollowUpsPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Completed/ }));
+
+      await waitFor(() => expect(screen.getByText('Finished')).toBeInTheDocument());
+
+      /* The API offers no reopening, so the action is not offered either. */
+      expect(screen.queryByRole('button', { name: 'Reschedule' })).not.toBeInTheDocument();
+    });
   });
 });
