@@ -103,6 +103,20 @@ export function ReservationPanel({
       onChanged();
     } catch (caught) {
       setError(describeReservationError(caught));
+
+      /*
+       * A refused claim means the authority moved while this screen was open, so
+       * the screen has to be re-read — not just annotated.
+       *
+       * Without this the collision banner above goes on saying "Contact allowed"
+       * beside a message explaining that somebody else took it, and the page as a
+       * whole tells the prospector two different things. The claim is where the
+       * server revalidates, so its refusal is the moment the rest of the page is
+       * known to be stale.
+       */
+      if (caught instanceof ApiError && (caught.statusCode === 409 || caught.statusCode === 403)) {
+        onChanged();
+      }
     } finally {
       setPending(false);
     }
@@ -207,8 +221,9 @@ function describeReservationError(error: unknown): string {
 
   if (error.statusCode === 409) {
     /* Two simultaneous claims must not both succeed — this is the engine
-     * working, not a failure to report as a generic error. */
-    return 'Another user claimed this prospect first. Refresh to see who holds it.';
+     * working, not a failure to report as a generic error. The screen re-reads
+     * itself on this, so it no longer asks the prospector to refresh. */
+    return 'Another user claimed this prospect first. The status above has been updated.';
   }
 
   if (error.statusCode === 403) {
