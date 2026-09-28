@@ -3,6 +3,8 @@ import { browserResource, type BrowserResource } from './browser-resource';
 import type {
   AllocationResult,
   Campaign,
+  CampaignEnrolmentResult,
+  CampaignEnrolmentSelection,
   CampaignMember,
   CampaignMemberPage,
   CampaignMemberRole,
@@ -199,5 +201,51 @@ export function applyGeographicAllocation(
   return browserJson<AllocationResult>(
     `/api/campaigns/${encodeURIComponent(campaignId)}/geographic-allocation/apply`,
     { method: 'POST', headers: writeHeaders(), body: JSON.stringify({ prospectIds }) },
+  );
+}
+
+/**
+ * Bulk campaign enrolment: the step between the shared référentiel and anything
+ * a prospector can be sent to do.
+ *
+ * `preview` writes nothing and exists so the operator sees the counts before
+ * committing them — the same shape as the geographic allocation above, and the
+ * same reason. The API refuses a selection with no criteria rather than enrolling
+ * the whole base, so callers should check `hasEnrolmentSelection` before offering
+ * the action; the refusal is still the API's to make.
+ */
+export function previewCampaignEnrolment(
+  campaignId: string,
+  selection: CampaignEnrolmentSelection,
+  signal?: AbortSignal,
+): Promise<CampaignEnrolmentResult> {
+  return browserJson<CampaignEnrolmentResult>(
+    `/api/campaigns/${encodeURIComponent(campaignId)}/prospects/bulk/preview`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(selection),
+      cache: 'no-store',
+      signal,
+    },
+  );
+}
+
+export function applyCampaignEnrolment(
+  campaignId: string,
+  selection: CampaignEnrolmentSelection,
+): Promise<CampaignEnrolmentResult> {
+  /*
+   * writeHeaders mints the idempotency key. Enrolment is one bulk request whose
+   * retry must not enrol twice; upstream de-duplicates on the key as well as on
+   * the membership uniqueness constraint.
+   */
+  return browserJson<CampaignEnrolmentResult>(
+    `/api/campaigns/${encodeURIComponent(campaignId)}/prospects/bulk`,
+    {
+      method: 'POST',
+      headers: writeHeaders(),
+      body: JSON.stringify(selection),
+    },
   );
 }

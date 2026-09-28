@@ -458,6 +458,76 @@ export const DICTIONARY = {
   },
   'call.logNow': { en: 'Log this call', fr: 'Enregistrer cet appel' },
   'call.notNow': { en: 'Not now', fr: 'Plus tard' },
+
+  /* ---------- campaign enrolment (TR-925) ---------- */
+  'enrol.title': { en: 'Campaign enrolment', fr: 'Ajout à la campagne' },
+  'enrol.subtitle': {
+    en: 'Add establishments from the shared base to a campaign so they can be dispatched',
+    fr: 'Ajoutez des établissements de la base partagée à une campagne pour pouvoir les attribuer',
+  },
+  'enrol.step.select': { en: '1. Choose the establishments', fr: '1. Choisir les établissements' },
+  'enrol.step.enrol': { en: '2. Add them to the campaign', fr: '2. Les ajouter à la campagne' },
+  'enrol.step.dispatch': {
+    en: '3. Assign them to prospectors',
+    fr: '3. Les attribuer aux prospecteurs',
+  },
+  'enrol.campaign': { en: 'Campaign', fr: 'Campagne' },
+  'enrol.campaign.none': { en: 'No campaign available', fr: 'Aucune campagne disponible' },
+  'enrol.section': { en: 'Section', fr: 'Section' },
+  'enrol.section.all': { en: 'All sections', fr: 'Toutes les sections' },
+  'enrol.department': { en: 'Department', fr: 'Département' },
+  'enrol.department.hint': {
+    en: 'Two digits, or three overseas (974)',
+    fr: 'Deux chiffres, ou trois en outre-mer (974)',
+  },
+  'enrol.city': { en: 'City', fr: 'Commune' },
+  'enrol.search': { en: 'Name, address or postcode', fr: 'Nom, adresse ou code postal' },
+  /* The API refuses an empty selection; this is why, said before it is refused. */
+  'enrol.selectionRequired': {
+    en: 'Select at least one criterion to define which establishments are added to the campaign.',
+    fr: 'Sélectionnez au moins un critère pour définir les établissements à ajouter à la campagne.',
+  },
+  'enrol.preview': { en: 'Check the selection', fr: 'Vérifier la sélection' },
+  'enrol.previewing': { en: 'Checking…', fr: 'Vérification…' },
+  'enrol.apply': { en: 'Add to the campaign', fr: 'Ajouter à la campagne' },
+  'enrol.applying': { en: 'Adding…', fr: 'Ajout en cours…' },
+  'enrol.matched': { en: 'Matching establishments', fr: 'Établissements correspondants' },
+  'enrol.enrollable': { en: 'To be added', fr: 'À ajouter' },
+  'enrol.enrolled': { en: 'Added', fr: 'Ajoutés' },
+  'enrol.alreadyActive': { en: 'Already in the campaign', fr: 'Déjà dans la campagne' },
+  'enrol.alreadyExcluded': { en: 'Excluded, left as is', fr: 'Exclus, conservés tels quels' },
+  'enrol.truncated': {
+    en: '{matched} match and {selected} were taken. Narrow the selection or run it again to continue.',
+    fr: '{matched} correspondent et {selected} ont été pris en compte. Affinez la sélection ou relancez pour continuer.',
+  },
+  'enrol.nothingToAdd': {
+    en: 'Nothing to add: every matching establishment is already in this campaign.',
+    fr: 'Rien à ajouter : tous les établissements correspondants sont déjà dans cette campagne.',
+  },
+  'enrol.excludedKept': {
+    en: 'Establishments excluded from this campaign stay excluded. Reactivate them one at a time if that was a mistake.',
+    fr: 'Les établissements exclus de cette campagne restent exclus. Réactivez-les un par un si c’est une erreur.',
+  },
+  'enrol.noMatches': {
+    en: 'No establishment in the shared base matches these criteria.',
+    fr: 'Aucun établissement de la base partagée ne correspond à ces critères.',
+  },
+  'enrol.queue.title': { en: 'Ready to assign', fr: 'Prêts à être attribués' },
+  'enrol.queue.explain': {
+    en: 'The same criteria, now read from the campaign. These are the prospects nobody owns yet.',
+    fr: 'Les mêmes critères, appliqués à la campagne. Voici les prospects que personne ne suit encore.',
+  },
+  'enrol.queue.empty': {
+    en: 'No unassigned prospect matches these criteria in this campaign.',
+    fr: 'Aucun prospect non attribué ne correspond à ces critères dans cette campagne.',
+  },
+  'enrol.queue.opposition': { en: 'Opposition', fr: 'Opposition' },
+  'enrol.queue.elsewhere': { en: 'Active elsewhere', fr: 'Suivi ailleurs' },
+  'enrol.goAssign': { en: 'Go to assignments', fr: 'Aller aux attributions' },
+  'enrol.assignHint': {
+    en: 'Assigning prospects to a prospector is done from a team workspace.',
+    fr: 'L’attribution des prospects à un prospecteur se fait depuis un espace d’équipe.',
+  },
 } as const satisfies Record<string, Entry>;
 
 export type MessageKey = keyof typeof DICTIONARY;

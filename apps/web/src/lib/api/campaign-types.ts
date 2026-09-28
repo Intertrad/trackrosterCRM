@@ -1,3 +1,5 @@
+import type { EstablishmentCategory } from './import-types';
+
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived';
 
 export interface Campaign {
@@ -149,4 +151,53 @@ export function allowedTransitions(status: CampaignStatus): CampaignStatus[] {
 
 export function memberRoleLabel(role: CampaignMemberRole): string {
   return role === 'coordinator' ? 'Coordinator' : role === 'observer' ? 'Observer' : 'Member';
+}
+
+/*
+ * Bulk campaign enrolment (TR-924).
+ *
+ * The selection vocabulary is the dispatch queue's, on purpose: the API extracted
+ * one shared filter helper so that "what I enrol" and "what I then see in the
+ * dispatch queue" cannot drift apart. Mirroring the same field names here keeps
+ * that guarantee visible in the client rather than relying on a translation layer
+ * nobody reads.
+ */
+export interface CampaignEnrolmentSelection {
+  establishmentIds?: string[];
+  search?: string;
+  category?: EstablishmentCategory;
+  department?: string;
+  city?: string;
+  regionId?: string;
+  limit?: number;
+}
+
+export interface CampaignEnrolmentResult {
+  campaignId: string;
+  mode: 'preview' | 'apply';
+  /** Active establishments matching the selection, ignoring `limit`. */
+  matched: number;
+  /** How many of those the request acted on. */
+  selected: number;
+  truncated: boolean;
+  /** Of the selected, how many were not already in the campaign. */
+  enrollable: number;
+  /** Memberships actually created. Always 0 for a preview. */
+  enrolled: number;
+  alreadyActive: number;
+  /** Already in the campaign but excluded, and deliberately left that way. */
+  alreadyExcluded: number;
+  limit: number;
+}
+
+/** The API refuses an empty selection rather than enrolling the whole base. */
+export function hasEnrolmentSelection(selection: CampaignEnrolmentSelection): boolean {
+  return Boolean(
+    selection.establishmentIds?.length ||
+    selection.search?.trim() ||
+    selection.category ||
+    selection.department ||
+    selection.city?.trim() ||
+    selection.regionId,
+  );
 }

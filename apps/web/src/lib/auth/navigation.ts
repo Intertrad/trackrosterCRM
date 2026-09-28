@@ -168,6 +168,22 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           availability: 'ready',
           primary: true,
         },
+        /*
+         * Bulk campaign enrolment sits under administration rather than the
+         * manager workspace because that is where the authority is: the endpoint
+         * is guarded by ClientAdminGuard, and an establishment outside every
+         * campaign is only visible to a tenant-scoped grant.
+         *
+         * Not primary: the mobile bar holds four, and the four it holds are the
+         * daily destinations. Enrolment is a setup step, so it lives under More.
+         */
+        {
+          id: 'campaigns',
+          label: 'nav.campaigns',
+          icon: 'campaigns',
+          href: '/admin/campaigns',
+          availability: 'ready',
+        },
         {
           id: 'dashboard',
           label: 'nav.dashboard',
