@@ -33,6 +33,31 @@ export interface Prospect {
   updatedAt: string;
 }
 
+/** A user-managed label on an establishment. */
+export interface ProspectTag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+/**
+ * `GET /prospects/:id` — the establishment plus what the tenant has added to it.
+ *
+ * `customFields` is keyed by the tenant's own field keys and already filtered by
+ * what the caller may see, so the page renders whatever arrives rather than
+ * deciding visibility again.
+ *
+ * `mergedIntoId` is set when this record was merged into another, which means the
+ * page is showing a superseded establishment. That has to be visible: acting on a
+ * merged record is how work gets recorded against the wrong establishment.
+ */
+export interface ProspectDetail extends Prospect {
+  tags: ProspectTag[];
+  customFields: Record<string, string>;
+  mergedIntoId: string | null;
+  mergedSourceIds: string[];
+}
+
 export interface ProspectPage {
   items: Prospect[];
   nextCursor: string | null;

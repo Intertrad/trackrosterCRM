@@ -359,6 +359,21 @@ describe('Prospect master APIs', () => {
       expect(scoped.json().items.some((x: { name: string }) => x.name.startsWith('Zed '))).toBe(
         false,
       );
+
+      /*
+       * And the detail endpoint, which TR-929 exposes to the browser for the first
+       * time. Filtering a listing is not the same guarantee as refusing a record
+       * fetched by id, and the second is the one a URL can be typed into.
+       *
+       * 404 rather than 403: the API declines to disclose that the establishment
+       * exists, which is why the screen cannot tell the two apart either.
+       */
+      expect(
+        (await call('GET', `/prospects/${referential[0]}`, undefined, member)).statusCode,
+      ).toBe(404);
+
+      /* An administrator of this tenant reads the same record without trouble. */
+      expect((await call('GET', `/prospects/${referential[0]}`)).statusCode).toBe(200);
     });
   });
 

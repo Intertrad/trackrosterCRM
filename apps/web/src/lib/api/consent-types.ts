@@ -24,9 +24,27 @@ export interface Consent {
   createdAt: string;
 }
 
+/**
+ * The resolved restriction for one channel, decided by the API.
+ *
+ * `blocked` comes from `trackroster_consent_blocked`, which follows merge
+ * families and evaluates scheduled and expired evidence against the current
+ * clock. It is the same function the reservation and activity guards consult, so
+ * a screen must read this rather than work it out from `items` — a client that
+ * replayed the records itself would be a second, weaker copy of a compliance
+ * decision, and it would disagree the moment a record expires.
+ */
+export interface ConsentRestriction {
+  channel: Exclude<ConsentChannel, 'all'>;
+  blocked: boolean;
+}
+
 export interface ConsentPage {
   items: Consent[];
   nextCursor: string | null;
+
+  /** Present on every listing; the API resolves it per channel. */
+  restrictions: ConsentRestriction[];
 }
 
 export interface CreateConsentInput {

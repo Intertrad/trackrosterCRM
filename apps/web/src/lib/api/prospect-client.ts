@@ -1,5 +1,5 @@
 import { browserJson } from './browser-json';
-import type { ProspectPage, ProspectQuery } from './prospect-types';
+import type { ProspectDetail, ProspectPage, ProspectQuery } from './prospect-types';
 
 /**
  * One page of the shared référentiel.
@@ -24,6 +24,20 @@ export function listProspects(
   const search = params.toString();
 
   return browserJson<ProspectPage>(search ? `/api/prospects?${search}` : '/api/prospects', {
+    cache: 'no-store',
+    signal,
+  });
+}
+
+/**
+ * One establishment, with its tags and custom fields.
+ *
+ * The API answers 404 rather than 403 for a record the caller may not see, so a
+ * missing establishment and an unauthorised one are deliberately
+ * indistinguishable from here — that is the API not disclosing what exists.
+ */
+export function getProspect(prospectId: string, signal?: AbortSignal): Promise<ProspectDetail> {
+  return browserJson<ProspectDetail>(`/api/prospects/${encodeURIComponent(prospectId)}`, {
     cache: 'no-store',
     signal,
   });
