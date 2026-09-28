@@ -66,8 +66,20 @@ mailboxes in one cell, separated by semicolons
 validates the address and rejects the **whole row** when it fails, so passing the
 cell through unchanged dropped 97 real establishments over an optional field. The
 converter takes the first valid address. The same applies to published phone
-numbers. Nothing else is altered — validation, deduplication and the commit stay in
-the application's import pipeline.
+numbers.
+
+**The second, and the reason it matters.** 115 rows carry a four-digit postal code:
+the cell is numeric, so `01000` (Ain) is stored as `1000`. The department a manager
+dispatches by is read from the postal code and only from a five-digit one, so an
+unpadded row imports, looks entirely valid, and is then absent from every department
+filter — 85 rows in `Justice et enquêtes` and 30 in `Prescripteurs`. The converter
+left-pads a shorter all-digit code to five and reports the count per sheet. It pads
+nothing else: the workbook also holds one code with the letter O typed for a zero and
+one cell containing a commune name, and inventing a postal code for those would hide
+a data problem rather than report it.
+
+Nothing else is altered — validation, deduplication and the commit stay in the
+application's import pipeline.
 
 ## Idempotency
 
@@ -102,6 +114,31 @@ curl -sS -X POST "$API/imports/preview" \
 Start with `cra.csv` (28 rows): it exercises the whole path in a second and is
 trivial to undo. Then the priority population — `prospection`, `douanes_onaf` — and
 the rest afterwards. The admin import screen accepts the same files.
+
+```bash
+# 3. ANALYZE. Not optional.
+psql "$DATABASE_MIGRATION_URL" -c 'ANALYZE establishments; ANALYZE campaign_prospects;'
+```
+
+This is not housekeeping, it is the difference between a working dispatch screen and
+an unusable one, and it was measured rather than assumed. Straight after the bulk
+load, with no statistics, the planner estimates one row where there are 14,649 and
+chooses a nested loop that discards **107,289,276 rows** through a join filter for a
+single page of the manager's queue. After `ANALYZE` the same query walks the
+`(tenant_id, normalized_name)` index in order, reads 102 establishments and stops:
+
+| Manager dispatch query, 14,649 prospects in one campaign | Page of 100 |
+| -------------------------------------------------------- | ----------- |
+| No filter                                                | 10 ms       |
+| `category`                                               | 12–18 ms    |
+| `department` (75, or the overseas 974)                   | 14 ms       |
+| `city`                                                   | 15 ms       |
+| Text search                                              | 19–45 ms    |
+| `contactable=true`                                       | 10 ms †     |
+| A page near the end of the base                          | 11 ms       |
+
+† Measured on a base with no oppositions recorded. The consent check is a volatile
+function called per row, so this is its floor, not its ceiling.
 
 ## Deciding where it goes
 

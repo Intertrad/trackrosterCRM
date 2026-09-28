@@ -21,11 +21,13 @@ import {
   previewAssignment,
 } from '@/lib/api/assignment-client';
 import {
+  CATEGORY_LABELS,
   MAX_BATCH_SIZE,
   OUTCOME_LABELS,
   type AssignmentBatchResult,
   type UnassignedProspect,
 } from '@/lib/api/assignment-types';
+import { ESTABLISHMENT_CATEGORIES, type EstablishmentCategory } from '@/lib/api/import-types';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
 import { listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
@@ -49,6 +51,14 @@ export default function AssignmentsPage() {
   > | null>(null);
 
   const [search, setSearch] = useState('');
+  /*
+   * What is actually sent. The référentiel is over 14,000 establishments and one
+   * page holds 100, so the search has to reach the database — but not on every
+   * keystroke, hence the short settle below.
+   */
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [category, setCategory] = useState<EstablishmentCategory | ''>('');
+  const [department, setDepartment] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [targetMemberId, setTargetMemberId] = useState<string | null>(null);
 
@@ -112,6 +122,12 @@ export default function AssignmentsPage() {
     return () => controller.abort();
   }, [teamId]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedSearch(search.trim()), 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const loadUnassigned = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
       if (!campaignId) {
@@ -122,7 +138,15 @@ export default function AssignmentsPage() {
 
       try {
         const page = await listUnassignedProspects(
-          { campaignId, ...(teamId ? { teamId } : {}), limit: MAX_BATCH_SIZE },
+          {
+            campaignId,
+            ...(teamId ? { teamId } : {}),
+            ...(appliedSearch ? { search: appliedSearch } : {}),
+            ...(category ? { category } : {}),
+            /* Two digits, or three overseas; anything shorter is still typing. */
+            ...(/^(?:\d{2}|9[78]\d)$/.test(department) ? { department } : {}),
+            limit: MAX_BATCH_SIZE,
+          },
           signal,
         );
 
@@ -144,7 +168,7 @@ export default function AssignmentsPage() {
         );
       }
     },
-    [campaignId, teamId],
+    [appliedSearch, campaignId, category, department, teamId],
   );
 
   useEffect(() => {
@@ -160,13 +184,9 @@ export default function AssignmentsPage() {
 
   const roster = useMemo(() => buildTeamRoster(memberships, dashboard), [dashboard, memberships]);
 
-  const visible = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const visible = unassigned ?? [];
 
-    return (unassigned ?? []).filter(
-      (prospect) => !query || prospect.name.toLowerCase().includes(query),
-    );
-  }, [search, unassigned]);
+  const filtered = Boolean(appliedSearch || category || department);
 
   const target = roster.find((row) => row.id === targetMemberId) ?? null;
 
@@ -292,6 +312,35 @@ export default function AssignmentsPage() {
               : [{ value: '', label: 'No campaigns' }]
           }
         />
+
+        <FilterSelect
+          label="Section"
+          value={category}
+          onChange={(value) => setCategory(value as EstablishmentCategory | '')}
+          options={[
+            { value: '', label: 'All sections' },
+            ...ESTABLISHMENT_CATEGORIES.map((value) => ({
+              value,
+              label: CATEGORY_LABELS[value],
+            })),
+          ]}
+        />
+
+        <div className="relative">
+          <label htmlFor="department-filter" className="sr-only">
+            Department
+          </label>
+
+          <input
+            id="department-filter"
+            inputMode="numeric"
+            maxLength={3}
+            placeholder="Dept."
+            value={department}
+            onChange={(event) => setDepartment(event.target.value.replace(/\D/g, ''))}
+            className="h-11 w-24 rounded-full border border-line bg-surface px-4 text-[14px] font-semibold text-ink transition-colors duration-150 hover:border-brand-pale"
+          />
+        </div>
       </div>
 
       <Card>
@@ -340,8 +389,8 @@ export default function AssignmentsPage() {
             <ListSkeleton />
           ) : visible.length === 0 ? (
             <p className="px-6 py-12 text-center text-[15px] text-ink-muted">
-              {search
-                ? 'No prospects match your search.'
+              {filtered
+                ? 'No unassigned prospects match these filters.'
                 : campaignId
                   ? 'Every prospect in this campaign is assigned.'
                   : 'Choose a campaign to see its unassigned prospects.'}
@@ -361,9 +410,29 @@ export default function AssignmentsPage() {
                     className="size-[18px] shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
                   />
 
-                  <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-navy">
-                    {prospect.name}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-semibold text-navy">
+                      {prospect.name}
+                    </span>
+
+                    <span className="block truncate text-[13px] text-ink-muted">
+                      {[
+                        prospect.category ? CATEGORY_LABELS[prospect.category] : null,
+                        [prospect.postalCode, prospect.city].filter(Boolean).join(' ') || null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+
+                  {/*
+                   * Both of these end in a refused reservation rather than a
+                   * completed call, so a manager sees them before dispatching
+                   * instead of the prospector discovering them afterwards.
+                   */}
+                  {prospect.contactBlocked ? <Badge tone="danger">Opposition</Badge> : null}
+
+                  {prospect.activeElsewhere ? <Badge tone="warning">Active elsewhere</Badge> : null}
                 </li>
               ))}
             </ul>

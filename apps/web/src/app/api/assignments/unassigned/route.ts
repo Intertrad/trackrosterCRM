@@ -4,7 +4,25 @@ import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-jso
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED = ['campaignId', 'teamId', 'cursor', 'limit'] as const;
+/*
+ * Every parameter the upstream filter accepts has to be named here. One that is
+ * missing is not an error the caller sees — it is dropped in silence and the
+ * page comes back unfiltered, which reads as a filter that does not work.
+ */
+const ALLOWED = [
+  'campaignId',
+  'teamId',
+  'cursor',
+  'limit',
+  'search',
+  'category',
+  'department',
+  'city',
+  'regionId',
+  'lifecycleStage',
+  'contactable',
+  'availability',
+] as const;
 
 export async function GET(request: Request): Promise<Response> {
   try {

@@ -15,6 +15,7 @@ import {
   auditEvents,
   campaignProspectAssignments as assignments,
 } from '../database/schema/index.js';
+import { postalDepartment } from '../establishments/postal-department.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { AssignmentBatchService } from './assignment-batch.service.js';
 import { assertAssignmentCapacity } from '../memberships/assignment-capacity.js';
@@ -26,6 +27,14 @@ import type {
   UnassignedListDto,
   UpdateAssignmentDto,
 } from './assignment-lifecycle.dto.js';
+/*
+ * The same establishment, owned right now by a prospector on another campaign.
+ *
+ * Shared between the filter and the projection so a row cannot be excluded by
+ * one definition of "contested" and reported as free by another.
+ */
+const CONTESTED_ELSEWHERE = sql`EXISTS(SELECT 1 FROM campaign_prospects o JOIN campaign_prospect_assignments oa ON oa.tenant_id=o.tenant_id AND oa.campaign_prospect_id=o.id AND oa.ended_at IS NULL WHERE o.tenant_id=cp.tenant_id AND o.establishment_id=cp.establishment_id AND o.id<>cp.id)`;
+
 @Injectable()
 export class AssignmentLifecycleService {
   constructor(
@@ -117,12 +126,70 @@ export class AssignmentLifecycleService {
       })),
     };
   }
+  /*
+   * The prospects in a campaign that nobody owns — the list a manager dispatches
+   * from.
+   *
+   * Availability is read from the durable assignment and nothing else. A live
+   * reservation is deliberately not consulted: it is a Redis lease whose
+   * eligibility check requires a current assignment, so no reservation can exist
+   * on a row this query returns, and reading the `reservation_records` evidence
+   * table here would add a join that is always empty.
+   *
+   * What a reservation *does* tell a manager is about a different campaign, and
+   * `availability=uncontested` answers that from the assignments instead: an
+   * establishment another campaign is actively working will refuse the
+   * prospector's reservation under the organization collision scope, so it is
+   * worth not dispatching in the first place.
+   *
+   * Ordering is by normalized name so that a 14,000-row base pages in an order a
+   * human recognises and one an index can produce. The cursor stays a single
+   * campaign-prospect id, as it has always been, and the name it sorts by is
+   * resolved from it — the alternative would have changed the shape of a cursor
+   * clients already hold.
+   */
   async unassigned(a: AuthenticatedPrincipal, q: UnassignedListDto): Promise<any> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.unassigned(a, q));
     await this.batches.authorize(a, q.campaignId, q.teamId ? [q.teamId] : null);
+    const contains = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
+    const filters = [
+      sql`cp.tenant_id=${a.tenantId}`,
+      sql`cp.campaign_id=${q.campaignId}`,
+      sql`cp.status='active'`,
+      sql`c.status NOT IN ('completed','archived')`,
+      sql`e.status='active'`,
+      sql`NOT EXISTS(SELECT 1 FROM campaign_prospect_assignments x WHERE x.tenant_id=cp.tenant_id AND x.campaign_prospect_id=cp.id AND x.ended_at IS NULL)`,
+    ];
+    const search = q.search?.trim();
+    if (search)
+      filters.push(
+        sql`(e.name ILIKE ${contains(search)} OR e.city ILIKE ${contains(search)} OR e.postal_code ILIKE ${contains(search)} OR e.address_line1 ILIKE ${contains(search)})`,
+      );
+    if (q.category) filters.push(sql`e.category=${q.category}`);
+    if (q.regionId) filters.push(sql`e.region_id=${q.regionId}`);
+    /*
+     * A prefix match rather than an equality on the derived department, because
+     * it is the same set of rows and it can use the postal-code index. The
+     * five-digit guard is what makes the two equivalent.
+     */
+    if (q.department)
+      filters.push(sql`e.postal_code ~ '^[0-9]{5}$' AND e.postal_code LIKE ${q.department + '%'}`);
+    if (q.city) filters.push(sql`e.city ILIKE ${contains(q.city)}`);
+    if (q.lifecycleStage) filters.push(sql`cp.lifecycle_stage=${q.lifecycleStage}`);
+    if (q.contactable) filters.push(sql`NOT trackroster_consent_blocked(cp.tenant_id,e.id,NULL)`);
+    if (q.availability === 'uncontested') filters.push(sql`NOT ${CONTESTED_ELSEWHERE}`);
+    if (q.cursor) {
+      const seek = await this.db.execute<{ normalized_name: string }>(
+        sql`SELECT e.normalized_name FROM campaign_prospects cp JOIN establishments e ON e.tenant_id=cp.tenant_id AND e.id=cp.establishment_id WHERE cp.tenant_id=${a.tenantId} AND cp.campaign_id=${q.campaignId} AND cp.id=${q.cursor}`,
+      );
+      if (!seek.rows[0]) throw new BadRequestException('Cursor is outside this result');
+      filters.push(
+        sql`(e.normalized_name,cp.id)>(${seek.rows[0].normalized_name},${q.cursor}::uuid)`,
+      );
+    }
     const rows = await this.db.execute(
-      sql`SELECT cp.id AS "campaignProspectId",cp.campaign_id AS "campaignId",cp.establishment_id AS "establishmentId",e.name FROM campaign_prospects cp JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id JOIN establishments e ON e.tenant_id=cp.tenant_id AND e.id=cp.establishment_id WHERE cp.tenant_id=${a.tenantId} AND cp.campaign_id=${q.campaignId} AND cp.status='active' AND c.status NOT IN ('completed','archived') AND e.status='active' AND NOT EXISTS(SELECT 1 FROM campaign_prospect_assignments x WHERE x.tenant_id=cp.tenant_id AND x.campaign_prospect_id=cp.id AND x.ended_at IS NULL) ${q.cursor ? sql`AND cp.id>${q.cursor}::uuid` : sql``} ORDER BY cp.id LIMIT ${q.limit + 1}`,
+      sql`SELECT cp.id AS "campaignProspectId",cp.campaign_id AS "campaignId",cp.establishment_id AS "establishmentId",cp.lifecycle_stage AS "lifecycleStage",e.name,e.category,e.city,e.postal_code AS "postalCode",e.region_id AS "regionId",e.latitude,e.longitude,${postalDepartment(sql`e.postal_code`)} AS department,trackroster_consent_blocked(cp.tenant_id,e.id,NULL) AS "contactBlocked",${CONTESTED_ELSEWHERE} AS "activeElsewhere" FROM campaign_prospects cp JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id JOIN establishments e ON e.tenant_id=cp.tenant_id AND e.id=cp.establishment_id WHERE ${sql.join(filters, sql` AND `)} ORDER BY e.normalized_name,cp.id LIMIT ${q.limit + 1}`,
     );
     return {
       items: rows.rows.slice(0, q.limit),

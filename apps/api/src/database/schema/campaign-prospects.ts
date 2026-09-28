@@ -166,3 +166,6 @@ export type CampaignProspectStatus = (typeof campaignProspectStatusEnum.enumValu
 
 export type CampaignProspectLifecycleStage =
   (typeof campaignProspectLifecycleStageEnum.enumValues)[number];
+
+/* The stages as a value, for the validators that must check a string. */
+export const CAMPAIGN_PROSPECT_LIFECYCLE_STAGES = campaignProspectLifecycleStageEnum.enumValues;

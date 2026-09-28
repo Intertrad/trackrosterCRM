@@ -160,6 +160,25 @@ def first_phone(value: str) -> str:
     return parts[0] if parts else ""
 
 
+def postal_code(value: str) -> str:
+    """Restore the leading zero Excel dropped from a French postal code.
+
+    115 rows in the workbook carry a four-digit code: the cell is numeric, so
+    01000 (Ain) was stored as 1000. Left unpadded it is not merely cosmetic. The
+    department a manager dispatches by is read from the postal code and only from
+    a five-digit one, so an unpadded code yields no department at all: the row
+    imports and looks perfectly valid, and is then absent from every department
+    filter — 85 establishments in Justice et enquêtes and 30 in Prescripteurs.
+
+    Only a shorter all-digit code is padded. Anything else is passed through
+    unchanged for the importer to judge; the workbook also holds one code with
+    a trailing letter and one cell containing a commune name, and inventing a
+    postal code for those would hide a data problem rather than report it.
+    """
+    text = clean(value)
+    return text.zfill(5) if text.isdigit() and len(text) < 5 else text
+
+
 def coordinate(value: str) -> str:
     """Keep a coordinate only when it is actually a number."""
     text = clean(value).replace(",", ".")
@@ -207,7 +226,7 @@ def convert(workbook: Path, out_dir: Path) -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     grand_total = 0
-    print(f"{'category':18s} {'rows':>6s} {'named':>6s} {'ref':>6s} {'geo':>6s}  file")
+    print(f"{'category':18s} {'rows':>6s} {'named':>6s} {'ref':>6s} {'geo':>6s} {'padded':>6s}  file")
 
     for sheet_name, category in CATEGORIES.items():
         rows = [row for row in sheets.get(sheet_name, []) if row]
@@ -227,7 +246,7 @@ def convert(workbook: Path, out_dir: Path) -> int:
             for field, labels in FIELDS.items()
         }
 
-        written = named = referenced = located = 0
+        written = named = referenced = located = padded = 0
         destination = out_dir / f"{category}.csv"
 
         with destination.open("w", encoding="utf-8", newline="") as handle:
@@ -243,6 +262,7 @@ def convert(workbook: Path, out_dir: Path) -> int:
                     # keeps the import report about real problems.
                     continue
 
+                postal = postal_code(get("postal_code"))
                 latitude = coordinate(get("latitude"))
                 longitude = coordinate(get("longitude"))
                 email = first_email(get("contact_email"))
@@ -252,7 +272,7 @@ def convert(workbook: Path, out_dir: Path) -> int:
                         "external_reference": get("external_reference"),
                         "name": name,
                         "address_line1": get("address_line1"),
-                        "postal_code": get("postal_code"),
+                        "postal_code": postal,
                         "city": get("city"),
                         "country_code": "FR",
                         "phone": first_phone(get("phone")),
@@ -274,9 +294,10 @@ def convert(workbook: Path, out_dir: Path) -> int:
                 named += 1
                 referenced += 1 if get("external_reference") else 0
                 located += 1 if latitude and longitude else 0
+                padded += 1 if postal != get("postal_code") else 0
 
         grand_total += written
-        print(f"{category:18s} {written:6d} {named:6d} {referenced:6d} {located:6d}  {destination.name}")
+        print(f"{category:18s} {written:6d} {named:6d} {referenced:6d} {located:6d} {padded:6d}  {destination.name}")
 
     print(f"\n{grand_total} rows written to {out_dir}")
     return grand_total

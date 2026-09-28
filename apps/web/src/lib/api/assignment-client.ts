@@ -2,17 +2,19 @@ import { browserJson } from './browser-json';
 import type {
   AssignmentBatchInput,
   AssignmentBatchResult,
+  UnassignedFilters,
   UnassignedProspectPage,
 } from './assignment-types';
 
 export function listUnassignedProspects(
-  input: { campaignId: string; teamId?: string; cursor?: string; limit?: number },
+  input: UnassignedFilters,
   signal?: AbortSignal,
 ): Promise<UnassignedProspectPage> {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) {
+    /* An empty filter is no filter; sending it would be a 400 on the length rules. */
+    if (value !== undefined && value !== '') {
       params.set(key, String(value));
     }
   }

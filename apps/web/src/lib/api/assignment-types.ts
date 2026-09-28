@@ -1,10 +1,62 @@
+import type { EstablishmentCategory } from './import-types';
+
 /** GET /assignments/unassigned — campaignId is required upstream. */
 export interface UnassignedProspect {
   campaignProspectId: string;
   campaignId: string;
   establishmentId: string;
   name: string;
+  category: EstablishmentCategory | null;
+  city: string | null;
+  postalCode: string | null;
+  /* Read from the postal code upstream; null when there is no usable one. */
+  department: string | null;
+  regionId: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  lifecycleStage: ProspectLifecycleStage;
+  /* An opposition covers this prospect: the reservation would be refused. */
+  contactBlocked: boolean;
+  /* Another campaign is actively working the same establishment. */
+  activeElsewhere: boolean;
 }
+
+export type ProspectLifecycleStage =
+  'to_contact' | 'contact_made' | 'in_progress' | 'follow_up' | 'qualified' | 'converted';
+
+/*
+ * Every filter is applied by the API, not here. The base is over 14,000
+ * establishments and a page is at most 100, so narrowing a loaded page in the
+ * browser searches the page and reports nothing for everything else.
+ */
+export interface UnassignedFilters {
+  campaignId: string;
+  teamId?: string;
+  search?: string;
+  category?: EstablishmentCategory;
+  department?: string;
+  city?: string;
+  regionId?: string;
+  lifecycleStage?: ProspectLifecycleStage;
+  contactable?: boolean;
+  availability?: 'unassigned' | 'uncontested';
+  cursor?: string;
+  limit?: number;
+}
+
+/*
+ * The group's own names for the taxonomy, taken from the workbook the base is
+ * maintained in, so a manager reads the same words here and there.
+ */
+export const CATEGORY_LABELS: Record<EstablishmentCategory, string> = {
+  prospection: 'Prospection',
+  justice_enquetes: 'Justice et enquêtes',
+  sante: 'Santé',
+  asile_social: 'Asile et social',
+  douanes_onaf: 'Douanes et ONAF',
+  cra: 'CRA',
+  prescripteurs: 'Prescripteurs',
+};
 
 export interface UnassignedProspectPage {
   items: UnassignedProspect[];
