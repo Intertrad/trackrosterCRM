@@ -14,6 +14,11 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import {
+  ESTABLISHMENT_CATEGORIES,
+  type EstablishmentCategory,
+} from '../database/schema/establishments.js';
+import { DEPARTMENT_PATTERN } from '../establishments/postal-department.js';
 import { CreateEstablishmentDto } from '../establishments/dto/create-establishment.dto.js';
 import { UpdateEstablishmentDto } from '../establishments/dto/update-establishment.dto.js';
 export class CreateProspectDto extends CreateEstablishmentDto {}
@@ -22,10 +27,31 @@ export class PageDto {
   @IsOptional() @IsUUID() cursor?: string;
   @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
 }
+/*
+ * Filters for the référentiel listing.
+ *
+ * `category`, `department` and `city` are here because the administration screen
+ * has to narrow 14,649 establishments and cannot do it in the browser: a page is
+ * at most 100 rows, so a filter applied after fetching searches the page and
+ * reports nothing for everything else.
+ *
+ * They are the same three names the dispatch queue and bulk enrolment use, and
+ * they resolve through the same shared helper, so "secteur = prospection,
+ * département = 974" means one population everywhere rather than three
+ * dialects that agree until they don't.
+ */
 export class ListProspectsDto extends PageDto {
   @IsOptional() @IsString() @MaxLength(200) search?: string;
   @IsOptional() @IsUUID() campaignId?: string;
   @IsOptional() @IsUUID() regionId?: string;
+
+  @IsOptional() @IsIn(ESTABLISHMENT_CATEGORIES) category?: EstablishmentCategory;
+
+  /* Two digits, or three for the overseas 97x/98x codes. See postal-department.ts. */
+  @IsOptional() @Matches(DEPARTMENT_PATTERN) department?: string;
+
+  @IsOptional() @IsString() @MaxLength(150) city?: string;
+
   @IsOptional() @IsIn(['active', 'inactive', 'archived', 'all']) status:
     'active' | 'inactive' | 'archived' | 'all' = 'active';
   @IsOptional() @IsIn(['name', 'createdAt']) sort: 'name' | 'createdAt' = 'name';

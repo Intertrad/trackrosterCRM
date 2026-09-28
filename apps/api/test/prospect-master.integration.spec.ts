@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { configureHttpApplication } from '../src/config/http-application.js';
 import { getSeedDatabase } from './support/seed.js';
@@ -205,6 +205,162 @@ describe('Prospect master APIs', () => {
     }
     await app?.close();
   }, 60_000);
+
+  /*
+   * TR-928. The administration référentiel screen narrows 14,649 establishments,
+   * so every filter has to be a query parameter: a page is at most 100 rows, and
+   * one applied after fetching would search the page and report nothing for the
+   * other 14,549.
+   *
+   * These filters resolve through the same helper as the dispatch queue and bulk
+   * enrolment, which is what makes "secteur = prospection, département = 974" one
+   * population across all three rather than three dialects.
+   */
+  describe('référentiel filters', () => {
+    const referential = Array.from({ length: 4 }, () => randomUUID());
+
+    beforeEach(async () => {
+      await db.insert(establishments).values([
+        {
+          id: referential[0]!,
+          tenantId: tenant,
+          name: 'Zed Brigade de Bastia',
+          normalizedName: 'zed brigade de bastia',
+          countryCode: 'FR',
+          category: 'prospection',
+          city: 'Bastia',
+          postalCode: '20200',
+        },
+        {
+          id: referential[1]!,
+          tenantId: tenant,
+          name: 'Zed Commissariat de Lyon',
+          normalizedName: 'zed commissariat de lyon',
+          countryCode: 'FR',
+          category: 'prospection',
+          city: 'Lyon',
+          postalCode: '69003',
+        },
+        {
+          id: referential[2]!,
+          tenantId: tenant,
+          name: 'Zed Douane de Saint-Denis',
+          normalizedName: 'zed douane de saint-denis',
+          countryCode: 'FR',
+          category: 'douanes_onaf',
+          city: 'Saint-Denis',
+          postalCode: '97400',
+        },
+        {
+          id: referential[3]!,
+          tenantId: tenant,
+          name: 'Zed Hopital archive',
+          normalizedName: 'zed hopital archive',
+          countryCode: 'FR',
+          category: 'sante',
+          city: 'Bourg-en-Bresse',
+          postalCode: '01000',
+          status: 'archived',
+        },
+      ]);
+    });
+
+    afterEach(async () => {
+      await db.delete(establishments).where(inArray(establishments.id, referential));
+    });
+
+    /* Only the rows this block seeded; the spec's own fixtures are named "Map n". */
+    const mine = async (query: string) => {
+      const response = await call('GET', `/prospects?limit=100&${query}`);
+
+      expect(response.statusCode, response.body).toBe(200);
+
+      return response
+        .json()
+        .items.filter((x: { name: string }) => x.name.startsWith('Zed '))
+        .map((x: { name: string }) => x.name);
+    };
+
+    it('narrows by section, department and commune, and keeps them on the next page', async () => {
+      expect(await mine('category=prospection')).toEqual([
+        'Zed Brigade de Bastia',
+        'Zed Commissariat de Lyon',
+      ]);
+
+      /* Overseas departments are three digits: 974, and 97 is not a department. */
+      expect(await mine('department=974')).toEqual(['Zed Douane de Saint-Denis']);
+      expect((await call('GET', '/prospects?department=97')).statusCode).toBe(400);
+
+      /* Corsica reads 20 rather than 2A/2B — see postal-department.ts. */
+      expect(await mine('department=20')).toEqual(['Zed Brigade de Bastia']);
+
+      expect(await mine('city=lyon')).toEqual(['Zed Commissariat de Lyon']);
+
+      /* Archived is excluded by the default status, and reachable explicitly. */
+      expect(await mine('category=sante')).toEqual([]);
+      expect(await mine('category=sante&status=archived')).toEqual(['Zed Hopital archive']);
+
+      expect((await call('GET', '/prospects?category=gendarmerie')).statusCode).toBe(400);
+
+      /*
+       * The cursor must carry the filter. A keyset that forgot it would answer the
+       * first page correctly and then leak the rest of the base into page two,
+       * which is the kind of bug a single-page test never sees.
+       */
+      const first = await call('GET', '/prospects?category=prospection&limit=1');
+      const cursor = first.json().nextCursor as string | null;
+
+      expect(first.json().items).toHaveLength(1);
+      expect(cursor).toBeTruthy();
+
+      const second = await call('GET', `/prospects?category=prospection&limit=1&cursor=${cursor}`);
+
+      expect(second.statusCode, second.body).toBe(200);
+      expect(
+        second.json().items.every((x: { category: string | null }) => x.category === 'prospection'),
+      ).toBe(true);
+    });
+
+    it('searches the commune, the postcode and the address, not only the name', async () => {
+      /*
+       * This widened: the listing used to match the name alone. Reading the same
+       * fields as the dispatch queue means a manager who searches a postcode on one
+       * screen does not get a different answer on the other.
+       */
+      expect(await mine('search=97400')).toEqual(['Zed Douane de Saint-Denis']);
+      expect(await mine('search=bourg-en&status=all')).toEqual(['Zed Hopital archive']);
+      expect(await mine('search=brigade')).toEqual(['Zed Brigade de Bastia']);
+      expect(await mine('search=aucun-resultat')).toEqual([]);
+    });
+
+    it('combines filters rather than widening on each one', async () => {
+      expect(await mine('category=prospection&department=69')).toEqual([
+        'Zed Commissariat de Lyon',
+      ]);
+
+      /* A combination nothing satisfies is empty, not the union of its parts. */
+      expect(await mine('category=prospection&department=974')).toEqual([]);
+    });
+
+    it('keeps the référentiel out of reach of a workspace without tenant access', async () => {
+      /*
+       * An establishment outside every campaign is only visible to a tenant-scoped
+       * grant. TR-928 must not widen that, so the filters are checked against a
+       * scoped member too: they narrow what that member may already see.
+       */
+      const scoped = await call(
+        'GET',
+        '/prospects?category=prospection&limit=100',
+        undefined,
+        member,
+      );
+
+      expect(scoped.statusCode, scoped.body).toBe(200);
+      expect(scoped.json().items.some((x: { name: string }) => x.name.startsWith('Zed '))).toBe(
+        false,
+      );
+    });
+  });
 
   it('scopes reads, paginates and rejects foreign cursors and edits', async () => {
     const r = await call('GET', '/prospects?limit=1');

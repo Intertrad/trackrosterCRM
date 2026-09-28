@@ -1,3 +1,4 @@
+import { establishmentFilterConditions } from '../establishments/establishment-filters.js';
 import { visibleField } from '../prospect-enrichment/field-visibility.js';
 import {
   customFieldDefinitions as fields,
@@ -83,10 +84,23 @@ export class ProspectMasterService {
       eq(establishments.tenantId, a.tenantId),
       masterAccess(a, sql`${establishments.id}`),
       q.status !== 'all' ? eq(establishments.status, q.status) : undefined,
-      q.regionId ? eq(establishments.regionId, q.regionId) : undefined,
-      q.search
-        ? sql`${establishments.name} ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}`
-        : undefined,
+      /*
+       * Search, section, department and commune all come from the shared helper,
+       * so this listing narrows the référentiel by exactly the same rules as the
+       * dispatch queue and bulk enrolment. Search widens as a result: it used to
+       * read the name alone and now also reads the commune, the postcode and the
+       * address, which returns more rows for a query and never fewer.
+       */
+      ...establishmentFilterConditions(
+        {
+          ...(q.search === undefined ? {} : { search: q.search }),
+          ...(q.category === undefined ? {} : { category: q.category }),
+          ...(q.department === undefined ? {} : { department: q.department }),
+          ...(q.city === undefined ? {} : { city: q.city }),
+          ...(q.regionId === undefined ? {} : { regionId: q.regionId }),
+        },
+        sql`establishments`,
+      ),
       q.campaignId
         ? sql`EXISTS(SELECT 1 FROM campaign_prospects cp WHERE cp.tenant_id=${a.tenantId} AND cp.establishment_id=${establishments.id} AND cp.campaign_id=${q.campaignId})`
         : undefined,
