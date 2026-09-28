@@ -29,8 +29,11 @@ import {
 } from '@/lib/api/assignment-types';
 import { ESTABLISHMENT_CATEGORIES, type EstablishmentCategory } from '@/lib/api/import-types';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
+import { listCampaigns } from '@/lib/api/campaign-client';
 import { listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
+import { listTeams } from '@/lib/api/team-client';
+import type { Team } from '@/lib/api/team-types';
 import { getWorkQueueOptions } from '@/lib/api/work-queue-client';
 import type { WorkQueueCampaignOption } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -38,12 +41,42 @@ import { buildTeamRoster, rosterStatus } from '@/lib/manager/team-roster';
 import { resolvePeriod } from '@/components/manager/manager-filters';
 import { cn } from '@/lib/ui/cn';
 
+const TARGET_TEAM_REQUIRED = 'Select a target team before previewing assignments.';
+
 export default function AssignmentsPage() {
   const { activeWorkspace } = useAuth();
-  const teamId = activeWorkspace?.teamId ?? undefined;
+
+  /*
+   * Where the dispatch team comes from, and it is not always the workspace.
+   *
+   * A team-scoped manager dispatches into the team they already operate in. A
+   * tenant-scoped administrator has no team at all, and this page used to read
+   * that as "cannot dispatch" — which was a frontend assumption, not a backend
+   * rule: `authorizeBatch` admits a tenant-scoped client_admin, and the API's
+   * `targets()` then requires the team to belong to the campaign's organization.
+   * So an administrator picks the team explicitly and everything downstream is
+   * the API's existing behaviour.
+   */
+  const isAdmin = activeWorkspace?.mode === 'admin';
+  const workspaceTeamId = activeWorkspace?.teamId ?? undefined;
+
+  const [targetTeamId, setTargetTeamId] = useState('');
+
+  const effectiveTeamId = isAdmin ? targetTeamId || undefined : workspaceTeamId;
 
   const [campaigns, setCampaigns] = useState<WorkQueueCampaignOption[]>([]);
   const [campaignId, setCampaignId] = useState('');
+
+  /*
+   * Only an administrator needs these. The organization is read from the chosen
+   * campaign because the API refuses a team outside it, so offering the whole
+   * tenant's teams would offer a guaranteed 400.
+   */
+  const [campaignOrganizations, setCampaignOrganizations] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+  const [teams, setTeams] = useState<Team[] | null>(null);
+  const [teamsError, setTeamsError] = useState(false);
   const [unassigned, setUnassigned] = useState<UnassignedProspect[] | null>(null);
   const [memberships, setMemberships] = useState<MembershipSummary[]>([]);
   const [dashboard, setDashboard] = useState<Awaited<
@@ -69,15 +102,50 @@ export default function AssignmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  /* Campaign is mandatory for the unassigned queue, so it is chosen first. */
+  /*
+   * Campaign is mandatory for the unassigned queue, so it is chosen first — but
+   * the list cannot come from the same place for both roles.
+   *
+   * The work-queue options are the caller's *own* assigned campaigns, which is
+   * right for a manager and always empty for an administrator, who is assigned
+   * nothing. It is emptiest exactly after a bulk enrolment, which is when an
+   * administrator comes here. So administration reads the campaigns themselves.
+   */
   useEffect(() => {
-    if (!teamId) {
-      return;
-    }
-
     const controller = new AbortController();
 
-    getWorkQueueOptions({ teamId, signal: controller.signal })
+    if (isAdmin) {
+      listCampaigns({ limit: 100, sort: 'name' }, controller.signal)
+        .then((page) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          /* Completed and archived campaigns refuse assignment upstream. */
+          const open = page.items.filter(
+            (campaign) => campaign.status !== 'completed' && campaign.status !== 'archived',
+          );
+
+          setCampaigns(open.map((campaign) => ({ id: campaign.id, name: campaign.name })));
+          setCampaignOrganizations(
+            new Map(open.map((campaign) => [campaign.id, campaign.organizationId])),
+          );
+          setCampaignId((current) => current || (open[0]?.id ?? ''));
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setCampaigns([]);
+          }
+        });
+
+      return () => controller.abort();
+    }
+
+    if (!workspaceTeamId) {
+      return () => controller.abort();
+    }
+
+    getWorkQueueOptions({ teamId: workspaceTeamId, signal: controller.signal })
       .then((options) => {
         if (controller.signal.aborted) {
           return;
@@ -89,18 +157,72 @@ export default function AssignmentsPage() {
       .catch(() => setCampaigns([]));
 
     return () => controller.abort();
-  }, [teamId]);
+  }, [isAdmin, workspaceTeamId]);
+
+  /*
+   * The teams an administrator may dispatch this campaign into: the campaign's
+   * own organization, because `targets()` upstream answers 400 for any other.
+   * Mirroring that rule here turns an impossible choice into one that is not
+   * offered; the API remains the authority.
+   */
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const organizationId = campaignId ? campaignOrganizations.get(campaignId) : undefined;
+
+    if (!organizationId) {
+      setTeams(campaignId ? null : []);
+
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setTeams(null);
+    setTeamsError(false);
+
+    listTeams({ organizationId, limit: 100 }, controller.signal)
+      .then((page) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const active = page.items.filter((team) => team.status === 'active');
+
+        setTeams(active);
+
+        /*
+         * Never auto-select. Dispatching a batch into a team is a decision, and
+         * a pre-filled target is how the wrong team receives real work.
+         */
+        setTargetTeamId((current) => (active.some((team) => team.id === current) ? current : ''));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTeams([]);
+          setTeamsError(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [campaignId, campaignOrganizations, isAdmin]);
 
   useEffect(() => {
     const controller = new AbortController();
 
     Promise.all([
+      /*
+       * The roster has to be the target team's, not the workspace's: upstream
+       * only accepts an assignee holding a prospector grant on that team.
+       */
       listMemberships(
-        { ...(teamId ? { teamId } : {}), status: 'active', limit: 100 },
+        { ...(effectiveTeamId ? { teamId: effectiveTeamId } : {}), status: 'active', limit: 100 },
         controller.signal,
       ),
       getManagerDashboard(
-        { ...resolvePeriod('this_month'), ...(teamId ? { teamId } : {}) },
+        { ...resolvePeriod('this_month'), ...(effectiveTeamId ? { teamId: effectiveTeamId } : {}) },
         controller.signal,
       ).catch(() => null),
     ])
@@ -111,7 +233,16 @@ export default function AssignmentsPage() {
 
         setMemberships(membershipPage.items);
         setDashboard(dashboardResult);
-        setTargetMemberId((current) => current ?? membershipPage.items[0]?.id ?? null);
+
+        /*
+         * Re-resolve rather than keep: after a team change the previous member
+         * belongs to the previous team, and assigning to them would be refused.
+         */
+        setTargetMemberId((current) =>
+          current && membershipPage.items.some((member) => member.id === current)
+            ? current
+            : (membershipPage.items[0]?.id ?? null),
+        );
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -120,7 +251,7 @@ export default function AssignmentsPage() {
       });
 
     return () => controller.abort();
-  }, [teamId]);
+  }, [effectiveTeamId]);
 
   useEffect(() => {
     const timer = setTimeout(() => setAppliedSearch(search.trim()), 300);
@@ -140,7 +271,12 @@ export default function AssignmentsPage() {
         const page = await listUnassignedProspects(
           {
             campaignId,
-            ...(teamId ? { teamId } : {}),
+            /*
+             * Omitted until an administrator picks a team. The queue endpoint
+             * accepts that from a tenant-scoped grant, so the work can be read
+             * and judged before deciding who receives it.
+             */
+            ...(effectiveTeamId ? { teamId: effectiveTeamId } : {}),
             ...(appliedSearch ? { search: appliedSearch } : {}),
             ...(category ? { category } : {}),
             /* Two digits, or three overseas; anything shorter is still typing. */
@@ -168,7 +304,7 @@ export default function AssignmentsPage() {
         );
       }
     },
-    [appliedSearch, campaignId, category, department, teamId],
+    [appliedSearch, campaignId, category, department, effectiveTeamId],
   );
 
   useEffect(() => {
@@ -206,8 +342,21 @@ export default function AssignmentsPage() {
     });
   }
 
+  /*
+   * A missing target team is a validation state, not a silent no-op: an
+   * administrator who clicks Preview and sees nothing happen has been told the
+   * page is broken.
+   */
+  const missingTargetTeam = isAdmin && !effectiveTeamId;
+
   async function runPreview(): Promise<void> {
-    if (!campaignId || selected.size === 0 || !teamId) {
+    if (!campaignId || selected.size === 0) {
+      return;
+    }
+
+    if (!effectiveTeamId) {
+      setError(TARGET_TEAM_REQUIRED);
+
       return;
     }
 
@@ -221,7 +370,7 @@ export default function AssignmentsPage() {
         await previewAssignment({
           campaignId,
           prospectIds: [...selected],
-          teamId,
+          teamId: effectiveTeamId,
           assignedUserId: targetMemberId,
         }),
       );
@@ -233,7 +382,18 @@ export default function AssignmentsPage() {
   }
 
   async function runApply(): Promise<void> {
-    if (!campaignId || selected.size === 0 || !teamId) {
+    if (!campaignId || selected.size === 0) {
+      return;
+    }
+
+    /*
+     * The same team the preview was taken against, from the same value. Applying
+     * decisions computed for one team into another is the failure this guards:
+     * capacity, eligibility and collisions were all judged for the other team.
+     */
+    if (!effectiveTeamId) {
+      setError(TARGET_TEAM_REQUIRED);
+
       return;
     }
 
@@ -245,7 +405,7 @@ export default function AssignmentsPage() {
         {
           campaignId,
           prospectIds: [...selected],
-          teamId,
+          teamId: effectiveTeamId,
           assignedUserId: targetMemberId,
         },
         crypto.randomUUID(),
@@ -264,7 +424,11 @@ export default function AssignmentsPage() {
     }
   }
 
-  if (!teamId) {
+  /*
+   * Only a scoped role needs a workspace team. An administrator has none and
+   * chooses one below, which is what the API has always accepted.
+   */
+  if (!isAdmin && !workspaceTeamId) {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title="Assignments" />
@@ -305,13 +469,70 @@ export default function AssignmentsPage() {
         <FilterSelect
           label="Campaign"
           value={campaignId}
-          onChange={setCampaignId}
+          onChange={(value) => {
+            setCampaignId(value);
+
+            /*
+             * A different campaign may belong to a different organization, so the
+             * chosen team may no longer be a legal target.
+             */
+            if (isAdmin) {
+              setTargetTeamId('');
+              setPreview(null);
+            }
+          }}
           options={
             campaigns.length
               ? campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name }))
               : [{ value: '', label: 'No campaigns' }]
           }
         />
+
+        {/*
+         * Administrators only. A team-scoped manager already operates inside
+         * one team and re-picking it would be a question with one answer.
+         */}
+        {isAdmin ? (
+          <FilterSelect
+            label="Target team"
+            tone="brand"
+            value={targetTeamId}
+            disabled={teams === null || teams.length === 0}
+            onChange={(value) => {
+              setTargetTeamId(value);
+
+              /*
+               * The preview was computed against the previous team's capacity and
+               * eligibility, so it must not survive into this one.
+               *
+               * The queue-reload effect below already clears both the preview and
+               * the selection when the effective team changes, so this is not the
+               * only guard — but it is the local one, and the rule should not
+               * depend on a dependency array somewhere else continuing to include
+               * the team.
+               */
+              setPreview(null);
+              setError(null);
+            }}
+            options={
+              teams === null
+                ? [{ value: '', label: campaignId ? 'Loading teams…' : 'Choose a campaign first' }]
+                : teams.length === 0
+                  ? [
+                      {
+                        value: '',
+                        label: teamsError
+                          ? 'Teams unavailable'
+                          : 'No active team in this organization',
+                      },
+                    ]
+                  : [
+                      { value: '', label: 'Choose a team' },
+                      ...teams.map((team) => ({ value: team.id, label: team.name })),
+                    ]
+            }
+          />
+        ) : null}
 
         <FilterSelect
           label="Section"
@@ -497,6 +718,12 @@ export default function AssignmentsPage() {
           <dl className="flex flex-col gap-2 border-b border-line-soft pb-4 text-[14px]">
             <Row label="Selected">{selected.size}</Row>
 
+            {isAdmin ? (
+              <Row label="Target team">
+                {teams?.find((team) => team.id === targetTeamId)?.name ?? 'None'}
+              </Row>
+            ) : null}
+
             <Row label="Target member">{target ? target.name : 'None'}</Row>
           </dl>
 
@@ -537,6 +764,11 @@ export default function AssignmentsPage() {
                 </Alert>
               ) : null}
             </>
+          ) : missingTargetTeam ? (
+            /* Stated before the click, not after a request that goes nowhere. */
+            <Alert tone="info" className="mt-4">
+              {TARGET_TEAM_REQUIRED}
+            </Alert>
           ) : (
             <p className="mt-4 text-[14px] text-ink-muted">
               Preview the batch to see what the server would assign.
@@ -548,7 +780,12 @@ export default function AssignmentsPage() {
               variant="secondary"
               fullWidth
               loading={previewing}
-              disabled={selected.size === 0 || !targetMemberId}
+              disabled={
+                selected.size === 0 ||
+                !targetMemberId ||
+                missingTargetTeam ||
+                (isAdmin && teams === null)
+              }
               onClick={() => void runPreview()}
             >
               Preview {selected.size} prospect{selected.size === 1 ? '' : 's'}
@@ -557,7 +794,7 @@ export default function AssignmentsPage() {
             <Button
               fullWidth
               loading={applying}
-              disabled={!preview?.canApply || selected.size === 0}
+              disabled={!preview?.canApply || selected.size === 0 || missingTargetTeam}
               leadingIcon={<Send aria-hidden="true" className="size-[18px]" />}
               onClick={() => void runApply()}
             >
