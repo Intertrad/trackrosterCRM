@@ -1,3 +1,5 @@
+import type { EstablishmentCategory } from '../database/schema/establishments.js';
+
 export type ImportRowStatus = 'valid' | 'warning' | 'invalid';
 
 export type ImportIssueSeverity = 'warning' | 'error';
@@ -24,6 +26,10 @@ export interface ImportPreviewEstablishment {
 
   latitude: number | null;
   longitude: number | null;
+
+  /* The business taxonomy, when the source file carries it. Null keeps an
+     uncategorised import valid rather than rejecting the row. */
+  category: EstablishmentCategory | null;
 }
 
 export interface ImportPreviewContact {

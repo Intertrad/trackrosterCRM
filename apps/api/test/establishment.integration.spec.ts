@@ -275,6 +275,64 @@ describe('Establishment HTTP integration', () => {
     expect(result.some((establishment) => establishment.id === tenantBEstablishmentId)).toBe(false);
   });
 
+  it('creates a categorised establishment and filters the list by category', async () => {
+    const tokens = await login(adminEmail, adminPassword);
+    const authorization = { authorization: `Bearer ${tokens.accessToken}` };
+
+    const created = await getApp().inject({
+      method: 'POST',
+      url: '/establishments',
+      headers: authorization,
+      payload: { name: `CRA des Plaines ${randomUUID()}`, countryCode: 'FR', category: 'cra' },
+    });
+
+    expect(created.statusCode, created.payload).toBe(201);
+    expect((JSON.parse(created.payload) as Establishment).category).toBe('cra');
+
+    const filtered = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=cra',
+      headers: authorization,
+    });
+
+    expect(filtered.statusCode).toBe(200);
+
+    const rows = JSON.parse(filtered.payload) as Establishment[];
+
+    expect(rows.length).toBeGreaterThan(0);
+
+    /* Every row matches the filter, belongs to this tenant, and the
+       uncategorised establishments seeded by this suite are excluded. */
+    for (const row of rows) {
+      expect(row.category).toBe('cra');
+      expect(row.tenantId).toBe(tenantAId);
+    }
+
+    const other = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=sante',
+      headers: authorization,
+    });
+
+    expect(other.statusCode).toBe(200);
+    expect(
+      (JSON.parse(other.payload) as Establishment[]).some((row) => row.category !== 'sante'),
+    ).toBe(false);
+  });
+
+  it('rejects an unknown category on the listing filter', async () => {
+    const tokens = await login(adminEmail, adminPassword);
+
+    const response = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=gendarmerie',
+      headers: { authorization: `Bearer ${tokens.accessToken}` },
+    });
+
+    /* A 400 rather than a 500: the value never reaches PostgreSQL. */
+    expect(response.statusCode).toBe(400);
+  });
+
   it('returns 404 when reading another tenant establishment', async () => {
     const tokens = await login(adminEmail, adminPassword);
 

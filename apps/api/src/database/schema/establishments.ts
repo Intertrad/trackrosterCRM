@@ -26,6 +26,28 @@ export const establishmentStatusEnum = pgEnum('establishment_status', [
 
 export const establishmentSourceEnum = pgEnum('establishment_source', ['manual', 'import', 'api']);
 
+/*
+ * What kind of organisation this establishment is, in the group's own terms.
+ *
+ * Single-valued on purpose: an establishment is a police station or a hospital,
+ * not both, and every screen that shows this shows exactly one. `tags` remains
+ * the place for the many-to-many, user-managed labels prospectors add — this is
+ * the business taxonomy managers dispatch on, which is a different thing and
+ * belongs in the schema rather than in free text.
+ *
+ * Nullable, because the establishments already in the database predate it and
+ * are not invalid for lacking one.
+ */
+export const establishmentCategoryEnum = pgEnum('establishment_category', [
+  'prospection',
+  'justice_enquetes',
+  'sante',
+  'asile_social',
+  'douanes_onaf',
+  'cra',
+  'prescripteurs',
+]);
+
 export const establishments = pgTable(
   'establishments',
   {
@@ -125,6 +147,8 @@ export const establishments = pgTable(
 
     source: establishmentSourceEnum('source').default('manual').notNull(),
 
+    category: establishmentCategoryEnum('category'),
+
     createdAt: timestamp('created_at', {
       withTimezone: true,
       mode: 'date',
@@ -173,6 +197,8 @@ export const establishments = pgTable(
     index('establishments_tenant_postal_code_idx').on(table.tenantId, table.postalCode),
 
     index('establishments_tenant_city_idx').on(table.tenantId, table.city),
+
+    index('establishments_tenant_category_idx').on(table.tenantId, table.category),
 
     index('establishments_location_gist_idx')
       .using('gist', table.location)
@@ -245,5 +271,10 @@ export type Establishment = Omit<EstablishmentRow, 'location'>;
 export type NewEstablishment = typeof establishments.$inferInsert;
 
 export type EstablishmentStatus = (typeof establishmentStatusEnum.enumValues)[number];
+
+export type EstablishmentCategory = (typeof establishmentCategoryEnum.enumValues)[number];
+
+/* The taxonomy as a value, for validators and importers that must check a string. */
+export const ESTABLISHMENT_CATEGORIES = establishmentCategoryEnum.enumValues;
 
 export type EstablishmentSource = (typeof establishmentSourceEnum.enumValues)[number];

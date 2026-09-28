@@ -169,6 +169,7 @@ export class ImportExecutionService {
               website: previewEstablishment.website,
               latitude: previewEstablishment.latitude,
               longitude: previewEstablishment.longitude,
+              category: previewEstablishment.category,
 
               source: 'import',
             },

@@ -35,6 +35,7 @@ describe('ImportDeduplicationService', () => {
 
     latitude: null,
     longitude: null,
+    category: null,
 
     status: 'active',
     source: 'import',
@@ -71,6 +72,7 @@ describe('ImportDeduplicationService', () => {
 
       latitude: null,
       longitude: null,
+      category: null,
     });
 
     expect(repository.findByExternalReference).toHaveBeenCalledWith(
@@ -104,6 +106,7 @@ describe('ImportDeduplicationService', () => {
 
       latitude: null,
       longitude: null,
+      category: null,
     });
 
     expect(repository.findByIdentity).toHaveBeenCalledWith(
@@ -135,6 +138,7 @@ describe('ImportDeduplicationService', () => {
 
       latitude: null,
       longitude: null,
+      category: null,
     });
 
     expect(repository.findByExternalReference).not.toHaveBeenCalled();

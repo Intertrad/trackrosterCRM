@@ -44,6 +44,7 @@ describe('EstablishmentContactService', () => {
     status: 'active',
     source: 'manual',
 
+    category: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

@@ -10,7 +10,10 @@ import {
   Min,
 } from 'class-validator';
 
-import type { EstablishmentStatus } from '../../database/schema/establishments.js';
+import type {
+  EstablishmentCategory,
+  EstablishmentStatus,
+} from '../../database/schema/establishments.js';
 
 export class UpdateEstablishmentDto {
   @IsOptional()
@@ -80,4 +83,16 @@ export class UpdateEstablishmentDto {
   @IsOptional()
   @IsIn(['active', 'inactive', 'archived'] satisfies EstablishmentStatus[])
   status?: EstablishmentStatus;
+
+  @IsOptional()
+  @IsIn([
+    'prospection',
+    'justice_enquetes',
+    'sante',
+    'asile_social',
+    'douanes_onaf',
+    'cra',
+    'prescripteurs',
+  ] satisfies EstablishmentCategory[])
+  category?: EstablishmentCategory | null;
 }

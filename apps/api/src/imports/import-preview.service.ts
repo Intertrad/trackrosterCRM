@@ -8,6 +8,11 @@ import {
   MAX_IMPORT_ROWS,
   REQUIRED_IMPORT_HEADERS,
 } from './import-preview.constants.js';
+import {
+  ESTABLISHMENT_CATEGORIES,
+  type EstablishmentCategory,
+} from '../database/schema/establishments.js';
+
 import type {
   ImportIssue,
   ImportPreviewContact,
@@ -155,6 +160,27 @@ export class ImportPreviewService {
       };
     }
 
+    /*
+     * An unrecognised category is a warning, not a rejection: the row is still a
+     * real establishment and is worth importing uncategorised. Dropping the value
+     * silently would be worse — a file with a mis-spelled column would import
+     * 14,000 rows that no dispatch filter could ever find.
+     */
+    const rawCategory = this.optionalText(record.category)?.toLowerCase() ?? null;
+    const category =
+      rawCategory && (ESTABLISHMENT_CATEGORIES as readonly string[]).includes(rawCategory)
+        ? (rawCategory as EstablishmentCategory)
+        : null;
+
+    if (rawCategory && !category) {
+      issues.push({
+        field: 'category',
+        code: 'unknown_value',
+        message: `Unknown category "${rawCategory}"; the establishment is imported without one`,
+        severity: 'warning',
+      });
+    }
+
     const establishment: ImportPreviewEstablishment = {
       externalReference: this.optionalText(record.external_reference),
 
@@ -174,6 +200,8 @@ export class ImportPreviewService {
 
       latitude,
       longitude,
+
+      category,
     };
 
     const contact = this.buildContact(record, contactEmail);

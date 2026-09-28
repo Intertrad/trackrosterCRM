@@ -14,6 +14,7 @@ import type { DatabaseExecutor } from '../database/database.types.js';
 import type {
   Establishment,
   EstablishmentSource,
+  EstablishmentCategory,
   EstablishmentStatus,
 } from '../database/schema/establishments.js';
 import { RegionRepository } from '../regions/region.repository.js';
@@ -23,6 +24,8 @@ export interface CreateEstablishmentInput {
   tenantId: string;
 
   regionId?: string | null;
+
+  category?: EstablishmentCategory | null;
 
   name: string;
 
@@ -63,6 +66,8 @@ export interface UpdateEstablishmentInput {
   name?: string;
 
   regionId?: string | null;
+
+  category?: EstablishmentCategory | null;
 
   externalReference?: string | null;
 
@@ -122,6 +127,8 @@ export class EstablishmentService {
 
       regionId: input.regionId ?? null,
 
+      category: input.category ?? null,
+
       name,
 
       normalizedName: normalizeEstablishmentName(name),
@@ -170,8 +177,8 @@ export class EstablishmentService {
     return establishment;
   }
 
-  async list(tenantId: string): Promise<Establishment[]> {
-    return this.establishmentRepository.findByTenant(tenantId);
+  async list(tenantId: string, category?: EstablishmentCategory): Promise<Establishment[]> {
+    return this.establishmentRepository.findByTenant(tenantId, category);
   }
   async findNearby(input: FindNearbyEstablishmentsInput): Promise<NearbyEstablishment[]> {
     this.validateCoordinates(input.latitude, input.longitude);
@@ -270,6 +277,10 @@ export class EstablishmentService {
      * null      = remove region assignment
      * UUID      = validate and assign region
      */
+    if (input.category !== undefined) {
+      update.category = input.category;
+    }
+
     if (input.regionId !== undefined) {
       if (input.regionId === null) {
         update.regionId = null;

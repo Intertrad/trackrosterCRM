@@ -6,6 +6,7 @@ import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   establishments,
   type Establishment,
+  type EstablishmentCategory,
   type NewEstablishment,
 } from '../database/schema/establishments.js';
 
@@ -34,6 +35,7 @@ export type UpdateEstablishment = Partial<
     | 'latitude'
     | 'longitude'
     | 'status'
+    | 'category'
     | 'regionId'
   >
 >;
@@ -79,11 +81,15 @@ export class EstablishmentRepository {
     return establishment ?? null;
   }
 
-  async findByTenant(tenantId: string): Promise<Establishment[]> {
+  async findByTenant(tenantId: string, category?: EstablishmentCategory): Promise<Establishment[]> {
     return this.database
       .select(establishmentColumns)
       .from(establishments)
-      .where(eq(establishments.tenantId, tenantId))
+      .where(
+        category
+          ? and(eq(establishments.tenantId, tenantId), eq(establishments.category, category))
+          : eq(establishments.tenantId, tenantId),
+      )
       .orderBy(asc(establishments.createdAt));
   }
 

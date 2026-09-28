@@ -65,6 +65,7 @@ describe('ImportExecutionService', () => {
 
     latitude: null,
     longitude: null,
+    category: null,
 
     status: 'active',
     source: 'import',
@@ -116,6 +117,7 @@ describe('ImportExecutionService', () => {
 
       latitude: null,
       longitude: null,
+      category: null,
     },
 
     contact: {

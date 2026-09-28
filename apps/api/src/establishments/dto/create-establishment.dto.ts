@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsUUID,
   IsNumber,
   IsOptional,
@@ -8,6 +9,8 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+
+import type { EstablishmentCategory } from '../../database/schema/establishments.js';
 
 export class CreateEstablishmentDto {
   @IsString()
@@ -27,6 +30,20 @@ export class CreateEstablishmentDto {
   @IsOptional()
   @IsUUID()
   regionId?: string | null;
+
+  /* The business taxonomy the dispatch screen filters on. Optional because an
+     establishment can be created before anyone has classified it. */
+  @IsOptional()
+  @IsIn([
+    'prospection',
+    'justice_enquetes',
+    'sante',
+    'asile_social',
+    'douanes_onaf',
+    'cra',
+    'prescripteurs',
+  ] satisfies EstablishmentCategory[])
+  category?: EstablishmentCategory | null;
 
   @IsOptional()
   @IsString()

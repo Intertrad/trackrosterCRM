@@ -86,6 +86,30 @@ export interface ImportIssue {
   severity: ImportIssueSeverity;
 }
 
+/*
+ * The business taxonomy, mirroring the database enum. Kept as a union rather
+ * than a bare string so a typo in a filter is a compile error here as well as a
+ * 400 from the API.
+ */
+export type EstablishmentCategory =
+  | 'prospection'
+  | 'justice_enquetes'
+  | 'sante'
+  | 'asile_social'
+  | 'douanes_onaf'
+  | 'cra'
+  | 'prescripteurs';
+
+export const ESTABLISHMENT_CATEGORIES: readonly EstablishmentCategory[] = [
+  'prospection',
+  'justice_enquetes',
+  'sante',
+  'asile_social',
+  'douanes_onaf',
+  'cra',
+  'prescripteurs',
+];
+
 export interface ImportRowEstablishment {
   externalReference: string | null;
   name: string;
@@ -97,6 +121,7 @@ export interface ImportRowEstablishment {
   website: string | null;
   latitude: number | null;
   longitude: number | null;
+  category: EstablishmentCategory | null;
 }
 
 export interface ImportRowContact {
