@@ -371,9 +371,12 @@ function Referential() {
 }
 
 /*
- * The detail panel reads the row the listing already returned, so opening it costs
- * no request. The full fiche — tags, custom fields, contacts, consents and the
- * complete history — is its own screen and its own ticket.
+ * A quick view, not the record.
+ *
+ * It reads the row the listing already returned, so opening it costs no request
+ * and browsing stays fast. Anything that needs another read — contacts, the
+ * consent state, tags, custom fields — is on the full fiche, which this links to.
+ * Two full detail implementations would be one too many.
  */
 function ProspectPanel({ prospect, onClose }: { prospect: Prospect; onClose: () => void }) {
   const department = prospectDepartment(prospect.postalCode);
@@ -426,6 +429,14 @@ function ProspectPanel({ prospect, onClose }: { prospect: Prospect; onClose: () 
           No coordinates, so this establishment cannot be placed on a map or routed to.
         </Alert>
       ) : null}
+
+      <LinkButton
+        href={`/admin/prospects/${prospect.id}`}
+        variant="secondary"
+        className="mt-4 w-full"
+      >
+        Open full record
+      </LinkButton>
     </Card>
   );
 }
