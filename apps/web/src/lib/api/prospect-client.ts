@@ -1,5 +1,10 @@
 import { browserJson } from './browser-json';
-import type { ProspectDetail, ProspectPage, ProspectQuery } from './prospect-types';
+import type {
+  ProspectCampaignMembershipPage,
+  ProspectDetail,
+  ProspectPage,
+  ProspectQuery,
+} from './prospect-types';
 
 /**
  * One page of the shared référentiel.
@@ -41,4 +46,20 @@ export function getProspect(prospectId: string, signal?: AbortSignal): Promise<P
     cache: 'no-store',
     signal,
   });
+}
+
+/**
+ * The campaigns holding this establishment, with each one's current state.
+ *
+ * A summary, not a history: it carries the `campaignProspectId` that the existing
+ * activity and follow-up endpoints need, and those remain the way to read depth.
+ */
+export function listProspectCampaignMemberships(
+  prospectId: string,
+  signal?: AbortSignal,
+): Promise<ProspectCampaignMembershipPage> {
+  return browserJson<ProspectCampaignMembershipPage>(
+    `/api/prospects/${encodeURIComponent(prospectId)}/campaign-memberships`,
+    { cache: 'no-store', signal },
+  );
 }

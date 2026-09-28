@@ -13,6 +13,7 @@ const {
   useAuthMock,
   useParamsMock,
   getProspectMock,
+  listProspectCampaignMembershipsMock,
   listProspectContactsMock,
   listProspectAddressesMock,
   listConsentsMock,
@@ -20,6 +21,7 @@ const {
   useAuthMock: vi.fn(),
   useParamsMock: vi.fn(),
   getProspectMock: vi.fn(),
+  listProspectCampaignMembershipsMock: vi.fn(),
   listProspectContactsMock: vi.fn(),
   listProspectAddressesMock: vi.fn(),
   listConsentsMock: vi.fn(),
@@ -27,7 +29,10 @@ const {
 
 vi.mock('@/lib/auth/auth-context', () => ({ useAuth: useAuthMock }));
 vi.mock('next/navigation', () => ({ useParams: useParamsMock }));
-vi.mock('@/lib/api/prospect-client', () => ({ getProspect: getProspectMock }));
+vi.mock('@/lib/api/prospect-client', () => ({
+  getProspect: getProspectMock,
+  listProspectCampaignMemberships: listProspectCampaignMembershipsMock,
+}));
 vi.mock('@/lib/api/prospect-contact-client', () => ({
   listProspectContacts: listProspectContactsMock,
   listProspectAddresses: listProspectAddressesMock,
@@ -120,6 +125,7 @@ describe('admin establishment detail', () => {
     listProspectContactsMock.mockResolvedValue({ items: [contact()], nextCursor: null });
     listProspectAddressesMock.mockResolvedValue({ items: [], nextCursor: null });
     listConsentsMock.mockResolvedValue(consents());
+    listProspectCampaignMembershipsMock.mockResolvedValue({ items: [] });
   });
 
   afterEach(cleanup);
@@ -343,6 +349,26 @@ describe('admin establishment detail', () => {
     fireEvent.click(screen.getByRole('button', { name: /Try again/ }));
 
     await waitFor(() => expect(screen.getByText('1 rue du Port')).toBeInTheDocument());
+  });
+
+  /*
+   * The prospecting context is a separate contract and a separate request. It is
+   * the newest thing on the page and the likeliest to break, and a record that
+   * reads fine must go on reading fine when it does.
+   */
+  it('keeps the master record readable when the prospecting context fails', async () => {
+    listProspectCampaignMembershipsMock.mockRejectedValue(new Error('context unavailable'));
+
+    render(<ProspectDetailPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText('Unable to load prospecting context.')).toBeInTheDocument(),
+    );
+
+    /* The establishment itself is untouched by that failure. */
+    expect(screen.getByText('1 rue du Port')).toBeInTheDocument();
+    expect(screen.getByText('Jean Dupont')).toBeInTheDocument();
+    expect(screen.getByText('Contact permission')).toBeInTheDocument();
   });
 
   it('does not render the record for a workspace without administrator access', () => {

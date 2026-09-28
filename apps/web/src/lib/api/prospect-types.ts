@@ -58,6 +58,56 @@ export interface ProspectDetail extends Prospect {
   mergedSourceIds: string[];
 }
 
+/**
+ * What one campaign has made of this establishment.
+ *
+ * The référentiel is tenant-level and organization-neutral, so an establishment
+ * has no owner. An organization reaches it only through a campaign, which is why
+ * this is a list rather than a field: the same establishment held by OFTI and by
+ * GFTIJ is two memberships, and that is enrolment, not a conflict. Collision is
+ * decided later, when one of them tries to reserve it.
+ *
+ * `campaignProspectId` is the point of the whole shape. Activities, follow-ups,
+ * assignments and reservations are all keyed to it, so it is what turns an
+ * establishment id into a way of reaching the existing scoped endpoints.
+ */
+export interface ProspectCampaignMembership {
+  campaignProspectId: string;
+
+  campaign: { id: string; name: string; status: string };
+
+  /** Reached through the campaign, never a property of the establishment. */
+  organization: { id: string; name: string };
+
+  membership: {
+    /** `active` or `excluded`; a deliberate exclusion stays visible. */
+    status: string;
+    lifecycleStage: string;
+    includedAt: string;
+    updatedAt: string;
+  };
+
+  /** The one assignment that has not ended, or null when nobody owns it. */
+  assignment: {
+    id: string;
+    status: string;
+    priority: string;
+    assignedAt: string;
+    teamId: string;
+    teamName: string | null;
+    assignedUserId: string | null;
+    assignedUserName: string | null;
+  } | null;
+
+  latestActivity: { id: string; type: string; occurredAt: string } | null;
+
+  nextFollowUp: { id: string; dueAt: string; category: string; status: string } | null;
+}
+
+export interface ProspectCampaignMembershipPage {
+  items: ProspectCampaignMembership[];
+}
+
 export interface ProspectPage {
   items: Prospect[];
   nextCursor: string | null;

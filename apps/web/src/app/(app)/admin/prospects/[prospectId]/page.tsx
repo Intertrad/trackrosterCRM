@@ -26,6 +26,8 @@ import {
 import { getProspect } from '@/lib/api/prospect-client';
 import { prospectDepartment, type ProspectDetail } from '@/lib/api/prospect-types';
 
+import { CampaignContext } from './campaign-context';
+
 /*
  * The establishment workspace.
  *
@@ -293,25 +295,10 @@ function ProspectWorkspace() {
       </Card>
 
       {/*
-       * Stated rather than left blank. The operational half of this screen —
-       * campaign membership, assignment, availability, follow-ups and the activity
-       * history — has no establishment-level read in the API: activities,
-       * follow-ups and reservations are all keyed to a campaign prospect, and
-       * nothing maps an establishment to its campaign memberships over HTTP. An
-       * empty section here would read as "nothing has happened", which is a
-       * different and possibly false claim.
+       * Loaded on its own so it cannot take the record above it down, and
+       * because its contract is the newest thing on this page.
        */}
-      <Card>
-        <h2 className="mb-2 text-[19px] font-bold tracking-[-0.015em] text-navy">
-          Prospecting activity
-        </h2>
-
-        <Alert tone="info" title="Not available from this screen yet.">
-          Activity, follow-ups, campaign membership and assignment are recorded against a campaign
-          prospect, and the API has no establishment-level read for them. Until it does, this
-          history is visible from the campaign and from the prospector&rsquo;s own screens.
-        </Alert>
-      </Card>
+      <CampaignContext prospectId={prospect.id} />
     </div>
   );
 }
