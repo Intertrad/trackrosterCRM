@@ -140,15 +140,65 @@ single page of the manager's queue. After `ANALYZE` the same query walks the
 † Measured on a base with no oppositions recorded. The consent check is a volatile
 function called per row, so this is its floor, not its ceiling.
 
-## Deciding where it goes
+```bash
+# 4. Enrol a slice into a campaign. Preview first; it writes nothing.
+curl -sS -X POST "$API/campaigns/$CAMPAIGN/prospects/bulk/preview" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"category":"prospection","limit":10000}'
 
-**Not yet decided, and not a decision for the import.** The development database
-currently holds test fixtures from the integration suites, which is not where 14,649
-real records belong. Before loading:
+curl -sS -X POST "$API/campaigns/$CAMPAIGN/prospects/bulk" \
+  -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -H "idempotency-key: $(uuidgen)" \
+  -d '{"category":"prospection","limit":10000}'
+```
 
-- which tenant and which of the five entities owns the base, given that the
-  référentiel is shared and coordination is cross-entity;
-- whether it lands in development first or straight into the environment the pilot
-  will run on.
+An import puts an establishment in the référentiel; it does not put it in anyone's
+work. Enrolment is that step, and it is what `POST /assignments/preview` and
+`/assignments/bulk` then dispatch. Selection uses the dispatch queue's own filters —
+`category`, `department`, `city`, `regionId`, `search`, or explicit
+`establishmentIds` — so the set a manager sees is the set that is enrolled.
 
-The converter and the pipeline are ready either way; only the destination is open.
+At least one selector is required: an empty body would mean the whole référentiel.
+Re-running is safe and creates nothing the second time, and a membership somebody
+excluded on purpose stays excluded and is reported rather than reactivated. The
+response always reports `matched` against `selected`, so a set larger than `limit`
+is never silently halved.
+
+Measured on the real base:
+
+| One request                                               |            |
+| --------------------------------------------------------- | ---------- |
+| `cra` (28)                                                | 16 ms      |
+| `prospection` (4,524) — the priority slice                | **166 ms** |
+| The whole base, capped at 10,000                          | 372 ms     |
+| Re-running `prospection` with nothing left to add         | 33 ms      |
+| The dispatch queue over the 4,524, filtered by department | 15 ms      |
+
+There is no screen for enrolment yet; it is an API call an admin makes. The manager
+dispatch screen (TR-925) is where it belongs.
+
+## Where it goes
+
+**Decided: the référentiel is tenant-level and shared.** All five entities — OFTI,
+GFTIJ, INTERTRAD, SDI, AFTIJ — read one base of 14,649 establishments and consume it
+through campaigns and assignments. No entity owns it.
+
+The schema already works this way, verified rather than assumed: `establishments` has
+**no organization column**, in the Drizzle schema or in the live table, and its RLS
+policy is `tenant_id = current_setting('trackroster.tenant_id')` with FORCE ROW LEVEL
+SECURITY on. So no schema change was needed to adopt the shared model.
+
+Two consequences worth knowing:
+
+- **An establishment not yet in any campaign is visible only to a tenant-scoped
+  admin or observer.** Read access on `/prospects` resolves through campaign
+  membership for organization- and team-scoped grants, so a director sees a shared
+  establishment once one of their campaigns has enrolled it. That is the intended
+  shape of "consume the shared base through campaigns", not a gap.
+- **Two entities may enrol the same establishment.** That is the point. The
+  collision is settled where it belongs — the reservation coordination scope refuses
+  the second prospector's lease unless the two organizations are explicitly
+  independent — not by denying enrolment.
+
+Still open: whether the base lands in development first or straight into the
+environment the pilot runs on.

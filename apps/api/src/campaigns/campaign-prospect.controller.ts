@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -11,9 +12,11 @@ import {
 
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
+import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import { ClientAdminGuard } from '../authorization/client-admin.guard.js';
 import { CampaignProspectService } from './campaign-prospect.service.js';
 import { AddCampaignProspectDto } from './dto/add-campaign-prospect.dto.js';
+import { EnrolCampaignProspectsDto } from './dto/enrol-campaign-prospects.dto.js';
 import { UpdateCampaignProspectDto } from './dto/update-campaign-prospect.dto.js';
 
 interface AuthContext {
@@ -43,6 +46,57 @@ export class CampaignProspectController {
       campaignId,
       establishmentId: input.establishmentId,
     });
+  }
+
+  /*
+   * Bulk enrolment. `preview` writes nothing and exists so the operator sees the
+   * count before committing it — the same preview-then-apply shape the assignment
+   * dispatch already uses, for the same reason.
+   *
+   * Static paths, declared above the `:prospectId` routes so they cannot be read
+   * as an identifier.
+   */
+  @Post('bulk/preview')
+  @HttpCode(200)
+  previewEnrolment(
+    @CurrentAuth()
+    auth: AuthContext,
+
+    @Param('campaignId', new ParseUUIDPipe())
+    campaignId: string,
+
+    @Body()
+    input: EnrolCampaignProspectsDto,
+  ) {
+    return this.campaignProspectService.enrol(
+      auth.tenantId,
+      auth.userId,
+      campaignId,
+      input,
+      'preview',
+    );
+  }
+
+  @Post('bulk')
+  @HttpCode(200)
+  @Idempotent('campaign_prospect.bulk_enrol')
+  enrol(
+    @CurrentAuth()
+    auth: AuthContext,
+
+    @Param('campaignId', new ParseUUIDPipe())
+    campaignId: string,
+
+    @Body()
+    input: EnrolCampaignProspectsDto,
+  ) {
+    return this.campaignProspectService.enrol(
+      auth.tenantId,
+      auth.userId,
+      campaignId,
+      input,
+      'apply',
+    );
   }
 
   @Get()

@@ -15,6 +15,7 @@ import {
   auditEvents,
   campaignProspectAssignments as assignments,
 } from '../database/schema/index.js';
+import { establishmentFilterConditions } from '../establishments/establishment-filters.js';
 import { postalDepartment } from '../establishments/postal-department.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { AssignmentBatchService } from './assignment-batch.service.js';
@@ -152,7 +153,6 @@ export class AssignmentLifecycleService {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.unassigned(a, q));
     await this.batches.authorize(a, q.campaignId, q.teamId ? [q.teamId] : null);
-    const contains = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
     const filters = [
       sql`cp.tenant_id=${a.tenantId}`,
       sql`cp.campaign_id=${q.campaignId}`,
@@ -161,21 +161,19 @@ export class AssignmentLifecycleService {
       sql`e.status='active'`,
       sql`NOT EXISTS(SELECT 1 FROM campaign_prospect_assignments x WHERE x.tenant_id=cp.tenant_id AND x.campaign_prospect_id=cp.id AND x.ended_at IS NULL)`,
     ];
-    const search = q.search?.trim();
-    if (search)
-      filters.push(
-        sql`(e.name ILIKE ${contains(search)} OR e.city ILIKE ${contains(search)} OR e.postal_code ILIKE ${contains(search)} OR e.address_line1 ILIKE ${contains(search)})`,
-      );
-    if (q.category) filters.push(sql`e.category=${q.category}`);
-    if (q.regionId) filters.push(sql`e.region_id=${q.regionId}`);
     /*
-     * A prefix match rather than an equality on the derived department, because
-     * it is the same set of rows and it can use the postal-code index. The
-     * five-digit guard is what makes the two equivalent.
+     * Establishment filters come from the shared helper so the dispatch queue and
+     * bulk enrolment cannot disagree about what a category or a department means.
      */
-    if (q.department)
-      filters.push(sql`e.postal_code ~ '^[0-9]{5}$' AND e.postal_code LIKE ${q.department + '%'}`);
-    if (q.city) filters.push(sql`e.city ILIKE ${contains(q.city)}`);
+    filters.push(
+      ...establishmentFilterConditions({
+        ...(q.search === undefined ? {} : { search: q.search }),
+        ...(q.category === undefined ? {} : { category: q.category }),
+        ...(q.regionId === undefined ? {} : { regionId: q.regionId }),
+        ...(q.department === undefined ? {} : { department: q.department }),
+        ...(q.city === undefined ? {} : { city: q.city }),
+      }),
+    );
     if (q.lifecycleStage) filters.push(sql`cp.lifecycle_stage=${q.lifecycleStage}`);
     if (q.contactable) filters.push(sql`NOT trackroster_consent_blocked(cp.tenant_id,e.id,NULL)`);
     if (q.availability === 'uncontested') filters.push(sql`NOT ${CONTESTED_ELSEWHERE}`);
