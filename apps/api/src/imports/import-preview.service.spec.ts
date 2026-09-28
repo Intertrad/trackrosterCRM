@@ -128,4 +128,28 @@ describe('ImportPreviewService', () => {
   it('rejects an empty CSV', () => {
     expect(() => service.previewCsv('   ')).toThrow(BadRequestException);
   });
+
+  it('accepts a category column and maps it onto the establishment', () => {
+    /*
+     * The header allow-list rejects unknown columns outright, so a parser that
+     * reads record.category is unreachable until the column is declared. This
+     * asserts both halves together.
+     */
+    const csv = [
+      'name,country_code,category',
+      'CRA des Plaines,FR,cra',
+      'Hopital du Grand Chene,FR,sante',
+      'Brigade des Rives,FR,gendarmerie',
+    ].join('\n');
+
+    const preview = service.previewCsv(csv);
+
+    expect(preview.rows[0]?.establishment?.category).toBe('cra');
+    expect(preview.rows[1]?.establishment?.category).toBe('sante');
+
+    /* An unrecognised value is imported without a category, and says so. */
+    expect(preview.rows[2]?.establishment?.category).toBeNull();
+    expect(preview.rows[2]?.issues.some((issue) => issue.field === 'category')).toBe(true);
+    expect(preview.rows[2]?.status).not.toBe('invalid');
+  });
 });
