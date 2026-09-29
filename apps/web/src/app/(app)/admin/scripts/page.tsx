@@ -182,9 +182,10 @@ export default function ScriptsPage() {
       />
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
-      <div className="grid gap-5 lg:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.6fr)]">
-        <Card padding="none">
+      <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(260px,0.78fr)_minmax(0,1.62fr)]">
+        <Card padding="none" className="min-h-[620px] overflow-hidden">
           <CardHeader
+            className="mb-0 border-b border-line-soft px-5 py-4"
             title={isFrench ? 'Bibliothèque' : 'Library'}
             action={<span className="text-xs text-ink-muted">{scripts.length}</span>}
           />
@@ -208,7 +209,7 @@ export default function ScriptsPage() {
               </button>
             ))}
             {scripts.length === 0 ? (
-              <p className="p-5 text-sm text-ink-muted">
+              <p className="p-6 text-sm leading-6 text-ink-muted">
                 {isFrench
                   ? 'Aucun modèle. Créez le premier.'
                   : 'No templates yet. Create the first one.'}
@@ -216,8 +217,9 @@ export default function ScriptsPage() {
             ) : null}
           </div>
         </Card>
-        <Card>
+        <Card className="min-h-[620px]">
           <CardHeader
+            className="mb-6"
             title={
               selected
                 ? isFrench
@@ -240,21 +242,22 @@ export default function ScriptsPage() {
               ) : null
             }
           />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-semibold text-navy">
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="text-sm font-bold text-navy">
               {isFrench ? 'Nom' : 'Name'}
               <input
                 value={draft.name}
                 onChange={(e) => update('name', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
+                placeholder={isFrench ? 'Nom du modèle' : 'Template name'}
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               />
             </label>
-            <label className="text-sm font-semibold text-navy">
+            <label className="text-sm font-bold text-navy">
               {isFrench ? 'Canal' : 'Channel'}
               <select
                 value={draft.channel}
                 onChange={(e) => update('channel', e.target.value as Script['channel'])}
-                className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               >
                 <option value="email">Email</option>
                 <option value="call">Call</option>
@@ -263,31 +266,32 @@ export default function ScriptsPage() {
             </label>
           </div>
           {draft.channel === 'email' ? (
-            <label className="mt-4 block text-sm font-semibold text-navy">
+            <label className="mt-5 block text-sm font-bold text-navy">
               Subject
               <input
                 value={draft.subject ?? ''}
                 onChange={(e) => update('subject', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
+                placeholder={isFrench ? 'Objet de l’e-mail' : 'Email subject'}
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               />
             </label>
           ) : null}
-          <label className="mt-4 block text-sm font-semibold text-navy">
+          <label className="mt-5 block text-sm font-bold text-navy">
             {isFrench ? 'Secteur (optionnel)' : 'Sector (optional)'}
             <input
               value={draft.sector ?? ''}
               onChange={(e) => update('sector', e.target.value)}
-              className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
+              className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               placeholder="sante"
             />
           </label>
-          <label className="mt-4 block text-sm font-semibold text-navy">
+          <label className="mt-5 block text-sm font-bold text-navy">
             {isFrench ? 'Contenu' : 'Body'}
             <textarea
               value={draft.body}
               onChange={(e) => update('body', e.target.value)}
-              rows={10}
-              className="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
+              rows={9}
+              className="mt-2 min-h-[220px] w-full resize-y rounded-[10px] border border-line bg-white px-3.5 py-3 text-[15px] font-normal leading-6 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               placeholder="Bonjour {{first_name}}, ..."
             />
           </label>
@@ -305,7 +309,7 @@ export default function ScriptsPage() {
             ))}
             <button
               type="button"
-              className="rounded-full border border-dashed border-line px-2.5 py-1 text-xs text-ink-muted"
+              className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:border-brand hover:text-brand"
               onClick={() => {
                 const key = window.prompt('Variable name');
                 if (key) update('variables', [...new Set([...draft.variables, key.trim()])]);
