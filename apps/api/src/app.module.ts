@@ -57,6 +57,7 @@ import { ComplianceModule } from './compliance/compliance.module.js';
 import { IntegrationsModule } from './integrations/integrations.module.js';
 import { ProvidersModule } from './providers/providers.module.js';
 import { SearchModule } from './search/search.module.js';
+import { ScriptsModule } from './scripts/scripts.module.js';
 @Module({
   imports: [
     EnrichmentModule,
@@ -122,6 +123,7 @@ import { SearchModule } from './search/search.module.js';
     IntegrationsModule,
     ProvidersModule,
     SearchModule,
+    ScriptsModule,
   ],
 })
 export class AppModule {}

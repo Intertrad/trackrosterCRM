@@ -53,3 +53,4 @@ export * from './scheduled-reports.js';
 export * from './saved-views.js';
 export * from './compliance.js';
 export * from './integrations.js';
+export * from './script-templates.js';
