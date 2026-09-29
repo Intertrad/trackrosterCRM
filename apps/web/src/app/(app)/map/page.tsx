@@ -52,6 +52,10 @@ export default function TerritoryMapPage() {
    * filters exclude.
    */
   const [nearby, setNearby] = useState<NearbyProspect[] | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [locating, setLocating] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
 
@@ -162,6 +166,10 @@ export default function TerritoryMapPage() {
         limit: 25,
       });
 
+      setUserLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
       setNearby(page.items);
     } catch (caught) {
       setNearby(null);
@@ -216,6 +224,7 @@ export default function TerritoryMapPage() {
             territories={territories}
             onSelect={handleSelect}
             onViewportChange={setViewport}
+            userLocation={userLocation}
           />
 
           <MapLegend includeUnavailable={false} />
@@ -234,6 +243,7 @@ export default function TerritoryMapPage() {
                     onClick={() => {
                       setNearby(null);
                       setNearbyError(null);
+                      setUserLocation(null);
                     }}
                     className="text-[14px] font-semibold text-brand hover:text-brand-hover"
                   >

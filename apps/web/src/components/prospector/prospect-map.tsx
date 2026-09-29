@@ -88,6 +88,7 @@ export function ProspectMap({
   onVisibleChange,
   onViewportChange,
   selectedId = null,
+  userLocation = null,
 }: {
   points: MapPoint[];
   /** Authorised territory boundaries, as returned by GET /territories/map. */
@@ -120,10 +121,13 @@ export function ProspectMap({
 
   /** Draws a ring around one point, to show which popup is open. */
   selectedId?: string | null;
+  /** Temporary browser location used by the explicit Near me action. */
+  userLocation?: { latitude: number; longitude: number } | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  const userMarkerRef = useRef<Marker | null>(null);
 
   /** Detaches the viewport listener when the points or the map change. */
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -272,6 +276,9 @@ export function ProspectMap({
         marker.remove();
       }
 
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+
       markersRef.current = [];
 
       mapRef.current?.remove();
@@ -358,6 +365,44 @@ export function ProspectMap({
       map.off('load', report);
     };
   }, [onViewportChange, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !userLocation) {
+      userMarkerRef.current?.remove();
+      userMarkerRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+    void import('maplibre-gl').then(({ Marker: mapMarker }) => {
+      if (cancelled || !mapRef.current) return;
+
+      userMarkerRef.current?.remove();
+      const element = document.createElement('div');
+      element.setAttribute('aria-label', 'Your location');
+      element.style.cssText = [
+        'width:18px',
+        'height:18px',
+        'border-radius:9999px',
+        'background:#0f59fa',
+        'border:3px solid #ffffff',
+        'box-shadow:0 0 0 7px rgba(15,89,250,0.2),0 1px 4px rgba(5,18,74,0.35)',
+      ].join(';');
+      userMarkerRef.current = new mapMarker({ element })
+        .setLngLat([userLocation.longitude, userLocation.latitude])
+        .addTo(mapRef.current);
+      mapRef.current.flyTo({
+        center: [userLocation.longitude, userLocation.latitude],
+        zoom: Math.max(mapRef.current.getZoom(), 13),
+        essential: true,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, userLocation]);
 
   /* Markers are rebuilt when the filtered set changes, then the view is fitted
    * to what the prospector is actually allowed to see. */
