@@ -9,6 +9,7 @@ import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import type { CreateAccessGrantCommand, RevokeAccessGrantCommand } from './access-grant.types.js';
 import { UserAccessGrantRepository } from './user-access-grant.repository.js';
+import { assertAdministratorRemains } from './administrator-continuity.js';
 
 @Injectable()
 export class AccessGrantService {
@@ -148,6 +149,10 @@ export class AccessGrantService {
 
       if (!grant) {
         throw new NotFoundException('Access grant not found');
+      }
+
+      if (grant.role === 'client_admin') {
+        await assertAdministratorRemains(transaction, input.tenantId, input.userId);
       }
 
       const deleted = await this.grantRepository.deleteById(

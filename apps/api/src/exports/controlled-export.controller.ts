@@ -17,7 +17,25 @@ import { ExportTypeParamDto } from './dto/export-type-param.dto.js';
 export class ControlledExportController {
   constructor(private readonly exportService: ControlledExportService) {}
 
-  @Get(':type')
+  @Get('assignments') assignments(
+    @CurrentAuth() auth: AuthenticatedUser,
+    @Query() query: ControlledExportQueryDto,
+  ) {
+    return this.export(auth, { type: 'assignments' }, query);
+  }
+  @Get('activities') activities(
+    @CurrentAuth() auth: AuthenticatedUser,
+    @Query() query: ControlledExportQueryDto,
+  ) {
+    return this.export(auth, { type: 'activities' }, query);
+  }
+  @Get('follow_ups') followUps(
+    @CurrentAuth() auth: AuthenticatedUser,
+    @Query() query: ControlledExportQueryDto,
+  ) {
+    return this.export(auth, { type: 'follow_ups' }, query);
+  }
+
   async export(
     @CurrentAuth()
     auth: AuthenticatedUser,

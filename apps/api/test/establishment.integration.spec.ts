@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { establishments, type Establishment } from '../src/database/schema/establishments.js';
 import { tenants } from '../src/database/schema/tenants.js';
@@ -18,6 +18,7 @@ import { users } from '../src/database/schema/users.js';
 import { EstablishmentRepository } from '../src/establishments/establishment.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 describe('Establishment HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -82,74 +83,78 @@ describe('Establishment HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
-    const tenantService = application.get(TenantService);
+    /* Fixtures span several tenants and run through container-resolved
+       repositories, so they need the privileged executor; see withSeedScope. */
+    await withSeedScope(async () => {
+      const tenantService = application.get(TenantService);
 
-    const userRepository = application.get(UserRepository);
+      const userRepository = application.get(UserRepository);
 
-    const passwordService = application.get(PasswordService);
+      const passwordService = application.get(PasswordService);
 
-    const grantRepository = application.get(UserAccessGrantRepository);
+      const grantRepository = application.get(UserAccessGrantRepository);
 
-    const establishmentRepository = application.get(EstablishmentRepository);
+      const establishmentRepository = application.get(EstablishmentRepository);
 
-    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
-    const tenantA = await tenantService.create({
-      name: `Establishment Tenant A ${suffix}`,
-      slug: `establishment-a-${suffix}`,
+      const tenantA = await tenantService.create({
+        name: `Establishment Tenant A ${suffix}`,
+        slug: `establishment-a-${suffix}`,
+      });
+
+      const tenantB = await tenantService.create({
+        name: `Establishment Tenant B ${suffix}`,
+        slug: `establishment-b-${suffix}`,
+      });
+
+      tenantAId = tenantA.id;
+      tenantBId = tenantB.id;
+
+      adminEmail = `est-admin-${suffix}@trackroster.test`;
+
+      regularEmail = `est-regular-${suffix}@trackroster.test`;
+
+      const adminPasswordHash = await passwordService.hash(adminPassword);
+
+      const regularPasswordHash = await passwordService.hash(regularPassword);
+
+      const adminUser = await userRepository.create({
+        tenantId: tenantA.id,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        status: 'active',
+      });
+
+      adminUserId = adminUser.id;
+
+      await userRepository.create({
+        tenantId: tenantA.id,
+        email: regularEmail,
+        passwordHash: regularPasswordHash,
+        status: 'active',
+      });
+
+      await grantRepository.create({
+        tenantId: tenantA.id,
+        userId: adminUser.id,
+        role: 'client_admin',
+        scopeType: 'tenant',
+      });
+
+      const tenantBEstablishment = await establishmentRepository.create({
+        tenantId: tenantB.id,
+        name: 'Tenant B Restaurant',
+        normalizedName: 'tenant b restaurant',
+        countryCode: 'FR',
+        status: 'active',
+        source: 'manual',
+      });
+
+      tenantBEstablishmentId = tenantBEstablishment.id;
     });
-
-    const tenantB = await tenantService.create({
-      name: `Establishment Tenant B ${suffix}`,
-      slug: `establishment-b-${suffix}`,
-    });
-
-    tenantAId = tenantA.id;
-    tenantBId = tenantB.id;
-
-    adminEmail = `est-admin-${suffix}@trackroster.test`;
-
-    regularEmail = `est-regular-${suffix}@trackroster.test`;
-
-    const adminPasswordHash = await passwordService.hash(adminPassword);
-
-    const regularPasswordHash = await passwordService.hash(regularPassword);
-
-    const adminUser = await userRepository.create({
-      tenantId: tenantA.id,
-      email: adminEmail,
-      passwordHash: adminPasswordHash,
-      status: 'active',
-    });
-
-    adminUserId = adminUser.id;
-
-    await userRepository.create({
-      tenantId: tenantA.id,
-      email: regularEmail,
-      passwordHash: regularPasswordHash,
-      status: 'active',
-    });
-
-    await grantRepository.create({
-      tenantId: tenantA.id,
-      userId: adminUser.id,
-      role: 'client_admin',
-      scopeType: 'tenant',
-    });
-
-    const tenantBEstablishment = await establishmentRepository.create({
-      tenantId: tenantB.id,
-      name: 'Tenant B Restaurant',
-      normalizedName: 'tenant b restaurant',
-      countryCode: 'FR',
-      status: 'active',
-      source: 'manual',
-    });
-
-    tenantBEstablishmentId = tenantBEstablishment.id;
   });
 
   afterAll(async () => {
@@ -158,6 +163,7 @@ describe('Establishment HTTP integration', () => {
         if (tenantAId) {
           await database.delete(establishments).where(eq(establishments.tenantId, tenantAId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantAId));
           await database.delete(users).where(eq(users.tenantId, tenantAId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantAId));
@@ -166,6 +172,7 @@ describe('Establishment HTTP integration', () => {
         if (tenantBId) {
           await database.delete(establishments).where(eq(establishments.tenantId, tenantBId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantBId));
           await database.delete(users).where(eq(users.tenantId, tenantBId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantBId));
@@ -266,6 +273,64 @@ describe('Establishment HTTP integration', () => {
     }
 
     expect(result.some((establishment) => establishment.id === tenantBEstablishmentId)).toBe(false);
+  });
+
+  it('creates a categorised establishment and filters the list by category', async () => {
+    const tokens = await login(adminEmail, adminPassword);
+    const authorization = { authorization: `Bearer ${tokens.accessToken}` };
+
+    const created = await getApp().inject({
+      method: 'POST',
+      url: '/establishments',
+      headers: authorization,
+      payload: { name: `CRA des Plaines ${randomUUID()}`, countryCode: 'FR', category: 'cra' },
+    });
+
+    expect(created.statusCode, created.payload).toBe(201);
+    expect((JSON.parse(created.payload) as Establishment).category).toBe('cra');
+
+    const filtered = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=cra',
+      headers: authorization,
+    });
+
+    expect(filtered.statusCode).toBe(200);
+
+    const rows = JSON.parse(filtered.payload) as Establishment[];
+
+    expect(rows.length).toBeGreaterThan(0);
+
+    /* Every row matches the filter, belongs to this tenant, and the
+       uncategorised establishments seeded by this suite are excluded. */
+    for (const row of rows) {
+      expect(row.category).toBe('cra');
+      expect(row.tenantId).toBe(tenantAId);
+    }
+
+    const other = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=sante',
+      headers: authorization,
+    });
+
+    expect(other.statusCode).toBe(200);
+    expect(
+      (JSON.parse(other.payload) as Establishment[]).some((row) => row.category !== 'sante'),
+    ).toBe(false);
+  });
+
+  it('rejects an unknown category on the listing filter', async () => {
+    const tokens = await login(adminEmail, adminPassword);
+
+    const response = await getApp().inject({
+      method: 'GET',
+      url: '/establishments?category=gendarmerie',
+      headers: { authorization: `Bearer ${tokens.accessToken}` },
+    });
+
+    /* A 400 rather than a 500: the value never reaches PostgreSQL. */
+    expect(response.statusCode).toBe(400);
   });
 
   it('returns 404 when reading another tenant establishment', async () => {

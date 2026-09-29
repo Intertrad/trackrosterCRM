@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { establishments } from '../src/database/schema/establishments.js';
 import { regions } from '../src/database/schema/regions.js';
@@ -18,6 +18,7 @@ import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 interface NearbyEstablishmentResponse {
   id: string;
@@ -178,7 +179,7 @@ describe('Region and PostGIS integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 
@@ -402,6 +403,7 @@ describe('Region and PostGIS integration', () => {
 
           await getDatabase().delete(regions).where(eq(regions.tenantId, tenantAId));
 
+          await clearSessionEvidenceForUsers(getDatabase(), eq(users.tenantId, tenantAId));
           await getDatabase().delete(users).where(eq(users.tenantId, tenantAId));
 
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantAId));
@@ -412,6 +414,7 @@ describe('Region and PostGIS integration', () => {
 
           await getDatabase().delete(regions).where(eq(regions.tenantId, tenantBId));
 
+          await clearSessionEvidenceForUsers(getDatabase(), eq(users.tenantId, tenantBId));
           await getDatabase().delete(users).where(eq(users.tenantId, tenantBId));
 
           await getDatabase().delete(tenants).where(eq(tenants.id, tenantBId));

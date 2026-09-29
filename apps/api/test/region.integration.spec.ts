@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { auditEvents } from '../src/database/schema/audit-events.js';
 import { idempotencyRecords } from '../src/database/schema/idempotency-records.js';
@@ -21,6 +20,7 @@ import { users } from '../src/database/schema/users.js';
 import { RegionService } from '../src/regions/region.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 describe('Region HTTP and hierarchy integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -135,160 +135,164 @@ describe('Region HTTP and hierarchy integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
-    regionService = application.get(RegionService);
+    /* Fixtures span several tenants and run through container-resolved
+       repositories, so they need the privileged executor; see withSeedScope. */
+    await withSeedScope(async () => {
+      regionService = application.get(RegionService);
 
-    const tenantService = application.get(TenantService);
+      const tenantService = application.get(TenantService);
 
-    const userRepository = application.get(UserRepository);
+      const userRepository = application.get(UserRepository);
 
-    const passwordService = application.get(PasswordService);
+      const passwordService = application.get(PasswordService);
 
-    const grantRepository = application.get(UserAccessGrantRepository);
+      const grantRepository = application.get(UserAccessGrantRepository);
 
-    const tenantA = await tenantService.create({
-      name: `Region Integration Tenant A ${suffix}`,
+      const tenantA = await tenantService.create({
+        name: `Region Integration Tenant A ${suffix}`,
 
-      slug: `region-int-a-${suffix}`,
+        slug: `region-int-a-${suffix}`,
+      });
+
+      const tenantB = await tenantService.create({
+        name: `Region Integration Tenant B ${suffix}`,
+
+        slug: `region-int-b-${suffix}`,
+      });
+
+      tenantAId = tenantA.id;
+
+      tenantBId = tenantB.id;
+
+      const passwordHash = await passwordService.hash(password);
+
+      adminEmail = `region-admin-${suffix}@trackroster.test`;
+
+      const userA = await userRepository.create({
+        tenantId: tenantAId,
+
+        email: adminEmail,
+
+        passwordHash,
+
+        status: 'active',
+      });
+
+      const userB = await userRepository.create({
+        tenantId: tenantBId,
+
+        email: `region-user-b-${suffix}@trackroster.test`,
+
+        passwordHash,
+
+        status: 'active',
+      });
+
+      userAId = userA.id;
+
+      userBId = userB.id;
+
+      await grantRepository.create({
+        tenantId: tenantAId,
+
+        userId: userAId,
+
+        role: 'client_admin',
+
+        scopeType: 'tenant',
+      });
+
+      const tokens = await login(adminEmail, password);
+
+      adminAccessToken = tokens.accessToken;
+
+      /*
+       * Tenant B region used to prove that
+       * parent relationships cannot cross tenants.
+       */
+      const tenantBRegion = await getRegionService().create({
+        tenantId: tenantBId,
+
+        actorUserId: userBId,
+
+        name: 'Tenant B Region',
+
+        code: `B-${suffix}`,
+
+        type: 'city',
+      });
+
+      tenantBRegionId = tenantBRegion.id;
+
+      /*
+       * Build:
+       *
+       * root
+       *   └─ child
+       *       └─ grandchild
+       */
+      const root = await getRegionService().create({
+        tenantId: tenantAId,
+
+        actorUserId: userAId,
+
+        name: 'Hierarchy Root',
+
+        code: `ROOT-${suffix}`,
+
+        type: 'country',
+      });
+
+      hierarchyRootId = root.id;
+
+      const child = await getRegionService().create({
+        tenantId: tenantAId,
+
+        actorUserId: userAId,
+
+        name: 'Hierarchy Child',
+
+        code: `CHILD-${suffix}`,
+
+        type: 'administrative',
+
+        parentRegionId: hierarchyRootId,
+      });
+
+      hierarchyChildId = child.id;
+
+      const grandchild = await getRegionService().create({
+        tenantId: tenantAId,
+
+        actorUserId: userAId,
+
+        name: 'Hierarchy Grandchild',
+
+        code: `GRANDCHILD-${suffix}`,
+
+        type: 'city',
+
+        parentRegionId: hierarchyChildId,
+      });
+
+      hierarchyGrandchildId = grandchild.id;
+
+      const atomicRegion = await getRegionService().create({
+        tenantId: tenantAId,
+
+        actorUserId: userAId,
+
+        name: 'Atomic Update Original',
+
+        code: `ATOMIC-UP-${suffix}`,
+
+        type: 'sales_territory',
+      });
+
+      atomicUpdateRegionId = atomicRegion.id;
     });
-
-    const tenantB = await tenantService.create({
-      name: `Region Integration Tenant B ${suffix}`,
-
-      slug: `region-int-b-${suffix}`,
-    });
-
-    tenantAId = tenantA.id;
-
-    tenantBId = tenantB.id;
-
-    const passwordHash = await passwordService.hash(password);
-
-    adminEmail = `region-admin-${suffix}@trackroster.test`;
-
-    const userA = await userRepository.create({
-      tenantId: tenantAId,
-
-      email: adminEmail,
-
-      passwordHash,
-
-      status: 'active',
-    });
-
-    const userB = await userRepository.create({
-      tenantId: tenantBId,
-
-      email: `region-user-b-${suffix}@trackroster.test`,
-
-      passwordHash,
-
-      status: 'active',
-    });
-
-    userAId = userA.id;
-
-    userBId = userB.id;
-
-    await grantRepository.create({
-      tenantId: tenantAId,
-
-      userId: userAId,
-
-      role: 'client_admin',
-
-      scopeType: 'tenant',
-    });
-
-    const tokens = await login(adminEmail, password);
-
-    adminAccessToken = tokens.accessToken;
-
-    /*
-     * Tenant B region used to prove that
-     * parent relationships cannot cross tenants.
-     */
-    const tenantBRegion = await getRegionService().create({
-      tenantId: tenantBId,
-
-      actorUserId: userBId,
-
-      name: 'Tenant B Region',
-
-      code: `B-${suffix}`,
-
-      type: 'city',
-    });
-
-    tenantBRegionId = tenantBRegion.id;
-
-    /*
-     * Build:
-     *
-     * root
-     *   └─ child
-     *       └─ grandchild
-     */
-    const root = await getRegionService().create({
-      tenantId: tenantAId,
-
-      actorUserId: userAId,
-
-      name: 'Hierarchy Root',
-
-      code: `ROOT-${suffix}`,
-
-      type: 'country',
-    });
-
-    hierarchyRootId = root.id;
-
-    const child = await getRegionService().create({
-      tenantId: tenantAId,
-
-      actorUserId: userAId,
-
-      name: 'Hierarchy Child',
-
-      code: `CHILD-${suffix}`,
-
-      type: 'administrative',
-
-      parentRegionId: hierarchyRootId,
-    });
-
-    hierarchyChildId = child.id;
-
-    const grandchild = await getRegionService().create({
-      tenantId: tenantAId,
-
-      actorUserId: userAId,
-
-      name: 'Hierarchy Grandchild',
-
-      code: `GRANDCHILD-${suffix}`,
-
-      type: 'city',
-
-      parentRegionId: hierarchyChildId,
-    });
-
-    hierarchyGrandchildId = grandchild.id;
-
-    const atomicRegion = await getRegionService().create({
-      tenantId: tenantAId,
-
-      actorUserId: userAId,
-
-      name: 'Atomic Update Original',
-
-      code: `ATOMIC-UP-${suffix}`,
-
-      type: 'sales_territory',
-    });
-
-    atomicUpdateRegionId = atomicRegion.id;
   });
 
   afterAll(async () => {
@@ -416,17 +420,19 @@ describe('Region HTTP and hierarchy integration', () => {
   });
 
   it('records region.updated audit evidence', async () => {
-    const created = await getRegionService().create({
-      tenantId: tenantAId,
+    const created = await withSeedScope(() =>
+      getRegionService().create({
+        tenantId: tenantAId,
 
-      actorUserId: userAId,
+        actorUserId: userAId,
 
-      name: 'Audit Update Original',
+        name: 'Audit Update Original',
 
-      code: `AUDIT-U-${suffix}`,
+        code: `AUDIT-U-${suffix}`,
 
-      type: 'administrative',
-    });
+        type: 'administrative',
+      }),
+    );
 
     const response = await getApp().inject({
       method: 'PATCH',
@@ -559,29 +565,33 @@ describe('Region HTTP and hierarchy integration', () => {
   it('allows the same region code in different tenants', async () => {
     const sharedCode = `SHARED-${suffix}`.toUpperCase();
 
-    const regionA = await getRegionService().create({
-      tenantId: tenantAId,
+    const regionA = await withSeedScope(() =>
+      getRegionService().create({
+        tenantId: tenantAId,
 
-      actorUserId: userAId,
+        actorUserId: userAId,
 
-      name: 'Shared Code Tenant A',
+        name: 'Shared Code Tenant A',
 
-      code: sharedCode,
+        code: sharedCode,
 
-      type: 'city',
-    });
+        type: 'city',
+      }),
+    );
 
-    const regionB = await getRegionService().create({
-      tenantId: tenantBId,
+    const regionB = await withSeedScope(() =>
+      getRegionService().create({
+        tenantId: tenantBId,
 
-      actorUserId: userBId,
+        actorUserId: userBId,
 
-      name: 'Shared Code Tenant B',
+        name: 'Shared Code Tenant B',
 
-      code: sharedCode,
+        code: sharedCode,
 
-      type: 'city',
-    });
+        type: 'city',
+      }),
+    );
 
     expect(regionA.code).toBe(sharedCode);
 
@@ -659,17 +669,19 @@ describe('Region HTTP and hierarchy integration', () => {
      * The region mutation must roll back too.
      */
     await expect(
-      getRegionService().create({
-        tenantId: tenantAId,
+      withSeedScope(() =>
+        getRegionService().create({
+          tenantId: tenantAId,
 
-        actorUserId: userBId,
+          actorUserId: userBId,
 
-        name: 'Must Roll Back',
+          name: 'Must Roll Back',
 
-        code: rollbackCode,
+          code: rollbackCode,
 
-        type: 'sales_territory',
-      }),
+          type: 'sales_territory',
+        }),
+      ),
     ).rejects.toThrow();
 
     const persisted = await getDatabase()
@@ -702,16 +714,18 @@ describe('Region HTTP and hierarchy integration', () => {
      * same PostgreSQL transaction.
      */
     await expect(
-      getRegionService().update(
-        tenantAId,
+      withSeedScope(() =>
+        getRegionService().update(
+          tenantAId,
 
-        atomicUpdateRegionId,
+          atomicUpdateRegionId,
 
-        userBId,
+          userBId,
 
-        {
-          name: 'This Must Not Persist',
-        },
+          {
+            name: 'This Must Not Persist',
+          },
+        ),
       ),
     ).rejects.toThrow();
 

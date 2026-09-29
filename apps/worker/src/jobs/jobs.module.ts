@@ -12,11 +12,18 @@ import { SystemHealthCheckProcessor } from './processors/system-health-check.pro
 import { SystemRetryProbeProcessor } from './processors/system-retry-probe.processor.js';
 import { FollowUpReminderRepository } from './repositories/follow-up-reminder.repository.js';
 import { ReservationExpiryRepository } from './repositories/reservation-expiry.repository.js';
+import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processor.js';
+import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
+import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
+import { WorkerArtifactStorageService } from '../providers/worker-artifact-storage.service.js';
+import { WorkerMailService } from '../providers/worker-mail.service.js';
 
 @Module({
   imports: [WorkerDatabaseModule, ReservationRedisModule],
 
   providers: [
+    WorkerArtifactStorageService,
+    WorkerMailService,
     JobLoggingService,
 
     FollowUpReminderRepository,
@@ -26,6 +33,9 @@ import { ReservationExpiryRepository } from './repositories/reservation-expiry.r
     FollowUpReminderProcessor,
 
     ReservationExpiryProcessor,
+    WebhookDeliveryProcessor,
+    ScheduledReportProcessor,
+    ComplianceArtifactProcessor,
 
     SystemHealthCheckProcessor,
 

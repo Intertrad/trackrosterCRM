@@ -1,0 +1,203 @@
+import type { EstablishmentCategory } from './import-types';
+
+export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived';
+
+export interface Campaign {
+  id: string;
+  tenantId: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  status: CampaignStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  etag?: string;
+}
+
+export interface CampaignPage {
+  items: Campaign[];
+  nextCursor: string | null;
+}
+
+export interface ListCampaignsQuery {
+  organizationId?: string;
+  territoryId?: string;
+  status?: CampaignStatus;
+  search?: string;
+  startsAfter?: string;
+  startsBefore?: string;
+  sort?: 'name' | 'createdAt';
+  cursor?: string;
+  limit?: number;
+}
+
+export interface CreateCampaignInput {
+  organizationId: string;
+  name: string;
+  description?: string | null;
+  /** Serialised as ISO; the API parses it with @Type(() => Date). */
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+export type UpdateCampaignInput = Partial<Omit<CreateCampaignInput, 'organizationId'>> & {
+  status?: CampaignStatus;
+};
+
+/*
+ * Status is changed through its own endpoint rather than PATCH, because the
+ * API records a reason against the transition.
+ */
+export const MIN_STATUS_REASON = 3;
+
+export const MAX_STATUS_REASON = 1000;
+
+export type CampaignMemberRole = 'member' | 'coordinator' | 'observer';
+
+export type ParticipationState = 'active' | 'scheduled' | 'ended' | 'revoked';
+
+export interface CampaignMember {
+  id: string;
+  tenantId: string;
+  campaignId: string;
+  membershipId: string | null;
+  teamId: string | null;
+  role: CampaignMemberRole;
+  startsAt: string;
+  endsAt: string | null;
+  revokedAt: string | null;
+  state: ParticipationState;
+  etag?: string;
+}
+
+export interface CampaignMemberPage {
+  items: CampaignMember[];
+  nextCursor: string | null;
+}
+
+export type CampaignAccessMode = 'participate' | 'read_only';
+
+export interface CampaignOrganization {
+  id: string;
+  tenantId: string;
+  campaignId: string;
+  organizationId: string;
+  accessMode: CampaignAccessMode;
+  endedAt?: string | null;
+  etag?: string;
+}
+
+export interface CampaignOrganizationPage {
+  items: CampaignOrganization[];
+  nextCursor: string | null;
+}
+
+/** Upstream caps one allocation request at 100 prospects. */
+export const MAX_ALLOCATION_PROSPECTS = 100;
+
+export interface AllocationResult {
+  [key: string]: unknown;
+}
+
+const STATUS_LABELS: Record<CampaignStatus, string> = {
+  draft: 'Draft',
+  active: 'Active',
+  paused: 'Paused',
+  completed: 'Completed',
+  archived: 'Archived',
+};
+
+export function campaignStatusLabel(status: CampaignStatus): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
+export function campaignStatusTone(
+  status: CampaignStatus,
+): 'success' | 'warning' | 'neutral' | 'brand' {
+  switch (status) {
+    case 'active':
+      return 'success';
+    case 'paused':
+      return 'warning';
+    case 'draft':
+      return 'brand';
+    default:
+      return 'neutral';
+  }
+}
+
+/**
+ * Which status transitions the API will accept.
+ *
+ * Archived is terminal and completed only reopens by archiving, so offering
+ * every status on every campaign would produce guaranteed rejections.
+ */
+export function allowedTransitions(status: CampaignStatus): CampaignStatus[] {
+  switch (status) {
+    case 'draft':
+      return ['active', 'archived'];
+    case 'active':
+      return ['paused', 'completed', 'archived'];
+    case 'paused':
+      return ['active', 'completed', 'archived'];
+    case 'completed':
+      return ['archived'];
+    default:
+      return [];
+  }
+}
+
+export function memberRoleLabel(role: CampaignMemberRole): string {
+  return role === 'coordinator' ? 'Coordinator' : role === 'observer' ? 'Observer' : 'Member';
+}
+
+/*
+ * Bulk campaign enrolment (TR-924).
+ *
+ * The selection vocabulary is the dispatch queue's, on purpose: the API extracted
+ * one shared filter helper so that "what I enrol" and "what I then see in the
+ * dispatch queue" cannot drift apart. Mirroring the same field names here keeps
+ * that guarantee visible in the client rather than relying on a translation layer
+ * nobody reads.
+ */
+export interface CampaignEnrolmentSelection {
+  establishmentIds?: string[];
+  search?: string;
+  category?: EstablishmentCategory;
+  department?: string;
+  city?: string;
+  regionId?: string;
+  limit?: number;
+}
+
+export interface CampaignEnrolmentResult {
+  campaignId: string;
+  mode: 'preview' | 'apply';
+  /** Active establishments matching the selection, ignoring `limit`. */
+  matched: number;
+  /** How many of those the request acted on. */
+  selected: number;
+  truncated: boolean;
+  /** Of the selected, how many were not already in the campaign. */
+  enrollable: number;
+  /** Memberships actually created. Always 0 for a preview. */
+  enrolled: number;
+  alreadyActive: number;
+  /** Already in the campaign but excluded, and deliberately left that way. */
+  alreadyExcluded: number;
+  limit: number;
+}
+
+/** The API refuses an empty selection rather than enrolling the whole base. */
+export function hasEnrolmentSelection(selection: CampaignEnrolmentSelection): boolean {
+  return Boolean(
+    selection.establishmentIds?.length ||
+    selection.search?.trim() ||
+    selection.category ||
+    selection.department ||
+    selection.city?.trim() ||
+    selection.regionId,
+  );
+}

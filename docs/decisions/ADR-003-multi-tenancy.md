@@ -33,3 +33,8 @@ users
 reports
 exports
 ```
+
+Global credential identity, tenant membership, platform authorization, and support access
+are defined separately by
+[ADR-005](./ADR-005-identity-tenancy-and-support-access.md). The word `users` in the
+examples above refers to tenant membership/persona data, not global credentials.

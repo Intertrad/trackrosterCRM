@@ -61,6 +61,8 @@ export const teams = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
 
+    unique('teams_tenant_id_unique').on(table.tenantId, table.id),
+
     unique('teams_tenant_organization_slug_unique').on(
       table.tenantId,
       table.organizationId,

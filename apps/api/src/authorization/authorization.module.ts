@@ -10,23 +10,32 @@ import { AccessGrantController } from './access-grant.controller.js';
 import { AccessGrantService } from './access-grant.service.js';
 import { AuthorizationService } from './authorization.service.js';
 import { ClientAdminGuard } from './client-admin.guard.js';
+import { SelfAccessController } from './self-access.controller.js';
+import { SelfAccessService } from './self-access.service.js';
 import { UserAccessGrantRepository } from './user-access-grant.repository.js';
+import { PlatformAdminGuard } from './platform-admin.guard.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, AuditModule, OrganizationModule, TeamModule, UserModule],
 
-  controllers: [AccessGrantController],
+  controllers: [AccessGrantController, SelfAccessController],
 
   providers: [
     AccessGrantService,
-
     AuthorizationService,
-
     ClientAdminGuard,
-
+    SelfAccessService,
     UserAccessGrantRepository,
+    PlatformAdminGuard,
   ],
 
-  exports: [AccessGrantService, AuthorizationService, ClientAdminGuard, UserAccessGrantRepository],
+  exports: [
+    AccessGrantService,
+    AuthorizationService,
+    ClientAdminGuard,
+    SelfAccessService,
+    UserAccessGrantRepository,
+    PlatformAdminGuard,
+  ],
 })
 export class AuthorizationModule {}

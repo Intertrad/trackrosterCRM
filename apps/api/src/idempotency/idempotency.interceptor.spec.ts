@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   IDEMPOTENCY_OPERATION_METADATA,
+  IDEMPOTENCY_OPTIONAL_METADATA,
   IDEMPOTENCY_REPLAY_HEADER,
 } from './idempotency.constants.js';
 import { IdempotencyInterceptor } from './idempotency.interceptor.js';
@@ -55,6 +56,21 @@ describe('IdempotencyInterceptor', () => {
       reflector as unknown as Reflector,
       idempotencyService as unknown as IdempotencyService,
     );
+  });
+
+  it('accepts an omitted key only for explicitly optional legacy routes', async () => {
+    reflector.getAllAndOverride.mockImplementation((key: string) =>
+      key === IDEMPOTENCY_OPERATION_METADATA
+        ? operation
+        : key === IDEMPOTENCY_OPTIONAL_METADATA
+          ? true
+          : undefined,
+    );
+    const next = { handle: vi.fn(() => of({ ok: true })) };
+    expect(
+      await firstValueFrom(await interceptor.intercept(createContext({ headers: {} }), next)),
+    ).toEqual({ ok: true });
+    expect(idempotencyService.begin).not.toHaveBeenCalled();
   });
 
   function createReply() {

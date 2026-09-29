@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
@@ -27,6 +26,7 @@ import { RedisService } from '../src/redis/redis.service.js';
 import { ReservationRepository } from '../src/reservations/reservation.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Manager override HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -328,7 +328,7 @@ describe('Manager override HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     redisService = application.get(RedisService);
 
@@ -762,6 +762,54 @@ describe('Manager override HTTP integration', () => {
         await app.close();
       }
     }
+  });
+
+  it('rejects an override tied to another campaign prospect assignment', async () => {
+    await resetState();
+
+    await expect(
+      getDatabase()
+        .insert(collisionOverrides)
+        .values({
+          tenantId,
+
+          campaignId,
+
+          campaignProspectId,
+
+          establishmentId,
+
+          assignmentId: secondAssignmentId,
+
+          organizationId,
+
+          teamId,
+
+          prospectorUserId: prospectorAId,
+
+          approvedByUserId: managerId,
+
+          approvedByRole: 'manager',
+
+          reasonCode: 'PLANNED_ACTION',
+
+          conflictKey: `planned_action:${randomUUID()}`,
+
+          conflictSnapshot: {
+            source: 'assignment-context-integration-test',
+          },
+
+          reason: 'Approved only to verify assignment-context database enforcement.',
+
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+
+        constraint: 'collision_overrides_tenant_prospect_assignment_fk',
+      },
+    });
   });
 
   it('rejects override creation without authentication', async () => {

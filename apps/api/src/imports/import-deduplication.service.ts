@@ -17,7 +17,9 @@ export class ImportDeduplicationService {
     executor?: DatabaseExecutor,
   ): Promise<Establishment | null> {
     if (input.externalReference) {
-      const byExternalReference = executor
+      // A supplied source ID is authoritative. Matching by name/city after an
+      // ID miss can silently merge separate branches and discard the new ID.
+      return executor
         ? await this.establishmentRepository.findByExternalReference(
             tenantId,
             'import',
@@ -29,10 +31,6 @@ export class ImportDeduplicationService {
             'import',
             input.externalReference,
           );
-
-      if (byExternalReference) {
-        return byExternalReference;
-      }
     }
 
     const normalizedName = normalizeEstablishmentName(input.name);
@@ -62,6 +60,8 @@ export class ImportDeduplicationService {
     input: ImportPreviewEstablishment,
     transaction: DatabaseTransaction,
   ): Promise<void> {
+    // Serialize staged atomic commits with legacy per-row import execution.
+    await transaction.execute(sql`SELECT id FROM tenants WHERE id=${tenantId} FOR NO KEY UPDATE`);
     const identity = input.externalReference
       ? `external:${input.externalReference.trim().toLowerCase()}`
       : [

@@ -59,6 +59,16 @@ function validatePositiveInteger(config: Record<string, unknown>, key: string): 
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
 
+  const rlsMode = config.TENANT_RLS_MODE ?? 'disabled';
+  if (rlsMode !== 'disabled' && rlsMode !== 'observe' && rlsMode !== 'enforce') {
+    throw new Error('TENANT_RLS_MODE must be disabled, observe, or enforce');
+  }
+  if (rlsMode === 'enforce') {
+    throw new Error(
+      'TENANT_RLS_MODE=enforce is not available until all database access uses tenant-scoped transactions',
+    );
+  }
+
   validateRedisUrl(config);
 
   validateJwtSecret(config, 'JWT_ACCESS_SECRET');
@@ -70,6 +80,17 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateJwtTtl(config, 'JWT_REFRESH_TTL');
 
   validatePositiveInteger(config, 'PROSPECT_COOLING_OFF_MINUTES');
+  for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
+    if (config[key] !== undefined) validatePositiveInteger(config, key);
+  }
+
+  if (
+    config.MFA_ENCRYPTION_KEY !== undefined &&
+    (typeof config.MFA_ENCRYPTION_KEY !== 'string' ||
+      !/^[0-9a-f]{64}$/i.test(config.MFA_ENCRYPTION_KEY))
+  ) {
+    throw new Error('MFA_ENCRYPTION_KEY must be a 32-byte hex key');
+  }
 
   return config;
 }

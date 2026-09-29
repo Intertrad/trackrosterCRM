@@ -14,6 +14,10 @@ services:
 
     volumes:
       - trackroster_postgres_data:/var/lib/postgresql/data
+      # Provisions the non-privileged runtime role on a fresh database. Only
+      # runs when the data volume is empty, so an existing database needs the
+      # script applied by hand — it is idempotent.
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U trackroster -d trackroster']
@@ -35,5 +39,55 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: minio/minio:latest
+    container_name: trackroster-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio-development-only
+    command: server /data --console-address ':9001'
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - trackroster_minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # The mailbox the API delivers account email to in development.
+  #
+  # AuthMailService prefers a local mailbox whenever MAILPIT_URL is set, and
+  # refuses any endpoint that is not loopback, so this is the only place
+  # invitations and password resets go on a developer machine. It was previously
+  # only declared in docker-compose.backend-test.yml, which meant the integration
+  # suites and local sign-up flows depended on a container from a different
+  # compose project happening to be running — and when it was not, mail silently
+  # went nowhere. Delivery is over Mailpit's HTTP API, not SMTP, so only 8025 is
+  # published.
+  #
+  # docker-compose.backend-test.yml publishes its own Mailpit on the same port,
+  # because that disposable stack is self-contained. The two are alternatives:
+  # run one mailbox at a time. A clash fails loudly with a port-in-use error,
+  # which is the improvement — the previous arrangement had no mailbox here at
+  # all, so mail went nowhere and said nothing.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: trackroster-mailpit
+    restart: unless-stopped
+
+    ports:
+      - '127.0.0.1:58025:8025'
+
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:8025/readyz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   trackroster_postgres_data:
+  trackroster_minio_data:

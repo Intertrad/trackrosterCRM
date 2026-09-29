@@ -65,6 +65,7 @@ describe('ImportExecutionService', () => {
 
     latitude: null,
     longitude: null,
+    category: null,
 
     status: 'active',
     source: 'import',
@@ -116,6 +117,7 @@ describe('ImportExecutionService', () => {
 
       latitude: null,
       longitude: null,
+      category: null,
     },
 
     contact: {
@@ -149,9 +151,29 @@ describe('ImportExecutionService', () => {
     };
   }
 
+  /*
+   * executeCsv opens one transaction of its own before any row is touched: with
+   * no ambient tenant scope it wraps itself in withTenantContext and recurses,
+   * which is what `feat(imports): scope execution to tenant context` added and
+   * what these cases were never updated for. Row transactions are therefore
+   * every call after that first one. Asserting on this rather than on the raw
+   * count keeps each case about per-row behaviour, which is what it is testing.
+   */
+  const rowTransactions = () => database.transaction.mock.calls.length - 1;
+
   beforeEach(() => {
     transaction = {
       __testTransaction: true,
+
+      /*
+       * The deduplication service takes the tenant mutex with a raw
+       * `transaction.execute(...)` before it matches anything, so the double
+       * needs it: without it every case here fails with "executor.execute is not
+       * a function" long before reaching the behaviour under test. It resolves
+       * empty because nothing in this spec asserts on the mutex, only that the
+       * work inside the transaction happens.
+       */
+      execute: vi.fn(async () => ({ rows: [] })),
     } as unknown as DatabaseTransaction;
 
     database = {
@@ -209,7 +231,7 @@ describe('ImportExecutionService', () => {
 
     const result = await service.executeCsv(tenantId, 'csv');
 
-    expect(database.transaction).toHaveBeenCalledTimes(1);
+    expect(rowTransactions()).toBe(1);
 
     expect(deduplicationService.acquireExecutionLock).toHaveBeenCalledWith(
       tenantId,
@@ -285,7 +307,7 @@ describe('ImportExecutionService', () => {
 
     const result = await service.executeCsv(tenantId, 'csv');
 
-    expect(database.transaction).toHaveBeenCalledTimes(1);
+    expect(rowTransactions()).toBe(1);
 
     expect(deduplicationService.acquireExecutionLock).toHaveBeenCalledWith(
       tenantId,
@@ -359,7 +381,7 @@ describe('ImportExecutionService', () => {
 
     expect(result.rows[0]?.status).toBe('skipped');
 
-    expect(database.transaction).not.toHaveBeenCalled();
+    expect(rowTransactions()).toBe(0);
 
     expect(deduplicationService.acquireExecutionLock).not.toHaveBeenCalled();
 
@@ -390,7 +412,7 @@ describe('ImportExecutionService', () => {
 
     expect(result.summary.skippedRows).toBe(1);
 
-    expect(database.transaction).not.toHaveBeenCalled();
+    expect(rowTransactions()).toBe(0);
 
     expect(deduplicationService.acquireExecutionLock).not.toHaveBeenCalled();
 
@@ -427,7 +449,7 @@ describe('ImportExecutionService', () => {
      * Both executable rows received
      * their own transaction.
      */
-    expect(database.transaction).toHaveBeenCalledTimes(2);
+    expect(rowTransactions()).toBe(2);
 
     expect(deduplicationService.acquireExecutionLock).toHaveBeenCalledTimes(2);
 

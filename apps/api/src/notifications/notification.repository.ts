@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
@@ -20,6 +20,8 @@ export interface CreateFollowUpReminderNotificationInput {
 }
 
 export interface NotificationInboxOptions {
+  severity?: 'info' | 'warning' | 'error' | 'critical';
+  readState?: 'read' | 'unread' | 'all';
   unreadOnly?: boolean;
 
   limit: number;
@@ -31,6 +33,60 @@ export class NotificationRepository {
     @Inject(DATABASE)
     private readonly database: Database,
   ) {}
+
+  async findInboxPage(
+    tenantId: string,
+    recipientUserId: string,
+    options: NotificationInboxOptions & { cursor?: string },
+  ) {
+    return this.database
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.tenantId, tenantId),
+          eq(notifications.recipientUserId, recipientUserId),
+          options.unreadOnly || options.readState === 'unread'
+            ? isNull(notifications.readAt)
+            : undefined,
+          options.readState === 'read' ? sql`${notifications.readAt} IS NOT NULL` : undefined,
+          options.severity ? eq(notifications.severity, options.severity) : undefined,
+          options.cursor
+            ? sql`(${notifications.createdAt}, ${notifications.id}) < (
+        SELECT created_at, id FROM notifications WHERE id = ${options.cursor}::uuid
+          AND tenant_id = ${tenantId}::uuid AND recipient_user_id = ${recipientUserId}::uuid
+      )`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .limit(options.limit + 1);
+  }
+
+  async countUnread(tenantId: string, recipientUserId: string): Promise<number> {
+    const [row] = await this.database
+      .select({ count: count() })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.tenantId, tenantId),
+          eq(notifications.recipientUserId, recipientUserId),
+          isNull(notifications.readAt),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  async markAllRead(tenantId: string, recipientUserId: string): Promise<number> {
+    const result = await this.database.execute<{ updated: number }>(sql`
+      WITH changed AS (
+        UPDATE notifications SET read_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ${tenantId}::uuid AND recipient_user_id = ${recipientUserId}::uuid AND read_at IS NULL
+        RETURNING id
+      ) SELECT count(*)::integer AS updated FROM changed
+    `);
+    return result.rows[0]?.updated ?? 0;
+  }
 
   /*
    * Creates one follow-up reminder notification.

@@ -1,6 +1,8 @@
+import { assertAssignmentCapacity } from '../memberships/assignment-capacity.js';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -83,6 +85,19 @@ export class CampaignProspectAssignmentService {
 
     try {
       return await this.database.transaction(async (transaction) => {
+        const team = await this.teamRepository.findByIdForUpdate(
+          input.tenantId,
+          input.teamId,
+          transaction,
+        );
+        if (!team || team.status !== 'active') throw new ConflictException('Team is not active');
+        await assertAssignmentCapacity(
+          transaction,
+          input.tenantId,
+          target.assignedUserId,
+          input.teamId,
+          input.campaignProspectId,
+        );
         const current = await this.assignmentRepository.findCurrent(
           input.tenantId,
           input.campaignId,
@@ -158,7 +173,20 @@ export class CampaignProspectAssignmentService {
 
     try {
       return await this.database.transaction(async (transaction) => {
-        const current = await this.assignmentRepository.findCurrent(
+        const team = await this.teamRepository.findByIdForUpdate(
+          input.tenantId,
+          input.teamId,
+          transaction,
+        );
+        if (!team || team.status !== 'active') throw new ConflictException('Team is not active');
+        await assertAssignmentCapacity(
+          transaction,
+          input.tenantId,
+          target.assignedUserId,
+          input.teamId,
+          input.campaignProspectId,
+        );
+        const current = await this.assignmentRepository.findCurrentForUpdate(
           input.tenantId,
           input.campaignId,
           input.campaignProspectId,
@@ -168,6 +196,13 @@ export class CampaignProspectAssignmentService {
         if (!current) {
           throw new ConflictException('Campaign prospect is not currently assigned');
         }
+
+        await this.requireAssignmentAuthority(
+          input.tenantId,
+          input.actorUserId,
+          current.organizationId,
+          current.teamId,
+        );
 
         /*
          * Do not create meaningless assignment
@@ -258,18 +293,37 @@ export class CampaignProspectAssignmentService {
   }
 
   async unassign(input: UnassignCampaignProspectInput): Promise<CampaignProspectAssignment> {
-    /*
-     * Preserve the same campaign/prospect domain
-     * validation currently used by assignment
-     * mutations.
-     */
-    await this.requireAssignableProspect(
-      input.tenantId,
-      input.campaignId,
-      input.campaignProspectId,
-    );
-
     return this.database.transaction(async (transaction) => {
+      const current = await this.assignmentRepository.findCurrentForUpdate(
+        input.tenantId,
+        input.campaignId,
+        input.campaignProspectId,
+        transaction,
+      );
+
+      if (!current) {
+        throw new ConflictException('Campaign prospect is not currently assigned');
+      }
+
+      await this.requireAssignmentAuthority(
+        input.tenantId,
+        input.actorUserId,
+        current.organizationId,
+        current.teamId,
+      );
+
+      /*
+       * Only validate the mutable campaign/prospect
+       * after the caller has proven authority over the
+       * current assignment. This avoids leaking scoped
+       * resource details to unauthorized callers.
+       */
+      await this.requireAssignableProspect(
+        input.tenantId,
+        input.campaignId,
+        input.campaignProspectId,
+      );
+
       const changedAt = new Date();
 
       /*
@@ -376,6 +430,13 @@ export class CampaignProspectAssignmentService {
       throw new ConflictException('Team is not active');
     }
 
+    await this.requireAssignmentAuthority(
+      input.tenantId,
+      input.actorUserId,
+      campaign.organizationId,
+      input.teamId,
+    );
+
     const assignedUserId = input.assignedUserId ?? null;
 
     if (assignedUserId) {
@@ -392,6 +453,24 @@ export class CampaignProspectAssignmentService {
       prospect,
       assignedUserId,
     };
+  }
+
+  private async requireAssignmentAuthority(
+    tenantId: string,
+    actorUserId: string,
+    organizationId: string,
+    teamId: string,
+  ): Promise<void> {
+    const authority = await this.authorizationService.getAssignmentAuthority(
+      tenantId,
+      actorUserId,
+      organizationId,
+      teamId,
+    );
+
+    if (!authority) {
+      throw new ForbiddenException('Assignment management access required for selected team');
+    }
   }
 
   private async requireAssignableProspect(

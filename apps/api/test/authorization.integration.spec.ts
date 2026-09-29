@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { AuthorizationService } from '../src/authorization/authorization.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
+import { withTenantContext } from '../src/database/tenant-context.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
@@ -18,6 +18,7 @@ import { OrganizationService } from '../src/organizations/organization.service.j
 import { TeamService } from '../src/teams/team.service.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Authorization integration', () => {
   let app: Awaited<ReturnType<typeof NestFactory.createApplicationContext>> | undefined;
@@ -45,7 +46,7 @@ describe('Authorization integration', () => {
       abortOnError: false,
     });
 
-    database = app.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = app.get(TenantService);
     const organizationService = app.get(OrganizationService);
@@ -77,55 +78,67 @@ describe('Authorization integration', () => {
 
     tenantBId = tenantB.id;
 
-    const organizationA = await organizationService.create({
-      tenantId: tenantA.id,
-      name: `Organization A ${suffix}`,
-      slug: `organization-a-${suffix}`,
-    });
+    const organizationA = await withTenantContext(database!, tenantA.id, () =>
+      organizationService.create({
+        tenantId: tenantA.id,
+        name: `Organization A ${suffix}`,
+        slug: `organization-a-${suffix}`,
+      }),
+    );
 
     organizationAId = organizationA.id;
 
-    const organizationB = await organizationService.create({
-      tenantId: tenantB.id,
-      name: `Organization B ${suffix}`,
-      slug: `organization-b-${suffix}`,
-    });
+    const organizationB = await withTenantContext(database!, tenantB.id, () =>
+      organizationService.create({
+        tenantId: tenantB.id,
+        name: `Organization B ${suffix}`,
+        slug: `organization-b-${suffix}`,
+      }),
+    );
 
     organizationBId = organizationB.id;
 
-    const teamA = await teamService.create({
-      tenantId: tenantA.id,
-      organizationId: organizationA.id,
-      name: `Team A ${suffix}`,
-      slug: `team-a-${suffix}`,
-    });
+    const teamA = await withTenantContext(database!, tenantA.id, () =>
+      teamService.create({
+        tenantId: tenantA.id,
+        organizationId: organizationA.id,
+        name: `Team A ${suffix}`,
+        slug: `team-a-${suffix}`,
+      }),
+    );
 
     teamAId = teamA.id;
 
-    const teamB = await teamService.create({
-      tenantId: tenantB.id,
-      organizationId: organizationB.id,
-      name: `Team B ${suffix}`,
-      slug: `team-b-${suffix}`,
-    });
+    const teamB = await withTenantContext(database!, tenantB.id, () =>
+      teamService.create({
+        tenantId: tenantB.id,
+        organizationId: organizationB.id,
+        name: `Team B ${suffix}`,
+        slug: `team-b-${suffix}`,
+      }),
+    );
 
     teamBId = teamB.id;
 
-    const userA = await userRepository.create({
-      tenantId: tenantA.id,
-      email: `rbac-a-${suffix}@trackroster.test`,
-      passwordHash: 'integration-placeholder',
-      status: 'active',
-    });
+    const userA = await withTenantContext(database!, tenantA.id, () =>
+      userRepository.create({
+        tenantId: tenantA.id,
+        email: `rbac-a-${suffix}@trackroster.test`,
+        passwordHash: 'integration-placeholder',
+        status: 'active',
+      }),
+    );
 
     userAId = userA.id;
 
-    const userB = await userRepository.create({
-      tenantId: tenantB.id,
-      email: `rbac-b-${suffix}@trackroster.test`,
-      passwordHash: 'integration-placeholder',
-      status: 'active',
-    });
+    const userB = await withTenantContext(database!, tenantB.id, () =>
+      userRepository.create({
+        tenantId: tenantB.id,
+        email: `rbac-b-${suffix}@trackroster.test`,
+        passwordHash: 'integration-placeholder',
+        status: 'active',
+      }),
+    );
 
     userBId = userB.id;
   });
@@ -141,27 +154,35 @@ describe('Authorization integration', () => {
        */
       if (database) {
         if (tenantAId) {
-          await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantAId));
+          await withTenantContext(database, tenantAId, async () => {
+            await database!
+              .delete(userAccessGrants)
+              .where(eq(userAccessGrants.tenantId, tenantAId));
 
-          await database.delete(teams).where(eq(teams.tenantId, tenantAId));
+            await database!.delete(teams).where(eq(teams.tenantId, tenantAId));
 
-          await database.delete(organizations).where(eq(organizations.tenantId, tenantAId));
+            await database!.delete(organizations).where(eq(organizations.tenantId, tenantAId));
 
-          await database.delete(users).where(eq(users.tenantId, tenantAId));
+            await database!.delete(users).where(eq(users.tenantId, tenantAId));
+          });
 
-          await database.delete(tenants).where(eq(tenants.id, tenantAId));
+          await database!.delete(tenants).where(eq(tenants.id, tenantAId));
         }
 
         if (tenantBId) {
-          await database.delete(userAccessGrants).where(eq(userAccessGrants.tenantId, tenantBId));
+          await withTenantContext(database, tenantBId, async () => {
+            await database!
+              .delete(userAccessGrants)
+              .where(eq(userAccessGrants.tenantId, tenantBId));
 
-          await database.delete(teams).where(eq(teams.tenantId, tenantBId));
+            await database!.delete(teams).where(eq(teams.tenantId, tenantBId));
 
-          await database.delete(organizations).where(eq(organizations.tenantId, tenantBId));
+            await database!.delete(organizations).where(eq(organizations.tenantId, tenantBId));
 
-          await database.delete(users).where(eq(users.tenantId, tenantBId));
+            await database!.delete(users).where(eq(users.tenantId, tenantBId));
+          });
 
-          await database.delete(tenants).where(eq(tenants.id, tenantBId));
+          await database!.delete(tenants).where(eq(tenants.id, tenantBId));
         }
       }
     } finally {

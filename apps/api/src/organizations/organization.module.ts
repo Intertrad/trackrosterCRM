@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../database/database.module.js';
 import { TenantModule } from '../tenants/tenant.module.js';
@@ -6,7 +6,8 @@ import { OrganizationRepository } from './organization.repository.js';
 import { OrganizationService } from './organization.service.js';
 
 @Module({
-  imports: [DatabaseModule, TenantModule],
+  /* Other half of the TenantModule <-> AuthorizationModule cycle. */
+  imports: [DatabaseModule, forwardRef(() => TenantModule)],
   providers: [OrganizationRepository, OrganizationService],
   exports: [OrganizationRepository, OrganizationService],
 })

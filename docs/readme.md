@@ -62,7 +62,7 @@ Important technical decisions are documented using ADRs.
 - ADR-002 — PostgreSQL and PostGIS
 - ADR-003 — Multi-Tenancy
 - ADR-004 — Reservation Concurrency
-- ADR-005 — Monorepo
+- [ADR-005 — Identity, Tenant Membership, and Support Access](./decisions/ADR-005-identity-tenancy-and-support-access.md)
 
 ---
 
@@ -80,6 +80,29 @@ Important technical decisions are documented using ADRs.
 - [Environments](./operations/ENVIRONMENTS.md)
 - [Backup & Restore](./operations/BACKUP_RESTORE.md)
 - [Incident Response](./operations/INCIDENT_RESPONSE.md)
+
+---
+
+## Production Readiness
+
+**Start here:** [Remaining Work](./TRACKROSTER_REMAINING_WORK.md) is the execution
+source of truth for what is left before TrackRoster is production-ready — current
+status, verified gate results, the prioritised backlog with estimates, and the next
+ticket. The documents below are the per-area detail behind it; where any of them
+disagrees with Remaining Work, Remaining Work is newer.
+
+- [Realignment audit](./trackroster-realignment.md) — the corrected product requirement, what the
+  repository already supports, and the backlog to reach it
+- [Remaining Work](./TRACKROSTER_REMAINING_WORK.md)
+- [Backend hardening record](./backend/BACKEND_HARDENING.md) — what was done to the backend, what it proved, and the defects it found
+- [Implementation compliance audit](./audits/TRACKROSTER_IMPLEMENTATION_COMPLIANCE_AUDIT.md)
+- [Production readiness index](./production/README.md)
+- [Schema source of truth](./production/SCHEMA_SOURCE_OF_TRUTH.md)
+- [Implemented API inventory](./production/API_INVENTORY.md)
+- [Product/backend coverage](./production/PRODUCT_BACKEND_COVERAGE.md)
+- [Identity and access migration plan](./production/IDENTITY_ACCESS_MIGRATION_PLAN.md)
+- [Identity Phase A deployment runbook](./production/IDENTITY_PHASE_A_RUNBOOK.md)
+- [Identity Phase B deployment runbook](./production/IDENTITY_PHASE_B_RUNBOOK.md)
 
 ---
 
@@ -108,3 +131,19 @@ Documentation explains:
 - what business rules must never be violated.
 
 Major architectural decisions must be recorded as ADRs.
+
+# TrackRoster documentation index
+
+This documentation set is organized by audience:
+
+- `architecture/`: system, API, database, security, and technology decisions.
+- `backend/`: endpoint contracts, implementation progress, and frontend handoff.
+- `api/`: public API reference.
+- `operations/`: deployment, incident response, backup, and recovery procedures.
+- `production/`: launch readiness, API inventory, and migration runbooks.
+- `product/`: workflows, lifecycle rules, and user roles.
+- `engineering/`: contribution, testing, naming, and delivery standards.
+
+Implementation status is authoritative in [`backend/IMPLEMENTATION_STATUS.md`](backend/IMPLEMENTATION_STATUS.md).
+When another document conflicts with source code or migrations, source code and
+migrations take precedence and the discrepancy should be corrected in the document.

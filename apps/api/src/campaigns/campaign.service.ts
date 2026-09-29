@@ -1,3 +1,7 @@
+import { and, eq } from 'drizzle-orm';
+import { campaigns, tenants } from '../database/schema/index.js';
+import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { resourceScopePredicate } from '../resource-scopes/resource-scope.service.js';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { AuditService } from '../audit/audit.service.js';
@@ -21,6 +25,7 @@ export interface CreateCampaignInput {
 }
 
 export interface UpdateCampaignInput {
+  authorization?: AuthenticatedPrincipal;
   tenantId: string;
   actorUserId: string;
   campaignId: string;
@@ -134,6 +139,36 @@ export class CampaignService {
     }
 
     return this.database.transaction(async (transaction) => {
+      if (input.authorization) {
+        // Serialize with membership/resource-scope mutations. The guard is also
+        // required so a revoked grant cannot replay an old idempotent response.
+        await transaction
+          .select({ id: tenants.id })
+          .from(tenants)
+          .where(eq(tenants.id, input.tenantId))
+          .for('update');
+        const [authorized] = await transaction
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.id, input.campaignId),
+              resourceScopePredicate(
+                input.authorization,
+                'campaign',
+                input.status === undefined ? 'read_write' : 'manage',
+              ),
+            ),
+          )
+          .for('update');
+        if (!authorized) throw new NotFoundException('Campaign not found');
+        if (input.status !== undefined)
+          this.validateStatusTransition(authorized.status, input.status);
+        this.validateDateRange(
+          input.startsAt === undefined ? authorized.startsAt : input.startsAt,
+          input.endsAt === undefined ? authorized.endsAt : input.endsAt,
+        );
+      }
       const campaign = await this.campaignRepository.update(
         input.tenantId,
         input.campaignId,

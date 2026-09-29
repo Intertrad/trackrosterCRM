@@ -73,6 +73,8 @@ export default defineConfig([
     rules: {
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
+
+      '@next/next/no-html-link-for-pages': 'off',
     },
   },
 
@@ -84,10 +86,14 @@ export default defineConfig([
   /*
    * Ignore generated files
    */
+  /*
+   * Ignore generated files
+   */
   globalIgnores([
     '**/node_modules/**',
     '**/.next/**',
     '**/dist/**',
+    '**/dist-seed/**',
     '**/build/**',
     '**/coverage/**',
     '**/.turbo/**',

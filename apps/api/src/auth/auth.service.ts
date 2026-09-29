@@ -1,23 +1,50 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
-import { UserRepository } from '../users/user.repository.js';
-import { AuthSessionRepository } from './auth-session.repository.js';
-import { AuthenticationTokens } from './auth.types.js';
+import {
+  AuthSessionRepository,
+  type AuthenticationSessionPrincipal,
+} from './auth-session.repository.js';
+import {
+  AuthenticationIdentityRepository,
+  type ActiveAuthenticationMembership,
+} from './authentication-identity.repository.js';
+import {
+  AuthenticationTokens,
+  AuthenticationResult,
+  AuthenticatedPrincipal,
+} from './auth.types.js';
+import type { DatabaseExecutor } from '../database/database.types.js';
 import { PasswordService } from './password.service.js';
+import { MfaService } from './mfa.service.js';
+import type { Identity } from '../database/schema/identities.js';
 import { TokenService } from './token.service.js';
+import { setTenantContext } from '../database/tenant-context.js';
 
 export interface LoginInput {
   email: string;
   password: string;
 }
 
+/*
+ * A fixed, valid Argon2id hash keeps the unknown-account path close to the
+ * valid-account path without allocating a new hash for every login attempt.
+ * It is not associated with any real credential.
+ */
+const DUMMY_PASSWORD_HASH =
+  '$argon2id$v=19$m=65536,p=4,t=3$K0VAUwI4cP7CxzE2oRsLqw$tXRePdnUteK4o5m0sHOgEf1ycIOT9uyVP0hQf5cb4eA';
+
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject(UserRepository)
-    private readonly userRepository: UserRepository,
+    @Inject(AuthenticationIdentityRepository)
+    private readonly authenticationIdentityRepository: AuthenticationIdentityRepository,
 
     @Inject(PasswordService)
     private readonly passwordService: PasswordService,
@@ -27,111 +54,283 @@ export class AuthService {
 
     @Inject(AuthSessionRepository)
     private readonly authSessionRepository: AuthSessionRepository,
+
+    private readonly mfaService: MfaService,
   ) {}
 
-  async login(input: LoginInput): Promise<AuthenticationTokens> {
+  async login(input: LoginInput): Promise<AuthenticationResult> {
     const email = input.email.trim().toLowerCase();
 
-    const user = await this.userRepository.findByEmail(email);
+    let identity;
 
-    if (!user) {
+    try {
+      identity = await this.authenticationIdentityRepository.findByEmail(email);
+    } catch {
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+    }
+
+    const passwordHash = identity?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordMatches = await this.passwordService.verify(passwordHash, input.password);
+
+    if (
+      !identity ||
+      identity.status !== 'active' ||
+      identity.passwordHash === null ||
+      !passwordMatches
+    ) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.status !== 'active') {
+    return this.authenticationIdentityRepository.withVerifiedIdentity(
+      identity,
+      async (current, executor) => {
+        if (current.mfaEnrolledAt) return this.mfaService.challenge(current, executor);
+        const enrollment = await this.mfaService.requiredEnrollment(current, executor);
+        if (enrollment) return enrollment;
+        return this.finishLogin(current, executor);
+      },
+    );
+  }
+
+  verifyMfa(token: string, code: string, recovery = false) {
+    return this.mfaService.verify(token, code, recovery, (identity, executor) =>
+      this.finishLogin(identity, executor),
+    );
+  }
+
+  private async finishLogin(
+    identity: Identity,
+    executor: DatabaseExecutor,
+  ): Promise<AuthenticationResult> {
+    let memberships;
+
+    try {
+      memberships = await this.authenticationIdentityRepository.findActiveMemberships(
+        identity.id,
+        executor,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+    }
+
+    if (memberships.length === 0) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const passwordMatches = await this.passwordService.verify(user.passwordHash, input.password);
-
-    if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (memberships.length > 1) {
+      const selectionToken = randomBytes(32).toString('base64url');
+      try {
+        await this.authenticationIdentityRepository.createWorkspaceChallenge(
+          identity,
+          this.hashSelectionToken(selectionToken),
+          executor,
+        );
+      } catch (error) {
+        if (error instanceof UnauthorizedException) throw error;
+        throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+      }
+      return {
+        workspaceRequired: true,
+        selectionToken,
+        expiresIn: 300,
+        memberships: memberships.map(({ membershipId, tenantId, tenantName, displayName }) => ({
+          membershipId,
+          tenantId,
+          tenantName,
+          displayName,
+        })),
+      };
     }
 
+    const membership = memberships[0];
+
+    if (!membership || membership.identityId !== identity.id) {
+      throw new ServiceUnavailableException('Authentication principal is not ready for login');
+    }
+
+    return this.createMembershipSession(membership, executor);
+  }
+
+  async selectMembership(
+    selectionToken: string,
+    membershipId: string,
+  ): Promise<AuthenticationTokens> {
+    try {
+      return await this.authenticationIdentityRepository.consumeWorkspaceChallenge(
+        this.hashSelectionToken(selectionToken),
+        membershipId,
+        (membership, executor) => this.createMembershipSession(membership, executor),
+      );
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof ServiceUnavailableException)
+        throw error;
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+    }
+  }
+
+  async switchMembership(
+    auth: AuthenticatedPrincipal,
+    membershipId: string,
+  ): Promise<AuthenticationTokens> {
+    return this.authSessionRepository.switchWorkspace(auth, async (executor) => {
+      const memberships = await this.authenticationIdentityRepository.findActiveMemberships(
+        auth.identityId,
+        executor,
+      );
+      const membership = memberships.find((candidate) => candidate.membershipId === membershipId);
+      if (!membership) throw new UnauthorizedException('Workspace is unavailable');
+      return this.createMembershipSession(membership, executor);
+    });
+  }
+
+  private hashSelectionToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async createMembershipSession(
+    membership: ActiveAuthenticationMembership,
+    executor?: DatabaseExecutor,
+  ): Promise<AuthenticationTokens> {
     const sessionId = randomUUID();
-
-    const tokens = await this.tokenService.createTokens(user.id, user.tenantId, sessionId);
-
+    const principal = {
+      identityId: membership.identityId,
+      membershipId: membership.membershipId,
+      tenantId: membership.tenantId,
+      sessionId,
+    };
+    const tokens = await this.tokenService.createTokens(principal);
     const refreshTokenHash = this.tokenService.hashRefreshToken(tokens.refreshToken);
-
     const expiresAt = this.tokenService.getExpiration(tokens.refreshToken);
 
-    await this.authSessionRepository.create({
-      id: sessionId,
-      userId: user.id,
-      refreshTokenHash,
-      expiresAt,
-    });
+    try {
+      /*
+       * Adopt the tenant the membership resolved to, before the session row
+       * is written.
+       *
+       * TenantTransactionInterceptor sets the context from an authenticated
+       * request, which sign-in is not — so under the non-privileged runtime
+       * role `auth_sessions` rejects the insert for want of a context that
+       * cannot exist until this point. Switching workspace has the same
+       * problem from the other side: the request carries the context of the
+       * tenant being left, not the one being joined.
+       *
+       * set_config is transaction-local and every caller here supplies a
+       * transaction, so this scopes to the sign-in and nothing further.
+       */
+      if (executor) {
+        await setTenantContext(executor, principal.tenantId);
+      }
+
+      const sessionInput = {
+        id: sessionId,
+        userId: membership.identityId === membership.membershipId ? membership.legacyUserId : null,
+        identityId: principal.identityId,
+        membershipId: principal.membershipId,
+        tenantId: principal.tenantId,
+        refreshTokenHash,
+        expiresAt,
+        absoluteExpiresAt: expiresAt,
+      };
+      if (executor) await this.authSessionRepository.create(sessionInput, executor);
+      else await this.authSessionRepository.create(sessionInput);
+    } catch {
+      throw new ServiceUnavailableException('Authentication session could not be created');
+    }
 
     return tokens;
   }
 
   async refresh(refreshToken: string): Promise<AuthenticationTokens> {
+    let payload;
+
     try {
-      const payload = await this.tokenService.verifyRefreshToken(refreshToken);
+      payload = await this.tokenService.verifyRefreshToken(refreshToken);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
-      const user = await this.userRepository.findById(payload.tenantId, payload.sub);
+    const principal: AuthenticationSessionPrincipal = {
+      sessionId: payload.sid,
+      identityId: payload.sub,
+      membershipId: payload.membershipId,
+      tenantId: payload.tenantId,
+    };
 
-      if (!user || user.status !== 'active') {
-        throw new UnauthorizedException();
-      }
+    let session;
 
-      const session = await this.authSessionRepository.findActiveById(payload.sid, user.id);
+    try {
+      session = await this.authSessionRepository.findActiveById(principal);
+    } catch {
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+    }
 
-      if (!session) {
-        throw new UnauthorizedException();
-      }
+    if (!session) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
-      if (session.expiresAt <= new Date()) {
-        throw new UnauthorizedException();
-      }
-
-      const refreshTokenMatches = this.tokenService.matchesRefreshToken(
-        refreshToken,
-        session.refreshTokenHash,
-      );
-
-      if (!refreshTokenMatches) {
-        throw new UnauthorizedException();
-      }
-
-      const currentRefreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
-
-      const tokens = await this.tokenService.createTokens(user.id, user.tenantId, session.id);
-
-      const newRefreshTokenHash = this.tokenService.hashRefreshToken(tokens.refreshToken);
-
-      const newExpiresAt = this.tokenService.getExpiration(tokens.refreshToken);
-
-      const rotatedSession = await this.authSessionRepository.rotate(
-        session.id,
-        user.id,
-        currentRefreshTokenHash,
-        newRefreshTokenHash,
-        newExpiresAt,
-      );
-
-      if (!rotatedSession) {
-        throw new UnauthorizedException();
-      }
-
-      return tokens;
-    } catch (error: unknown) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
+    if (!this.tokenService.matchesRefreshToken(refreshToken, session.refreshTokenHash)) {
+      try {
+        await this.authSessionRepository.revoke(principal, 'refresh_reuse');
+      } catch {
+        throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
       }
 
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
+
+    const currentRefreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+    const tokens = await this.tokenService.createTokens({
+      identityId: principal.identityId,
+      membershipId: principal.membershipId,
+      tenantId: principal.tenantId,
+      sessionId: principal.sessionId,
+    });
+    const newRefreshTokenHash = this.tokenService.hashRefreshToken(tokens.refreshToken);
+    const tokenExpiresAt = this.tokenService.getExpiration(tokens.refreshToken);
+    const newExpiresAt =
+      tokenExpiresAt <= session.absoluteExpiresAt ? tokenExpiresAt : session.absoluteExpiresAt;
+
+    let rotatedSession;
+
+    try {
+      rotatedSession = await this.authSessionRepository.rotate(
+        principal,
+        currentRefreshTokenHash,
+        newRefreshTokenHash,
+        newExpiresAt,
+      );
+    } catch {
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
+    }
+
+    if (!rotatedSession) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    return tokens;
   }
 
   async logout(refreshToken: string): Promise<void> {
-    try {
-      const payload = await this.tokenService.verifyRefreshToken(refreshToken);
+    let payload;
 
-      await this.authSessionRepository.revoke(payload.sid, payload.sub);
+    try {
+      payload = await this.tokenService.verifyRefreshToken(refreshToken);
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    try {
+      await this.authSessionRepository.revoke(
+        {
+          sessionId: payload.sid,
+          identityId: payload.sub,
+          membershipId: payload.membershipId,
+          tenantId: payload.tenantId,
+        },
+        'logout',
+      );
+    } catch {
+      throw new ServiceUnavailableException('Authentication state is temporarily unavailable');
     }
   }
 }

@@ -1,3 +1,5 @@
+import { ReservationPolicyService } from './reservation-policy.service.js';
+import { ReservationLedgerService } from './reservation-ledger.service.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -8,6 +10,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type { ProspectReservation, ProspectReservationState } from './reservation.types.js';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
@@ -26,9 +29,6 @@ import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
-import type { ProspectReservation } from './reservation.types.js';
-
-const RESERVATION_TTL_SECONDS = 20 * 60;
 
 export interface AcquireReservationInput {
   tenantId: string;
@@ -100,6 +100,8 @@ export class ReservationService {
     private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
 
     private readonly reservationExpirySchedulerService: ReservationExpirySchedulerService,
+    private readonly rules?: ReservationPolicyService,
+    private readonly ledger?: ReservationLedgerService,
   ) {}
 
   async acquire(input: AcquireReservationInput): Promise<ProspectReservation> {
@@ -119,6 +121,8 @@ export class ReservationService {
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
 
     const targetOrganizationId = assignment.organizationId;
+    const rule = await this.rules?.resolve(input.tenantId, input.campaignId);
+    const ttlSeconds = (rule?.durationMinutes ?? 20) * 60;
 
     /*
      * Priority 1A:
@@ -251,6 +255,8 @@ export class ReservationService {
     });
 
     if (businessCollision.decision === 'block') {
+      if (input.overrideId && rule?.allowManagerOverride === false)
+        throw new ConflictException('Reservation policy does not allow manager exceptions');
       /*
        * The shared business evaluator should only
        * produce hard blocks for collision types that
@@ -335,10 +341,11 @@ export class ReservationService {
      */
     const now = new Date();
 
-    const expiresAt = new Date(now.getTime() + RESERVATION_TTL_SECONDS * 1000);
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
 
     const reservation: ProspectReservation = {
       reservationId: randomUUID(),
+      ...(input.overrideId ? { overrideId: input.overrideId } : {}),
 
       tenantId: input.tenantId,
 
@@ -378,13 +385,15 @@ export class ReservationService {
      * two simultaneous conflicting reservations.
      */
     try {
+      await this.ledger?.prepare(reservation, rule ?? {});
       const acquired = await this.reservationRepository.acquireWithinOrganizationScope(
         reservation,
         blockingOrganizationIds,
-        RESERVATION_TTL_SECONDS,
+        ttlSeconds,
       );
 
       if (acquired) {
+        await this.ledger?.confirm(reservation);
         await this.scheduleExpiryBestEffort(reservation);
 
         return reservation;
@@ -398,6 +407,12 @@ export class ReservationService {
        * Re-check exact reservation so an idempotent
        * retry from the same owner can still succeed.
        */
+      await this.ledger?.close(
+        input.tenantId,
+        reservation.reservationId,
+        'failed',
+        'Atomic claim did not acquire the lock',
+      );
       const current = await this.reservationRepository.findCurrent(
         input.tenantId,
         input.campaignId,
@@ -419,21 +434,55 @@ export class ReservationService {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
   }
-  async getCurrent(input: GetCurrentReservationInput): Promise<ProspectReservation | null> {
+  async validateRenewal(current: ProspectReservation) {
+    const context = await this.requireReservationEligibility({
+      tenantId: current.tenantId,
+      userId: current.userId,
+      campaignId: current.campaignId,
+      campaignProspectId: current.campaignProspectId,
+    });
+    if (context.assignment.id !== current.assignmentId)
+      throw new ConflictException('Reservation assignment changed');
+    const policy = await this.rules?.resolve(current.tenantId, current.campaignId);
+    const collision = await this.collisionBusinessDecisionService.evaluate({
+      tenantId: current.tenantId,
+      userId: current.userId,
+      campaignId: current.campaignId,
+      campaignProspectId: current.campaignProspectId,
+      establishmentId: current.establishmentId,
+      targetOrganizationId: current.organizationId,
+    });
+    if (collision.decision === 'block' || collision.decision === 'require_override') {
+      if (!current.overrideId || policy?.allowManagerOverride === false)
+        throw new ConflictException('Current collision blocks renewal');
+      await this.requireValidCollisionOverride({
+        tenantId: current.tenantId,
+        userId: current.userId,
+        campaignId: current.campaignId,
+        campaignProspectId: current.campaignProspectId,
+        overrideId: current.overrideId,
+        establishmentId: current.establishmentId,
+        assignmentId: current.assignmentId,
+        organizationId: current.organizationId,
+        teamId: current.teamId,
+        collision,
+      });
+    }
+    return this.reservationCoordinationScopeService.resolve(
+      current.tenantId,
+      current.organizationId,
+    );
+  }
+  async getCurrent(input: GetCurrentReservationInput): Promise<ProspectReservationState> {
     /*
-     * Reading the current reservation is an
+     * Reading reservation state is still an
      * operational prospect action.
      *
-     * Authentication alone is insufficient:
-     * the caller must still be the currently
-     * authorized prospector for this exact
-     * campaign prospect/team.
-     *
      * Reuse the same authorization boundary as
-     * reservation acquisition so reads cannot
-     * bypass assignment/team ownership rules.
+     * acquisition so out-of-scope users cannot use
+     * this endpoint as a resource-existence oracle.
      */
-    await this.requireReservationEligibility({
+    const { assignment } = await this.requireReservationEligibility({
       tenantId: input.tenantId,
 
       userId: input.userId,
@@ -443,8 +492,10 @@ export class ReservationService {
       campaignProspectId: input.campaignProspectId,
     });
 
+    let reservation: ProspectReservation | null;
+
     try {
-      return await this.reservationRepository.findCurrent(
+      reservation = await this.reservationRepository.findCurrent(
         input.tenantId,
 
         input.campaignId,
@@ -454,6 +505,45 @@ export class ReservationService {
     } catch {
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
+
+    if (!reservation) {
+      return {
+        state: 'none',
+      };
+    }
+
+    /*
+     * Only expose reservation identity when the
+     * authenticated prospector owns the reservation
+     * for the exact current assignment.
+     *
+     * This prevents stale reassignment state and
+     * another eligible team prospector's reservation
+     * metadata from leaking through the read API.
+     */
+    if (reservation.userId === input.userId && reservation.assignmentId === assignment.id) {
+      return {
+        state: 'owned',
+
+        reservationId: reservation.reservationId,
+
+        acquiredAt: reservation.acquiredAt,
+
+        expiresAt: reservation.expiresAt,
+      };
+    }
+
+    /*
+     * Another eligible prospector owns the Redis lock,
+     * or the lock belongs to stale assignment context.
+     *
+     * The caller only needs the blocking expiry.
+     */
+    return {
+      state: 'reserved',
+
+      expiresAt: reservation.expiresAt,
+    };
   }
 
   async release(input: ReleaseReservationInput): Promise<{
@@ -581,6 +671,12 @@ export class ReservationService {
         throw new ConflictException('Reservation has changed');
       }
 
+      await this.ledger?.close(
+        input.tenantId,
+        input.reservationId,
+        'released',
+        'Owner released reservation',
+      );
       return {
         released: true,
 
@@ -739,6 +835,8 @@ export class ReservationService {
      * Do not reveal that another user's assignment
      * exists.
      */
+    if (assignment.status === 'paused') throw new ConflictException('Assignment is paused');
+
     if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
       throw new NotFoundException('Campaign prospect not found');
     }

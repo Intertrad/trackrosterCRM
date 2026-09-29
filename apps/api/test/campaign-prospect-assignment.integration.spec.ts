@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
@@ -25,6 +24,7 @@ import { UserRepository } from '../src/users/user.repository.js';
 import { auditEvents } from '../src/database/schema/audit-events.js';
 import { idempotencyRecords } from '../src/database/schema/idempotency-records.js';
 import { userAccessGrants } from '../src/database/schema/user-access-grants.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Campaign prospect assignment HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -106,7 +106,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 
@@ -403,7 +403,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
     expect(response.statusCode).toBe(401);
   });
 
-  it('rejects assignment for a non-admin user', async () => {
+  it('rejects assignment for a user without assignment authority', async () => {
     const response = await getApp().inject({
       method: 'POST',
 
@@ -411,6 +411,7 @@ describe('Campaign prospect assignment HTTP integration', () => {
 
       headers: {
         authorization: `Bearer ${regularAccessToken}`,
+        'idempotency-key': randomUUID(),
       },
 
       payload: {

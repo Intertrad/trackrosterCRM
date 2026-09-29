@@ -1,3 +1,4 @@
+import { ReservationPolicyService } from '../reservations/reservation-policy.service.js';
 import {
   BadRequestException,
   ConflictException,
@@ -55,6 +56,7 @@ export class ManagerOverrideService {
     private readonly reservationService: ReservationService,
 
     private readonly auditService: AuditService,
+    private readonly reservationPolicy?: ReservationPolicyService,
   ) {}
 
   async create(input: CreateManagerOverrideInput): Promise<CollisionOverride> {
@@ -152,6 +154,12 @@ export class ManagerOverrideService {
         throw new NotFoundException('Campaign prospect not found');
       }
     }
+
+    if (
+      (await this.reservationPolicy?.resolve(input.tenantId, input.campaignId))
+        ?.allowManagerOverride === false
+    )
+      throw new ConflictException('Reservation policy does not allow manager exceptions');
 
     /*
      * Re-evaluate collision server-side.

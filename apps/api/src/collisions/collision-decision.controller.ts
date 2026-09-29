@@ -41,7 +41,7 @@ export class CollisionDecisionController {
           expiresAt: string;
         }
       | {
-          dueAt: string;
+          dueAt: string | null;
         }
       | {
           assignedAt: string;

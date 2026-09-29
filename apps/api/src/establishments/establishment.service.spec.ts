@@ -54,6 +54,7 @@ describe('EstablishmentService', () => {
 
     source: 'manual',
 
+    category: null,
     createdAt: new Date(),
 
     updatedAt: new Date(),
@@ -302,9 +303,18 @@ describe('EstablishmentService', () => {
 
     const result = await service.list(establishment.tenantId);
 
-    expect(repository.findByTenant).toHaveBeenCalledWith(establishment.tenantId);
+    /* No category argument means no category filter, not "filter by undefined". */
+    expect(repository.findByTenant).toHaveBeenCalledWith(establishment.tenantId, undefined);
 
     expect(result).toEqual([establishment]);
+  });
+
+  it('passes a category filter through to the repository', async () => {
+    repository.findByTenant.mockResolvedValue([establishment]);
+
+    await service.list(establishment.tenantId, 'cra');
+
+    expect(repository.findByTenant).toHaveBeenCalledWith(establishment.tenantId, 'cra');
   });
 
   it('updates the name and normalized name together', async () => {

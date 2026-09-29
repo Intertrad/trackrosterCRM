@@ -95,3 +95,13 @@ Thumbs.db
 # =========================================================
 
 *.tsbuildinfo
+# Generated seed build
+apps/api/dist-seed/
+
+# =========================================================
+# Basemap archives
+# =========================================================
+# Protomaps .pmtiles basemaps are multi-gigabyte binaries served over HTTP
+# (see the basemap-tiles entry in .claude/launch.json). They are never
+# committed; point NEXT_PUBLIC_PMTILES_URL at a local server or object storage.
+*.pmtiles

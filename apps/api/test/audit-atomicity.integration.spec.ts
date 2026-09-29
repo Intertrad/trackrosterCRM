@@ -11,7 +11,6 @@ import { AuditService } from '../src/audit/audit.service.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import {
   auditEvents,
   campaigns,
@@ -22,6 +21,7 @@ import {
 import type { Database } from '../src/database/database.types.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('audit mutation atomicity integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -143,7 +143,7 @@ describe('audit mutation atomicity integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     auditService = application.get(AuditService);
 

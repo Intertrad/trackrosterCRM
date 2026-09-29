@@ -4,10 +4,16 @@ import type { Job } from 'bullmq';
 import {
   FOLLOW_UP_REMINDER_JOB,
   RESERVATION_EXPIRY_JOB,
+  WEBHOOK_DELIVERY_JOB,
+  SCHEDULED_REPORT_JOB,
+  COMPLIANCE_ARTIFACT_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
   type FollowUpReminderJobData,
   type ReservationExpiryJobData,
+  type WebhookDeliveryJobData,
+  type ScheduledReportJobData,
+  type ComplianceArtifactJobData,
   type SystemHealthCheckJobData,
   type SystemRetryProbeJobData,
   type TrackRosterJobData,
@@ -19,6 +25,9 @@ import { FollowUpReminderProcessor } from './processors/follow-up-reminder.proce
 import { ReservationExpiryProcessor } from './processors/reservation-expiry.processor.js';
 import { SystemHealthCheckProcessor } from './processors/system-health-check.processor.js';
 import { SystemRetryProbeProcessor } from './processors/system-retry-probe.processor.js';
+import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processor.js';
+import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
+import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
 
 type AnyTrackRosterJobData = TrackRosterJobData<TrackRosterJobName>;
 
@@ -34,6 +43,9 @@ export class JobDispatcherService {
     private readonly followUpReminderProcessor: FollowUpReminderProcessor,
 
     private readonly reservationExpiryProcessor: ReservationExpiryProcessor,
+    private readonly webhookDeliveryProcessor?: WebhookDeliveryProcessor,
+    private readonly scheduledReportProcessor?: ScheduledReportProcessor,
+    private readonly complianceArtifactProcessor?: ComplianceArtifactProcessor,
   ) {}
 
   async dispatch(job: TrackRosterJob): Promise<JobProcessorResult> {
@@ -59,6 +71,18 @@ export class JobDispatcherService {
 
           context,
         );
+      case WEBHOOK_DELIVERY_JOB:
+        if (!this.webhookDeliveryProcessor)
+          throw new Error('Webhook delivery processor unavailable');
+        return this.webhookDeliveryProcessor.process(job.data as WebhookDeliveryJobData, context);
+      case SCHEDULED_REPORT_JOB:
+        if (!this.scheduledReportProcessor)
+          throw new Error('Scheduled report processor unavailable');
+        return this.scheduledReportProcessor.process(job.data as ScheduledReportJobData);
+      case COMPLIANCE_ARTIFACT_JOB:
+        if (!this.complianceArtifactProcessor)
+          throw new Error('Compliance artifact processor unavailable');
+        return this.complianceArtifactProcessor.process(job.data as ComplianceArtifactJobData);
 
       case SYSTEM_RETRY_PROBE_JOB:
         return this.systemRetryProbeProcessor.process(

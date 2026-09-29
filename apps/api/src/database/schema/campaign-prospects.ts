@@ -9,6 +9,28 @@ export const campaignProspectStatusEnum = pgEnum('campaign_prospect_status', [
   'excluded',
 ]);
 
+/*
+ * Durable commercial progress for a prospect inside
+ * one campaign.
+ *
+ * This is intentionally separate from:
+ *
+ * - campaignProspectStatusEnum, which controls whether
+ *   the campaign membership is included or excluded;
+ * - establishment status, which describes the canonical
+ *   establishment record;
+ * - temporary collision/cooling-off decisions, which can
+ *   expire and therefore must never be persisted here.
+ */
+export const campaignProspectLifecycleStageEnum = pgEnum('campaign_prospect_stage', [
+  'to_contact',
+  'contact_made',
+  'in_progress',
+  'follow_up',
+  'qualified',
+  'converted',
+]);
+
 export const campaignProspects = pgTable(
   'campaign_prospects',
   {
@@ -26,6 +48,10 @@ export const campaignProspects = pgTable(
     establishmentId: uuid('establishment_id').notNull(),
 
     status: campaignProspectStatusEnum('status').default('active').notNull(),
+
+    lifecycleStage: campaignProspectLifecycleStageEnum('lifecycle_stage')
+      .default('to_contact')
+      .notNull(),
 
     createdAt: timestamp('created_at', {
       withTimezone: true,
@@ -123,6 +149,12 @@ export const campaignProspects = pgTable(
       table.campaignId,
       table.status,
     ),
+
+    index('campaign_prospects_tenant_campaign_lifecycle_stage_idx').on(
+      table.tenantId,
+      table.campaignId,
+      table.lifecycleStage,
+    ),
   ],
 );
 
@@ -131,3 +163,9 @@ export type CampaignProspect = typeof campaignProspects.$inferSelect;
 export type NewCampaignProspect = typeof campaignProspects.$inferInsert;
 
 export type CampaignProspectStatus = (typeof campaignProspectStatusEnum.enumValues)[number];
+
+export type CampaignProspectLifecycleStage =
+  (typeof campaignProspectLifecycleStageEnum.enumValues)[number];
+
+/* The stages as a value, for the validators that must check a string. */
+export const CAMPAIGN_PROSPECT_LIFECYCLE_STAGES = campaignProspectLifecycleStageEnum.enumValues;

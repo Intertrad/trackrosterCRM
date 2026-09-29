@@ -13,9 +13,12 @@
     "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.ts",
-    "db:seed": "tsx src/database/seeds/development.seed.ts"
+    "db:seed": "rm -rf dist-seed && tsc -p tsconfig.seed.json && node dist-seed/database/seeds/development.seed.js",
+    "db:seed:beta": "rm -rf dist-seed && tsc -p tsconfig.seed.json && node dist-seed/database/seeds/beta.seed.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1137.0",
+    "@aws-sdk/s3-request-presigner": "^3.1137.0",
     "@fastify/multipart": "^10.1.1",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",

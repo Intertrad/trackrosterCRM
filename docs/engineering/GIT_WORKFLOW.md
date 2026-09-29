@@ -31,6 +31,26 @@ Keep branches short-lived.
 
 Prefer incremental PRs over long-running branches with many unrelated changes.
 
+### Branch cleanup
+
+Delete a branch only after its changes are merged or intentionally archived, and
+only after confirming that no worktree or active task still uses it. For a merged
+local branch:
+
+```bash
+git branch -d <branch>
+```
+
+For its merged remote branch:
+
+```bash
+git push origin --delete <branch>
+```
+
+Never use `-D` or delete a remote branch solely because it is old. Unmerged
+branches can contain the only copy of unfinished work. The active delivery branch
+must remain until its pull request is reviewed and merged.
+
 ## 4. Commit messages
 
 Use Conventional Commits.

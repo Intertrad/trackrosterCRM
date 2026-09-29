@@ -16,6 +16,7 @@ describe('TenantService', () => {
     status: 'active',
     createdAt: new Date(),
     updatedAt: new Date(),
+    platformConfig: {},
   };
 
   beforeEach(() => {

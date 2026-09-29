@@ -1,5 +1,7 @@
 # TrackRoster
 
+> Documentation status: implementation-aligned overview. See [`docs/README.md`](docs/readme.md) for the documentation index and [`docs/backend/IMPLEMENTATION_STATUS.md`](docs/backend/IMPLEMENTATION_STATUS.md) for verified versus pending work.
+
 > **Each prospect, at the right time, by the right team.**
 
 TrackRoster is a multi-tenant prospecting coordination platform designed to help

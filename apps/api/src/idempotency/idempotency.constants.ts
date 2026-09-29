@@ -1,3 +1,4 @@
+export const IDEMPOTENCY_OPTIONAL_METADATA = 'trackroster:idempotency-optional';
 export const IDEMPOTENCY_OPERATION_METADATA = 'trackroster:idempotency-operation';
 
 export const IDEMPOTENCY_HEADER = 'idempotency-key';

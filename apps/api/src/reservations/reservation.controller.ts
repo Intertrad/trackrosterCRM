@@ -1,3 +1,5 @@
+import { ReservationHistoryInterceptor } from './reservation-history.interceptor.js';
+import { UseInterceptors } from '@nestjs/common';
 import {
   Body,
   Controller,
@@ -21,6 +23,7 @@ interface AuthContext {
 
 @Controller('campaigns/:campaignId/prospects/:prospectId/reservation')
 @UseGuards(AuthGuard)
+@UseInterceptors(ReservationHistoryInterceptor)
 export class ReservationController {
   constructor(private readonly reservationService: ReservationService) {}
 

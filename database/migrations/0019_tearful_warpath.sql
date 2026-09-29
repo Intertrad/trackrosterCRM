@@ -1,0 +1,3 @@
+CREATE TYPE "public"."campaign_prospect_stage" AS ENUM('to_contact', 'contact_made', 'in_progress', 'follow_up', 'qualified', 'converted');--> statement-breakpoint
+ALTER TABLE "campaign_prospects" ADD COLUMN "lifecycle_stage" "campaign_prospect_stage" DEFAULT 'to_contact' NOT NULL;--> statement-breakpoint
+CREATE INDEX "campaign_prospects_tenant_campaign_lifecycle_stage_idx" ON "campaign_prospects" USING btree ("tenant_id","campaign_id","lifecycle_stage");

@@ -1,3 +1,9 @@
+import { DatabaseModule } from '../database/database.module.js';
+import {
+  CanonicalFollowUpController,
+  FollowUpWriteGuard,
+} from './canonical-follow-up.controller.js';
+import { CanonicalFollowUpService } from './canonical-follow-up.service.js';
 import { Module } from '@nestjs/common';
 
 import { AssignmentModule } from '../assignments/assignment.module.js';
@@ -16,6 +22,7 @@ import { ProspectFollowUpService } from './prospect-follow-up.service.js';
 
 @Module({
   imports: [
+    DatabaseModule,
     AuthModule,
     AuthorizationModule,
     CampaignModule,
@@ -25,14 +32,20 @@ import { ProspectFollowUpService } from './prospect-follow-up.service.js';
     JobQueueModule,
   ],
 
-  controllers: [ProspectFollowUpController, FollowUpQueueController],
+  controllers: [CanonicalFollowUpController, ProspectFollowUpController, FollowUpQueueController],
 
   providers: [
+    CanonicalFollowUpService,
+    FollowUpWriteGuard,
     ProspectFollowUpService,
     ProspectFollowUpQueryService,
     FollowUpReminderSchedulerService,
   ],
 
-  exports: [ProspectFollowUpService, ProspectFollowUpQueryService],
+  exports: [
+    ProspectFollowUpService,
+    ProspectFollowUpQueryService,
+    FollowUpReminderSchedulerService,
+  ],
 })
 export class FollowUpModule {}

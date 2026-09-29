@@ -8,6 +8,8 @@ node_modules/
 
 # Next.js
 .next/
+# Build directory for the beta dev server (scripts/beta.mjs web).
+.next-beta/
 out/
 
 # Builds
@@ -29,3 +31,17 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+# Isolated production verification for frontend integration.
+.next-integration-build/
+.next-reference-build/
+
+.next-visual-build/
+
+.next-visual-final/
+.next-github-dev/
+.next-github-final/
+
+.next-github-release/
+
+.next-roles-dev/
+.next-roles-final/

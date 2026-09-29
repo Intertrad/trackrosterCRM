@@ -1,7 +1,13 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 export class ListNotificationsQueryDto {
+  @IsOptional() @IsIn(['info', 'warning', 'error', 'critical']) severity?:
+    'info' | 'warning' | 'error' | 'critical';
+  @IsOptional() @IsIn(['read', 'unread', 'all']) readState?: 'read' | 'unread' | 'all';
+  @IsOptional()
+  @IsUUID()
+  cursor?: string;
   @IsOptional()
   @Transform(({ value }) => {
     if (value === true || value === 'true') {

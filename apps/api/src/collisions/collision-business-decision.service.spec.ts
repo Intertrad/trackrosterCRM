@@ -1,3 +1,4 @@
+import { PlannedActionCollisionRepository } from './planned-action-collision.repository.js';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -85,6 +86,7 @@ describe('CollisionBusinessDecisionService', () => {
       activityRepository as unknown as ProspectActivityRepository,
 
       coordinationService as unknown as CoordinationCollisionPolicyService,
+      { candidates: vi.fn().mockResolvedValue([]) } as unknown as PlannedActionCollisionRepository,
     );
   });
 

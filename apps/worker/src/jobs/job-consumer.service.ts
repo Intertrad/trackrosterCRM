@@ -14,6 +14,7 @@ import { JobLoggingService } from './job-logging.service.js';
 import { createWorkerConnection } from '../queue/queue-connection.js';
 import { closeWorkerGracefully } from './graceful-worker-shutdown.js';
 import { JobDispatcherService, type TrackRosterJob } from './job-dispatcher.service.js';
+import { setWorkerTenantContext } from '../database/worker-tenant-context.js';
 
 type AnyTrackRosterJobData = TrackRosterJobData<TrackRosterJobName>;
 
@@ -80,6 +81,12 @@ export class JobConsumerService implements OnModuleInit, OnModuleDestroy {
         };
 
         const startedAt = Date.now();
+
+        setWorkerTenantContext({
+          tenantId: trackRosterJob.data.tenantId,
+          jobId: trackRosterJob.data.jobId,
+          jobName: trackRosterJob.name,
+        });
 
         this.jobLogging.started(metadata);
 

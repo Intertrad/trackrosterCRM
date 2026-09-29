@@ -13,13 +13,27 @@ import {
 import { campaignProspectAssignments } from './campaign-prospect-assignments.js';
 import { campaignProspects } from './campaign-prospects.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const prospectFollowUpStatusEnum = pgEnum('prospect_follow_up_status', [
   'pending',
   'completed',
   'cancelled',
 ]);
+
+export const PROSPECT_FOLLOW_UP_CATEGORIES = ['todo', 'follow_up', 'meeting'] as const;
+
+export const prospectFollowUpCategoryEnum = pgEnum(
+  'prospect_follow_up_category',
+  PROSPECT_FOLLOW_UP_CATEGORIES,
+);
+
+export const PROSPECT_FOLLOW_UP_CHANNELS = ['call', 'email', 'message', 'visit', 'letter'] as const;
+
+export const prospectFollowUpChannelEnum = pgEnum(
+  'prospect_follow_up_channel',
+  PROSPECT_FOLLOW_UP_CHANNELS,
+);
 
 export const prospectFollowUps = pgTable(
   'prospect_follow_ups',
@@ -85,6 +99,25 @@ export const prospectFollowUps = pgTable(
       mode: 'date',
     }).notNull(),
 
+    /*
+     * Operational bucket used by the Prospector
+     * Today screen.
+     *
+     * Existing rows are genuine follow-ups, so the
+     * database default keeps old writers and old data
+     * backward-compatible.
+     */
+    category: prospectFollowUpCategoryEnum('category').default('follow_up').notNull(),
+
+    /*
+     * Optional planned contact channel.
+     *
+     * Null means that the next action has not been
+     * specified. It must never be inferred from the
+     * latest historical activity.
+     */
+    channel: prospectFollowUpChannelEnum('channel'),
+
     status: prospectFollowUpStatusEnum('status').default('pending').notNull(),
 
     completedAt: timestamp('completed_at', {
@@ -141,18 +174,19 @@ export const prospectFollowUps = pgTable(
       .onUpdate('cascade'),
 
     /*
-     * Assignment must belong to the same tenant.
-     *
-     * Creation logic in TR-019 will additionally
-     * verify that it is the current assignment for
-     * this exact campaign prospect.
+     * Assignment must belong to the same tenant
+     * and exact campaign prospect.
      */
     foreignKey({
-      name: 'prospect_follow_ups_tenant_assignment_fk',
+      name: 'prospect_follow_ups_tenant_prospect_assignment_fk',
 
-      columns: [table.tenantId, table.assignmentId],
+      columns: [table.tenantId, table.campaignProspectId, table.assignmentId],
 
-      foreignColumns: [campaignProspectAssignments.tenantId, campaignProspectAssignments.id],
+      foreignColumns: [
+        campaignProspectAssignments.tenantId,
+        campaignProspectAssignments.campaignProspectId,
+        campaignProspectAssignments.id,
+      ],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -166,7 +200,7 @@ export const prospectFollowUps = pgTable(
 
       columns: [table.tenantId, table.assignedUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -179,7 +213,7 @@ export const prospectFollowUps = pgTable(
 
       columns: [table.tenantId, table.createdBy],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -231,6 +265,16 @@ export const prospectFollowUps = pgTable(
     ),
 
     /*
+     * Supports assignment-scoped joins and the
+     * composite assignment-context foreign key.
+     */
+    index('prospect_follow_ups_tenant_assignment_prospect_idx').on(
+      table.tenantId,
+      table.assignmentId,
+      table.campaignProspectId,
+    ),
+
+    /*
      * Personal due/overdue queue.
      */
     index('prospect_follow_ups_tenant_user_status_due_idx').on(
@@ -247,3 +291,7 @@ export type ProspectFollowUp = typeof prospectFollowUps.$inferSelect;
 export type NewProspectFollowUp = typeof prospectFollowUps.$inferInsert;
 
 export type ProspectFollowUpStatus = (typeof prospectFollowUpStatusEnum.enumValues)[number];
+
+export type ProspectFollowUpCategory = (typeof prospectFollowUpCategoryEnum.enumValues)[number];
+
+export type ProspectFollowUpChannel = (typeof prospectFollowUpChannelEnum.enumValues)[number];

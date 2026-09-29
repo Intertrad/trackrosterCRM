@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +11,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   establishmentContacts,
@@ -22,6 +22,7 @@ import { users } from '../src/database/schema/users.js';
 import { EstablishmentRepository } from '../src/establishments/establishment.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 describe('Establishment contact HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -86,94 +87,98 @@ describe('Establishment contact HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
-    const tenantService = application.get(TenantService);
+    /* Fixtures span several tenants and run through container-resolved
+       repositories, so they need the privileged executor; see withSeedScope. */
+    await withSeedScope(async () => {
+      const tenantService = application.get(TenantService);
 
-    const userRepository = application.get(UserRepository);
+      const userRepository = application.get(UserRepository);
 
-    const passwordService = application.get(PasswordService);
+      const passwordService = application.get(PasswordService);
 
-    const grantRepository = application.get(UserAccessGrantRepository);
+      const grantRepository = application.get(UserAccessGrantRepository);
 
-    const establishmentRepository = application.get(EstablishmentRepository);
+      const establishmentRepository = application.get(EstablishmentRepository);
 
-    const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
 
-    const tenantA = await tenantService.create({
-      name: `Contact Tenant A ${suffix}`,
-      slug: `contact-a-${suffix}`,
+      const tenantA = await tenantService.create({
+        name: `Contact Tenant A ${suffix}`,
+        slug: `contact-a-${suffix}`,
+      });
+
+      const tenantB = await tenantService.create({
+        name: `Contact Tenant B ${suffix}`,
+        slug: `contact-b-${suffix}`,
+      });
+
+      tenantAId = tenantA.id;
+      tenantBId = tenantB.id;
+
+      adminEmail = `contact-admin-${suffix}@trackroster.test`;
+
+      regularEmail = `contact-regular-${suffix}@trackroster.test`;
+
+      const adminPasswordHash = await passwordService.hash(adminPassword);
+
+      const regularPasswordHash = await passwordService.hash(regularPassword);
+
+      const admin = await userRepository.create({
+        tenantId: tenantA.id,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        status: 'active',
+      });
+
+      await userRepository.create({
+        tenantId: tenantA.id,
+        email: regularEmail,
+        passwordHash: regularPasswordHash,
+        status: 'active',
+      });
+
+      await grantRepository.create({
+        tenantId: tenantA.id,
+        userId: admin.id,
+        role: 'client_admin',
+        scopeType: 'tenant',
+      });
+
+      const establishmentA = await establishmentRepository.create({
+        tenantId: tenantA.id,
+        name: 'Contact Test Restaurant',
+        normalizedName: 'contact test restaurant',
+        countryCode: 'FR',
+        status: 'active',
+        source: 'manual',
+      });
+
+      establishmentAId = establishmentA.id;
+
+      const establishmentA2 = await establishmentRepository.create({
+        tenantId: tenantA.id,
+        name: 'Second Contact Restaurant',
+        normalizedName: 'second contact restaurant',
+        countryCode: 'FR',
+        status: 'active',
+        source: 'manual',
+      });
+
+      establishmentA2Id = establishmentA2.id;
+
+      const establishmentB = await establishmentRepository.create({
+        tenantId: tenantB.id,
+        name: 'Other Tenant Restaurant',
+        normalizedName: 'other tenant restaurant',
+        countryCode: 'FR',
+        status: 'active',
+        source: 'manual',
+      });
+
+      establishmentBId = establishmentB.id;
     });
-
-    const tenantB = await tenantService.create({
-      name: `Contact Tenant B ${suffix}`,
-      slug: `contact-b-${suffix}`,
-    });
-
-    tenantAId = tenantA.id;
-    tenantBId = tenantB.id;
-
-    adminEmail = `contact-admin-${suffix}@trackroster.test`;
-
-    regularEmail = `contact-regular-${suffix}@trackroster.test`;
-
-    const adminPasswordHash = await passwordService.hash(adminPassword);
-
-    const regularPasswordHash = await passwordService.hash(regularPassword);
-
-    const admin = await userRepository.create({
-      tenantId: tenantA.id,
-      email: adminEmail,
-      passwordHash: adminPasswordHash,
-      status: 'active',
-    });
-
-    await userRepository.create({
-      tenantId: tenantA.id,
-      email: regularEmail,
-      passwordHash: regularPasswordHash,
-      status: 'active',
-    });
-
-    await grantRepository.create({
-      tenantId: tenantA.id,
-      userId: admin.id,
-      role: 'client_admin',
-      scopeType: 'tenant',
-    });
-
-    const establishmentA = await establishmentRepository.create({
-      tenantId: tenantA.id,
-      name: 'Contact Test Restaurant',
-      normalizedName: 'contact test restaurant',
-      countryCode: 'FR',
-      status: 'active',
-      source: 'manual',
-    });
-
-    establishmentAId = establishmentA.id;
-
-    const establishmentA2 = await establishmentRepository.create({
-      tenantId: tenantA.id,
-      name: 'Second Contact Restaurant',
-      normalizedName: 'second contact restaurant',
-      countryCode: 'FR',
-      status: 'active',
-      source: 'manual',
-    });
-
-    establishmentA2Id = establishmentA2.id;
-
-    const establishmentB = await establishmentRepository.create({
-      tenantId: tenantB.id,
-      name: 'Other Tenant Restaurant',
-      normalizedName: 'other tenant restaurant',
-      countryCode: 'FR',
-      status: 'active',
-      source: 'manual',
-    });
-
-    establishmentBId = establishmentB.id;
   });
 
   afterAll(async () => {
@@ -186,6 +191,7 @@ describe('Establishment contact HTTP integration', () => {
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantAId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantAId));
           await database.delete(users).where(eq(users.tenantId, tenantAId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantAId));
@@ -198,6 +204,7 @@ describe('Establishment contact HTTP integration', () => {
 
           await database.delete(establishments).where(eq(establishments.tenantId, tenantBId));
 
+          await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantBId));
           await database.delete(users).where(eq(users.tenantId, tenantBId));
 
           await database.delete(tenants).where(eq(tenants.id, tenantBId));

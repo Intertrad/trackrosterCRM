@@ -87,6 +87,8 @@ describe('CampaignProspectService', () => {
 
     status: 'active',
 
+    lifecycleStage: 'to_contact',
+
     createdAt: new Date(),
 
     updatedAt: new Date(),

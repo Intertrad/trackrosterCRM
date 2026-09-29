@@ -1,5 +1,7 @@
 import type {
   ProspectFollowUp,
+  ProspectFollowUpCategory,
+  ProspectFollowUpChannel,
   ProspectFollowUpStatus,
 } from '../database/schema/prospect-follow-ups.js';
 
@@ -17,6 +19,10 @@ export interface PublicProspectFollowUp {
   createdBy: string;
 
   dueAt: string;
+
+  category: ProspectFollowUpCategory;
+
+  channel: ProspectFollowUpChannel | null;
 
   status: ProspectFollowUpStatus;
 
@@ -49,6 +55,10 @@ export function toPublicProspectFollowUp(followUp: ProspectFollowUp): PublicPros
 
     dueAt: followUp.dueAt.toISOString(),
 
+    category: followUp.category,
+
+    channel: followUp.channel,
+
     status: followUp.status,
 
     completedAt: followUp.completedAt ? followUp.completedAt.toISOString() : null,
@@ -79,6 +89,12 @@ export interface ProspectFollowUpQueueOptions {
   limit: number;
 }
 
+export interface ProspectFollowUpQueueItem extends PublicProspectFollowUp {
+  campaignName: string;
+
+  establishmentName: string;
+}
+
 export interface ProspectFollowUpQueueResponse {
-  items: PublicProspectFollowUp[];
+  items: ProspectFollowUpQueueItem[];
 }

@@ -72,7 +72,12 @@ export class UserManagementService {
       throw new ForbiddenException('You cannot suspend or disable your own account');
     }
 
-    const user = await this.userRepository.updateStatus(tenantId, targetUserId, status);
+    const user = await this.userRepository.updateStatus(
+      tenantId,
+      targetUserId,
+      status,
+      actorUserId,
+    );
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -86,6 +91,7 @@ export class UserManagementService {
       id: user.id,
       tenantId: user.tenantId,
       email: user.email,
+      displayName: user.displayName,
       status: user.status,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

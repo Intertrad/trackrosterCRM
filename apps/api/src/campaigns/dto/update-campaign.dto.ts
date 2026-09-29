@@ -1,19 +1,20 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsDate, IsIn, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 
 import { campaignStatusEnum } from '../../database/schema/campaigns.js';
 
 export class UpdateCampaignDto {
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
   @MaxLength(255)
   name?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(10000)
   description?: string | null;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(campaignStatusEnum.enumValues)
   status?: (typeof campaignStatusEnum.enumValues)[number];
 

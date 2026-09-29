@@ -22,6 +22,8 @@ describe('CampaignProspectAssignmentService audit integration', () => {
 
     findCurrent: ReturnType<typeof vi.fn>;
 
+    findCurrentForUpdate: ReturnType<typeof vi.fn>;
+
     findHistory: ReturnType<typeof vi.fn>;
 
     endCurrent: ReturnType<typeof vi.fn>;
@@ -36,7 +38,8 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   };
 
   let teamRepository: {
-    findById: ReturnType<typeof vi.fn>;
+    findById: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
+    findByIdForUpdate: ReturnType<typeof vi.fn>;
   };
 
   let userRepository: {
@@ -45,6 +48,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
 
   let authorizationService: {
     getUserGrants: ReturnType<typeof vi.fn>;
+    getAssignmentAuthority: ReturnType<typeof vi.fn>;
   };
 
   let auditService: {
@@ -112,6 +116,10 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   };
 
   const currentAssignment: CampaignProspectAssignment = {
+    status: 'active',
+    priority: 'normal',
+    endReason: null,
+    updatedAt: new Date(),
     id: oldAssignmentId,
 
     tenantId,
@@ -134,6 +142,11 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   beforeEach(() => {
     transaction = {
       transaction: true,
+      execute: vi.fn().mockResolvedValue({
+        rows: [
+          { eligible: true, capacity: null, workload: 0, team_capacity: 100, team_workload: 0 },
+        ],
+      }),
     };
 
     database = {
@@ -149,6 +162,8 @@ describe('CampaignProspectAssignmentService audit integration', () => {
 
       findCurrent: vi.fn(),
 
+      findCurrentForUpdate: vi.fn(),
+
       findHistory: vi.fn(),
 
       endCurrent: vi.fn(),
@@ -163,6 +178,9 @@ describe('CampaignProspectAssignmentService audit integration', () => {
     };
 
     teamRepository = {
+      findByIdForUpdate: vi
+        .fn()
+        .mockImplementation((tenantId, teamId) => teamRepository.findById(tenantId, teamId)),
       findById: vi.fn().mockResolvedValue({
         id: teamId,
 
@@ -180,6 +198,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
 
     authorizationService = {
       getUserGrants: vi.fn(),
+      getAssignmentAuthority: vi.fn().mockResolvedValue('client_admin'),
     };
 
     auditService = {
@@ -206,7 +225,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   });
 
   it('records assignment creation using the same transaction', async () => {
-    assignmentRepository.findCurrent.mockResolvedValue(null);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(null);
 
     const created = {
       ...currentAssignment,
@@ -280,7 +299,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
       },
     ]);
 
-    assignmentRepository.findCurrent.mockResolvedValue(currentAssignment);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(currentAssignment);
 
     assignmentRepository.endCurrent.mockResolvedValue({
       ...currentAssignment,
@@ -368,7 +387,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
       },
     ]);
 
-    assignmentRepository.findCurrent.mockResolvedValue(currentAssignment);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(currentAssignment);
 
     const result = await service.reassign({
       tenantId,
@@ -394,7 +413,7 @@ describe('CampaignProspectAssignmentService audit integration', () => {
   });
 
   it('propagates audit failure from inside the assignment transaction', async () => {
-    assignmentRepository.findCurrent.mockResolvedValue(null);
+    assignmentRepository.findCurrentForUpdate.mockResolvedValue(null);
 
     assignmentRepository.create.mockResolvedValue({
       ...currentAssignment,

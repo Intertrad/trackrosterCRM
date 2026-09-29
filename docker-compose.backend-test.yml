@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: trackroster_backend_test
+      POSTGRES_USER: backend_test
+      POSTGRES_PASSWORD: local-backend-test-only
+    ports:
+      - '127.0.0.1:55439:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U backend_test -d trackroster_backend_test']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - '127.0.0.1:56389:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - '127.0.0.1:58025:8025'
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio-development-only
+    command: server /data --console-address ':9001'
+    ports:
+      - '127.0.0.1:59000:9000'
+      - '127.0.0.1:59001:9001'
+    tmpfs:
+      - /data

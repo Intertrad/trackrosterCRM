@@ -109,7 +109,41 @@ describe('ProspectFollowUpController', () => {
       dueAt,
 
       assignedUserId: undefined,
+
+      category: undefined,
+
+      channel: undefined,
     });
+  });
+
+  it('passes an explicit category and channel to the service', async () => {
+    await controller.create(
+      {
+        tenantId,
+
+        userId,
+      },
+
+      campaignId,
+
+      prospectId,
+
+      {
+        dueAt,
+
+        category: 'meeting',
+
+        channel: 'visit',
+      },
+    );
+
+    expect(followUpService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: 'meeting',
+
+        channel: 'visit',
+      }),
+    );
   });
 
   it('passes explicit team ownership when assignedUserId is null', async () => {

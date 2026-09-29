@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import { idempotencyRecords, tenants, users } from '../src/database/schema/index.js';
 import type { Database } from '../src/database/database.types.js';
 import {
@@ -17,6 +16,7 @@ import {
 } from '../src/idempotency/idempotency-record.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('idempotency record repository integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -111,9 +111,16 @@ describe('idempotency record repository integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
-    repository = application.get(IdempotencyRecordRepository);
+    /*
+     * Built against the seed (owner) connection rather than resolved from the
+     * container. These cases drive the repository directly, with no request
+     * and so no tenant scope, which is exactly what RLS refuses once the
+     * application connects as `trackroster_app`. The SQL under test is
+     * unchanged; only the connection executing it is privileged.
+     */
+    repository = new IdempotencyRecordRepository(getSeedDatabase());
 
     const tenantService = application.get(TenantService);
 
@@ -319,6 +326,25 @@ describe('idempotency record repository integration', () => {
       claims.map((record) => record?.id).filter((id): id is string => Boolean(id)),
     ).toHaveLength(4);
   });
+
+  it.each(['activityXrecord', 'activity-record', 'activity_record'])(
+    'rejects idempotency operation %s without a literal domain separator',
+    async (operation) => {
+      await expect(
+        getRepository().tryClaim(
+          createClaimInput({
+            operation,
+          }),
+        ),
+      ).rejects.toMatchObject({
+        cause: {
+          code: '23514',
+
+          constraint: 'idempotency_records_operation_check',
+        },
+      });
+    },
+  );
 
   it('transitions processing to completed exactly once and preserves the stored response', async () => {
     const claimed = await getRepository().tryClaim(createClaimInput());

@@ -10,7 +10,7 @@ import { ProspectFollowUpRepository } from './prospect-follow-up.repository.js';
 
 describe('ProspectFollowUpQueryService', () => {
   let followUpRepository: {
-    findByCampaignProspect: ReturnType<typeof vi.fn>;
+    findByCampaignProspectWithinScope: ReturnType<typeof vi.fn>;
 
     findActionableQueue: ReturnType<typeof vi.fn>;
   };
@@ -28,9 +28,7 @@ describe('ProspectFollowUpQueryService', () => {
   };
 
   let authorizationService: {
-    canViewTeam: ReturnType<typeof vi.fn>;
-
-    canViewOrganization: ReturnType<typeof vi.fn>;
+    resolveViewScope: ReturnType<typeof vi.fn>;
 
     getUserGrants: ReturnType<typeof vi.fn>;
   };
@@ -52,6 +50,8 @@ describe('ProspectFollowUpQueryService', () => {
   const organizationId = '77777777-7777-4777-8777-777777777777';
 
   const teamId = '88888888-8888-4888-8888-888888888888';
+
+  const otherTeamId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
   const followUpId = '99999999-9999-4999-8999-999999999999';
 
@@ -142,6 +142,10 @@ describe('ProspectFollowUpQueryService', () => {
 
     dueAt,
 
+    category: 'meeting' as const,
+
+    channel: 'email' as const,
+
     status: 'pending' as const,
 
     completedAt: null,
@@ -153,11 +157,19 @@ describe('ProspectFollowUpQueryService', () => {
     updatedAt,
   };
 
+  const queueFollowUp = {
+    ...followUp,
+
+    campaignName: 'Paris Campaign',
+
+    establishmentName: 'Paris Clinic',
+  };
+
   beforeEach(() => {
     followUpRepository = {
-      findByCampaignProspect: vi.fn().mockResolvedValue([followUp]),
+      findByCampaignProspectWithinScope: vi.fn().mockResolvedValue([followUp]),
 
-      findActionableQueue: vi.fn().mockResolvedValue([followUp]),
+      findActionableQueue: vi.fn().mockResolvedValue([queueFollowUp]),
     };
 
     campaignRepository = {
@@ -173,9 +185,13 @@ describe('ProspectFollowUpQueryService', () => {
     };
 
     authorizationService = {
-      canViewTeam: vi.fn().mockResolvedValue(true),
+      resolveViewScope: vi.fn().mockResolvedValue({
+        scopeType: 'team',
 
-      canViewOrganization: vi.fn().mockResolvedValue(true),
+        organizationId,
+
+        teamId,
+      }),
 
       getUserGrants: vi.fn().mockResolvedValue([
         {
@@ -210,19 +226,24 @@ describe('ProspectFollowUpQueryService', () => {
       campaignProspectId,
     });
 
-    expect(authorizationService.canViewTeam).toHaveBeenCalledWith(
+    expect(authorizationService.resolveViewScope).toHaveBeenCalledWith(
       tenantId,
       userId,
       organizationId,
       teamId,
     );
 
-    expect(authorizationService.canViewOrganization).not.toHaveBeenCalled();
-
-    expect(followUpRepository.findByCampaignProspect).toHaveBeenCalledWith(
+    expect(followUpRepository.findByCampaignProspectWithinScope).toHaveBeenCalledWith(
       tenantId,
       campaignId,
       campaignProspectId,
+      {
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId,
+      },
     );
 
     expect(result).toEqual({
@@ -241,6 +262,10 @@ describe('ProspectFollowUpQueryService', () => {
           createdBy: userId,
 
           dueAt: dueAt.toISOString(),
+
+          category: 'meeting',
+
+          channel: 'email',
 
           status: 'pending',
 
@@ -279,6 +304,14 @@ describe('ProspectFollowUpQueryService', () => {
   it('uses organization authorization when the prospect has no current assignment', async () => {
     assignmentRepository.findCurrent.mockResolvedValue(null);
 
+    authorizationService.resolveViewScope.mockResolvedValue({
+      scopeType: 'organization',
+
+      organizationId,
+
+      teamId: null,
+    });
+
     await service.listByProspect({
       tenantId,
 
@@ -289,17 +322,29 @@ describe('ProspectFollowUpQueryService', () => {
       campaignProspectId,
     });
 
-    expect(authorizationService.canViewOrganization).toHaveBeenCalledWith(
+    expect(authorizationService.resolveViewScope).toHaveBeenCalledWith(
       tenantId,
       userId,
       organizationId,
+      undefined,
     );
 
-    expect(authorizationService.canViewTeam).not.toHaveBeenCalled();
+    expect(followUpRepository.findByCampaignProspectWithinScope).toHaveBeenCalledWith(
+      tenantId,
+      campaignId,
+      campaignProspectId,
+      {
+        scopeType: 'organization',
+
+        organizationId,
+
+        teamId: null,
+      },
+    );
   });
 
   it('masks prospect history when the user cannot view the current team', async () => {
-    authorizationService.canViewTeam.mockResolvedValue(false);
+    authorizationService.resolveViewScope.mockResolvedValue(null);
 
     await expect(
       service.listByProspect({
@@ -313,13 +358,13 @@ describe('ProspectFollowUpQueryService', () => {
       }),
     ).rejects.toThrow('Campaign prospect not found');
 
-    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
+    expect(followUpRepository.findByCampaignProspectWithinScope).not.toHaveBeenCalled();
   });
 
   it('masks an unassigned prospect when organization access is missing', async () => {
     assignmentRepository.findCurrent.mockResolvedValue(null);
 
-    authorizationService.canViewOrganization.mockResolvedValue(false);
+    authorizationService.resolveViewScope.mockResolvedValue(null);
 
     await expect(
       service.listByProspect({
@@ -333,7 +378,7 @@ describe('ProspectFollowUpQueryService', () => {
       }),
     ).rejects.toThrow('Campaign prospect not found');
 
-    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
+    expect(followUpRepository.findByCampaignProspectWithinScope).not.toHaveBeenCalled();
   });
 
   it('returns the same masked response when the campaign does not exist', async () => {
@@ -355,7 +400,7 @@ describe('ProspectFollowUpQueryService', () => {
 
     expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
 
-    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
+    expect(followUpRepository.findByCampaignProspectWithinScope).not.toHaveBeenCalled();
   });
 
   it('returns the same masked response when the campaign prospect does not exist', async () => {
@@ -375,7 +420,7 @@ describe('ProspectFollowUpQueryService', () => {
 
     expect(assignmentRepository.findCurrent).not.toHaveBeenCalled();
 
-    expect(followUpRepository.findByCampaignProspect).not.toHaveBeenCalled();
+    expect(followUpRepository.findByCampaignProspectWithinScope).not.toHaveBeenCalled();
   });
 
   it('allows historical follow-up reads for an archived campaign', async () => {
@@ -399,7 +444,7 @@ describe('ProspectFollowUpQueryService', () => {
   });
 
   it('fails closed when prospect history persistence lookup fails', async () => {
-    followUpRepository.findByCampaignProspect.mockRejectedValue(
+    followUpRepository.findByCampaignProspectWithinScope.mockRejectedValue(
       new Error('PostgreSQL unavailable'),
     );
 
@@ -416,11 +461,13 @@ describe('ProspectFollowUpQueryService', () => {
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
-  it('builds an actionable queue from the caller prospector team scopes', async () => {
+  it('builds an actionable queue from the selected prospector team scope', async () => {
     const result = await service.listQueue({
       tenantId,
 
       userId,
+
+      teamId,
 
       overdue: true,
 
@@ -447,7 +494,61 @@ describe('ProspectFollowUpQueryService', () => {
       limit: 25,
     });
 
-    expect(result.items).toHaveLength(1);
+    expect(result).toEqual({
+      items: [
+        {
+          id: followUpId,
+
+          campaignId,
+
+          campaignProspectId,
+
+          establishmentId,
+
+          assignedUserId: userId,
+
+          createdBy: userId,
+
+          dueAt: dueAt.toISOString(),
+
+          category: 'meeting',
+
+          channel: 'email',
+
+          status: 'pending',
+
+          completedAt: null,
+
+          cancelledAt: null,
+
+          createdAt: createdAt.toISOString(),
+
+          updatedAt: updatedAt.toISOString(),
+
+          campaignName: 'Paris Campaign',
+
+          establishmentName: 'Paris Clinic',
+        },
+      ],
+    });
+  });
+
+  it('does not expose tenant or assignment metadata in the actionable queue', async () => {
+    const result = await service.listQueue({
+      tenantId,
+
+      userId,
+
+      teamId,
+    });
+
+    const item = result.items[0];
+
+    expect(item).toBeDefined();
+
+    expect(item).not.toHaveProperty('tenantId');
+
+    expect(item).not.toHaveProperty('assignmentId');
   });
 
   it('uses the default queue limit when none is supplied', async () => {
@@ -455,6 +556,8 @@ describe('ProspectFollowUpQueryService', () => {
       tenantId,
 
       userId,
+
+      teamId,
     });
 
     expect(followUpRepository.findActionableQueue).toHaveBeenCalledWith(
@@ -465,7 +568,7 @@ describe('ProspectFollowUpQueryService', () => {
     );
   });
 
-  it('uses only prospector team grants for the operational queue', async () => {
+  it('uses only the selected prospector team grant for the operational queue', async () => {
     authorizationService.getUserGrants.mockResolvedValue([
       {
         role: 'observer',
@@ -488,6 +591,16 @@ describe('ProspectFollowUpQueryService', () => {
       },
 
       {
+        role: 'prospector',
+
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId: otherTeamId,
+      },
+
+      {
         role: 'director',
 
         scopeType: 'organization',
@@ -502,6 +615,8 @@ describe('ProspectFollowUpQueryService', () => {
       tenantId,
 
       userId,
+
+      teamId,
     });
 
     expect(followUpRepository.findActionableQueue).toHaveBeenCalledWith(
@@ -536,6 +651,34 @@ describe('ProspectFollowUpQueryService', () => {
         tenantId,
 
         userId,
+
+        teamId,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(followUpRepository.findActionableQueue).not.toHaveBeenCalled();
+  });
+
+  it('rejects a selected team outside the caller prospector grants', async () => {
+    authorizationService.getUserGrants.mockResolvedValue([
+      {
+        role: 'prospector',
+
+        scopeType: 'team',
+
+        organizationId,
+
+        teamId: otherTeamId,
+      },
+    ]);
+
+    await expect(
+      service.listQueue({
+        tenantId,
+
+        userId,
+
+        teamId,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
@@ -550,6 +693,8 @@ describe('ProspectFollowUpQueryService', () => {
         tenantId,
 
         userId,
+
+        teamId,
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });

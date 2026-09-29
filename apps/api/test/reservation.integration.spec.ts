@@ -1,3 +1,5 @@
+import { auditEvents } from '../src/database/schema/audit-events.js';
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -10,7 +12,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import type { Database } from '../src/database/database.types.js';
 import { campaignProspectAssignments } from '../src/database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../src/database/schema/campaign-prospects.js';
@@ -26,6 +27,7 @@ import { RedisService } from '../src/redis/redis.service.js';
 import { ReservationRepository } from '../src/reservations/reservation.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('Reservation HTTP integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -225,7 +227,7 @@ describe('Reservation HTTP integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     redisService = application.get(RedisService);
 
@@ -551,6 +553,8 @@ describe('Reservation HTTP integration', () => {
 
         await database.delete(teams).where(eq(teams.tenantId, tenantId));
 
+        await database.delete(auditEvents).where(eq(auditEvents.tenantId, tenantId));
+        await clearSessionEvidenceForUsers(database, eq(users.tenantId, tenantId));
         await database.delete(users).where(eq(users.tenantId, tenantId));
 
         await database.delete(organizations).where(eq(organizations.tenantId, tenantId));
@@ -697,8 +701,7 @@ describe('Reservation HTTP integration', () => {
 
     expect([prospectorAId, prospectorBId]).toContain(current?.userId);
   });
-
-  it('returns the current reservation', async () => {
+  it('returns owned reservation state to the reservation owner', async () => {
     await clearReservation();
 
     const acquired = await getApp().inject({
@@ -713,6 +716,67 @@ describe('Reservation HTTP integration', () => {
 
     expect(acquired.statusCode).toBe(201);
 
+    const acquiredBody = JSON.parse(acquired.payload) as {
+      reservationId: string;
+
+      acquiredAt: string;
+
+      expiresAt: string;
+    };
+
+    const response = await getApp().inject({
+      method: 'GET',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const body = JSON.parse(response.payload) as Record<string, unknown>;
+
+    expect(body).toEqual({
+      state: 'owned',
+
+      reservationId: acquiredBody.reservationId,
+
+      acquiredAt: acquiredBody.acquiredAt,
+
+      expiresAt: acquiredBody.expiresAt,
+    });
+
+    expect(body).not.toHaveProperty('tenantId');
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('campaignId');
+    expect(body).not.toHaveProperty('campaignProspectId');
+    expect(body).not.toHaveProperty('establishmentId');
+    expect(body).not.toHaveProperty('assignmentId');
+    expect(body).not.toHaveProperty('teamId');
+    expect(body).not.toHaveProperty('userId');
+  });
+
+  it('returns reserved state to another eligible prospector without leaking reservation ownership', async () => {
+    await clearReservation();
+
+    const acquired = await getApp().inject({
+      method: 'POST',
+
+      url: reservationUrl(),
+
+      headers: {
+        authorization: `Bearer ${prospectorAToken}`,
+      },
+    });
+
+    expect(acquired.statusCode).toBe(201);
+
+    const acquiredBody = JSON.parse(acquired.payload) as {
+      expiresAt: string;
+    };
+
     const response = await getApp().inject({
       method: 'GET',
 
@@ -725,15 +789,24 @@ describe('Reservation HTTP integration', () => {
 
     expect(response.statusCode).toBe(200);
 
-    const body = JSON.parse(response.payload) as {
-      userId: string;
+    const body = JSON.parse(response.payload) as Record<string, unknown>;
 
-      campaignProspectId: string;
-    };
+    expect(body).toEqual({
+      state: 'reserved',
 
-    expect(body.userId).toBe(prospectorAId);
+      expiresAt: acquiredBody.expiresAt,
+    });
 
-    expect(body.campaignProspectId).toBe(prospectId);
+    expect(body).not.toHaveProperty('reservationId');
+    expect(body).not.toHaveProperty('acquiredAt');
+    expect(body).not.toHaveProperty('tenantId');
+    expect(body).not.toHaveProperty('organizationId');
+    expect(body).not.toHaveProperty('campaignId');
+    expect(body).not.toHaveProperty('campaignProspectId');
+    expect(body).not.toHaveProperty('establishmentId');
+    expect(body).not.toHaveProperty('assignmentId');
+    expect(body).not.toHaveProperty('teamId');
+    expect(body).not.toHaveProperty('userId');
   });
 
   it('masks another user reservation ownership exactly like an absent reservation', async () => {
@@ -1719,6 +1792,36 @@ describe('Reservation HTTP integration', () => {
    * Immutable contact history requires
    * active reservation ownership.
    */
+  it('rejects activity evidence tied to another campaign prospect assignment', async () => {
+    await clearActivityHistory();
+
+    await expect(
+      getDatabase().insert(prospectActivities).values({
+        tenantId,
+
+        campaignId,
+
+        campaignProspectId: prospectId,
+
+        establishmentId,
+
+        assignmentId: secondAssignmentId,
+
+        userId: prospectorAId,
+
+        reservationId: randomUUID(),
+
+        type: 'call',
+      }),
+    ).rejects.toMatchObject({
+      cause: {
+        code: '23503',
+
+        constraint: 'prospect_activities_tenant_prospect_assignment_fk',
+      },
+    });
+  });
+
   it('rejects activity recording without an active reservation', async () => {
     await clearReservation();
 

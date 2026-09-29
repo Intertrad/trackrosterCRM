@@ -1,3 +1,4 @@
+import { clearSessionEvidenceForUsers } from './support/session-evidence.js';
 import { randomUUID } from 'node:crypto';
 
 import { ValidationPipe } from '@nestjs/common';
@@ -9,17 +10,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { AuthenticatedUser, AuthenticationTokens } from '../src/auth/auth.types.js';
-import { DATABASE } from '../src/database/database.constants.js';
+import { TokenService } from '../src/auth/token.service.js';
 import { Database } from '../src/database/database.types.js';
 import { authSessions } from '../src/database/schema/auth-sessions.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase, withSeedScope } from './support/seed.js';
 
 describe('Authentication integration', () => {
   let app: NestFastifyApplication | undefined;
   let database: Database | undefined;
+  let tokenService: TokenService;
+  let userRepository: UserRepository;
 
   let tenantId: string | undefined;
   let userId: string | undefined;
@@ -94,11 +98,13 @@ describe('Authentication integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 
-    const userRepository = application.get(UserRepository);
+    userRepository = application.get(UserRepository);
+
+    tokenService = application.get(TokenService);
 
     const passwordService = application.get(PasswordService);
 
@@ -128,6 +134,7 @@ describe('Authentication integration', () => {
   afterAll(async () => {
     try {
       if (database && userId) {
+        await clearSessionEvidenceForUsers(database, eq(users.id, userId));
         await database.delete(users).where(eq(users.id, userId));
       }
 
@@ -171,6 +178,26 @@ describe('Authentication integration', () => {
     expect(tokens.accessToken).toBeTruthy();
     expect(tokens.refreshToken).toBeTruthy();
 
+    const accessClaims = await tokenService.verifyAccessToken(tokens.accessToken);
+    const refreshClaims = await tokenService.verifyRefreshToken(tokens.refreshToken);
+
+    expect(accessClaims).toMatchObject({
+      sub: identity.userId,
+      membershipId: identity.userId,
+      tenantId: identity.tenantId,
+      ver: 2,
+      type: 'access',
+    });
+    expect(refreshClaims).toMatchObject({
+      sub: identity.userId,
+      membershipId: identity.userId,
+      tenantId: identity.tenantId,
+      sid: accessClaims.sid,
+      ver: 2,
+      type: 'refresh',
+    });
+    expect(accessClaims.jti).not.toBe(refreshClaims.jti);
+
     const meResponse = await getApp().inject({
       method: 'GET',
       url: '/auth/me',
@@ -205,7 +232,116 @@ describe('Authentication integration', () => {
 
     expect(session.refreshTokenHash).not.toBe(tokens.refreshToken);
 
+    expect(session).toMatchObject({
+      id: accessClaims.sid,
+      userId: identity.userId,
+      identityId: identity.userId,
+      membershipId: identity.userId,
+      tenantId: identity.tenantId,
+      revokedAt: null,
+      revokedReason: null,
+    });
+
+    expect(session.absoluteExpiresAt).toEqual(session.expiresAt);
+
     expect(session.revokedAt).toBeNull();
+  });
+
+  it('rejects an access token immediately after its database session is revoked', async () => {
+    const tokens = await login();
+    const claims = await tokenService.verifyAccessToken(tokens.accessToken);
+    const revokedAt = new Date();
+
+    await getDatabase()
+      .update(authSessions)
+      .set({
+        revokedAt,
+        revokedReason: 'integration_manual_revoke',
+        updatedAt: revokedAt,
+      })
+      .where(eq(authSessions.id, claims.sid));
+
+    const response = await getApp().inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${tokens.accessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('rejects a validly signed token whose tenant context does not match the session', async () => {
+    const identity = getIdentity();
+    const tokens = await login();
+    const claims = await tokenService.verifyAccessToken(tokens.accessToken);
+    const mismatchedTokens = await tokenService.createTokens({
+      identityId: identity.userId,
+      membershipId: identity.userId,
+      tenantId: randomUUID(),
+      sessionId: claims.sid,
+    });
+
+    const response = await getApp().inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${mismatchedTokens.accessToken}`,
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it('revokes active sessions when the legacy compatibility user is suspended', async () => {
+    const identity = getIdentity();
+    const tokens = await login();
+
+    await withSeedScope(() =>
+      userRepository.updateStatus(identity.tenantId, identity.userId, 'suspended'),
+    );
+
+    try {
+      const protectedResponse = await getApp().inject({
+        method: 'GET',
+        url: '/auth/me',
+        headers: {
+          authorization: `Bearer ${tokens.accessToken}`,
+        },
+      });
+
+      expect(protectedResponse.statusCode).toBe(401);
+
+      const loginResponse = await getApp().inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: {
+          email: userEmail,
+          password,
+        },
+      });
+
+      expect(loginResponse.statusCode).toBe(401);
+    } finally {
+      await withSeedScope(() =>
+        userRepository.updateStatus(identity.tenantId, identity.userId, 'active'),
+      );
+    }
+
+    const reactivatedOldTokenResponse = await getApp().inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${tokens.accessToken}`,
+      },
+    });
+
+    expect(reactivatedOldTokenResponse.statusCode).toBe(401);
+    await expect(login()).resolves.toMatchObject({
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String),
+    });
   });
 
   it('rotates a refresh token and rejects replay of the previous token', async () => {
@@ -244,6 +380,16 @@ describe('Authentication integration', () => {
     });
 
     expect(logoutResponse.statusCode).toBe(204);
+
+    const accessAfterLogoutResponse = await getApp().inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: {
+        authorization: `Bearer ${rotatedTokens.accessToken}`,
+      },
+    });
+
+    expect(accessAfterLogoutResponse.statusCode).toBe(401);
 
     const afterLogoutResponse = await getApp().inject({
       method: 'POST',

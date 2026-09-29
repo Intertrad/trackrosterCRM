@@ -13,7 +13,7 @@ import {
 import { organizations } from './organizations.js';
 import { teams } from './teams.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const userRoleEnum = pgEnum('user_role', [
   'client_admin',
@@ -72,7 +72,7 @@ export const userAccessGrants = pgTable(
      */
     foreignKey({
       columns: [table.tenantId, table.userId],
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
       name: 'user_access_grants_tenant_user_fk',
     })
       .onDelete('cascade')

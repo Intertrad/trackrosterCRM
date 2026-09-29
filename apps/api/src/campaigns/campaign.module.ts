@@ -1,3 +1,5 @@
+import { CampaignLifecycleService } from './campaign-lifecycle.service.js';
+import { ResourceScopeModule } from '../resource-scopes/resource-scope.module.js';
 import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module.js';
@@ -15,6 +17,7 @@ import { AuditModule } from '../audit/audit.module.js';
 
 @Module({
   imports: [
+    ResourceScopeModule,
     DatabaseModule,
     AuthModule,
     AuthorizationModule,
@@ -26,6 +29,7 @@ import { AuditModule } from '../audit/audit.module.js';
   controllers: [CampaignController, CampaignProspectController],
 
   providers: [
+    CampaignLifecycleService,
     CampaignRepository,
     CampaignService,
     CampaignProspectRepository,

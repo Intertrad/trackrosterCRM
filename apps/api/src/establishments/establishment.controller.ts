@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
+import { ListEstablishmentsQueryDto } from './dto/list-establishments-query.dto.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { ClientAdminGuard } from '../authorization/client-admin.guard.js';
 import { CreateEstablishmentDto } from './dto/create-establishment.dto.js';
@@ -49,8 +50,9 @@ export class EstablishmentController {
   list(
     @CurrentAuth()
     auth: AuthContext,
+    @Query() query: ListEstablishmentsQueryDto,
   ) {
-    return this.establishmentService.list(auth.tenantId);
+    return this.establishmentService.list(auth.tenantId, query.category);
   }
 
   /*

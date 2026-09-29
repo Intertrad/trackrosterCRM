@@ -10,7 +10,6 @@ import { AppModule } from '../src/app.module.js';
 import type { AuthenticationTokens } from '../src/auth/auth.types.js';
 import { PasswordService } from '../src/auth/password.service.js';
 import { UserAccessGrantRepository } from '../src/authorization/user-access-grant.repository.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import {
   auditEvents,
   campaignProspectAssignments,
@@ -30,6 +29,7 @@ import { RedisService } from '../src/redis/redis.service.js';
 import { ReservationRepository } from '../src/reservations/reservation.repository.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('HTTP idempotency integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -200,7 +200,7 @@ describe('HTTP idempotency integration', () => {
     await application.init();
 
     app = application;
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
     redisService = application.get(RedisService);
     reservationRepository = application.get(ReservationRepository);
 

@@ -53,6 +53,16 @@ export interface PlannedActionCollisionConflict {
   dueAt: string;
 }
 
+export interface ScheduledActionCollisionConflict {
+  actionId: string;
+  campaignId: string;
+  campaignProspectId: string;
+  assignmentId: string;
+  assignedUserId: string;
+  dueAt: string | null;
+  updatedAt: string;
+}
+
 export interface RecentContactCollisionConflict {
   activityId: string;
 
@@ -67,6 +77,7 @@ export type CollisionConflict =
   | ActiveAssignmentCollisionConflict
   | ActiveReservationCollisionConflict
   | PlannedActionCollisionConflict
+  | ScheduledActionCollisionConflict
   | RecentContactCollisionConflict;
 
 export interface CollisionDecisionResult {

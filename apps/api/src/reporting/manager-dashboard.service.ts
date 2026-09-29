@@ -154,6 +154,19 @@ export class ManagerDashboardService {
    * services may also be called internally.
    */
 
+  /* Exposed so per-report queries resolve their window identically. */
+  resolveReportRange(
+    query: ManagerDashboardQueryDto,
+    generatedAt: Date,
+  ): ManagerDashboardDateRange {
+    return this.resolveRange(query, generatedAt);
+  }
+
+  /* Exposed for the same reason as resolveReportRange. */
+  buildReportFilters(query: ManagerDashboardQueryDto): ManagerDashboardFilters {
+    return this.buildFilters(query);
+  }
+
   private resolveRange(
     query: ManagerDashboardQueryDto,
     generatedAt: Date,

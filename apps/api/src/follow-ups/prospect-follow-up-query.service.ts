@@ -31,6 +31,8 @@ export interface ListFollowUpQueueInput {
 
   userId: string;
 
+  teamId: string;
+
   overdue?: boolean;
 
   limit?: number;
@@ -70,7 +72,7 @@ export class ProspectFollowUpQueryService {
           grant.role === 'prospector' &&
           grant.scopeType === 'team' &&
           grant.organizationId !== null &&
-          grant.teamId !== null,
+          grant.teamId === input.teamId,
       )
       .map((grant) => ({
         organizationId: grant.organizationId as string,
@@ -79,7 +81,7 @@ export class ProspectFollowUpQueryService {
       }));
 
     if (teamScopes.length === 0) {
-      throw new ForbiddenException('User does not have a prospector team scope');
+      throw new ForbiddenException('User does not have access to this prospector team');
     }
 
     try {
@@ -96,7 +98,13 @@ export class ProspectFollowUpQueryService {
       });
 
       return {
-        items: followUps.map(toPublicProspectFollowUp),
+        items: followUps.map((followUp) => ({
+          ...toPublicProspectFollowUp(followUp),
+
+          campaignName: followUp.campaignName,
+
+          establishmentName: followUp.establishmentName,
+        })),
       };
     } catch {
       throw new ServiceUnavailableException('Follow-up service is unavailable');
@@ -139,9 +147,13 @@ export class ProspectFollowUpQueryService {
     }
 
     /*
-     * Current ownership controls current read
-     * access, while historical follow-up rows
-     * remain visible once access is granted.
+     * Current ownership determines whether this
+     * prospect is visible now.
+     *
+     * The resolved durable scope is also passed to
+     * the history query. A current Team B assignment
+     * must never reveal rows created under an ended
+     * Team A assignment to a Team B-only reader.
      */
     const currentAssignment = await this.assignmentRepository.findCurrent(
       input.tenantId,
@@ -149,37 +161,31 @@ export class ProspectFollowUpQueryService {
       input.campaignProspectId,
     );
 
-    let canView: boolean;
+    const viewScope = await this.authorizationService.resolveViewScope(
+      input.tenantId,
 
-    if (currentAssignment) {
-      canView = await this.authorizationService.canViewTeam(
-        input.tenantId,
-        input.userId,
-        currentAssignment.organizationId,
-        currentAssignment.teamId,
-      );
-    } else {
-      canView = await this.authorizationService.canViewOrganization(
-        input.tenantId,
-        input.userId,
-        campaign.organizationId,
-      );
-    }
+      input.userId,
+
+      currentAssignment?.organizationId ?? campaign.organizationId,
+
+      currentAssignment?.teamId,
+    );
 
     /*
      * Existing resources outside the caller's
      * authorized scope are intentionally masked
      * as not found.
      */
-    if (!canView) {
+    if (!viewScope) {
       throw new NotFoundException('Campaign prospect not found');
     }
 
     try {
-      const followUps = await this.followUpRepository.findByCampaignProspect(
+      const followUps = await this.followUpRepository.findByCampaignProspectWithinScope(
         input.tenantId,
         input.campaignId,
         input.campaignProspectId,
+        viewScope,
       );
 
       return {

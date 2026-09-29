@@ -7,11 +7,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
-import { DATABASE } from '../src/database/database.constants.js';
 import { auditEvents, tenants, users } from '../src/database/schema/index.js';
 import type { Database } from '../src/database/database.types.js';
 import { TenantService } from '../src/tenants/tenant.service.js';
 import { UserRepository } from '../src/users/user.repository.js';
+import { getSeedDatabase } from './support/seed.js';
 
 describe('audit events schema integration', () => {
   let app: NestFastifyApplication | undefined;
@@ -50,7 +50,7 @@ describe('audit events schema integration', () => {
 
     app = application;
 
-    database = application.get<Database>(DATABASE);
+    database = getSeedDatabase();
 
     const tenantService = application.get(TenantService);
 

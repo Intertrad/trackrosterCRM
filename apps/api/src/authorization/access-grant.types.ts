@@ -30,6 +30,36 @@ export interface TeamAccessGrantInput {
 export type CreateAccessGrantInput =
   TenantAccessGrantInput | OrganizationAccessGrantInput | TeamAccessGrantInput;
 
+/*
+ * Server-resolved read authority for one resource.
+ *
+ * The discriminated union prevents a repository
+ * caller from constructing an incoherent scope such
+ * as a team without its owning organization.
+ */
+export type ResolvedViewScope =
+  | {
+      scopeType: 'tenant';
+
+      organizationId: null;
+
+      teamId: null;
+    }
+  | {
+      scopeType: 'organization';
+
+      organizationId: string;
+
+      teamId: null;
+    }
+  | {
+      scopeType: 'team';
+
+      organizationId: string;
+
+      teamId: string;
+    };
+
 export type CreateAccessGrantCommand = CreateAccessGrantInput & {
   /*
    * Authenticated administrator who is changing

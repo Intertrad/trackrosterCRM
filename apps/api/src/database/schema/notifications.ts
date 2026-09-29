@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import {
+  check,
   foreignKey,
   index,
   pgEnum,
@@ -11,7 +13,7 @@ import {
 
 import { prospectFollowUps } from './prospect-follow-ups.js';
 import { tenants } from './tenants.js';
-import { users } from './users.js';
+import { tenantMemberships } from './tenant-memberships.js';
 
 export const notificationTypeEnum = pgEnum('notification_type', ['follow_up_reminder']);
 
@@ -36,6 +38,10 @@ export const notifications = pgTable(
     recipientUserId: uuid('recipient_user_id').notNull(),
 
     type: notificationTypeEnum('type').default('follow_up_reminder').notNull(),
+    severity: varchar('severity', { length: 16 })
+      .$type<'info' | 'warning' | 'error' | 'critical'>()
+      .default('info')
+      .notNull(),
 
     /*
      * Source follow-up.
@@ -80,6 +86,10 @@ export const notifications = pgTable(
   },
 
   (table) => [
+    check(
+      'notifications_severity_check',
+      sql`${table.severity} IN ('info','warning','error','critical')`,
+    ),
     /*
      * Recipient must belong to the same tenant.
      */
@@ -88,7 +98,7 @@ export const notifications = pgTable(
 
       columns: [table.tenantId, table.recipientUserId],
 
-      foreignColumns: [users.tenantId, users.id],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
     })
       .onDelete('restrict')
       .onUpdate('cascade'),

@@ -1,0 +1,3 @@
+-- Custom SQL migration file, put your code below! --
+CREATE TABLE saved_views (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL REFERENCES tenants(id), owner_id uuid NOT NULL, name varchar(120) NOT NULL, resource varchar(40) NOT NULL, filters jsonb NOT NULL, sort jsonb NOT NULL DEFAULT '{}'::jsonb, columns jsonb NOT NULL DEFAULT '[]'::jsonb, shared boolean NOT NULL DEFAULT false, is_default boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CONSTRAINT saved_views_owner_fk FOREIGN KEY(tenant_id,owner_id) REFERENCES tenant_memberships(tenant_id,id));
+CREATE INDEX saved_views_visibility_idx ON saved_views(tenant_id,resource,shared,owner_id);

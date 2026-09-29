@@ -1,4 +1,23 @@
+import { EnrichmentModule } from './prospect-enrichment/enrichment.controller.js';
+import { ProspectMasterModule } from './prospect-master/prospect-master.controller.js';
+import { MapModule } from './maps/map.controller.js';
+import { CanonicalDashboardModule } from './reporting/canonical-dashboard.controller.js';
+import { OutcomeSettingsModule } from './outcome-settings/outcome-settings.controller.js';
+import { DataJobsModule } from './data-jobs/data-jobs.module.js';
+import { ReservationLifecycleModule } from './reservations/reservation-lifecycle.module.js';
+import { CollisionWorkflowModule } from './collisions/collision-workflow.module.js';
+import { ActionModule } from './actions/action.module.js';
+import { ConsentModule } from './consents/consent.module.js';
+import { GeographicAllocationModule } from './geographic-allocation/allocation.module.js';
+import { CampaignOrganizationModule } from './campaign-organizations/campaign-organization.module.js';
+import { StructureModule } from './organization-structure/structure.module.js';
+import { ParticipationModule } from './participation/participation.module.js';
+import { TerritoryModule } from './territories/territory.module.js';
+import { MembershipModule } from './memberships/membership.module.js';
+import { SecurityAdministrationModule } from './security-administration/security-administration.module.js';
 import { Module } from '@nestjs/common';
+import { AccountModule } from './account/account.module.js';
+import { WorkspaceAdministrationModule } from './workspace-administration/workspace-administration.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { TenantModule } from './tenants/tenant.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -28,8 +47,31 @@ import { ExportModule } from './exports/export.module.js';
 import { ApiErrorModule } from './errors/api-error.module.js';
 import { IdempotencyModule } from './idempotency/idempotency.module.js';
 import { RegionModule } from './regions/region.module.js';
+import { WorkQueueModule } from './work-queue/work-queue.module.js';
+import { ProspectorTodayModule } from './prospector-today/prospector-today.module.js';
+import { MessagingModule } from './messaging/messaging.module.js';
+import { CommunicationsModule } from './communications/communications.module.js';
+import { ScheduledReportsModule } from './scheduled-reports/scheduled-reports.module.js';
+import { SavedViewsModule } from './saved-views/saved-views.module.js';
+import { ComplianceModule } from './compliance/compliance.module.js';
+import { IntegrationsModule } from './integrations/integrations.module.js';
+import { ProvidersModule } from './providers/providers.module.js';
+import { SearchModule } from './search/search.module.js';
+import { ScriptsModule } from './scripts/scripts.module.js';
 @Module({
   imports: [
+    EnrichmentModule,
+    ProspectMasterModule,
+    MapModule,
+    CanonicalDashboardModule,
+    OutcomeSettingsModule,
+    DataJobsModule,
+    ReservationLifecycleModule,
+    CollisionWorkflowModule,
+    ActionModule,
+    ConsentModule,
+    GeographicAllocationModule,
+    CampaignOrganizationModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../../.env',
@@ -37,6 +79,13 @@ import { RegionModule } from './regions/region.module.js';
     }),
 
     DatabaseModule,
+    AccountModule,
+    MembershipModule,
+    TerritoryModule,
+    ParticipationModule,
+    StructureModule,
+    SecurityAdministrationModule,
+    WorkspaceAdministrationModule,
     TenantModule,
     HealthModule,
     OrganizationModule,
@@ -64,6 +113,17 @@ import { RegionModule } from './regions/region.module.js';
     ExportModule,
     IdempotencyModule,
     RegionModule,
+    WorkQueueModule,
+    ProspectorTodayModule,
+    MessagingModule,
+    CommunicationsModule,
+    ScheduledReportsModule,
+    SavedViewsModule,
+    ComplianceModule,
+    IntegrationsModule,
+    ProvidersModule,
+    SearchModule,
+    ScriptsModule,
   ],
 })
 export class AppModule {}

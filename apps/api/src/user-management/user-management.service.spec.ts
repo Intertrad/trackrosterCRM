@@ -40,6 +40,7 @@ describe('UserManagementService', () => {
       id: '22222222-2222-4222-8222-222222222222',
       tenantId: '11111111-1111-4111-8111-111111111111',
       email: 'user@trackroster.test',
+      displayName: null,
       passwordHash: '$argon2id$hashed-password',
       status: 'active',
       createdAt: new Date(),
@@ -70,6 +71,8 @@ describe('UserManagementService', () => {
 
     expect(result.email).toBe('user@trackroster.test');
 
+    expect(result.displayName).toBeNull();
+
     expect(result).not.toHaveProperty('passwordHash');
   });
 
@@ -78,6 +81,7 @@ describe('UserManagementService', () => {
       id: '22222222-2222-4222-8222-222222222222',
       tenantId: '11111111-1111-4111-8111-111111111111',
       email: 'user@trackroster.test',
+      displayName: null,
       passwordHash: 'hash',
       status: 'active',
       createdAt: new Date(),
@@ -103,6 +107,7 @@ describe('UserManagementService', () => {
         id: '22222222-2222-4222-8222-222222222222',
         tenantId: '11111111-1111-4111-8111-111111111111',
         email: 'first@trackroster.test',
+        displayName: 'First User',
         passwordHash: 'hash-one',
         status: 'active',
         createdAt: new Date(),
@@ -112,6 +117,7 @@ describe('UserManagementService', () => {
         id: '33333333-3333-4333-8333-333333333333',
         tenantId: '11111111-1111-4111-8111-111111111111',
         email: 'second@trackroster.test',
+        displayName: null,
         passwordHash: 'hash-two',
         status: 'suspended',
         createdAt: new Date(),
@@ -126,6 +132,8 @@ describe('UserManagementService', () => {
     expect(result[0]).not.toHaveProperty('passwordHash');
 
     expect(result[1]).not.toHaveProperty('passwordHash');
+
+    expect(result.map((user) => user.displayName)).toEqual(['First User', null]);
   });
 
   it('updates another users status', async () => {
@@ -139,6 +147,7 @@ describe('UserManagementService', () => {
       id: targetUserId,
       tenantId,
       email: 'user@trackroster.test',
+      displayName: 'Target User',
       passwordHash: 'hash',
       status: 'suspended',
       createdAt: new Date(),
@@ -147,7 +156,12 @@ describe('UserManagementService', () => {
 
     const result = await service.updateStatus(tenantId, actorUserId, targetUserId, 'suspended');
 
-    expect(userRepository.updateStatus).toHaveBeenCalledWith(tenantId, targetUserId, 'suspended');
+    expect(userRepository.updateStatus).toHaveBeenCalledWith(
+      tenantId,
+      targetUserId,
+      'suspended',
+      actorUserId,
+    );
 
     expect(result.status).toBe('suspended');
 
