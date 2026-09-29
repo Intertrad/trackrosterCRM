@@ -20,7 +20,7 @@ describe('ProspectMap', () => {
     render(<ProspectMap points={[]} />);
 
     expect(screen.getByText('Basemap is not configured')).toBeInTheDocument();
-    expect(screen.getByText('NEXT_PUBLIC_PMTILES_URL')).toBeInTheDocument();
+    expect(screen.getByText(/map tiles are not available/i)).toBeInTheDocument();
   });
 
   it('never mounts a map surface while the basemap is unconfigured', () => {

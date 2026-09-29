@@ -489,9 +489,8 @@ export function ProspectMap({
   if (!isMapConfigured()) {
     return (
       <MapNotice className={className} title="Basemap is not configured">
-        Publish a Protomaps <code>.pmtiles</code> archive and set{' '}
-        <code>NEXT_PUBLIC_PMTILES_URL</code> to its URL. Tiles are then served from your own
-        infrastructure, so prospect coordinates never reach a third-party host.
+        The map tiles are not available in this environment. Contact your administrator to configure
+        the TrackRoster basemap.
       </MapNotice>
     );
   }
@@ -499,8 +498,7 @@ export function ProspectMap({
   if (failed) {
     return (
       <MapNotice className={className} title="The basemap could not be loaded">
-        Check that the archive at <code>NEXT_PUBLIC_PMTILES_URL</code> is reachable and serves HTTP
-        range requests.
+        Map tiles are temporarily unavailable. Please try again later.
       </MapNotice>
     );
   }
