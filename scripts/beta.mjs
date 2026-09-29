@@ -75,8 +75,8 @@ const env = { ...process.env, ...beta };
 const mode = process.argv[2];
 const rest = process.argv.slice(3);
 
-function run(command, args, cwd = root) {
-  const result = spawnSync(command, args, { cwd, env, stdio: 'inherit' });
+function run(command, args, cwd = root, overrides = {}) {
+  const result = spawnSync(command, args, { cwd, env: { ...env, ...overrides }, stdio: 'inherit' });
 
   if (result.error) throw result.error;
 
@@ -101,7 +101,16 @@ if (mode === 'migrate') {
 } else if (mode === 'api') {
   process.exitCode = run('pnpm', ['--filter', 'api', 'dev']);
 } else if (mode === 'web') {
-  process.exitCode = run('pnpm', ['--filter', 'web', 'dev', '--', '--port', '3100']);
+  /*
+   * PORT rather than a --port flag: pnpm's `--` passthrough hands `--port` to
+   * `next dev` as a positional, which reads it as a project directory and dies.
+   * .env.beta's PORT belongs to the API, so the web port is overridden here
+   * instead — otherwise the two beta processes fight over 3101.
+   */
+  process.exitCode = run('pnpm', ['--filter', 'web', 'dev'], root, {
+    PORT: '3100',
+    NEXT_DIST_DIR: '.next-beta',
+  });
 } else if (mode === 'psql') {
   process.exitCode = run('psql', [beta.DATABASE_MIGRATION_URL, ...rest]);
 } else if (mode === 'run') {

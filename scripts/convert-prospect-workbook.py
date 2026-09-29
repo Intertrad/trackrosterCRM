@@ -26,6 +26,12 @@ anything. It is deliberately the only Python in the repository, and it is a
 one-way data tool rather than part of the application.
 
     python3 scripts/convert-prospect-workbook.py <workbook.xlsx> <output-dir>
+    python3 scripts/convert-prospect-workbook.py <workbook.xlsx> <output-dir> cra,prescripteurs
+
+The optional third argument limits the run to the named categories. The load is
+staged — a small sheet first, then the priority population, then the rest — and
+converting all fourteen thousand rows to disk in order to import twenty-eight of
+them writes out real data nobody asked for yet.
 """
 
 from __future__ import annotations
@@ -219,8 +225,16 @@ def assert_headers_match_the_importer() -> None:
         )
 
 
-def convert(workbook: Path, out_dir: Path) -> int:
+def convert(workbook: Path, out_dir: Path, only: set[str] | None = None) -> int:
     assert_headers_match_the_importer()
+
+    if only:
+        unknown = sorted(only - set(CATEGORIES.values()))
+        if unknown:
+            raise SystemExit(
+                f"unknown categories: {unknown}\n"
+                f"  known: {sorted(CATEGORIES.values())}"
+            )
 
     sheets = read_workbook(workbook)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -229,6 +243,9 @@ def convert(workbook: Path, out_dir: Path) -> int:
     print(f"{'category':18s} {'rows':>6s} {'named':>6s} {'ref':>6s} {'geo':>6s} {'padded':>6s}  file")
 
     for sheet_name, category in CATEGORIES.items():
+        if only and category not in only:
+            continue
+
         rows = [row for row in sheets.get(sheet_name, []) if row]
         if not rows:
             print(f"{category:18s} {'—':>6s}  sheet missing")
@@ -304,7 +321,12 @@ def convert(workbook: Path, out_dir: Path) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         print(__doc__)
         raise SystemExit(2)
-    convert(Path(sys.argv[1]), Path(sys.argv[2]))
+    selected = (
+        {name.strip() for name in sys.argv[3].split(",") if name.strip()}
+        if len(sys.argv) == 4
+        else None
+    )
+    convert(Path(sys.argv[1]), Path(sys.argv[2]), selected)
