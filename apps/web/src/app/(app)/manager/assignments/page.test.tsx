@@ -35,7 +35,7 @@ const {
 
 vi.mock('@/lib/auth/auth-context', () => ({ useAuth: useAuthMock }));
 vi.mock('@/lib/api/work-queue-client', () => ({ getWorkQueueOptions: getWorkQueueOptionsMock }));
-vi.mock('@/lib/api/membership-client', () => ({ listMemberships: listMembershipsMock }));
+vi.mock('@/lib/api/membership-client', () => ({ listScopedMemberships: listMembershipsMock }));
 vi.mock('@/lib/api/campaign-client', () => ({
   listCampaigns: listCampaignsMock,
   previewCampaignEnrolment: previewCampaignEnrolmentMock,
@@ -92,8 +92,9 @@ describe('manager assignments', () => {
       },
     });
 
-    getWorkQueueOptionsMock.mockResolvedValue({
-      campaigns: [{ id: campaignId, name: 'Gendarmeries 2026' }],
+    listCampaignsMock.mockResolvedValue({
+      items: [{ id: campaignId, name: 'Gendarmeries 2026', status: 'active', organizationId: 'o' }],
+      nextCursor: null,
     });
 
     listMembershipsMock.mockResolvedValue({
@@ -842,8 +843,9 @@ describe('campaign enrolment inside the assignment workspace', () => {
       },
     });
 
-    getWorkQueueOptionsMock.mockResolvedValue({
-      campaigns: [{ id: campaignId, name: 'Gendarmeries 2026' }],
+    listCampaignsMock.mockResolvedValue({
+      items: [{ id: campaignId, name: 'Gendarmeries 2026', status: 'active', organizationId: 'o' }],
+      nextCursor: null,
     });
 
     render(<AssignmentsPage />);

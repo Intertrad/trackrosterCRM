@@ -1,0 +1,216 @@
+design_screen,title,live_route_or_reference,status,notes
+sign-in,Welcome back,/login,Connected,"Uses an existing live page, tab, drawer or result state."
+forgot-password,Reset your password,/forgot-password,Connected,"Uses an existing live page, tab, drawer or result state."
+reset-password,Choose a new password,/reset-password/[token],Connected,"Uses an existing live page, tab, drawer or result state."
+mfa-challenge,A little extra protection,/mfa,Connected,"Uses an existing live page, tab, drawer or result state."
+mfa-recovery,Use a recovery code,/mfa,Connected,"Uses an existing live page, tab, drawer or result state."
+accept-invitation,Your team is waiting,/invite,Connected,"Uses an existing live page, tab, drawer or result state."
+workspace-picker,Choose your workspace,/select-workspace,Connected,"Uses an existing live page, tab, drawer or result state."
+sso-return,Connecting your workspace,/login,Provider work remaining,Backend OAuth flow links authenticated accounts; it is not a complete unauthenticated SSO sign-in flow. Requires provider configuration and a dedicated sign-in contract.
+auth-expired,Your session has ended,/login,Connected,"Uses an existing live page, tab, drawer or result state."
+reset-link-expired,This link has expired,/reset-password/[token],Connected,"Uses an existing live page, tab, drawer or result state."
+profile,Your profile,/profile,Connected,"Uses an existing live page, tab, drawer or result state."
+preferences,Personal preferences,/profile?tab=notifications,Connected,"Uses an existing live page, tab, drawer or result state."
+notification-preferences,Notification preferences,/profile?tab=notifications,Connected,"Uses an existing live page, tab, drawer or result state."
+sessions,Active sessions,/profile?tab=sessions,Connected,"Uses an existing live page, tab, drawer or result state."
+mfa-setup,Set up two-step verification,/profile?tab=security,Connected,"Uses an existing live page, tab, drawer or result state."
+recovery-codes,Save your recovery codes,/profile?tab=security,Connected,"Uses an existing live page, tab, drawer or result state."
+today,"Good morning, Camille.",/,Connected,"Uses an existing live page, tab, drawer or result state."
+work-queue,Your work queue,/work-queue,Connected,"Uses an existing live page, tab, drawer or result state."
+follow-ups,Follow-ups,/follow-ups,Connected,"Uses an existing live page, tab, drawer or result state."
+follow-up-new,Plan a follow-up,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+follow-up-reschedule,Reschedule follow-up,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+follow-up-detail,Call back Marie Laurent,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+actions,Actions,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-new,Plan an action,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-detail,Introduce our interpreting service,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-edit,Edit planned action,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-correction,Correct an action record,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-complete,How did the conversation go?,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+action-saved,One conversation. A clear next step.,/actions,Connected,"Uses an existing live page, tab, drawer or result state."
+prospects,Prospect directory,/admin/prospects,Connected,"Uses an existing live page, tab, drawer or result state."
+prospect-detail,Maison Horizon,/admin/prospects/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+prospect-timeline,Maison Horizon,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+prospect-contacts,Maison Horizon,/workspace/prospect-contacts,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-addresses,Maison Horizon,/workspace/prospect-addresses,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-campaigns,Maison Horizon,/admin/prospects/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+prospect-consents,Maison Horizon,/workspace/prospect-consents,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-enrichment,Maison Horizon,/workspace/prospect-record,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-new,Add a prospect,/workspace/prospect-records,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-edit,Edit Maison Horizon,/workspace/prospect-records,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+contact-new,Add a contact,/workspace/prospect-contacts,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+contact-edit,Edit contact,/workspace/prospect-contacts,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+address-new,Add an address,/workspace/prospect-addresses,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+consent-new,Record contact permission,/workspace/prospect-consents,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-archive,Archive Maison Horizon?,/workspace/prospect-records,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+archived-prospects,Archived prospects,/workspace/prospect-records,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+prospect-restore,Restore Maison Horizon?,/workspace/prospect-records,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+availability-check,Ready for your next conversation,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+reservation-active,You have the floor,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+availability-blocked,Someone is already on this,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+availability-cooldown,A little breathing room,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+availability-consent,Contact is not permitted,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+reservation-expired,Your reservation has ended,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+reservation-release,Release this reservation?,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+reservation-extend,Extend your reservation,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+override-request,Ask your manager to review,/work-queue/[campaignId]/[prospectId],Connected,"Uses an existing live page, tab, drawer or result state."
+reservations,Active reservations,/workspace/reservations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+collisions,Collision history,/manager/collisions,Connected,"Uses an existing live page, tab, drawer or result state."
+collision-detail,A conversation protected,/manager/collisions,Connected,"Uses an existing live page, tab, drawer or result state."
+approvals,Manager approvals,/manager/approvals,Connected,"Uses an existing live page, tab, drawer or result state."
+approval-detail,Review contact exception,/manager/approvals,Connected,"Uses an existing live page, tab, drawer or result state."
+prospect-map,"Your territory, at a glance",/map,Connected,"Uses an existing live page, tab, drawer or result state."
+map-coverage,Territory coverage,/map,Connected,"Uses an existing live page, tab, drawer or result state."
+map-heatmap,Contact activity,/map,Visual layer remaining,Live prospect markers and territory boundaries are connected; the presentation heatmap layer is not implemented.
+routes,Your routes,/routes,Connected,"Uses an existing live page, tab, drawer or result state."
+route-new,Plan a route,/routes/new,Connected,"Uses an existing live page, tab, drawer or result state."
+route-detail,East Paris · Monday visits,/routes/[routeId],Connected,"Uses an existing live page, tab, drawer or result state."
+route-active,Your route is under way,/routes/[routeId],Connected,"Uses an existing live page, tab, drawer or result state."
+route-complete,A productive day in the field,/routes/[routeId],Connected,"Uses an existing live page, tab, drawer or result state."
+route-stop,Add a route stop,/routes/[routeId],Connected,"Uses an existing live page, tab, drawer or result state."
+manager-overview,Team momentum,/manager/overview,Connected,"Uses an existing live page, tab, drawer or result state."
+director-overview,A connected picture,/director/overview,Connected,"Uses an existing live page, tab, drawer or result state."
+admin-overview,A healthy workspace,/admin/overview,Connected,"Uses an existing live page, tab, drawer or result state."
+assignments,Assignments,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+unassigned,Ready to assign,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-select,Choose the prospects,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-strategy,Choose how to distribute,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-preview,Review before assigning,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-result,Assignments are ready,/manager/assignments,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-detail,Assignment · Maison Horizon,/manager/assignments/active,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-reassign,Reassign this prospect,/manager/assignments/active,Connected,"Uses an existing live page, tab, drawer or result state."
+assignment-rules,Distribution rules,/workspace/assignment-rules,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+assignment-rule-new,Create a distribution rule,/workspace/assignment-rules,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-capacity,Workload and capacity,/workspace/teams,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-member,Camille Moreau,/manager/team,Connected,"Uses an existing live page, tab, drawer or result state."
+campaigns,Campaigns,/manager/campaigns,Connected,"Uses an existing live page, tab, drawer or result state."
+campaign-new,Create a campaign,/workspace/campaign-settings,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-edit,Edit Autumn outreach,/workspace/campaign-settings,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-detail,Autumn outreach,/manager/campaigns/[campaignId],Connected,"Uses an existing live page, tab, drawer or result state."
+campaign-prospects,Autumn outreach,/manager/campaigns/[campaignId],Connected,"Uses an existing live page, tab, drawer or result state."
+campaign-members,Autumn outreach,/workspace/campaign-members,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-organizations,Autumn outreach,/workspace/campaign-organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-territories,Autumn outreach,/workspace/campaign-territories,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-settings,Autumn outreach,/workspace/campaign-settings,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-enrol,Add prospects to campaign,/admin/campaigns,Connected,"Uses an existing live page, tab, drawer or result state."
+campaign-member-new,Add campaign member,/workspace/campaign-members,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-organization-new,Add participating organisation,/workspace/campaign-organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+campaign-territory-link,Link a territory,/workspace/campaign-territories,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+imports,Import centre,/admin/imports,Connected,"Uses an existing live page, tab, drawer or result state."
+import-upload,Bring your prospects together,/admin/imports,Connected,"Uses an existing live page, tab, drawer or result state."
+import-mapping,Match your columns,/admin/imports/[importId],Connected,"Uses an existing live page, tab, drawer or result state."
+import-validation,A quick health check,/admin/imports/[importId],Connected,"Uses an existing live page, tab, drawer or result state."
+import-review,Resolve before you import,/admin/imports/[importId],Connected,"Uses an existing live page, tab, drawer or result state."
+import-confirm,Ready to bring these records in?,/admin/imports/[importId],Connected,"Uses an existing live page, tab, drawer or result state."
+import-result,Your import is complete,/admin/imports/[importId],Connected,"Uses an existing live page, tab, drawer or result state."
+duplicates,Potential duplicates,/workspace/duplicates,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+duplicate-review,"One establishment, two records?",/workspace/duplicates,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+data-quality,Data that your team can trust,/workspace/data-quality,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+tags,Tags,/workspace/tags,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+tag-new,Create a tag,/workspace/tags,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+custom-fields,Custom fields,/workspace/custom-fields,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+custom-field-new,Create a custom field,/workspace/custom-fields,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+reports,From activity to insight,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-overview,Performance overview,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-workload,Workload,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-actions,Action activity,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-funnel,Prospect funnel,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-conversions,Conversions,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-follow-ups,Follow-up discipline,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-coverage,Coverage,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-collisions,Coordination,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-data-quality,Data quality,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-territories,Territory performance,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+report-forecast,Pipeline outlook,/manager/reports,Connected,"Uses an existing live page, tab, drawer or result state."
+objectives,Objectives,/workspace/objectives,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+objective-new,Create an objective,/workspace/objectives,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+objective-detail,120 qualified prospects,/workspace/objectives,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+objective-edit,Edit objective,/workspace/objectives,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+scheduled-reports,Scheduled reports,/workspace/scheduled-reports,Connected,Scheduling and delivery-history UI connected. Actual scheduled generation/delivery requires operational workers and providers; not end-to-end certified here.
+schedule-new,Schedule a report,/workspace/scheduled-reports,Connected,Scheduling and delivery-history UI connected. Actual scheduled generation/delivery requires operational workers and providers; not end-to-end certified here.
+report-deliveries,Report delivery history,/workspace/scheduled-reports,Connected,Scheduling and delivery-history UI connected. Actual scheduled generation/delivery requires operational workers and providers; not end-to-end certified here.
+exports,Export centre,/manager/exports,Connected,"Uses an existing live page, tab, drawer or result state."
+export-new,Prepare an export,/manager/exports,Connected,"Uses an existing live page, tab, drawer or result state."
+export-preview,Check the export scope,/manager/exports,Connected,"Uses an existing live page, tab, drawer or result state."
+export-detail,Your export is ready,/manager/exports,Connected,"Uses an existing live page, tab, drawer or result state."
+messages,Conversations,/messages,Connected,"Uses an existing live page, tab, drawer or result state."
+conversation,Paris East team,/messages,Connected,"Uses an existing live page, tab, drawer or result state."
+conversation-new,Start a conversation,/messages,Connected,"Uses an existing live page, tab, drawer or result state."
+conversation-members,Conversation participants,/workspace/conversation-members,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+notifications,Your updates,/workspace/notifications,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+search,Find what you need,/search,Connected,"Uses an existing live page, tab, drawer or result state."
+saved-views,Your saved views,/workspace/saved-views,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+saved-view-new,Save this view,/workspace/saved-views,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+workspace-settings,Workspace settings,/workspace/workspace-settings,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+organizations,Companies and brands,/workspace/organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+organization-new,Add an organisation,/workspace/organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+organization-detail,INTERTRAD,/workspace/organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+organization-edit,Edit INTERTRAD,/workspace/organizations,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+organization-relationships,Organisational relationships,/workspace/relationships,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+relationship-new,Add a relationship,/workspace/relationships,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+teams,Teams,/workspace/teams,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-new,Create a team,/workspace/teams,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-detail,Paris East,/workspace/teams,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-edit,Edit Paris East,/workspace/teams,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+team-member-new,Add team member,/workspace/team-members,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+users,People and access,/admin/users,Connected,"Uses an existing live page, tab, drawer or result state."
+user-invite,Invite a teammate,/admin/users,Connected,"Uses an existing live page, tab, drawer or result state."
+user-detail,Camille Moreau,/admin/users,Connected,"Uses an existing live page, tab, drawer or result state."
+user-edit,Edit membership,/admin/users,Connected,"Uses an existing live page, tab, drawer or result state."
+user-scope,Add access scope,/workspace/membership-scopes,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+access-grant,Grant scoped access,/workspace/access-grants,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+user-suspend,Suspend this membership?,/admin/users,Connected,"Uses an existing live page, tab, drawer or result state."
+roles,Roles and permissions,/admin/users?tab=roles,Connected,"Uses an existing live page, tab, drawer or result state."
+territories,Territories,/workspace/territories,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+territory-new,Create a territory,/workspace/territories,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+territory-detail,Paris East territory,/workspace/territories,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+territory-assign,Assign a territory,/workspace/territory-assignments,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+regions,Region hierarchy,/workspace/regions,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+region-new,Add a region,/workspace/regions,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+reservation-rules,Reservation rules,/workspace/reservation-rules,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+reservation-rule-new,Create a reservation rule,/workspace/reservation-rules,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+outcome-settings,Action outcomes,/workspace/outcomes,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+security-policy,Security policy,/workspace/security-policy,Connected,Policy configuration is connected. Enforcing an external SSO sign-in flow requires its provider and authentication contract.
+sso-settings,Single sign-on,/workspace/security-policy,Connected,Policy configuration is connected. Enforcing an external SSO sign-in flow requires its provider and authentication contract.
+integrations,Connected tools,/workspace/integrations,Connected,Configuration/test/sync APIs connected. A stored connection record does not prove provider authorization or a completed synchronization.
+integration-detail,Directory connection,/workspace/integrations,Connected,Configuration/test/sync APIs connected. A stored connection record does not prove provider authorization or a completed synchronization.
+integration-connect,Connect a provider,/workspace/integrations,Connected,Configuration/test/sync APIs connected. A stored connection record does not prove provider authorization or a completed synchronization.
+api-clients,API clients,/workspace/api-clients,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+api-client-new,Create an API client,/workspace/api-clients,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+api-client-secret,Save the client secret,/workspace/api-clients,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+webhooks,Webhooks,/workspace/webhooks,Connected,CRUD and delivery-history APIs connected; external destination delivery not exercised.
+webhook-new,Create a webhook,/workspace/webhooks,Connected,CRUD and delivery-history APIs connected; external destination delivery not exercised.
+webhook-deliveries,Webhook deliveries,/workspace/webhooks,Connected,CRUD and delivery-history APIs connected; external destination delivery not exercised.
+webhook-delivery-detail,Delivery attempt,/workspace/webhook-delivery,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-overview,A clear trail of decisions,/workspace/audit-overview,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-events,Event log,/workspace/audit-events,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-data,Data changes,/workspace/audit-data-changes,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-security,Security events,/workspace/audit-security,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-assignments,Assignment audit,/workspace/audit-assignments,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-overrides,Override audit,/workspace/audit-overrides,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-collisions,Collision audit,/workspace/audit-collisions,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-exports,Export audit,/workspace/audit-exports,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-event-detail,Assignment changed,/workspace/audit-events,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-access,Member access review,/workspace/audit-access,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+audit-retention,Retention visibility,/workspace/audit-retention,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+evidence-export,Prepare an evidence export,/workspace/audit-events,Connected,Request and status API connected. Audit evidence artifact generation/download still needs a verified backend worker; a queued row is not a finished file.
+access-reviews,Access reviews,/workspace/access-reviews,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+access-review-detail,September access review,/workspace/access-reviews,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+compliance-reports,Compliance reports,/workspace/compliance-reports,Connected,Request/status/download UI connected; report worker and storage delivery not end-to-end certified.
+compliance-report-new,Create compliance report,/workspace/compliance-reports,Connected,Request/status/download UI connected; report worker and storage delivery not end-to-end certified.
+platform-overview,Platform overview,/workspace/platform-tenants,Connected,Requires an active identity-level super_admin grant; a tenant admin is not a platform admin.
+platform-tenants,Tenants,/workspace/platform-tenants,Connected,Requires an active identity-level super_admin grant; a tenant admin is not a platform admin.
+platform-tenant-detail,INTERTRAD workspace,/workspace/platform-tenants,Connected,Requires an active identity-level super_admin grant; a tenant admin is not a platform admin.
+platform-tenant-config,Tenant configuration,/workspace/platform-tenants,Connected,Requires an active identity-level super_admin grant; a tenant admin is not a platform admin.
+platform-tenant-status,Change tenant status,/workspace/platform-tenants,Connected,Requires an active identity-level super_admin grant; a tenant admin is not a platform admin.
+platform-users,Platform identities,/workspace/platform-users,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+platform-grant,Grant platform access,/workspace/platform-users,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+platform-health,Service health,/workspace/platform-health,Connected,Connected list/detail/actions use accepted backend DTOs. Server enforces permissions.
+state-loading,Getting your workspace ready,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-empty,A fresh start,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-error,We couldn’t load this view,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-offline,You’re currently offline,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-forbidden,This view is outside your access,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-conflict,This record changed while you were working,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+state-not-found,We couldn’t find that record,/workspace/[module],Connected,"Shared loading, empty, retry, offline, authorization, 412 conflict and missing-tool states; states are not separate destinations."
+design-system,The TrackRoster design language,apps/web/DESIGN.md + UX-CONTRACT.md,Design reference,Shared components and tokens; not a production application page.

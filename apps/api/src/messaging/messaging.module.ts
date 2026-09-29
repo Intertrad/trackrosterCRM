@@ -26,6 +26,7 @@ import {
   conversations,
   conversationParticipants,
   messages,
+  messageAttachments,
   tenantMemberships,
 } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -239,9 +240,33 @@ export class MessagingService {
       .orderBy(desc(messages.createdAt), desc(messages.id))
       .limit(limit + 1);
     const items = rows.slice(0, limit);
+    // Batch attachment metadata after membership and tenant checks; never expose storage keys.
+    const visibleIds = items
+      .filter((message) => message.status !== 'deleted')
+      .map((message) => message.id);
+    const attachments = visibleIds.length
+      ? await this.db
+          .select({
+            id: messageAttachments.id,
+            messageId: messageAttachments.messageId,
+            filename: messageAttachments.filename,
+            contentType: messageAttachments.contentType,
+            byteSize: messageAttachments.byteSize,
+          })
+          .from(messageAttachments)
+          .where(
+            and(
+              eq(messageAttachments.tenantId, a.tenantId),
+              inArray(messageAttachments.messageId, visibleIds),
+            ),
+          )
+      : [];
     const last = items.at(-1);
     return {
-      items,
+      items: items.map((message) => ({
+        ...message,
+        attachments: attachments.filter((attachment) => attachment.messageId === message.id),
+      })),
       nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : null,
     };
   }

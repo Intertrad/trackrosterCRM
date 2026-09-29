@@ -1,57 +1,33 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
-
 import { AuthShell } from '@/components/auth/auth-shell';
 import { LoginForm } from '@/components/auth/login-form';
 import { Alert } from '@/components/ui/alert';
-
 export const metadata: Metadata = {
-  title: 'Sign in',
-  description: 'Sign in to your TrackRoster workspace.',
+  title: 'Connexion',
+  description: 'Accédez à votre espace de prospection TrackRoster.',
 };
-
 export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
   const { reset } = await searchParams;
-
   return (
-    <AuthShell>
-      {reset === 'success' ? (
-        <Alert tone="success" className="mb-6" title="Password updated">
-          Sign in with your new password. Other sessions were signed out.
+    <AuthShell language="fr">
+      {reset === 'success' && (
+        <Alert tone="success" className="mb-6" title="Mot de passe modifié">
+          Connectez-vous avec votre nouveau mot de passe.
         </Alert>
-      ) : null}
-
-      <header className="mb-8">
-        <h2 className="text-[38px] leading-[1.1] font-bold tracking-[-0.03em] text-navy">
-          Welcome back
-        </h2>
-
-        <p className="mt-2 text-[16px] text-ink-soft">Sign in to your TrackRoster workspace</p>
-      </header>
-
-      <LoginForm />
-
-      <div className="mt-8 border-t border-line-soft pt-5">
-        <div className="flex items-center justify-center gap-3 text-[14px] font-semibold text-brand">
-          <Link href="/invite" className="hover:text-brand-hover">
-            Accept an invitation
-          </Link>
-
-          <span aria-hidden="true" className="text-line">
-            |
-          </span>
-
-          <a href="mailto:support@trackroster.app" className="hover:text-brand-hover">
-            Get support
-          </a>
-        </div>
-
-        <p className="mt-4 flex items-center justify-center gap-2 text-[13px] text-ink-muted">
-          <Lock aria-hidden="true" className="size-4" />
-          Protected by encrypted sessions and optional MFA.
+      )}
+      <header className="mb-7">
+        <h2 className="text-[32px] font-bold tracking-tight text-navy">Connexion</h2>
+        <p className="mt-1 text-base text-ink-muted">
+          Saisissez votre email professionnel — votre rôle est chargé avec votre compte.
         </p>
-      </div>
+      </header>
+      <LoginForm language="fr" />
+      <p className="mt-8 text-center text-xs text-ink-muted">
+        <Link href="/invite" className="hover:text-brand">
+          Vous avez reçu une invitation ? Activer mon accès
+        </Link>
+      </p>
     </AuthShell>
   );
 }

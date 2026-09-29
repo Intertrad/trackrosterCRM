@@ -31,6 +31,7 @@ export const IMPORT_HEADERS = [
   'contact_email',
   'contact_phone',
   'is_primary',
+  'category',
 ] as const;
 
 export type ImportHeader = (typeof IMPORT_HEADERS)[number];

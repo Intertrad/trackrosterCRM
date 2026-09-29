@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
@@ -50,12 +50,22 @@ export class CampaignProspectRepository {
     return prospect ?? null;
   }
 
-  async findByCampaign(tenantId: string, campaignId: string): Promise<CampaignProspect[]> {
+  async findByCampaign(
+    tenantId: string,
+    campaignId: string,
+    establishmentIds?: string[],
+  ): Promise<CampaignProspect[]> {
     return this.database
       .select()
       .from(campaignProspects)
       .where(
-        and(eq(campaignProspects.tenantId, tenantId), eq(campaignProspects.campaignId, campaignId)),
+        and(
+          eq(campaignProspects.tenantId, tenantId),
+          eq(campaignProspects.campaignId, campaignId),
+          establishmentIds
+            ? inArray(campaignProspects.establishmentId, establishmentIds)
+            : undefined,
+        ),
       )
       .orderBy(asc(campaignProspects.createdAt));
   }

@@ -105,7 +105,7 @@ export function ProfileMenu({
       >
         <span
           aria-hidden="true"
-          className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-white/14 text-[13px] font-bold text-white"
+          className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-[13px] font-bold text-brand"
         >
           {getInitials(displayName, email)}
 
@@ -115,7 +115,7 @@ export function ProfileMenu({
         {!collapsed ? (
           <>
             <span className="min-w-0 flex-1 text-left">
-              <span className="block truncate text-[14px] font-semibold text-white">
+              <span className="block text-[14px] leading-tight font-bold text-white">
                 {displayName ?? email}
               </span>
 
@@ -167,6 +167,16 @@ export function ProfileMenu({
           >
             <Building2 aria-hidden="true" className="size-[18px] text-ink-muted" />
             {t('account.switchWorkspace')}
+          </Link>
+
+          <Link
+            role="menuitem"
+            href="/workspace"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-semibold text-ink hover:bg-surface-muted"
+          >
+            <Settings aria-hidden="true" className="size-[18px] text-ink-muted" />
+            {t('nav.workspaceTools')}
           </Link>
 
           <button

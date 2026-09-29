@@ -2,11 +2,20 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+  padding = 'default',
+}: {
+  children: ReactNode;
+  className?: string;
+  padding?: 'default' | 'none';
+}) {
   return (
     <section
       className={cn(
-        'rounded-xl border border-line-soft bg-surface p-5 shadow-card sm:p-6',
+        'min-w-0 rounded-[14px] border border-line bg-surface shadow-card',
+        padding === 'default' && 'p-[18px]',
         className,
       )}
     >
@@ -25,8 +34,8 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn('mb-5 flex items-start justify-between gap-4', className)}>
-      <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">{title}</h2>
+    <div className={cn('mb-3 flex flex-wrap items-start justify-between gap-4', className)}>
+      <h2 className="text-base font-extrabold tracking-[-0.015em] text-navy">{title}</h2>
 
       {action}
     </div>

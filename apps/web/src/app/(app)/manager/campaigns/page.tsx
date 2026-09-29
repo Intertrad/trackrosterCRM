@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Megaphone, Plus } from 'lucide-react';
@@ -49,6 +51,8 @@ export default function CampaignsPage() {
         }),
     [status],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

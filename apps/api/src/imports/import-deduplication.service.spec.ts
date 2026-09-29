@@ -86,7 +86,7 @@ describe('ImportDeduplicationService', () => {
     expect(result).toBe(establishment);
   });
 
-  it('falls back to normalized establishment identity', async () => {
+  it('preserves distinct source IDs even when their names and towns match', async () => {
     repository.findByExternalReference.mockResolvedValue(null);
 
     repository.findByIdentity.mockResolvedValue(establishment);
@@ -109,15 +109,8 @@ describe('ImportDeduplicationService', () => {
       category: null,
     });
 
-    expect(repository.findByIdentity).toHaveBeenCalledWith(
-      establishment.tenantId,
-      'restaurant paris',
-      '75001',
-      'Paris',
-      'FR',
-    );
-
-    expect(result).toBe(establishment);
+    expect(repository.findByIdentity).not.toHaveBeenCalled();
+    expect(result).toBeNull();
   });
 
   it('uses identity directly when no external reference exists', async () => {
@@ -143,7 +136,13 @@ describe('ImportDeduplicationService', () => {
 
     expect(repository.findByExternalReference).not.toHaveBeenCalled();
 
-    expect(repository.findByIdentity).toHaveBeenCalled();
+    expect(repository.findByIdentity).toHaveBeenCalledWith(
+      establishment.tenantId,
+      'restaurant paris',
+      '75001',
+      'Paris',
+      'FR',
+    );
 
     expect(result).toBeNull();
   });

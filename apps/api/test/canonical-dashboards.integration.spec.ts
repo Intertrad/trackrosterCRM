@@ -262,6 +262,17 @@ describe('Canonical follow-ups and dashboards', () => {
     const administrative = await call('GET', '/dashboard/admin', undefined, admin);
     expect(administrative.statusCode, administrative.body).toBe(200);
     expect(administrative.json().metrics.activeMembers).toBe(3);
+    expect(administrative.json().metrics.totalEstablishments).toBe(2);
+    expect(administrative.json().activityByDay).toHaveLength(14);
+    expect(administrative.json().activityTimeZone).toBe('Europe/Paris');
+    expect(
+      administrative
+        .json()
+        .activityByDay.every(
+          (day: { date: string; total: number }) =>
+            /^\d{4}-\d{2}-\d{2}$/.test(day.date) && Number.isInteger(day.total) && day.total >= 0,
+        ),
+    ).toBe(true);
     expect((await call('GET', '/dashboard/director', undefined, member)).statusCode).toBe(403);
     expect((await call('GET', '/dashboard/admin', undefined, member)).statusCode).toBe(403);
     expect(
@@ -270,6 +281,9 @@ describe('Canonical follow-ups and dashboards', () => {
     ).not.toBe(200);
     const other = (await call('GET', '/dashboard/admin', undefined, foreign)).json();
     expect(other.metrics.activeMembers).toBe(1);
+    expect(other.metrics.totalEstablishments).toBe(0);
+    expect(other.metrics.contactedEstablishments).toBe(0);
+    expect(other.activityByDay.every((day: { total: number }) => day.total === 0)).toBe(true);
   });
   it('limits managers to their team and directors to explicitly authorized organizations', async () => {
     const otherTeam = randomUUID(),

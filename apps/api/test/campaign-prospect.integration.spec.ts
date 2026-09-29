@@ -460,6 +460,31 @@ describe('Campaign prospect HTTP integration', () => {
     });
   });
 
+  it('resolves a bounded establishment selection without widening tenant or campaign scope', async () => {
+    const read = (ids: string) =>
+      getApp().inject({
+        method: 'GET',
+        url: `/campaigns/${campaignAId}/prospects?establishmentIds=${ids}`,
+        headers: { authorization: `Bearer ${adminAccessToken}` },
+      });
+    const selected = await read(establishmentAId);
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toHaveLength(1);
+    expect(selected.json()[0]).toMatchObject({ id: prospectId, establishmentId: establishmentAId });
+    expect((await read(establishmentBId)).json()).toEqual([]);
+    expect((await read(randomUUID())).json()).toEqual([]);
+    expect((await read('not-a-uuid')).statusCode).toBe(400);
+    expect((await read(Array.from({ length: 101 }, () => randomUUID()).join(','))).statusCode).toBe(
+      400,
+    );
+    const denied = await getApp().inject({
+      method: 'GET',
+      url: `/campaigns/${campaignAId}/prospects?establishmentIds=${establishmentAId}`,
+      headers: { authorization: `Bearer ${regularAccessToken}` },
+    });
+    expect(denied.statusCode).toBe(403);
+  });
+
   it('gets a campaign prospect by id', async () => {
     const response = await getApp().inject({
       method: 'GET',

@@ -11,6 +11,8 @@ export interface SelfAccessGrant {
 }
 
 export interface SelfAccessContext {
+  platformAdmin?: boolean;
+
   userId: string;
 
   tenantId: string;

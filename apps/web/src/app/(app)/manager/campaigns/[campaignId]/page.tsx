@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, MapPinned, UserPlus, Users } from 'lucide-react';
@@ -37,7 +39,7 @@ import {
   type CampaignStatus,
   type ParticipationState,
 } from '@/lib/api/campaign-types';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
 
 export default function CampaignDetailPage({
@@ -98,6 +100,8 @@ function CampaignDetail({ campaignId }: { campaignId: string }) {
         }),
     [campaignId, state],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

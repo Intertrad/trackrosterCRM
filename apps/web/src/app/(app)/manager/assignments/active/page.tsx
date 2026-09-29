@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CircleCheck, CirclePause, CirclePlay, Repeat } from 'lucide-react';
@@ -33,10 +35,8 @@ import {
   type AssignmentPriority,
   type AssignmentStatus,
 } from '@/lib/api/assignment-lifecycle-types';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
-import { listWorkQueue } from '@/lib/api/work-queue-client';
-import type { WorkQueueItem } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
 
 type Action = 'reassign' | 'complete' | 'revoke';
@@ -48,7 +48,6 @@ export default function ActiveAssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[] | null>(null);
   const [status, setStatus] = useState<AssignmentStatus | 'all'>('active');
   const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
-  const [prospects, setProspects] = useState<Map<string, WorkQueueItem>>(new Map());
 
   const [readError, setReadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -74,6 +73,8 @@ export default function ActiveAssignmentsPage() {
     [status, teamId],
   );
 
+  useLiveRefresh(load);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -82,21 +83,13 @@ export default function ActiveAssignmentsPage() {
     return () => controller.abort();
   }, [load]);
 
-  /* Assignments carry ids only; names come from memberships and the queue. */
+  /* Member names are read only from the authorized management roster. */
   useEffect(() => {
     const controller = new AbortController();
 
-    listMemberships({ limit: 100 }, controller.signal)
+    listMemberships({ teamId, limit: 100 }, controller.signal)
       .then((page) => setPeople(new Map(page.items.map((item) => [item.id, item]))))
       .catch(() => setPeople(new Map()));
-
-    if (teamId) {
-      listWorkQueue({ teamId, limit: 100, signal: controller.signal })
-        .then((page) =>
-          setProspects(new Map(page.items.map((item) => [item.campaignProspectId, item]))),
-        )
-        .catch(() => setProspects(new Map()));
-    }
 
     return () => controller.abort();
   }, [teamId]);
@@ -229,7 +222,6 @@ export default function ActiveAssignmentsPage() {
               const owner = assignment.assignedUserId
                 ? people.get(assignment.assignedUserId)
                 : undefined;
-              const prospect = prospects.get(assignment.campaignProspectId);
               const open = isAssignmentOpen(assignment);
 
               return (
@@ -239,13 +231,17 @@ export default function ActiveAssignmentsPage() {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-semibold text-navy">
-                      {prospect?.establishment.name ??
+                      {assignment.prospectName ??
                         `Prospect ${assignment.campaignProspectId.slice(0, 8)}`}
                     </span>
 
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {owner ? membershipName(owner) : 'Team-owned'} · assigned{' '}
-                      {formatDate(assignment.assignedAt)}
+                      {owner
+                        ? membershipName(owner)
+                        : assignment.assignedUserId
+                          ? 'Assigned member'
+                          : 'Team-owned'}{' '}
+                      · assigned {formatDate(assignment.assignedAt)}
                       {assignment.endReason ? ` · ${assignment.endReason}` : ''}
                     </span>
                   </span>

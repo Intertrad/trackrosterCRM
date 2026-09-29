@@ -12,6 +12,12 @@ export async function backendFetch(
 
   const headers = new Headers(suppliedHeaders);
 
+  // Fastify rejects an empty POST/DELETE body advertised as JSON. A content
+  // type describes an actual body, not the expected response representation.
+  if (requestInit.body === undefined || requestInit.body === null) {
+    headers.delete('content-type');
+  }
+
   if (accessToken) {
     headers.set('authorization', `Bearer ${accessToken}`);
   }

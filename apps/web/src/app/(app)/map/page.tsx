@@ -1,4 +1,5 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LocateFixed, TriangleAlert } from 'lucide-react';
@@ -51,6 +52,9 @@ export default function TerritoryMapPage() {
 
   const scoped = Boolean(teamId);
 
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  useLiveRefresh(() => setRefreshVersion((version) => version + 1));
+
   useEffect(() => {
     if (!teamId) {
       return;
@@ -77,7 +81,7 @@ export default function TerritoryMapPage() {
       });
 
     return () => controller.abort();
-  }, [status, teamId]);
+  }, [status, teamId, refreshVersion]);
 
   const points = useMemo<MapPoint[]>(() => {
     const query = search.trim().toLowerCase();
@@ -116,7 +120,7 @@ export default function TerritoryMapPage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [refreshVersion]);
 
   const handleSelect = useCallback((point: MapPoint) => setSelected(point), []);
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { BarChart3, ChevronRight, CircleAlert, CircleDot, UserRound, Users } from 'lucide-react';
@@ -26,7 +28,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
 import type { ManagerDashboardResponse } from '@/lib/api/manager-dashboard-types';
 import { RecentActivity } from '@/components/manager/recent-activity';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
 import { listOverrideRequests } from '@/lib/api/override-client';
 import type { OverrideRequestSummary } from '@/lib/api/override-types';
@@ -128,6 +130,8 @@ export default function TeamOverviewPage() {
     },
     [activeWorkspace?.teamId, period],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

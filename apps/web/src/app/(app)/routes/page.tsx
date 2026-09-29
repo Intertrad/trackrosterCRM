@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { MapPin, Route as RouteIcon } from 'lucide-react';
@@ -50,6 +52,8 @@ export default function RoutesPage() {
     },
     [status, teamId],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

@@ -24,6 +24,7 @@ export class PlatformUserController {
       items: await this.db
         .select({
           identityId: identities.id,
+          grantId: platformAccessGrants.id,
           email: identities.email,
           status: identities.status,
           role: platformAccessGrants.role,

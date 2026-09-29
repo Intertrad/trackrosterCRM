@@ -352,8 +352,26 @@ describe('Durable import and asynchronous export jobs', () => {
       await db.select().from(establishments).where(eq(establishments.tenantId, tenantId)),
     ).toHaveLength(1);
   });
-  it('detects within-file identity duplicates even with different external references', async () => {
+  it('preserves distinct source IDs within a file and across later imports', async () => {
     const id = await newImport('name,country_code,external_reference\nSame,FR,one\nSame,FR,two');
+    const validated = await call('POST', `/imports/${id}/validate`, {});
+    expect(validated.json().summary.issueCount).toBe(0);
+    const committed = await call('POST', `/imports/${id}/commit`, {});
+    expect(committed.statusCode, committed.body).toBe(200);
+    expect(committed.json().summary.createdEstablishments).toBe(2);
+    const later = await newImport('name,country_code,external_reference\nSame,FR,three');
+    await call('POST', `/imports/${later}/validate`, {});
+    expect(
+      (await call('POST', `/imports/${later}/commit`, {})).json().summary.createdEstablishments,
+    ).toBe(1);
+    const records = await db
+      .select()
+      .from(establishments)
+      .where(eq(establishments.tenantId, tenantId));
+    expect(records.map((r) => r.externalReference).sort()).toEqual(['one', 'three', 'two']);
+  });
+  it('requires review of repeated source IDs within a file', async () => {
+    const id = await newImport('name,country_code,external_reference\nSame,FR,one\nSame,FR,one');
     await call('POST', `/imports/${id}/validate`, {});
     const issue = (await call('GET', `/imports/${id}/issues`))
       .json()

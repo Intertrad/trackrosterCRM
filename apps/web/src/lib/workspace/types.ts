@@ -1,0 +1,52 @@
+export type Copy = { en: string; fr: string };
+export type DataRecord = Record<string, unknown>;
+export type Field = {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'date' | 'object' | 'array';
+  optional?: boolean;
+  nullable?: boolean;
+  choices?: string[];
+  fields?: Field[];
+  item?: Field;
+  minItems?: number;
+  maxItems?: number;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  integer?: boolean;
+  format?: 'uuid' | 'email' | 'url';
+  default?: unknown;
+};
+export type Operation = {
+  method: string;
+  path: string;
+  status: number;
+  fields: Field[];
+  query: Field[];
+  idempotent: boolean;
+  etag: boolean;
+};
+export type Action = {
+  operation: string;
+  label: Copy;
+  scope: 'collection' | 'record';
+  danger?: boolean;
+  roles?: string[];
+  description?: Copy;
+};
+export type Related = { operation: string; label: Copy };
+export type WorkspaceModule = {
+  id: string;
+  title: Copy;
+  description: Copy;
+  section: Copy;
+  roles: string[];
+  read: string;
+  detail?: string;
+  idField?: string;
+  idParam?: string;
+  columns: string[];
+  actions: Action[];
+  related?: Related[];
+};

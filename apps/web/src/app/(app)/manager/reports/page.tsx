@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Map as MapIcon, ShieldAlert, Target, TrendingUp, Users } from 'lucide-react';
 
@@ -10,7 +12,7 @@ import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { StatTile } from '@/components/ui/stat-tile';
 import { ApiError } from '@/lib/api/api-error';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
 import { getReport } from '@/lib/api/report-client';
 import {
@@ -121,6 +123,8 @@ export default function ReportsPage() {
     },
     [days, teamId],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

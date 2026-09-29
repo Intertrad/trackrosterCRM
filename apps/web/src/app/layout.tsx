@@ -1,18 +1,20 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
+import { RuntimePreferences } from '@/components/account/runtime-preferences';
 import { AuthProvider } from '@/lib/auth/auth-context';
 import { SessionLanguage } from '@/lib/i18n/session-language';
 
 /*
  * The dossier specifies Inter Display for titles and key figures and
- * Inter for interface text. Google serves one variable Inter family
- * that covers both optical roles, so display treatment is expressed
+ * Inter for interface text. The bundled OFL Inter variable font
+ * covers both roles, so display treatment is expressed
  * through weight and tracking rather than a second download.
  */
-const inter = Inter({
+const inter = localFont({
+  src: './fonts/Inter-Latin.woff2',
+  weight: '100 900',
   variable: '--font-inter',
-  subsets: ['latin'],
   display: 'swap',
 });
 
@@ -37,7 +39,10 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
-          <SessionLanguage>{children}</SessionLanguage>
+          <SessionLanguage>
+            <RuntimePreferences />
+            {children}
+          </SessionLanguage>
         </AuthProvider>
       </body>
     </html>

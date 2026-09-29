@@ -1,4 +1,7 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -64,6 +67,8 @@ export default function AuditLogPage() {
 }
 
 function AuditLog() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const searchParams = useSearchParams();
 
   const initialStream = useMemo<AuditStream>(() => {
@@ -86,6 +91,9 @@ function AuditLog() {
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
 
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  useLiveRefresh(() => setRefreshVersion((version) => version + 1));
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -107,7 +115,7 @@ function AuditLog() {
       .catch(() => setActors(new Map()));
 
     return () => controller.abort();
-  }, []);
+  }, [refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -137,7 +145,7 @@ function AuditLog() {
       });
 
     return () => controller.abort();
-  }, [stream, limit]);
+  }, [stream, limit, refreshVersion]);
 
   const visible = useMemo(() => {
     if (!events) {
@@ -178,7 +186,7 @@ function AuditLog() {
   if (denied) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Audit log" />
+        <PageHeader title={l('Audit log', 'Journal d’audit')} />
 
         <Alert tone="info" title="Audit access is granted separately.">
           Reading the audit log needs a tenant-scoped administrator or auditor grant, or a director
@@ -191,8 +199,11 @@ function AuditLog() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Audit log"
-        subtitle="Review sensitive changes and security-relevant activity"
+        title={l('Audit log', 'Journal d’audit')}
+        subtitle={l(
+          'Review sensitive changes and security-relevant activity',
+          'Connexions, modifications, attributions et réglages sensibles.',
+        )}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -398,7 +409,7 @@ function AuditLog() {
 
       <Drawer
         open={selected !== null}
-        title="Audit event"
+        title={l('Audit event', 'Événement du journal')}
         onClose={() => setSelectedId(null)}
         headerAccessory={<Badge tone="neutral">Immutable record</Badge>}
       >

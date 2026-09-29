@@ -4,6 +4,15 @@ import { isAvailable, type FeatureKey } from '@/lib/readiness/feature-readiness'
 import type { WorkspaceMode } from './workspace';
 
 export type NavigationItemId =
+  | 'objectives'
+  | 'territories'
+  | 'security'
+  | 'platform'
+  | 'live'
+  | 'organizations'
+  | 'rules'
+  | 'scripts'
+  | 'workspace_tools'
   | 'overview'
   | 'referential'
   | 'work_queue'
@@ -28,6 +37,9 @@ export type NavigationItemId =
 
 /** Icon is resolved by the shell so this module stays free of JSX. */
 export type NavigationIconId =
+  | 'live'
+  | 'rules'
+  | 'activity'
   | 'today'
   | 'prospects'
   | 'map'
@@ -61,6 +73,7 @@ interface WorkspaceNavigationItemBase {
 
   /** Shown in the mobile bottom bar (max five, "More" occupies the fifth). */
   primary?: boolean;
+  group?: 'configuration' | 'tools';
 }
 
 export type WorkspaceNavigationItem = WorkspaceNavigationItemBase &
@@ -131,7 +144,17 @@ function isOfferable(item: WorkspaceNavigationItem): boolean {
 }
 
 export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigationItem[] {
-  return navigationFor(mode).filter(isOfferable);
+  return [
+    ...navigationFor(mode).filter(isOfferable),
+    {
+      id: 'workspace_tools',
+      label: 'nav.workspaceTools',
+      icon: 'settings',
+      group: 'tools',
+      href: '/workspace',
+      availability: 'ready',
+    },
+  ];
 }
 
 function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
@@ -141,28 +164,18 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         {
           id: 'administration',
           label: 'nav.overview',
-          icon: 'administration',
+          icon: 'dashboard',
           href: '/admin/overview',
           availability: 'ready',
           primary: true,
         },
         {
-          id: 'users',
-          label: 'nav.users',
-          icon: 'team',
-          href: '/admin/users',
+          id: 'live',
+          label: 'nav.live',
+          icon: 'live',
+          href: '/admin/live',
           availability: 'ready',
-          primary: true,
         },
-        /*
-         * The shared référentiel. Administration only, because an establishment
-         * outside every campaign is visible to a tenant-scoped grant alone — the
-         * API's rule, not a navigation preference.
-         *
-         * Primary, and imports gives up its place rather than the bar growing to
-         * five: the base is what an administrator opens daily, and an import is
-         * occasional.
-         */
         {
           id: 'referential',
           label: 'nav.referential',
@@ -172,12 +185,51 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           primary: true,
         },
         {
-          id: 'audit',
-          label: 'nav.audit',
-          icon: 'audit',
-          href: '/admin/audit',
+          id: 'users',
+          label: 'nav.team',
+          icon: 'team',
+          href: '/admin/users',
           availability: 'ready',
           primary: true,
+        },
+        {
+          id: 'logged_actions',
+          label: 'nav.activity',
+          icon: 'activity',
+          href: '/actions',
+          availability: 'ready',
+        },
+        {
+          id: 'messages',
+          label: 'nav.messages',
+          icon: 'messages',
+          href: '/messages',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'scripts',
+          label: 'nav.scripts',
+          icon: 'reports',
+          href: '/admin/scripts',
+          availability: 'ready',
+          group: 'configuration',
+        },
+        {
+          id: 'organizations',
+          label: 'nav.organizations',
+          icon: 'campaigns',
+          href: '/admin/organizations',
+          availability: 'ready',
+          group: 'configuration',
+        },
+        {
+          id: 'rules',
+          label: 'nav.rules',
+          icon: 'rules',
+          href: '/admin/settings',
+          availability: 'ready',
+          group: 'configuration',
         },
         {
           id: 'imports',
@@ -185,37 +237,39 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'imports',
           href: '/admin/imports',
           availability: 'ready',
+          group: 'configuration',
         },
-        /*
-         * Bulk campaign enrolment sits under administration rather than the
-         * manager workspace because that is where the authority is: the endpoint
-         * is guarded by ClientAdminGuard, and an establishment outside every
-         * campaign is only visible to a tenant-scoped grant.
-         *
-         * Not primary: the mobile bar holds four, and the four it holds are the
-         * daily destinations. Enrolment is a setup step, so it lives under More.
-         */
+        {
+          id: 'audit',
+          label: 'nav.audit',
+          icon: 'audit',
+          href: '/admin/audit',
+          availability: 'ready',
+          group: 'configuration',
+        },
         {
           id: 'campaigns',
           label: 'nav.campaigns',
           icon: 'campaigns',
           href: '/admin/campaigns',
           availability: 'ready',
+          group: 'tools',
         },
         {
-          id: 'dashboard',
-          label: 'nav.dashboard',
-          icon: 'dashboard',
-          href: '/manager/overview',
+          id: 'overrides',
+          label: 'nav.overrides',
+          icon: 'overrides',
+          href: '/manager/approvals',
           availability: 'ready',
+          group: 'tools',
         },
-        { id: 'overrides', label: 'nav.overrides', icon: 'overrides', availability: 'planned' },
         {
-          id: 'search',
-          label: 'nav.search',
-          icon: 'prospects',
-          href: '/search',
+          id: 'reports',
+          label: 'nav.reports',
+          icon: 'reports',
+          href: '/manager/reports',
           availability: 'ready',
+          group: 'tools',
         },
       ];
 
@@ -234,6 +288,34 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/director/overview',
           availability: 'ready',
           primary: true,
+        },
+        {
+          id: 'objectives',
+          label: 'nav.objectives',
+          icon: 'assignments',
+          href: '/director/objectives',
+          availability: 'ready',
+        },
+        {
+          id: 'team',
+          label: 'nav.team',
+          icon: 'team',
+          href: '/director/teams',
+          availability: 'ready',
+        },
+        {
+          id: 'campaigns',
+          label: 'nav.campaigns',
+          icon: 'campaigns',
+          href: '/director/campaigns',
+          availability: 'ready',
+        },
+        {
+          id: 'territories',
+          label: 'nav.territories',
+          icon: 'map',
+          href: '/director/territories',
+          availability: 'ready',
         },
         {
           id: 'dashboard',
@@ -291,6 +373,21 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/overview',
           availability: 'ready',
           primary: true,
+        },
+        {
+          id: 'objectives',
+          label: 'nav.objectives',
+          icon: 'assignments',
+          href: '/manager/objectives',
+          availability: 'ready',
+        },
+        {
+          id: 'territories',
+          label: 'nav.territories',
+          icon: 'map',
+          href: '/manager/territories',
+          availability: 'ready',
+          group: 'tools',
         },
         {
           id: 'team',
@@ -371,26 +468,18 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           primary: true,
         },
         {
-          id: 'work_queue',
-          label: 'nav.workQueue',
-          icon: 'prospects',
-          href: '/work-queue',
-          availability: 'ready',
-          primary: true,
-        },
-        {
-          id: 'map',
-          label: 'nav.map',
-          icon: 'map',
-          href: '/map',
-          availability: 'ready',
-          primary: true,
-        },
-        {
           id: 'follow_ups',
-          label: 'nav.actions',
-          icon: 'actions',
+          label: 'nav.followUps',
+          icon: 'today',
           href: '/follow-ups',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'logged_actions',
+          label: 'nav.history',
+          icon: 'actions',
+          href: '/actions',
           availability: 'ready',
           primary: true,
         },
@@ -400,6 +489,31 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'work_queue',
+          label: 'nav.workQueue',
+          icon: 'prospects',
+          href: '/work-queue',
+          availability: 'ready',
+          group: 'tools',
+        },
+        {
+          id: 'routes',
+          label: 'nav.routes',
+          icon: 'routes',
+          href: '/routes',
+          availability: 'ready',
+          group: 'tools',
+        },
+        {
+          id: 'map',
+          label: 'nav.map',
+          icon: 'map',
+          href: '/map',
+          availability: 'ready',
+          group: 'tools',
         },
       ];
 
@@ -409,8 +523,38 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
        * the role has no write path by design.
        */
       return [
-        OVERVIEW,
-        { id: 'audit', label: 'nav.audit', icon: 'audit', availability: 'planned' },
+        { ...OVERVIEW, href: '/observer/overview' },
+        {
+          id: 'audit',
+          label: 'nav.audit',
+          icon: 'audit',
+          href: '/observer/audit',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'security',
+          label: 'nav.security',
+          icon: 'overrides',
+          href: '/observer/security',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'assignments',
+          label: 'nav.assignments',
+          icon: 'assignments',
+          href: '/observer/assignments',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'exports',
+          label: 'nav.exports',
+          icon: 'imports',
+          href: '/observer/exports',
+          availability: 'ready',
+        },
       ];
   }
 }
@@ -425,4 +569,47 @@ export function isNavigationItemActive(pathname: string, item: WorkspaceNavigati
   }
 
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
+
+export function getPlatformNavigation(): WorkspaceNavigationItem[] {
+  return [
+    {
+      id: 'overview',
+      label: 'nav.overview',
+      icon: 'dashboard',
+      href: '/platform/overview',
+      availability: 'ready',
+      primary: true,
+    },
+    {
+      id: 'organizations',
+      label: 'nav.tenants',
+      icon: 'campaigns',
+      href: '/platform/tenants',
+      availability: 'ready',
+      primary: true,
+    },
+    {
+      id: 'users',
+      label: 'nav.platformAccess',
+      icon: 'team',
+      href: '/platform/access',
+      availability: 'ready',
+      primary: true,
+    },
+    {
+      id: 'live',
+      label: 'nav.serviceHealth',
+      icon: 'live',
+      href: '/platform/health',
+      availability: 'ready',
+      primary: true,
+    },
+  ];
+}
+
+export function getRoleHome(mode: WorkspaceMode | undefined, platformAdmin = false): string {
+  if (!mode && platformAdmin) return '/platform/overview';
+  if (mode === 'prospector' || !mode) return '/';
+  return `/${mode}/overview`;
 }

@@ -13,6 +13,8 @@ import { currentTenantExecutor } from '../database/request-tenant-executor.js';
 import { withTenantContext } from '../database/tenant-context.js';
 import {
   auditEvents,
+  campaignProspects,
+  establishments,
   campaignProspectAssignments as assignments,
 } from '../database/schema/index.js';
 import { establishmentFilterConditions } from '../establishments/establishment-filters.js';
@@ -66,8 +68,22 @@ export class AssignmentLifecycleService {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.list(a, q));
     const rows = await this.db
-      .select()
+      .select({ assignment: assignments, prospectName: establishments.name })
       .from(assignments)
+      .innerJoin(
+        campaignProspects,
+        and(
+          eq(campaignProspects.tenantId, assignments.tenantId),
+          eq(campaignProspects.id, assignments.campaignProspectId),
+        ),
+      )
+      .innerJoin(
+        establishments,
+        and(
+          eq(establishments.tenantId, assignments.tenantId),
+          eq(establishments.id, campaignProspects.establishmentId),
+        ),
+      )
       .where(
         and(
           eq(assignments.tenantId, a.tenantId),
@@ -82,8 +98,12 @@ export class AssignmentLifecycleService {
       .orderBy(assignments.id)
       .limit(q.limit + 1);
     return {
-      items: rows.slice(0, q.limit).map((r) => ({ ...r, etag: resourceETag(r) })),
-      nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
+      items: rows.slice(0, q.limit).map((r) => ({
+        ...r.assignment,
+        prospectName: r.prospectName,
+        etag: resourceETag(r.assignment),
+      })),
+      nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.assignment.id : null,
     };
   }
   async detail(a: AuthenticatedPrincipal, id: string): Promise<any> {

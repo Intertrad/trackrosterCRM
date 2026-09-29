@@ -1,4 +1,5 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, CircleAlert, Info } from 'lucide-react';
@@ -106,6 +107,9 @@ function CampaignEnrolment() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  useLiveRefresh(() => setRefreshVersion((version) => version + 1));
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -127,7 +131,7 @@ function CampaignEnrolment() {
       });
 
     return () => controller.abort();
-  }, [t]);
+  }, [t, refreshVersion]);
 
   const selection = buildSelection({ category, department, city, search });
 
@@ -169,6 +173,8 @@ function CampaignEnrolment() {
     },
     [campaignId, selected, category, department, city, search],
   );
+
+  useLiveRefresh(loadQueue);
 
   async function runPreview(): Promise<void> {
     if (!campaignId || !selected) {

@@ -48,17 +48,13 @@ describe('AppShell', () => {
 
     const sidebar = screen.getByRole('navigation', { name: 'Workspace' });
 
-    /* The design handoff specifies these five and nothing else; the
-     * occasional screens sit behind the disclosure below them. */
-    expect(sidebar).toHaveTextContent('Today');
-    expect(sidebar).toHaveTextContent('My prospects');
-    expect(sidebar).toHaveTextContent('Map');
-    expect(sidebar).toHaveTextContent('Actions');
-    expect(sidebar).toHaveTextContent('Messages');
-
-    /* And nothing else: Routes, Logged actions and Search were taken out of
-     * the prospector sidebar deliberately. */
-    expect(within(sidebar).getAllByRole('link')).toHaveLength(5);
+    expect(
+      within(sidebar)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['My day', 'Follow-ups', 'History', 'Messages']);
+    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
+    expect(screen.getAllByRole('link', { name: 'My prospects' }).length).toBeGreaterThan(0);
   });
 
   it('renders the sidebar in the language the membership stores', () => {
@@ -74,20 +70,23 @@ describe('AppShell', () => {
 
     /* The sidebar is the most-read text in the product: an English menu above a
      * French page is the tell that i18n was bolted on. */
-    expect(within(sidebar).getByRole('link', { name: "Aujourd'hui" })).toBeInTheDocument();
-    expect(within(sidebar).getByRole('link', { name: 'Mes prospects' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('link', { name: 'Ma journée' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('link', { name: 'Relances' })).toBeInTheDocument();
     expect(within(sidebar).queryByRole('link', { name: 'Today' })).not.toBeInTheDocument();
   });
 
-  it('never renders a link for a screen that does not exist', () => {
+  it('connects administrator overrides to the shared approval workflow', () => {
     authenticated('admin');
 
     render(<AppShell>content</AppShell>);
 
-    /* Overrides has no page yet, so it must render without a link. */
-    expect(screen.queryByRole('link', { name: 'Overrides' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
+    expect(screen.getByRole('link', { name: 'Overrides' })).toHaveAttribute(
+      'href',
+      '/manager/approvals',
+    );
 
-    expect(screen.getAllByRole('link', { name: 'Users & roles' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Team' }).length).toBeGreaterThan(0);
   });
 
   it('links every manager screen that exists', () => {
@@ -112,7 +111,8 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    for (const label of ['Today', 'My prospects', 'Map', 'Actions', 'Messages']) {
+    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
+    for (const label of ['My day', 'My prospects', 'Map', 'Follow-ups', 'Messages']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     }
   });

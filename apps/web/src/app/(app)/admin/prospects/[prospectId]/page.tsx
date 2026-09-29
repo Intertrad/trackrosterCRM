@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Ban, CircleCheck, CircleHelp, TriangleAlert } from 'lucide-react';
@@ -11,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { ApiError } from '@/lib/api/api-error';
 import { CATEGORY_LABELS } from '@/lib/api/assignment-types';
 import { listConsents } from '@/lib/api/consent-client';
@@ -60,6 +64,9 @@ interface Loaded {
 }
 
 function ProspectWorkspace() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const [section, setSection] = useState<'record' | 'history'>('record');
   const params = useParams<{ prospectId: string }>();
   const prospectId = params?.prospectId ?? '';
 
@@ -84,7 +91,6 @@ function ProspectWorkspace() {
         return;
       }
 
-      setLoaded(null);
       setError(null);
 
       try {
@@ -128,9 +134,12 @@ function ProspectWorkspace() {
     [prospectId],
   );
 
+  useLiveRefresh(load);
+
   useEffect(() => {
     const controller = new AbortController();
 
+    setLoaded(null);
     void load(controller.signal);
 
     return () => controller.abort();
@@ -164,6 +173,32 @@ function ProspectWorkspace() {
         }
       />
 
+      <div className="flex flex-wrap gap-2">
+        <LinkButton
+          href={`/workspace/prospect-record?prospectId=${prospect.id}`}
+          variant="secondary"
+        >
+          {l('Manage record', 'Modifier la fiche')}
+        </LinkButton>
+        <LinkButton
+          href={`/workspace/prospect-addresses?prospectId=${prospect.id}`}
+          variant="secondary"
+        >
+          {l('Addresses', 'Adresses')}
+        </LinkButton>
+        <LinkButton
+          href={`/workspace/prospect-contacts?prospectId=${prospect.id}`}
+          variant="secondary"
+        >
+          Contacts
+        </LinkButton>
+        <LinkButton
+          href={`/workspace/prospect-consents?prospectId=${prospect.id}`}
+          variant="secondary"
+        >
+          {l('Contact permissions', 'Autorisations de contact')}
+        </LinkButton>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {prospect.category ? (
           <Badge tone="brand">{CATEGORY_LABELS[prospect.category]}</Badge>
@@ -171,7 +206,9 @@ function ProspectWorkspace() {
 
         <Badge tone={prospect.status === 'active' ? 'success' : 'neutral'}>{prospect.status}</Badge>
 
-        {prospect.source === 'import' ? <Badge tone="neutral">Imported</Badge> : null}
+        {prospect.source === 'import' ? (
+          <Badge tone="neutral">{l('Imported', 'Importé')}</Badge>
+        ) : null}
 
         {prospect.tags.map((tag) => (
           <Badge key={tag.id} tone="neutral">
@@ -190,138 +227,159 @@ function ProspectWorkspace() {
         </Alert>
       ) : null}
 
-      <ConsentSection
-        restrictions={loaded.restrictions}
-        failed={loaded.consentFailed}
-        prospectId={prospect.id}
-      />
-
-      <div className="grid items-start gap-5 xl:grid-cols-2">
-        <Card>
-          <h2 className="mb-4 text-[19px] font-bold tracking-[-0.015em] text-navy">Informations</h2>
-
-          {/*
-           * Master data: the établissement as the référentiel holds it. It is
-           * tenant-level and organization-neutral, so nothing here says which
-           * entity it belongs to — no entity does.
-           */}
-          <dl className="flex flex-col gap-2 text-[14px]">
-            <Field label="Address">{prospect.addressLine1}</Field>
-            <Field label="Commune">
-              {[prospect.postalCode, prospect.city].filter(Boolean).join(' ') || null}
-            </Field>
-            <Field label="Department">{department}</Field>
-            <Field label="Country">{prospect.countryCode}</Field>
-            <Field label="Phone">{prospect.phone}</Field>
-            <Field label="Website">{prospect.website}</Field>
-            <Field label="Coordinates">
-              {prospect.latitude !== null && prospect.longitude !== null
-                ? `${prospect.latitude.toFixed(5)}, ${prospect.longitude.toFixed(5)}`
-                : null}
-            </Field>
-            <Field label="Reference">{prospect.externalReference}</Field>
-            <Field label="Source">{prospect.source}</Field>
-          </dl>
-
-          {prospect.latitude === null ? (
-            <Alert tone="info" className="mt-4">
-              No coordinates, so this establishment cannot be mapped or routed to.
-            </Alert>
-          ) : null}
-        </Card>
-
-        <Card>
-          {/*
-           * Everything the tenant has added, kept apart from the master record
-           * above: a prospector enriches these without editing the référentiel.
-           */}
-          <h2 className="mb-4 text-[19px] font-bold tracking-[-0.015em] text-navy">
-            Recorded by the team
-          </h2>
-
-          {Object.keys(prospect.customFields).length === 0 && prospect.tags.length === 0 ? (
-            <p className="text-[14px] text-ink-muted">
-              Nothing has been recorded against this establishment yet.
-            </p>
-          ) : (
-            <dl className="flex flex-col gap-2 text-[14px]">
-              {Object.entries(prospect.customFields).map(([key, value]) => (
-                <Field key={key} label={key}>
-                  {value}
-                </Field>
-              ))}
-            </dl>
-          )}
-
-          {loaded.addresses.length > 0 ? (
-            <div className="mt-5">
-              <h3 className="mb-2 text-[15px] font-semibold text-navy">Other addresses</h3>
-
-              <ul className="flex flex-col gap-1.5 text-[14px] text-ink">
-                {loaded.addresses.map((address) => (
-                  <li key={address.id} className="flex flex-wrap items-baseline gap-2">
-                    <span>{formatAddress(address)}</span>
-
-                    {address.isPrimary ? <Badge tone="neutral">Primary</Badge> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </Card>
-      </div>
-
-      <Card className="p-0 sm:p-0">
-        <div className="flex items-center gap-3 px-5 py-4 sm:px-6">
-          <h2 className="text-[19px] font-bold tracking-[-0.015em] text-navy">Contacts</h2>
-
-          <Badge tone="neutral">{loaded.contacts.length}</Badge>
-        </div>
-
-        {loaded.contacts.length === 0 ? (
-          <p className="px-6 pb-8 text-[14px] text-ink-muted">
-            No contact has been recorded for this establishment.
-          </p>
-        ) : (
-          <ul className="divide-y divide-line-soft border-t border-line-soft">
-            {/* Primary first, then by name — the API orders by id, which is random. */}
-            {sortContacts(loaded.contacts).map((contact) => (
-              <li
-                key={contact.id}
-                className="flex flex-wrap items-baseline gap-3 px-5 py-3 sm:px-6"
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-4">
+          <div className="flex gap-1 border-b border-line">
+            {(['record', 'history'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                aria-pressed={section === tab}
+                onClick={() => setSection(tab)}
+                className={`border-b-2 px-3.5 py-2.5 text-sm font-bold ${section === tab ? 'border-brand text-navy' : 'border-transparent text-ink-muted'}`}
               >
-                <span className="text-[15px] font-semibold text-navy">
-                  {contactDisplayName(contact)}
-                </span>
-
-                {contact.jobTitle ? (
-                  <span className="text-[14px] text-ink-muted">{contact.jobTitle}</span>
-                ) : null}
-
-                {contact.isPrimary ? <Badge tone="brand">Primary</Badge> : null}
-
-                <span className="ml-auto flex flex-wrap gap-4 text-[14px] text-ink">
-                  {contact.phone ? <span>{contact.phone}</span> : null}
-                  {contact.email ? <span className="truncate">{contact.email}</span> : null}
-                </span>
-              </li>
+                {tab === 'record' ? l('Record', 'Fiche') : l('History', 'Historique')}
+              </button>
             ))}
-          </ul>
-        )}
-      </Card>
+          </div>
+          <div className={section === 'record' ? 'space-y-4' : 'hidden'}>
+            <div className="space-y-4">
+              <Card>
+                <h2 className="mb-4 text-base font-extrabold tracking-[-0.015em] text-navy">
+                  Informations
+                </h2>
 
-      {/*
-       * Loaded on its own so it cannot take the record above it down, and
-       * because its contract is the newest thing on this page.
-       */}
-      <CampaignContext prospectId={prospect.id} onMemberships={onMemberships} />
+                {/*
+                 * Master data: the établissement as the référentiel holds it. It is
+                 * tenant-level and organization-neutral, so nothing here says which
+                 * entity it belongs to — no entity does.
+                 */}
+                <dl className="flex flex-col gap-2 text-[14px]">
+                  <Field label={l('Address', 'Adresse')}>{prospect.addressLine1}</Field>
+                  <Field label="Commune">
+                    {[prospect.postalCode, prospect.city].filter(Boolean).join(' ') || null}
+                  </Field>
+                  <Field label={l('Department', 'Département')}>{department}</Field>
+                  <Field label={l('Country', 'Pays')}>{prospect.countryCode}</Field>
+                  <Field label={l('Phone', 'Téléphone')}>{prospect.phone}</Field>
+                  <Field label={l('Website', 'Site internet')}>{prospect.website}</Field>
+                  <Field label={l('Coordinates', 'Position')}>
+                    {prospect.latitude !== null && prospect.longitude !== null
+                      ? `${prospect.latitude.toFixed(5)}, ${prospect.longitude.toFixed(5)}`
+                      : null}
+                  </Field>
+                  <Field label={l('Reference', 'Référence')}>{prospect.externalReference}</Field>
+                  <Field label={l('Source', 'Source')}>{prospect.source}</Field>
+                </dl>
 
-      {/*
-       * Assembled from the memberships above. There is no establishment-level
-       * activity endpoint by design — activity belongs to a campaign prospect —
-       * so this merges the existing scoped timelines rather than duplicating them.
-       */}
-      <EstablishmentTimeline memberships={memberships} />
+                {prospect.latitude === null ? (
+                  <Alert tone="info" className="mt-4">
+                    {l(
+                      'No coordinates, so this establishment cannot be mapped or routed to.',
+                      'Aucune coordonnée géographique : cet établissement ne peut pas être placé sur la carte.',
+                    )}
+                  </Alert>
+                ) : null}
+              </Card>
+
+              <Card>
+                {/*
+                 * Everything the tenant has added, kept apart from the master record
+                 * above: a prospector enriches these without editing the référentiel.
+                 */}
+                <h2 className="mb-4 text-base font-extrabold tracking-[-0.015em] text-navy">
+                  {l('Recorded by the team', 'Informations complémentaires')}
+                </h2>
+
+                {Object.keys(prospect.customFields).length === 0 && prospect.tags.length === 0 ? (
+                  <p className="text-[14px] text-ink-muted">
+                    {l(
+                      'Nothing has been recorded against this establishment yet.',
+                      'Aucune information complémentaire pour cet établissement.',
+                    )}
+                  </p>
+                ) : (
+                  <dl className="flex flex-col gap-2 text-[14px]">
+                    {Object.entries(prospect.customFields).map(([key, value]) => (
+                      <Field key={key} label={key}>
+                        {value}
+                      </Field>
+                    ))}
+                  </dl>
+                )}
+
+                {loaded.addresses.length > 0 ? (
+                  <div className="mt-5">
+                    <h3 className="mb-2 text-[15px] font-semibold text-navy">
+                      {l('Other addresses', 'Autres adresses')}
+                    </h3>
+
+                    <ul className="flex flex-col gap-1.5 text-[14px] text-ink">
+                      {loaded.addresses.map((address) => (
+                        <li key={address.id} className="flex flex-wrap items-baseline gap-2">
+                          <span>{formatAddress(address)}</span>
+
+                          {address.isPrimary ? <Badge tone="neutral">Primary</Badge> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </Card>
+            </div>
+
+            <Card className="p-0 sm:p-0">
+              <div className="flex items-center gap-3 px-5 py-4 sm:px-6">
+                <h2 className="text-base font-extrabold tracking-[-0.015em] text-navy">Contacts</h2>
+
+                <Badge tone="neutral">{loaded.contacts.length}</Badge>
+              </div>
+
+              {loaded.contacts.length === 0 ? (
+                <p className="px-6 pb-8 text-[14px] text-ink-muted">
+                  {l(
+                    'No contact has been recorded for this establishment.',
+                    'Aucun interlocuteur enregistré pour cet établissement.',
+                  )}
+                </p>
+              ) : (
+                <ul className="divide-y divide-line-soft border-t border-line-soft">
+                  {/* Primary first, then by name — the API orders by id, which is random. */}
+                  {sortContacts(loaded.contacts).map((contact) => (
+                    <li
+                      key={contact.id}
+                      className="flex flex-wrap items-baseline gap-3 px-5 py-3 sm:px-6"
+                    >
+                      <span className="text-[15px] font-semibold text-navy">
+                        {contactDisplayName(contact)}
+                      </span>
+
+                      {contact.jobTitle ? (
+                        <span className="text-[14px] text-ink-muted">{contact.jobTitle}</span>
+                      ) : null}
+
+                      {contact.isPrimary ? <Badge tone="brand">Primary</Badge> : null}
+
+                      <span className="ml-auto flex flex-wrap gap-4 text-[14px] text-ink">
+                        {contact.phone ? <span>{contact.phone}</span> : null}
+                        {contact.email ? <span className="truncate">{contact.email}</span> : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+          <div className={section === 'history' ? '' : 'hidden'}>
+            <EstablishmentTimeline memberships={memberships} />
+          </div>
+        </div>
+        <aside className="space-y-4">
+          <ConsentSection restrictions={loaded.restrictions} failed={loaded.consentFailed} />
+
+          <CampaignContext prospectId={prospect.id} onMemberships={onMemberships} />
+        </aside>
+      </div>
     </div>
   );
 }
@@ -339,12 +397,12 @@ function ProspectWorkspace() {
 function ConsentSection({
   restrictions,
   failed,
-  prospectId,
 }: {
   restrictions: ConsentRestriction[];
   failed: boolean;
-  prospectId: string;
 }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (failed) {
     return (
       <Alert tone="warning" title="The contact restrictions could not be read.">
@@ -357,8 +415,8 @@ function ConsentSection({
 
   return (
     <Card>
-      <h2 className="mb-3 text-[19px] font-bold tracking-[-0.015em] text-navy">
-        Contact permission
+      <h2 className="mb-3 text-base font-extrabold tracking-[-0.015em] text-navy">
+        {l('Contact permission', 'Autorisation de contact')}
       </h2>
 
       {blocked.length > 0 ? (
@@ -374,7 +432,10 @@ function ConsentSection({
       {restrictions.length === 0 ? (
         <p className="flex items-center gap-2 text-[14px] text-ink-muted">
           <CircleHelp aria-hidden="true" className="size-4" />
-          No restriction has been recorded, so no channel is known to be blocked.
+          {l(
+            'No restriction has been recorded, so no channel is known to be blocked.',
+            'Aucune opposition enregistrée. Vérifiez la disponibilité avant tout contact.',
+          )}
         </p>
       ) : (
         <ul className="flex flex-wrap gap-2">
@@ -392,16 +453,14 @@ function ConsentSection({
               <span className="font-semibold text-ink">{restriction.channel}</span>
 
               <span className={restriction.blocked ? 'text-danger' : 'text-ink-muted'}>
-                {restriction.blocked ? 'Do not contact' : 'Allowed'}
+                {restriction.blocked
+                  ? l('Do not contact', 'Ne pas contacter')
+                  : l('Allowed', 'Autorisé')}
               </span>
             </li>
           ))}
         </ul>
       )}
-
-      <p className="mt-3 text-[13px] text-ink-muted">
-        Resolved by the API for establishment {prospectId}.
-      </p>
     </Card>
   );
 }

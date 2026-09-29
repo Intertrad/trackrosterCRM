@@ -21,6 +21,7 @@ export function Drawer({
   children,
   footer,
   headerAccessory,
+  width = 'default',
 }: {
   open: boolean;
   title: string;
@@ -28,6 +29,7 @@ export function Drawer({
   children: ReactNode;
   footer?: ReactNode;
   headerAccessory?: ReactNode;
+  width?: 'default' | 'prospect';
 }) {
   const { t } = useTranslation();
 
@@ -57,7 +59,8 @@ export function Drawer({
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          'relative flex h-full w-full max-w-[520px] flex-col bg-surface shadow-overlay',
+          'relative flex h-full w-full flex-col bg-surface shadow-overlay',
+          width === 'prospect' ? 'max-w-[720px]' : 'max-w-[520px]',
           'outline-none',
         )}
       >

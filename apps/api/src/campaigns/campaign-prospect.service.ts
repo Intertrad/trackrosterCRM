@@ -334,10 +334,16 @@ export class CampaignProspectService {
     return result;
   }
 
-  async list(tenantId: string, campaignId: string): Promise<CampaignProspect[]> {
+  async list(
+    tenantId: string,
+    campaignId: string,
+    establishmentIds?: string[],
+  ): Promise<CampaignProspect[]> {
     await this.requireCampaign(tenantId, campaignId);
 
-    return this.prospectRepository.findByCampaign(tenantId, campaignId);
+    return establishmentIds
+      ? this.prospectRepository.findByCampaign(tenantId, campaignId, establishmentIds)
+      : this.prospectRepository.findByCampaign(tenantId, campaignId);
   }
 
   async findById(

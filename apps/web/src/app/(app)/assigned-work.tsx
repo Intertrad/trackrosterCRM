@@ -1,64 +1,49 @@
 'use client';
-
-import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, Building2, CalendarClock } from 'lucide-react';
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, Building2, RefreshCw } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Drawer } from '@/components/ui/drawer';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { ProspectDetail } from '@/components/prospector/prospect-detail';
+import { Suspense } from 'react';
+import { LinkButton } from '@/components/ui/link-button';
+import { LifecycleBadge } from '@/components/prospector/lifecycle-badge';
 import { ApiError } from '@/lib/api/api-error';
 import { listWorkQueue } from '@/lib/api/work-queue-client';
+import type { WorkQueueItem } from '@/lib/api/work-queue-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { classifyFollowUp } from '@/lib/follow-ups/due';
-import { cn } from '@/lib/ui/cn';
-import type { WorkQueueItem, WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-/*
- * The prospector's own assigned work.
- *
- * Ma journée used to show only the day's follow-ups, because that is what
- * `prospector/today` returns — its priorities are built from prospect_follow_ups
- * alone. A prospect an administrator assigned this morning has no follow-up yet, so
- * it appeared nowhere and the day read as empty. This is the other half: the
- * prospects that are actually the caller's.
- *
- * It is not a search screen. The list is the caller's own assignments from
- * `/work-queue`, which is scoped to their team and their user id upstream, so
- * nothing here can reach another prospector's portfolio or the wider référentiel.
- */
-
-/* A day's worth. The full portfolio has its own screen. */
 const PAGE_SIZE = 25;
-
-const STAGE_LABEL: Record<WorkQueueLifecycleStage, string> = {
-  to_contact: 'To contact',
-  contact_made: 'Contact made',
-  in_progress: 'In progress',
-  follow_up: 'Follow-up',
-  qualified: 'Qualified',
-  converted: 'Converted',
-};
-
-/*
- * Only what the API can actually answer. `to_contact` is the stage the endpoint
- * filters on; "overdue" and "priority" belong to follow-ups and are already
- * answered by the day's priorities above, so inventing them here would be two
- * definitions of the same word.
- */
-type View = 'all' | 'to_contact';
-
-export function AssignedWork({ teamId }: { teamId: string }) {
+/** Today's bounded portfolio preview, refreshed without replacing visible rows during polling. */
+export function AssignedWork({
+  teamId,
+  onRefresh,
+  refreshing = false,
+}: {
+  teamId: string;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [items, setItems] = useState<WorkQueueItem[] | null>(null);
+  const [selected, setSelected] = useState<WorkQueueItem | null>(null);
+  const [detailDirty, setDetailDirty] = useState(false);
+  const [discard, setDiscard] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  const [view, setView] = useState<View>('all');
+  const [view, setView] = useState<'all' | 'to_contact'>('all');
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-
+  const generation = useRef(0);
   const load = useCallback(
-    async (signal?: AbortSignal): Promise<void> => {
-      setItems(null);
-      setFailed(null);
-
+    async (signal?: AbortSignal) => {
+      const current = ++generation.current;
       try {
         const page = await listWorkQueue({
           teamId,
@@ -66,183 +51,230 @@ export function AssignedWork({ teamId }: { teamId: string }) {
           limit: PAGE_SIZE,
           signal,
         });
-
-        if (signal?.aborted) {
-          return;
-        }
-
+        if (signal?.aborted || generation.current !== current) return;
         setItems(page.items);
         setTruncated(page.page.nextCursor !== null);
+        setFailed(null);
       } catch (caught) {
-        if (signal?.aborted) {
-          return;
-        }
-
+        if (signal?.aborted || generation.current !== current) return;
+        if (caught instanceof ApiError && caught.statusCode === 403) setItems(null);
         setFailed(
           caught instanceof ApiError && caught.statusCode === 403
-            ? 'This team is no longer yours to work.'
-            : 'We could not load your prospects.',
+            ? text(
+                'You no longer have access to this team.',
+                'Vous n’avez plus accès à cette équipe.',
+                language,
+              )
+            : text(
+                'Could not refresh your prospects. Retry to get current data.',
+                'Impossible d’actualiser vos prospects. Réessayez pour obtenir les données à jour.',
+                language,
+              ),
         );
       }
     },
-    [teamId, view],
+    [teamId, view, language],
   );
-
   useEffect(() => {
-    const controller = new AbortController();
-
-    void load(controller.signal);
-
-    return () => controller.abort();
+    const c = new AbortController();
+    setItems(null);
+    setFailed(null);
+    void load(c.signal);
+    return () => c.abort();
   }, [load, attempt]);
-
+  useLiveRefresh(load, { scope: teamId + view });
   return (
-    <Card className="p-0 sm:p-0">
-      <div className="flex flex-wrap items-center gap-3 px-5 py-4 sm:px-6">
-        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">My prospects</h2>
-
-        {items ? <Badge tone="neutral">{items.length}</Badge> : null}
-
-        <div className="ml-auto flex gap-1.5">
+    <section className="space-y-2.5">
+      <header className="flex flex-wrap items-center gap-3 py-3">
+        <div className="flex items-center gap-2">
+          <h2 className="sr-only text-xl font-bold text-navy">
+            {l('My prospects', 'Mes établissements')}
+          </h2>
+          {items && (
+            <Badge tone="neutral">
+              {items.length}
+              {truncated ? '+' : ''}
+            </Badge>
+          )}
+        </div>
+        <div className="flex gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
           {(['all', 'to_contact'] as const).map((option) => (
-            <button
+            <Button
               key={option}
-              type="button"
+              size="md"
+              variant="ghost"
+              className={view === option ? 'bg-surface text-navy shadow-sm' : 'text-ink-muted'}
               aria-pressed={view === option}
               onClick={() => setView(option)}
-              className={
-                view === option
-                  ? 'min-h-11 rounded-full bg-brand px-4 text-[14px] font-semibold text-white'
-                  : 'min-h-11 rounded-full border border-line px-4 text-[14px] font-semibold text-ink hover:border-brand-pale'
-              }
             >
-              {option === 'all' ? 'All' : 'To contact'}
-            </button>
+              {option === 'all' ? l('All', 'Tous') : l('To contact', 'À contacter')}
+            </Button>
           ))}
         </div>
-      </div>
-
-      {failed ? (
-        <div className="flex flex-col items-start gap-3 px-5 pb-5 sm:px-6">
+        <Button
+          size="md"
+          variant="secondary"
+          className="ml-auto"
+          aria-label={l('Refresh today', 'Actualiser la journée')}
+          loading={refreshing}
+          onClick={() => {
+            void load();
+            onRefresh?.();
+          }}
+        >
+          <RefreshCw aria-hidden="true" className="size-3.5" />
+          {l('Refresh', 'Actualiser')}
+        </Button>
+      </header>
+      {failed && (
+        <div className="space-y-3 px-5 pb-4">
           <Alert tone="warning">{failed}</Alert>
-
-          <Button variant="secondary" onClick={() => setAttempt((count) => count + 1)}>
-            Retry
+          <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+            {l('Retry', 'Réessayer')}
           </Button>
         </div>
-      ) : items === null ? (
-        <div
-          className="animate-pulse divide-y divide-line-soft border-t border-line-soft"
-          aria-busy="true"
-          aria-live="polite"
-        >
-          <span className="sr-only">Loading your prospects</span>
-
-          {[0, 1, 2].map((row) => (
-            <div key={row} className="px-5 py-4 sm:px-6">
-              <div className="h-4 w-2/3 rounded bg-surface-muted" />
-            </div>
-          ))}
+      )}
+      {items === null ? (
+        !failed && (
+          <div className="animate-pulse space-y-3 px-5 py-6" aria-busy="true">
+            <span className="sr-only">
+              {l('Loading your prospects', 'Chargement de vos établissements')}
+            </span>
+            {[0, 1, 2].map((n) => (
+              <div key={n} className="h-12 rounded bg-surface-muted" />
+            ))}
+          </div>
+        )
+      ) : !items.length ? (
+        <div className="border-t border-line-soft px-6 py-10 text-center">
+          <Building2 className="mx-auto mb-3 size-8 text-ink-muted" aria-hidden="true" />
+          <p className="font-semibold text-navy">
+            {view === 'to_contact'
+              ? l('No new prospects to contact', 'Aucun nouvel établissement à contacter')
+              : l('No prospects assigned yet', 'Aucun établissement attribué pour le moment')}
+          </p>
+          <p className="mt-2 text-sm text-ink-muted">
+            {view === 'to_contact'
+              ? l(
+                  'Choose All to see your other assigned prospects.',
+                  'Choisissez Tous pour retrouver vos autres établissements.',
+                )
+              : l(
+                  'Your administrator assigns prospects from a campaign. They will appear here automatically.',
+                  'Votre administrateur attribue les établissements depuis une campagne. Ils apparaîtront ici automatiquement.',
+                )}
+          </p>
         </div>
-      ) : items.length === 0 ? (
-        <p className="px-6 py-12 text-center text-[15px] text-ink-muted">
-          {view === 'to_contact'
-            ? 'Nothing left to contact for the first time.'
-            : 'No prospect is assigned to you yet. Your manager assigns the day&rsquo;s work.'}
-        </p>
       ) : (
-        <ul className="divide-y divide-line-soft border-t border-line-soft">
-          {items.map((item) => (
-            <WorkRow key={item.campaignProspectId} item={item} />
+        <ul className="space-y-2.5">
+          {items.map((item, index) => (
+            <li key={item.campaignProspectId}>
+              <Link
+                href={`/work-queue/${item.campaign.id}/${item.campaignProspectId}`}
+                onClick={(event) => {
+                  if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                    event.preventDefault();
+                    setSelected(item);
+                  }
+                }}
+                className="flex min-h-[66px] items-center gap-3.5 rounded-xl border border-line-soft bg-surface px-4 py-3.5 transition-colors hover:border-brand-pale hover:bg-brand-wash"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-tint text-brand">
+                  <span className="text-sm font-bold">{index + 1}</span>
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div className="min-w-0">
+                    <span className="block break-words text-[15.2px] font-bold text-navy">
+                      {item.establishment.name}
+                    </span>
+                    <span className="mt-0.5 block text-[13.44px] text-ink-muted">
+                      {[
+                        [item.establishment.postalCode, item.establishment.city]
+                          .filter(Boolean)
+                          .join(' '),
+                        item.campaign.name,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <LifecycleBadge stage={item.lifecycleStage} />
+                    {item.nextFollowUp && (
+                      <span className="text-xs text-ink-muted">
+                        <span
+                          className={
+                            classifyFollowUp({
+                              dueAt: item.nextFollowUp.dueAt,
+                              status: 'pending',
+                            }) === 'overdue'
+                              ? 'font-semibold text-danger'
+                              : ''
+                          }
+                        >
+                          {classifyFollowUp({
+                            dueAt: item.nextFollowUp.dueAt,
+                            status: 'pending',
+                          }) === 'overdue'
+                            ? l('Follow-up overdue since', 'Relance en retard depuis le')
+                            : l('Follow-up due', 'Relance prévue le')}
+                        </span>{' '}
+                        {new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(
+                          new Date(item.nextFollowUp.dueAt),
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-brand" />
+              </Link>
+            </li>
           ))}
         </ul>
       )}
-
-      {truncated ? (
-        <p className="px-5 pb-5 text-[13px] text-ink-muted sm:px-6">
-          Showing your {PAGE_SIZE} most recent assignments.
-        </p>
-      ) : null}
-    </Card>
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-5 py-4">
+        <span className="text-sm text-ink-muted">
+          {truncated
+            ? l(
+                `Latest ${PAGE_SIZE} assignments shown`,
+                `${PAGE_SIZE} dernières attributions affichées`,
+              )
+            : l('Your assigned portfolio', 'Votre portefeuille attribué')}
+        </span>
+        <LinkButton href="/work-queue">{l('Open portfolio', 'Ouvrir le portefeuille')}</LinkButton>
+      </footer>
+      {selected && (
+        <Drawer
+          open
+          title={l('Establishment', 'Fiche établissement')}
+          width="prospect"
+          onClose={() => (detailDirty ? setDiscard(true) : setSelected(null))}
+        >
+          <Suspense>
+            <ProspectDetail
+              campaignId={selected.campaign.id}
+              prospectId={selected.campaignProspectId}
+              embedded
+              onDirtyChange={setDetailDirty}
+            />
+          </Suspense>
+        </Drawer>
+      )}
+      <ConfirmDialog
+        open={discard}
+        title={l('Discard this draft?', 'Abandonner ce brouillon ?')}
+        description={l(
+          'Your unsaved contact-permission changes will be lost.',
+          'Les modifications d’autorisation de contact non enregistrées seront perdues.',
+        )}
+        confirmLabel={l('Discard draft', 'Abandonner le brouillon')}
+        onClose={() => setDiscard(false)}
+        onConfirm={() => {
+          setDiscard(false);
+          setSelected(null);
+          setDetailDirty(false);
+        }}
+      />
+    </section>
   );
-}
-
-/*
- * One row, sized for a thumb. The whole row is the link rather than a small
- * chevron, so opening a prospect on a phone does not need precision.
- */
-function WorkRow({ item }: { item: WorkQueueItem }) {
-  const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
-
-  return (
-    <li>
-      <a
-        href={href}
-        className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-muted sm:px-6"
-      >
-        <span className="shrink-0 text-ink-muted">
-          <Building2 aria-hidden="true" className="size-5" />
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold text-navy">
-            {item.establishment.name}
-          </span>
-
-          <span className="block truncate text-[13px] text-ink-muted">
-            {[
-              [item.establishment.postalCode, item.establishment.city].filter(Boolean).join(' '),
-              item.campaign.name,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
-        </span>
-
-        {/*
-         * A pending follow-up is why this one might be urgent, and whether it is
-         * late is decided by the same classifier the follow-up list uses — so a
-         * prospect cannot read as overdue on one screen and on time on the other.
-         */}
-        {item.nextFollowUp ? (
-          <span
-            className={cn(
-              'flex shrink-0 items-center gap-1 text-[13px] font-semibold',
-              classifyFollowUp({ dueAt: item.nextFollowUp.dueAt, status: 'pending' }) === 'overdue'
-                ? 'text-danger'
-                : 'text-warning',
-            )}
-          >
-            <CalendarClock aria-hidden="true" className="size-4" />
-            {/* Stated, not carried by colour. */}
-            <span className="sr-only">
-              {classifyFollowUp({ dueAt: item.nextFollowUp.dueAt, status: 'pending' }) === 'overdue'
-                ? 'Follow-up overdue since '
-                : 'Follow-up due '}
-            </span>
-            {formatDay(item.nextFollowUp.dueAt)}
-          </span>
-        ) : null}
-
-        {/* Stage in words, not by colour. */}
-        <Badge tone={item.lifecycleStage === 'to_contact' ? 'brand' : 'neutral'}>
-          {STAGE_LABEL[item.lifecycleStage]}
-        </Badge>
-
-        <span className="shrink-0 text-ink-muted">
-          <ArrowRight aria-hidden="true" className="size-4" />
-        </span>
-      </a>
-    </li>
-  );
-}
-
-function formatDay(iso: string): string {
-  const date = new Date(iso);
-
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }

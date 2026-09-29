@@ -115,6 +115,8 @@ export class CanonicalDashboardService {
   async admin(a: AuthenticatedPrincipal) {
     await this.role(a, []);
     const result = await this.db.execute(sql`SELECT
+   (SELECT count(*)::int FROM establishments WHERE tenant_id=${a.tenantId}) AS "totalEstablishments",
+   (SELECT count(DISTINCT establishment_id)::int FROM prospect_activities WHERE tenant_id=${a.tenantId}) AS "contactedEstablishments",
    (SELECT count(*)::int FROM tenant_memberships WHERE tenant_id=${a.tenantId} AND status='active') AS "activeMembers",
    (SELECT count(*)::int FROM auth_sessions WHERE tenant_id=${a.tenantId} AND created_at>=now()-interval '30 days') AS "sessionsLast30Days",
    (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active') AS "activeOrganizations",
@@ -124,9 +126,15 @@ export class CanonicalDashboardService {
    (SELECT count(*)::int FROM establishments WHERE tenant_id=${a.tenantId} AND phone IS NULL) AS "prospectsMissingPhone",
    (SELECT count(*)::int FROM export_jobs WHERE tenant_id=${a.tenantId} AND status='failed') AS "failedExports",
    (SELECT count(*)::int FROM import_jobs WHERE tenant_id=${a.tenantId} AND status='validated') AS "importsAwaitingCommit"`);
+    const activity = await this.db.execute(sql`
+      WITH days AS (SELECT generate_series((now() AT TIME ZONE 'Europe/Paris')::date - 13, (now() AT TIME ZONE 'Europe/Paris')::date, interval '1 day')::date AS day),
+      counts AS (SELECT (occurred_at AT TIME ZONE 'Europe/Paris')::date AS day, count(*)::int AS total FROM prospect_activities WHERE tenant_id=${a.tenantId} AND occurred_at >= ((now() AT TIME ZONE 'Europe/Paris')::date - 13) AT TIME ZONE 'Europe/Paris' GROUP BY 1)
+      SELECT days.day::text AS date, coalesce(counts.total,0)::int AS total FROM days LEFT JOIN counts USING(day) ORDER BY days.day`);
     return {
       generatedAt: new Date().toISOString(),
       scope: { tenantId: a.tenantId },
+      activityByDay: activity.rows,
+      activityTimeZone: 'Europe/Paris',
       metrics: result.rows[0],
       readiness: {
         productionCertified: false,

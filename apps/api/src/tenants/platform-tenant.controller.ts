@@ -53,13 +53,13 @@ export class PlatformTenantController {
         sql`SELECT count(*)::int AS count FROM tenant_memberships WHERE tenant_id=${tenantId}`,
       ),
       this.db.execute(
-        sql`SELECT count(*)::int AS count FROM prospects WHERE tenant_id=${tenantId}`,
+        sql`SELECT count(*)::int AS count FROM establishments WHERE tenant_id=${tenantId}`,
       ),
       this.db.execute(
         sql`SELECT count(*)::int AS count FROM campaigns WHERE tenant_id=${tenantId}`,
       ),
       this.db.execute(
-        sql`SELECT count(*)::int AS count FROM activities WHERE tenant_id=${tenantId}`,
+        sql`SELECT count(*)::int AS count FROM prospect_activities WHERE tenant_id=${tenantId}`,
       ),
     ]);
     return {

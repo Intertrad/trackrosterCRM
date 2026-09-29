@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -18,6 +19,7 @@ import { CampaignProspectService } from './campaign-prospect.service.js';
 import { AddCampaignProspectDto } from './dto/add-campaign-prospect.dto.js';
 import { EnrolCampaignProspectsDto } from './dto/enrol-campaign-prospects.dto.js';
 import { UpdateCampaignProspectDto } from './dto/update-campaign-prospect.dto.js';
+import { ListCampaignProspectsDto } from './dto/list-campaign-prospects.dto.js';
 
 interface AuthContext {
   userId: string;
@@ -106,8 +108,9 @@ export class CampaignProspectController {
 
     @Param('campaignId', new ParseUUIDPipe())
     campaignId: string,
+    @Query() query: ListCampaignProspectsDto = {},
   ) {
-    return this.campaignProspectService.list(auth.tenantId, campaignId);
+    return this.campaignProspectService.list(auth.tenantId, campaignId, query.establishmentIds);
   }
 
   @Get(':prospectId')

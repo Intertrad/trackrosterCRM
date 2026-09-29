@@ -234,6 +234,7 @@ export function previewCampaignEnrolment(
 export function applyCampaignEnrolment(
   campaignId: string,
   selection: CampaignEnrolmentSelection,
+  idempotencyKey?: string,
 ): Promise<CampaignEnrolmentResult> {
   /*
    * writeHeaders mints the idempotency key. Enrolment is one bulk request whose
@@ -244,7 +245,10 @@ export function applyCampaignEnrolment(
     `/api/campaigns/${encodeURIComponent(campaignId)}/prospects/bulk`,
     {
       method: 'POST',
-      headers: writeHeaders(),
+      headers: {
+        ...writeHeaders(),
+        ...(idempotencyKey ? { 'idempotency-key': idempotencyKey } : {}),
+      },
       body: JSON.stringify(selection),
     },
   );

@@ -1,8 +1,13 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
+
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Upload } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
@@ -28,6 +33,8 @@ export default function ImportsPage() {
 }
 
 function Imports() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const router = useRouter();
 
   const [jobs, setJobs] = useState<ImportJob[] | null>(null);
@@ -50,6 +57,8 @@ function Imports() {
         }
       });
   }, []);
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,18 +90,51 @@ function Imports() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Imports"
-        subtitle="Upload, validate and commit prospect records"
-        action={
-          <Button loading={creating} onClick={() => void startImport()}>
-            New import
-          </Button>
-        }
+        title={l('Imports', 'Import de données')}
+        subtitle={l(
+          'Upload, validate and commit prospect records',
+          'Ajoutez des établissements, vérifiez les données puis confirmez l’import.',
+        )}
       />
+      <Card>
+        <h2 className="mb-3 text-base font-extrabold">
+          {l('1. Prepare an import', '1. Préparer un import')}
+        </h2>
+        <button
+          type="button"
+          disabled={creating}
+          onClick={() => void startImport()}
+          className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-pale bg-canvas px-5 py-6 hover:border-brand disabled:opacity-55"
+        >
+          <Upload className="size-5 text-brand" aria-hidden="true" />
+          <span className="text-base font-bold">
+            {creating
+              ? l('Preparing…', 'Préparation…')
+              : l('Import a CSV file', 'Importer un fichier CSV')}
+          </span>
+          <span className="text-sm text-ink-muted">
+            {l(
+              'Choose your file, map columns, then review before importing.',
+              'Choisissez votre fichier, associez les colonnes puis vérifiez avant d’importer.',
+            )}
+          </span>
+        </button>
+        <p className="mt-3 rounded-[9px] bg-brand-tint px-3 py-2.5 text-sm text-brand">
+          {l('CSV files up to', 'Fichiers CSV jusqu’à')} {MAX_IMPORT_ROWS.toLocaleString()}{' '}
+          {l('rows and', 'lignes et')} {Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))} Mo.{' '}
+          {l(
+            'Nothing is added to the base before your confirmation.',
+            'Aucune donnée n’est ajoutée à la base avant votre confirmation.',
+          )}
+        </p>
+      </Card>
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       <Card>
+        <h2 className="mb-3 text-base font-extrabold">
+          {l('Previous imports', 'Imports précédents')}
+        </h2>
         {jobs === null ? (
           <div className="flex flex-col gap-2" aria-busy="true">
             {[0, 1, 2].map((row) => (
@@ -101,15 +143,19 @@ function Imports() {
           </div>
         ) : jobs.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-[16px] font-semibold text-navy">No imports yet</p>
+            <p className="text-[16px] font-semibold text-navy">
+              {l('No imports yet', 'Aucun import pour le moment')}
+            </p>
 
             <p className="mx-auto mt-2 max-w-md text-[15px] text-ink-muted">
-              An import takes a CSV of establishments and contacts through mapping, validation and
-              de-duplication before anything reaches the active portfolio.
+              {l(
+                'CSV rows are mapped, validated and checked for duplicates before confirmation.',
+                'Les lignes du CSV sont associées, validées et contrôlées pour détecter les doublons avant confirmation.',
+              )}
             </p>
 
             <Button className="mt-5" loading={creating} onClick={() => void startImport()}>
-              Start an import
+              {l('Start an import', 'Préparer un import')}
             </Button>
           </div>
         ) : (
@@ -122,12 +168,12 @@ function Imports() {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-semibold text-navy">
-                      {job.filename ?? 'No file uploaded yet'}
+                      {job.filename ?? l('No file uploaded yet', 'Aucun fichier déposé')}
                     </span>
 
                     <span className="block text-[13px] text-ink-muted">
                       {job.rowCount > 0 ? `${job.rowCount.toLocaleString()} rows · ` : ''}
-                      Updated {formatDate(job.updatedAt)}
+                      {l('Updated', 'Modifié le')} {formatDate(job.updatedAt)}
                     </span>
                   </span>
 
@@ -137,20 +183,6 @@ function Imports() {
             ))}
           </ul>
         )}
-      </Card>
-
-      <Card>
-        <h2 className="text-[17px] font-bold tracking-[-0.015em] text-navy">
-          What an import accepts
-        </h2>
-
-        <p className="mt-2 text-[15px] text-ink-muted">
-          A CSV of up to {MAX_IMPORT_ROWS.toLocaleString()} rows and{' '}
-          {Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))} MB. Every row needs at least a name
-          and a country code; everything else, including contact details, is optional. Rows that
-          match an existing establishment are held back until you decide whether to reuse or skip
-          them.
-        </p>
       </Card>
     </div>
   );

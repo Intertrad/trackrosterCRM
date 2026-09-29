@@ -352,7 +352,16 @@ describe('Workspace administration HTTP authorization and persistence', () => {
       available: 42,
       acceptingAssignments: true,
       constraints: { memberCapacityIsGlobal: true, pausedAssignmentsConsumeCapacity: true },
-      members: { truncated: false },
+      members: {
+        truncated: false,
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            membershipId: prospectorId,
+            identityId: expect.any(String),
+            email: `${prospectorId}@example.test`,
+          }),
+        ]),
+      },
     });
     expect(
       (

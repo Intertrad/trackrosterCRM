@@ -1,4 +1,5 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -108,6 +109,8 @@ function SearchView() {
 
     return () => clearTimeout(timer);
   }, [load, query, scope]);
+
+  useLiveRefresh(() => load(query, scope), { enabled: query.trim().length > 0 });
 
   /* The term lives in the URL so a search can be shared or reloaded. */
   useEffect(() => {

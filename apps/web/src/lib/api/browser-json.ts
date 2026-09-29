@@ -1,3 +1,4 @@
+import { announceMutation } from '@/lib/live/live-events';
 import { ApiError, type ApiErrorPayload } from './api-error';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,6 +74,8 @@ export async function browserJson<T>(input: RequestInfo | URL, init?: RequestIni
       error: 'Network Error',
     });
   }
+
+  if (response.ok) announceMutation(init?.method);
 
   if (response.status === 204) {
     return undefined as T;

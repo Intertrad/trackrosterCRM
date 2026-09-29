@@ -1,4 +1,5 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -188,6 +189,18 @@ function ImportWizard({ importId }: { importId: string }) {
       }
     },
     [loadIssues, loadRows],
+  );
+
+  useLiveRefresh(
+    async (signal) => {
+      const { resource: updated } = await getImport(importId, signal);
+      // Preserve the editable column mapping and its original ETag during background reads.
+      if (!signal.aborted && updated.status !== job?.status) await refresh(updated);
+    },
+    {
+      enabled: !!job && !busy && !['committed', 'cancelled'].includes(job.status),
+      interval: 5_000,
+    },
   );
 
   async function run(

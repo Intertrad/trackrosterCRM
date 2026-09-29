@@ -1,14 +1,16 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
-import { accountSettings } from '../database/schema/index.js';
+import { accountSettings, platformAccessGrants } from '../database/schema/index.js';
 import { UserRepository } from '../users/user.repository.js';
 import { AuthorizationService } from './authorization.service.js';
 import type { SelfAccessContext, SelfAccessGrant } from './self-access.types.js';
 
 export interface GetSelfAccessContextInput {
+  identityId?: string;
+
   tenantId: string;
 
   userId: string;
@@ -49,6 +51,21 @@ export class SelfAccessService {
       )
       .limit(1);
 
+    // Platform authority is identity-level and never inferred from a tenant role.
+    const platformGrants = input.identityId
+      ? await this.database
+          .select({ role: platformAccessGrants.role })
+          .from(platformAccessGrants)
+          .where(
+            and(
+              eq(platformAccessGrants.identityId, input.identityId),
+              eq(platformAccessGrants.role, 'super_admin'),
+              isNull(platformAccessGrants.revokedAt),
+            ),
+          )
+          .limit(1)
+      : [];
+
     const responseGrants: SelfAccessGrant[] = grants
       .map((grant) => ({
         role: grant.role,
@@ -68,6 +85,9 @@ export class SelfAccessService {
       });
 
     return {
+      ...(input.identityId
+        ? { platformAdmin: platformGrants.some((grant) => grant.role === 'super_admin') }
+        : {}),
       userId: input.userId,
 
       tenantId: input.tenantId,

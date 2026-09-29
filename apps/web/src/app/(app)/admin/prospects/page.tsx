@@ -1,485 +1,588 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { MapPin, Phone, Search, X } from 'lucide-react';
-
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Building2, List, MapPin, Plus, RefreshCw, Users, Download } from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
+import { ProspectAssignmentDrawer } from '@/components/admin/prospect-base/assignment-drawer';
+import { ProspectMap, toMapPoint } from '@/components/prospector/prospect-map';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { Drawer } from '@/components/ui/drawer';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
+import { SelectField } from '@/components/ui/select-field';
+import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
-import { CATEGORY_LABELS } from '@/lib/api/assignment-types';
+import { CATEGORY_LABELS, MAX_BATCH_SIZE } from '@/lib/api/assignment-types';
 import { ESTABLISHMENT_CATEGORIES, type EstablishmentCategory } from '@/lib/api/import-types';
 import { listProspects } from '@/lib/api/prospect-client';
 import {
   DEPARTMENT_SHAPE,
   PROSPECT_PAGE_SIZE,
-  prospectDepartment,
   type Prospect,
   type ProspectQuery,
-  type ProspectStatus,
 } from '@/lib/api/prospect-types';
-import { cn } from '@/lib/ui/cn';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+import { ActionEditor } from '@/components/workspace/action-editor';
+import { WORKSPACE_MODULES } from '@/lib/workspace/modules';
+import { text } from '@/lib/workspace/copy';
+import { togglePage, toggleRecord } from '@/lib/ui/record-selection';
 
-/*
- * The shared établissement référentiel.
- *
- * Administration only, and that is the API's rule rather than a layout choice: an
- * establishment outside every campaign is visible to a tenant-scoped grant alone,
- * so organization- and team-scoped users reach prospects through campaign
- * membership instead. AdminGuard mirrors the guard upstream.
- *
- * Every filter is a query parameter. The base is 14,649 rows and a page is 50, so
- * a filter applied in the browser would search the page and report nothing for the
- * other 14,599 — the failure this screen exists to avoid.
- */
 export default function ReferentialPage() {
+  const { language } = useTranslation();
+  const title = text('Prospects', 'Prospects', language);
   return (
     <AdminGuard
-      title="Base de prospects"
-      subtitle="The shared establishment référentiel, visible to administration only"
+      title={title}
+      subtitle={text(
+        'The shared establishment base',
+        'La base commune des établissements',
+        language,
+      )}
     >
-      <Referential />
+      <Suspense fallback={<Loading />}>
+        <Referential />
+      </Suspense>
     </AdminGuard>
   );
 }
-
-const STATUS_OPTIONS: { value: ProspectStatus | 'all'; label: string }[] = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'archived', label: 'Archived' },
-  { value: 'all', label: 'Any status' },
-];
+function Loading() {
+  return <div className="h-64 animate-pulse rounded-xl bg-surface-muted" aria-busy="true" />;
+}
 
 function Referential() {
-  const [search, setSearch] = useState('');
-  /* What is actually sent — the server is asked once the typing settles. */
-  const [appliedSearch, setAppliedSearch] = useState('');
-  const [category, setCategory] = useState<EstablishmentCategory | ''>('');
-  const [department, setDepartment] = useState('');
-  const [city, setCity] = useState('');
-  const [status, setStatus] = useState<ProspectStatus | 'all'>('active');
-  const [sort, setSort] = useState<'name' | 'createdAt'>('name');
-
-  /* Cursor pages, because the API pages by keyset and not by offset. */
-  const [pages, setPages] = useState<string[]>([]);
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const params = useSearchParams(),
+    router = useRouter(),
+    pathname = usePathname();
+  const paramString = params.toString();
+  const query = useMemo<ProspectQuery>(() => {
+    const p = new URLSearchParams(paramString);
+    const category = p.get('category') as EstablishmentCategory | null;
+    const status = p.get('status') ?? 'active';
+    return {
+      limit: PROSPECT_PAGE_SIZE,
+      ...(p.get('search') ? { search: p.get('search')!.slice(0, 200) } : {}),
+      ...(category && ESTABLISHMENT_CATEGORIES.includes(category) ? { category } : {}),
+      ...(DEPARTMENT_SHAPE.test(p.get('department') ?? '')
+        ? { department: p.get('department')! }
+        : {}),
+      ...(p.get('city') ? { city: p.get('city')! } : {}),
+      status: ['active', 'inactive', 'archived', 'all'].includes(status)
+        ? (status as ProspectQuery['status'])
+        : 'active',
+      sort: p.get('sort') === 'createdAt' ? 'createdAt' : 'name',
+      ...(p.get('cursor') ? { cursor: p.get('cursor')! } : {}),
+    };
+  }, [paramString]);
+  const map = params.get('view') === 'map';
+  const [search, setSearch] = useState(query.search ?? '');
+  const [composing, setComposing] = useState(false);
+  const [departmentError, setDepartmentError] = useState(false);
   const [items, setItems] = useState<Prospect[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Prospect | null>(null);
+  const [previous, setPrevious] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [selected, setSelected] = useState<Map<string, Prospect>>(new Map());
+  const [detail, setDetail] = useState<Prospect | null>(null);
+  const [batch, setBatch] = useState<Prospect[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const [notice, setNotice] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const pageCheckbox = useRef<HTMLInputElement>(null);
+  const latestQuery = useRef(paramString);
+  latestQuery.current = paramString;
+  const requestNumber = useRef(0);
+  const queryKey = JSON.stringify(query);
+  const scopeKey = JSON.stringify({ ...query, cursor: undefined });
   useEffect(() => {
-    const timer = setTimeout(() => setAppliedSearch(search.trim()), 300);
-
+    setSelected(new Map());
+    setDetail(null);
+    setPrevious([]);
+  }, [scopeKey]);
+  useEffect(() => setSearch(query.search ?? ''), [query.search]);
+  const update = useCallback(
+    (changes: Record<string, string>, page = false) => {
+      const p = new URLSearchParams(latestQuery.current);
+      if (!page) p.delete('cursor');
+      for (const [key, value] of Object.entries(changes)) {
+        if (value) p.set(key, value);
+        else p.delete(key);
+      }
+      router.replace(`${pathname}${p.size ? '?' + p : ''}`, { scroll: false });
+    },
+    [router, pathname],
+  );
+  useEffect(() => {
+    if (composing || search.trim() === (query.search ?? '')) return;
+    const timer = setTimeout(() => update({ search: search.trim() }), 300);
     return () => clearTimeout(timer);
-  }, [search]);
-
-  const query: ProspectQuery = {
-    ...(appliedSearch ? { search: appliedSearch } : {}),
-    ...(category ? { category } : {}),
-    /* A half-typed department is not a filter; `9` would be a 400 on its shape. */
-    ...(DEPARTMENT_SHAPE.test(department) ? { department } : {}),
-    ...(city.trim() ? { city: city.trim() } : {}),
-    status,
-    sort,
-    limit: PROSPECT_PAGE_SIZE,
-  };
-
-  const cursor = pages.at(-1);
-
+  }, [search, composing, query.search, update]);
   const load = useCallback(
-    async (signal?: AbortSignal): Promise<void> => {
+    async (signal?: AbortSignal) => {
+      const current = ++requestNumber.current;
       try {
-        const page = await listProspects({ ...query, ...(cursor ? { cursor } : {}) }, signal);
-
-        if (signal?.aborted) {
-          return;
-        }
-
+        const page = await listProspects(JSON.parse(queryKey) as ProspectQuery, signal);
+        if (signal?.aborted || current !== requestNumber.current) return;
         setItems(page.items);
         setNextCursor(page.nextCursor);
         setError(null);
       } catch (caught) {
-        if (signal?.aborted) {
-          return;
+        if (signal?.aborted || current !== requestNumber.current) return;
+        if (caught instanceof ApiError && [401, 403].includes(caught.statusCode)) {
+          setItems(null);
+          setNextCursor(null);
+          setSelected(new Map());
         }
-
-        setItems([]);
-        setNextCursor(null);
-        setError(describeError(caught));
+        setError(
+          caught instanceof ApiError && caught.statusCode === 400
+            ? caught.message
+            : caught instanceof ApiError && caught.statusCode === 403
+              ? text(
+                  'Your access no longer permits viewing this base.',
+                  'Vos droits ne permettent plus de consulter cette base.',
+                  language,
+                )
+              : text(
+                  'Could not refresh the prospects. Retry to get current data.',
+                  'Impossible d’actualiser les prospects. Réessayez pour obtenir les données à jour.',
+                  language,
+                ),
+        );
       }
     },
-    [appliedSearch, category, department, city, status, sort, cursor],
+    [queryKey, language],
   );
-
   useEffect(() => {
     const controller = new AbortController();
-
     setItems(null);
+    setError(null);
     void load(controller.signal);
-
     return () => controller.abort();
   }, [load]);
-
-  /* Any filter change invalidates the cursor trail: it is keyed to the old query. */
-  function narrow(change: () => void): void {
-    change();
-    setPages([]);
-    setSelected(null);
-  }
-
-  const filtered = Boolean(appliedSearch || category || department.trim() || city.trim());
-
+  useLiveRefresh(load, { scope: queryKey });
+  const activePage = (items ?? []).filter((r) => r.status === 'active');
+  const allChecked = activePage.length > 0 && activePage.every((r) => selected.has(r.id));
+  const someChecked = activePage.some((r) => selected.has(r.id));
+  useEffect(() => {
+    if (pageCheckbox.current) pageCheckbox.current.indeterminate = someChecked && !allChecked;
+  }, [allChecked, someChecked]);
+  const points = (items ?? []).flatMap((r) =>
+    toMapPoint(r.id, r.name, r.latitude, r.longitude, 'to_contact', `/admin/prospects/${r.id}`),
+  );
+  const filterCount = [
+    query.search,
+    query.category,
+    query.department,
+    query.city,
+    query.status !== 'active',
+  ].filter(Boolean).length;
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Base de prospects"
-        subtitle="The shared establishment référentiel, visible to administration only"
+        title={l('Prospects', 'Prospects')}
+        subtitle={l(
+          'Administration’s shared base. Select establishments to build a prospector’s portfolio.',
+          'Base commune de l’administration. Sélectionnez des établissements pour constituer un portefeuille.',
+        )}
         action={
-          <LinkButton href="/admin/campaigns" variant="secondary">
-            Add to a campaign
-          </LinkButton>
+          <div className="flex gap-2">
+            <LinkButton href="/manager/exports" variant="secondary">
+              <Download className="size-4" />
+              {l('Export (CSV)', 'Exporter (CSV)')}
+            </LinkButton>
+            <Button onClick={() => setAdding(true)}>
+              <Plus className="size-4" />
+              {l('Add', 'Ajouter')}
+            </Button>
+          </div>
         }
       />
-
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-
-      <div className="flex flex-wrap items-center gap-2.5">
-        <SearchInput
-          label="Search the référentiel"
-          placeholder="Name, address, postcode or commune…"
-          value={search}
-          onChange={(event) => narrow(() => setSearch(event.target.value))}
-          className="min-w-[240px] flex-1"
+      {adding && (
+        <ActionEditor
+          action={WORKSPACE_MODULES.find((m) => m.id === 'prospect-records')!.actions[0]!}
+          context={{}}
+          onClose={() => setAdding(false)}
+          onSaved={() => void load()}
         />
-
-        <FilterSelect
-          label="Section"
-          value={category}
-          onChange={(value) => narrow(() => setCategory(value as EstablishmentCategory | ''))}
-          options={[
-            { value: '', label: 'All sections' },
-            ...ESTABLISHMENT_CATEGORIES.map((value) => ({
-              value,
-              label: CATEGORY_LABELS[value],
-            })),
-          ]}
-        />
-
-        <div className="relative">
-          <label htmlFor="referential-department" className="sr-only">
-            Department
-          </label>
-
-          <input
-            id="referential-department"
-            inputMode="numeric"
+      )}
+      {notice && <Alert tone="success">{notice}</Alert>}
+      {error && <Alert tone="danger">{error}</Alert>}
+      <Card className="space-y-3 p-4 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <SearchInput
+            className="min-w-0 flex-1"
+            label={l('Search prospects', 'Rechercher des établissements')}
+            placeholder={l(
+              'Name, address, postcode or town…',
+              'Nom, adresse, code postal ou commune…',
+            )}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onClear={() => {
+              setSearch('');
+              update({ search: '' });
+            }}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={() => setComposing(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                update({ search: search.trim() });
+              }
+            }}
+          />
+          <Button onClick={() => update({ search: search.trim() })}>
+            {l('Search', 'Rechercher')}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setSearch('');
+              setDepartmentError(false);
+              update({ search: '', category: '', department: '', city: '', status: '', sort: '' });
+            }}
+            disabled={!filterCount}
+          >
+            {l('Clear filters', 'Effacer les filtres')}
+            {filterCount ? ` (${filterCount})` : ''}
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <SelectField
+            label={l('Section', 'Secteur')}
+            value={query.category ?? ''}
+            onChange={(e) => update({ category: e.target.value })}
+            options={[
+              { value: '', label: l('All sections', 'Tous les secteurs') },
+              ...ESTABLISHMENT_CATEGORIES.map((value) => ({
+                value,
+                label: CATEGORY_LABELS[value],
+              })),
+            ]}
+          />
+          <TextField
+            key={query.department ?? 'department'}
+            label={l('Department', 'Département')}
+            placeholder="01, 75, 974…"
+            defaultValue={query.department ?? ''}
+            error={
+              departmentError
+                ? l(
+                    'Use a department such as 01, 75 or 974.',
+                    'Utilisez un département comme 01, 75 ou 974.',
+                  )
+                : null
+            }
             maxLength={3}
-            placeholder="Dept."
-            value={department}
-            onChange={(event) => narrow(() => setDepartment(event.target.value.replace(/\D/g, '')))}
-            className="h-11 w-24 rounded-full border border-line bg-surface px-4 text-[14px] font-semibold text-ink transition-colors duration-150 hover:border-brand-pale"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (!v || DEPARTMENT_SHAPE.test(v)) update({ department: v });
+              else setDepartmentError(true);
+            }}
+            onChange={() => setDepartmentError(false)}
+          />
+          <TextField
+            key={query.city ?? 'city'}
+            label={l('Town', 'Commune')}
+            defaultValue={query.city ?? ''}
+            onBlur={(e) => update({ city: e.target.value.trim() })}
+          />
+          <SelectField
+            label={l('Status', 'Statut')}
+            value={query.status ?? 'active'}
+            onChange={(e) => update({ status: e.target.value })}
+            options={[
+              { value: 'active', label: l('Active', 'Actifs') },
+              { value: 'inactive', label: l('Inactive', 'Inactifs') },
+              { value: 'archived', label: l('Archived', 'Archivés') },
+              { value: 'all', label: l('All', 'Tous') },
+            ]}
+          />
+          <SelectField
+            label={l('Sort', 'Tri')}
+            value={query.sort ?? 'name'}
+            onChange={(e) => update({ sort: e.target.value })}
+            options={[
+              { value: 'name', label: l('Name', 'Nom') },
+              { value: 'createdAt', label: l('Newest', 'Plus récents') },
+            ]}
           />
         </div>
-
-        <div className="relative">
-          <label htmlFor="referential-city" className="sr-only">
-            Commune
-          </label>
-
-          <input
-            id="referential-city"
-            placeholder="Commune"
-            value={city}
-            onChange={(event) => narrow(() => setCity(event.target.value))}
-            className="h-11 w-40 rounded-full border border-line bg-surface px-4 text-[14px] font-semibold text-ink transition-colors duration-150 hover:border-brand-pale"
-          />
+      </Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            leadingIcon={<Users className="size-4" aria-hidden="true" />}
+            disabled={!selected.size || !!error}
+            onClick={() => setBatch([...selected.values()])}
+          >
+            {l(`Assign selection (${selected.size})`, `Attribuer la sélection (${selected.size})`)}
+          </Button>
+          {selected.size > 0 && (
+            <Button variant="ghost" onClick={() => setSelected(new Map())}>
+              {l('Clear selection', 'Effacer la sélection')}
+            </Button>
+          )}
         </div>
-
-        <FilterSelect
-          label="Status"
-          value={status}
-          onChange={(value) => narrow(() => setStatus(value as ProspectStatus | 'all'))}
-          options={STATUS_OPTIONS}
-        />
-
-        <FilterSelect
-          label="Sort"
-          value={sort}
-          onChange={(value) => narrow(() => setSort(value as 'name' | 'createdAt'))}
-          options={[
-            { value: 'name', label: 'Name' },
-            { value: 'createdAt', label: 'Newest' },
-          ]}
-        />
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            loading={refreshing}
+            aria-label={l('Refresh prospects', 'Actualiser les prospects')}
+            onClick={async () => {
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
+          >
+            <RefreshCw aria-hidden="true" className="size-4" />
+          </Button>
+          <Button
+            variant={!map ? 'primary' : 'secondary'}
+            aria-pressed={!map}
+            onClick={() => update({ view: '' }, true)}
+          >
+            <List aria-hidden="true" className="size-4" />
+            {l('List', 'Liste')}
+          </Button>
+          <Button
+            variant={map ? 'primary' : 'secondary'}
+            aria-pressed={map}
+            onClick={() => update({ view: 'map' }, true)}
+          >
+            <MapPin aria-hidden="true" className="size-4" />
+            {l('Map', 'Carte')}
+          </Button>
+        </div>
       </div>
-
-      <div
-        className={cn(
-          'grid items-start gap-5',
-          selected ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]' : 'grid-cols-1',
+      <p className="text-xs text-ink-muted">
+        {l(
+          `Select up to ${MAX_BATCH_SIZE} active records across pages. Changing filters clears the selection.`,
+          `Sélectionnez jusqu’à ${MAX_BATCH_SIZE} établissements actifs sur plusieurs pages. Changer les filtres efface la sélection.`,
         )}
-      >
-        <Card className="p-0 sm:p-0">
-          {items === null ? (
-            <TableSkeleton />
-          ) : items.length === 0 ? (
-            <div className="px-6 py-14 text-center">
-              <Search aria-hidden="true" className="mx-auto mb-3 size-6 text-ink-muted" />
-
-              <p className="text-[15px] text-ink-muted">
-                {filtered
-                  ? 'No establishment matches these filters.'
-                  : 'The référentiel is empty. Import the prospect base to fill it.'}
-              </p>
+      </p>
+      <Card className="p-0 sm:p-0">
+        {items === null ? (
+          error ? (
+            <div className="p-6">
+              <Button onClick={() => void load()}>{l('Retry', 'Réessayer')}</Button>
             </div>
           ) : (
-            <>
-              {/*
-               * A table on a wide screen and stacked rows on a narrow one. Both
-               * render the same row component so the two cannot drift.
-               */}
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead className="hidden border-b border-line-soft sm:table-header-group">
-                    <tr className="text-[13px] font-semibold text-ink-muted">
-                      <th scope="col" className="px-5 py-3 sm:px-6">
-                        Establishment
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Section
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Dept.
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Commune
-                      </th>
-                      <th scope="col" className="px-3 py-3">
-                        Contact
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-line-soft">
-                    {items.map((prospect) => (
-                      <tr
-                        key={prospect.id}
-                        onClick={() => setSelected(prospect)}
-                        aria-selected={selected?.id === prospect.id}
-                        className={cn(
-                          'cursor-pointer align-middle transition-colors',
-                          selected?.id === prospect.id ? 'bg-brand-wash' : 'hover:bg-surface-muted',
-                        )}
+            <Loading />
+          )
+        ) : !items.length ? (
+          <div className="py-14 text-center">
+            <Building2 aria-hidden="true" className="mx-auto mb-3 size-8 text-ink-muted" />
+            <p>
+              {filterCount
+                ? l(
+                    'No establishments match these filters.',
+                    'Aucun établissement ne correspond à ces filtres.',
+                  )
+                : l(
+                    'The prospect base is empty. Import records to get started.',
+                    'La base est vide. Importez des établissements pour commencer.',
+                  )}
+            </p>
+          </div>
+        ) : map ? (
+          <div>
+            <p className="px-5 py-4 text-sm text-ink-muted">
+              {l(
+                `${points.length} of ${items.length} records on this page have coordinates. Locations do not indicate contact availability.`,
+                `${points.length} établissements sur les ${items.length} de cette page sont géolocalisés. Les positions n’indiquent pas les droits de contact.`,
+              )}
+            </p>
+            {points.length ? (
+              <ProspectMap
+                points={points}
+                selectedId={detail?.id}
+                onSelect={(p) => setDetail(items.find((r) => r.id === p.id) ?? null)}
+                className="h-[460px]"
+              />
+            ) : (
+              <Alert tone="info" className="m-5">
+                {l(
+                  'No coordinates on this page. Try another section or page.',
+                  'Aucune coordonnée sur cette page. Essayez un autre secteur ou une autre page.',
+                )}
+              </Alert>
+            )}
+          </div>
+        ) : (
+          <div className="relative overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line bg-surface-muted text-sm text-ink-muted">
+                <tr>
+                  <th className="w-12 p-4">
+                    <input
+                      ref={pageCheckbox}
+                      type="checkbox"
+                      className="size-4 accent-brand"
+                      checked={allChecked}
+                      disabled={!activePage.length || !!error}
+                      aria-label={l(
+                        'Select active prospects on this page',
+                        'Sélectionner les établissements actifs de cette page',
+                      )}
+                      onChange={() => setSelected((s) => togglePage(s, activePage, MAX_BATCH_SIZE))}
+                    />
+                  </th>
+                  <th className="px-4 py-3">{l('Establishment', 'Établissement')}</th>
+                  <th className="hidden px-4 py-3 md:table-cell">
+                    {l('Location', 'Localisation')}
+                  </th>
+                  <th className="hidden px-4 py-3 lg:table-cell">{l('Phone', 'Téléphone')}</th>
+                  <th className="px-4 py-3">{l('Status', 'Statut')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line-soft">
+                {items.map((r) => (
+                  <tr
+                    key={r.id}
+                    className={selected.has(r.id) ? 'bg-brand-tint' : 'hover:bg-surface-muted'}
+                  >
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-brand"
+                        checked={selected.has(r.id)}
+                        disabled={
+                          !!error ||
+                          r.status !== 'active' ||
+                          (!selected.has(r.id) && selected.size >= MAX_BATCH_SIZE)
+                        }
+                        aria-label={`${l('Select', 'Sélectionner')} ${r.name}`}
+                        onChange={() => setSelected((s) => toggleRecord(s, r, MAX_BATCH_SIZE))}
+                      />
+                    </td>
+                    <td className="max-w-[240px] px-4 py-4 sm:max-w-none">
+                      <button
+                        type="button"
+                        className="text-left text-[14px] font-bold text-navy hover:text-brand"
+                        onClick={() => setDetail(r)}
                       >
-                        <td className="px-5 py-3 sm:px-6">
-                          <button
-                            type="button"
-                            className="text-left text-[15px] font-semibold text-navy"
-                          >
-                            {prospect.name}
-                          </button>
-
-                          {/* The narrow layout carries what the columns would. */}
-                          <span className="block text-[13px] text-ink-muted sm:hidden">
-                            {[
-                              prospect.category ? CATEGORY_LABELS[prospect.category] : null,
-                              [prospect.postalCode, prospect.city].filter(Boolean).join(' ') ||
-                                null,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
-                        </td>
-
-                        <td className="hidden px-3 py-3 sm:table-cell">
-                          {prospect.category ? (
-                            <Badge tone="neutral">{CATEGORY_LABELS[prospect.category]}</Badge>
-                          ) : (
-                            <span className="text-[14px] text-ink-muted">—</span>
-                          )}
-                        </td>
-
-                        <td className="hidden px-3 py-3 text-[14px] text-ink tabular-nums sm:table-cell">
-                          {prospectDepartment(prospect.postalCode) ?? '—'}
-                        </td>
-
-                        <td className="hidden px-3 py-3 text-[14px] text-ink sm:table-cell">
-                          {prospect.city ?? '—'}
-                        </td>
-
-                        <td className="hidden px-3 py-3 sm:table-cell">
-                          <span className="flex items-center gap-2 text-[13px] text-ink-muted">
-                            {prospect.phone ? (
-                              <Phone aria-label="Has a phone number" className="size-4" />
-                            ) : null}
-
-                            {prospect.latitude !== null ? (
-                              <MapPin aria-label="Has coordinates" className="size-4" />
-                            ) : null}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/*
-               * Keyset pages, so there is a next and a previous but no page
-               * numbers: the API has no offset and a total over 14,649 rows would
-               * be a second full scan on every request.
-               */}
-              <div className="flex items-center gap-3 border-t border-line-soft px-5 py-3 sm:px-6">
-                <span className="text-[14px] text-ink-muted">
-                  {items.length} shown{pages.length > 0 ? ` · page ${pages.length + 1}` : ''}
-                </span>
-
-                <div className="ml-auto flex gap-2">
-                  <Button
-                    variant="secondary"
-                    disabled={pages.length === 0}
-                    onClick={() => setPages((current) => current.slice(0, -1))}
-                  >
-                    Previous
-                  </Button>
-
-                  <Button
-                    variant="secondary"
-                    disabled={nextCursor === null}
-                    onClick={() =>
-                      setPages((current) => (nextCursor ? [...current, nextCursor] : current))
-                    }
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </Card>
-
-        {selected ? <ProspectPanel prospect={selected} onClose={() => setSelected(null)} /> : null}
-      </div>
-    </div>
-  );
-}
-
-/*
- * A quick view, not the record.
- *
- * It reads the row the listing already returned, so opening it costs no request
- * and browsing stays fast. Anything that needs another read — contacts, the
- * consent state, tags, custom fields — is on the full fiche, which this links to.
- * Two full detail implementations would be one too many.
- */
-function ProspectPanel({ prospect, onClose }: { prospect: Prospect; onClose: () => void }) {
-  const department = prospectDepartment(prospect.postalCode);
-
-  return (
-    <Card>
-      <div className="mb-4 flex items-start gap-3">
-        <h2 className="min-w-0 flex-1 text-[19px] font-bold tracking-[-0.015em] text-navy">
-          {prospect.name}
-        </h2>
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close the detail panel"
-          className="text-ink-muted hover:text-ink"
+                        {r.name}
+                      </button>
+                      <p className="mt-0.5 text-xs text-ink-muted">
+                        {r.category ? CATEGORY_LABELS[r.category] : '—'}
+                      </p>
+                      <p className="mt-1 text-sm text-ink-muted md:hidden">
+                        {[r.postalCode, r.city].filter(Boolean).join(' ')}
+                      </p>
+                    </td>
+                    <td className="hidden px-4 py-4 text-sm md:table-cell">
+                      <p>{r.city ?? '—'}</p>
+                      <p className="text-ink-muted">{r.postalCode ?? '—'}</p>
+                    </td>
+                    <td className="hidden whitespace-nowrap px-4 py-4 text-sm lg:table-cell">
+                      {r.phone ?? '—'}
+                    </td>
+                    <td className="px-4 py-4">
+                      <Badge tone={r.status === 'active' ? 'success' : 'neutral'}>
+                        {r.status === 'active'
+                          ? l('Active', 'Actif')
+                          : r.status === 'inactive'
+                            ? l('Inactive', 'Inactif')
+                            : l('Archived', 'Archivé')}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {items && items.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-5 py-4">
+            <span className="text-sm text-ink-muted">
+              {l(
+                `${items.length.toLocaleString(locale)} shown`,
+                `${items.length.toLocaleString(locale)} affichés`,
+              )}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                disabled={!query.cursor}
+                onClick={() => {
+                  const old = [...previous];
+                  const cursor = old.pop() ?? '';
+                  setPrevious(old);
+                  update({ cursor }, true);
+                }}
+              >
+                {previous.length ? l('Previous', 'Précédent') : l('First page', 'Première page')}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!nextCursor || !!error}
+                onClick={() => {
+                  setPrevious((p) => [...p, query.cursor ?? '']);
+                  update({ cursor: nextCursor ?? '' }, true);
+                }}
+              >
+                {l('Next', 'Suivant')}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
+      {detail && (
+        <Drawer
+          open
+          title={detail.name}
+          onClose={() => setDetail(null)}
+          footer={
+            <LinkButton href={`/admin/prospects/${detail.id}`}>
+              {l('Open full record', 'Ouvrir la fiche complète')}
+            </LinkButton>
+          }
         >
-          <X aria-hidden="true" className="size-5" />
-        </button>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {prospect.category ? (
-          <Badge tone="brand">{CATEGORY_LABELS[prospect.category]}</Badge>
-        ) : null}
-
-        <Badge tone={prospect.status === 'active' ? 'success' : 'neutral'}>{prospect.status}</Badge>
-
-        {prospect.source === 'import' ? <Badge tone="neutral">Imported</Badge> : null}
-      </div>
-
-      <dl className="flex flex-col gap-2 text-[14px]">
-        <Field label="Address">{prospect.addressLine1}</Field>
-        <Field label="Commune">
-          {[prospect.postalCode, prospect.city].filter(Boolean).join(' ') || null}
-        </Field>
-        <Field label="Department">{department}</Field>
-        <Field label="Phone">{prospect.phone}</Field>
-        <Field label="Website">{prospect.website}</Field>
-        <Field label="Coordinates">
-          {prospect.latitude !== null && prospect.longitude !== null
-            ? `${prospect.latitude.toFixed(5)}, ${prospect.longitude.toFixed(5)}`
-            : null}
-        </Field>
-        <Field label="Reference">{prospect.externalReference}</Field>
-      </dl>
-
-      {prospect.latitude === null ? (
-        <Alert tone="info" className="mt-4">
-          No coordinates, so this establishment cannot be placed on a map or routed to.
-        </Alert>
-      ) : null}
-
-      <LinkButton
-        href={`/admin/prospects/${prospect.id}`}
-        variant="secondary"
-        className="mt-4 w-full"
-      >
-        Open full record
-      </LinkButton>
-    </Card>
-  );
-}
-
-/* A missing value is stated, not hidden: blank rows read as a loading failure. */
-function Field({ label, children }: { label: string; children: string | null }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-line-soft pb-2 last:border-0">
-      <dt className="shrink-0 text-ink-muted">{label}</dt>
-      <dd className="min-w-0 truncate text-right font-medium text-ink">{children ?? '—'}</dd>
+          <div className="space-y-4">
+            <Badge tone="brand">{detail.category ? CATEGORY_LABELS[detail.category] : '—'}</Badge>
+            <dl className="space-y-3">
+              {[
+                [l('Address', 'Adresse'), detail.addressLine1],
+                [l('Town', 'Commune'), [detail.postalCode, detail.city].filter(Boolean).join(' ')],
+                [l('Phone', 'Téléphone'), detail.phone],
+                [l('Website', 'Site internet'), detail.website],
+                [l('Source ID', 'Identifiant source'), detail.externalReference],
+              ].map(([label, value]) => (
+                <div key={label} className="border-b border-line-soft pb-3">
+                  <dt className="text-sm text-ink-muted">{label}</dt>
+                  <dd className="break-words font-medium">{value || '—'}</dd>
+                </div>
+              ))}
+            </dl>
+            {detail.latitude === null && (
+              <Alert tone="info">
+                {l(
+                  'No coordinates are available for this establishment.',
+                  'Cet établissement ne dispose pas de coordonnées géographiques.',
+                )}
+              </Alert>
+            )}
+          </div>
+        </Drawer>
+      )}
+      {batch && (
+        <ProspectAssignmentDrawer
+          records={batch}
+          onClose={() => setBatch(null)}
+          onAssigned={(count) => {
+            setSelected(new Map());
+            setNotice(l(`${count} prospects assigned.`, `${count} établissements attribués.`));
+            void load();
+          }}
+        />
+      )}
     </div>
   );
-}
-
-function TableSkeleton() {
-  return (
-    <div className="animate-pulse divide-y divide-line-soft" aria-hidden="true">
-      {Array.from({ length: 8 }, (_, row) => (
-        <div key={row} className="px-5 py-4 sm:px-6">
-          <div className="h-4 w-1/3 rounded bg-surface-muted" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiError) {
-    switch (error.statusCode) {
-      case 400:
-        /* The API's message names the field it rejected. */
-        return error.message || 'One of the filters is not valid.';
-
-      case 401:
-        return 'Your session has expired. Sign in again to continue.';
-
-      case 403:
-        return 'You do not have administrator access for this tenant.';
-
-      default:
-        return error.message || 'We could not load the référentiel.';
-    }
-  }
-
-  return 'We could not load the référentiel.';
 }

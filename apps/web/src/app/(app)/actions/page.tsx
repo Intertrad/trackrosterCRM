@@ -1,258 +1,252 @@
 'use client';
-
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { CheckCircle2, CircleDot, CircleSlash, History } from 'lucide-react';
-
-import { ActionChannelIcon } from '@/components/prospector/action-channel-icon';
+import { useCallback, useState } from 'react';
+import { History, RefreshCw } from 'lucide-react';
 import { ActionHistoryDrawer } from '@/components/prospector/action-history-drawer';
+import { ActionChannelIcon } from '@/components/prospector/action-channel-icon';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader } from '@/components/ui/card';
-import { FilterSelect } from '@/components/ui/filter-select';
+import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { SelectField } from '@/components/ui/select-field';
 import { SearchInput } from '@/components/ui/search-input';
-import { StatTile } from '@/components/ui/stat-tile';
 import { listActions } from '@/lib/api/action-client';
 import {
-  actionTypeLabel,
-  canCancelAction,
-  canCorrectAction,
   toActionChannel,
   type ActionLifecycleStatus,
   type ActionRecord,
-  type ActionStatus,
 } from '@/lib/api/action-types';
-import { ApiError } from '@/lib/api/api-error';
-import { listWorkQueue } from '@/lib/api/work-queue-client';
-import type { WorkQueueItem } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
-
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { useLivePages } from '@/lib/live/use-live-pages';
+import { text } from '@/lib/workspace/copy';
+const statuses = {
+  planned: ['Planned', 'Planifiée'],
+  due: ['Due', 'À effectuer'],
+  overdue: ['Overdue', 'En retard'],
+  in_progress: ['In progress', 'En cours'],
+  completed: ['Completed', 'Terminée'],
+  cancelled: ['Cancelled', 'Annulée'],
+} as const;
 export default function ActionsPage() {
   const { activeWorkspace } = useAuth();
-  const teamId = activeWorkspace?.teamId ?? null;
-
-  const [actions, setActions] = useState<ActionRecord[] | null>(null);
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const admin = activeWorkspace?.mode !== 'prospector';
   const [status, setStatus] = useState<ActionLifecycleStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [prospects, setProspects] = useState<Map<string, WorkQueueItem>>(new Map());
   const [selected, setSelected] = useState<ActionRecord | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(
-    (signal?: AbortSignal): Promise<void> =>
-      listActions({ limit: 100, ...(status === 'all' ? {} : { status }) }, signal)
-        .then((page) => {
-          if (!signal?.aborted) {
-            setActions(page.items);
-            setError(null);
-          }
-        })
-        .catch((caught: unknown) => {
-          if (!signal?.aborted) {
-            setActions([]);
-            setError(describeError(caught));
-          }
-        }),
+  const read = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      listActions({ limit: 100, cursor, ...(status === 'all' ? {} : { status }) }, signal),
     [status],
   );
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void load(controller.signal);
-
-    return () => controller.abort();
-  }, [load]);
-
-  /* An action names its prospect by id only. */
-  useEffect(() => {
-    if (!teamId) {
-      return;
-    }
-
-    const controller = new AbortController();
-
-    listWorkQueue({ teamId, limit: 100, signal: controller.signal })
-      .then((page) =>
-        setProspects(new Map(page.items.map((item) => [item.campaignProspectId, item]))),
-      )
-      .catch(() => setProspects(new Map()));
-
-    return () => controller.abort();
-  }, [teamId]);
-
-  const visible = useMemo(() => {
-    if (!actions) {
-      return [];
-    }
-
-    const query = search.trim().toLowerCase();
-
-    if (query === '') {
-      return actions;
-    }
-
-    return actions.filter((action) => {
-      const prospect = prospects.get(action.campaignProspectId);
-
-      return `${action.subject} ${prospect?.establishment.name ?? ''}`
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [actions, prospects, search]);
-
-  const counts = useMemo(() => {
-    const all = actions ?? [];
-
-    return {
-      open: all.filter((action) => canCancelAction(action.status)).length,
-      completed: all.filter((action) => action.status === 'completed').length,
-      cancelled: all.filter((action) => action.status === 'cancelled').length,
-      correctable: all.filter((action) => canCorrectAction(action.status)).length,
-    };
-  }, [actions]);
-
+  const { rows, cursor, error, busy, load, loadMore } = useLivePages(read);
+  const visible =
+    rows?.filter((a) =>
+      `${a.subject} ${a.establishment.name} ${a.actor.displayName} ${a.organization?.name}`
+        .toLocaleLowerCase()
+        .includes(search.toLocaleLowerCase()),
+    ) ?? [];
+  const statusLabel = (a: ActionRecord) => {
+    const pair = statuses[a.status];
+    return pair ? l(pair[0], pair[1]) : a.status;
+  };
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Logged actions"
-        subtitle="Everything you have logged, and how to put it right"
+        title={admin ? l('Activity', 'Activité') : l('History', 'Historique')}
+        subtitle={
+          admin
+            ? l(
+                'Recorded work across your authorized teams.',
+                'Les actions enregistrées par vos équipes, dans votre périmètre autorisé.',
+              )
+            : l(
+                'Your contacts, outcomes and reports.',
+                'Vos contacts, résultats et comptes rendus.',
+              )
+        }
+        action={
+          <Button variant="secondary" disabled={busy} onClick={() => void load()}>
+            <RefreshCw className="size-4" />
+            {l('Refresh', 'Actualiser')}
+          </Button>
+        }
       />
-
-      {error ? <Alert tone="danger">{error}</Alert> : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={<CircleDot aria-hidden="true" className="size-5" />}
-          tone="brand"
-          value={actions === null ? null : counts.open}
-          label="Open"
-        />
-
-        <StatTile
-          icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
-          tone="success"
-          value={actions === null ? null : counts.completed}
-          label="Completed"
-        />
-
-        <StatTile
-          icon={<History aria-hidden="true" className="size-5" />}
-          tone="neutral"
-          value={actions === null ? null : counts.correctable}
-          label="Correctable"
-          delta="Completed actions can be amended"
-        />
-
-        <StatTile
-          icon={<CircleSlash aria-hidden="true" className="size-5" />}
-          tone="neutral"
-          value={actions === null ? null : counts.cancelled}
-          label="Cancelled"
-        />
-      </div>
-
-      <Card>
-        <CardHeader
-          title="Actions"
-          action={
-            <FilterSelect
-              label="Status"
-              value={status}
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'planned', label: 'Planned' },
-                { value: 'started', label: 'In progress' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'cancelled', label: 'Cancelled' },
-              ]}
-              onChange={(value) => setStatus(value as ActionLifecycleStatus | 'all')}
-            />
-          }
-        />
-
-        <SearchInput
-          label="Search actions"
-          placeholder="Search by subject or establishment…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-
-        {actions === null ? (
-          <div className="mt-5 flex flex-col gap-2" aria-busy="true">
-            {[0, 1, 2, 3].map((row) => (
-              <div key={row} className="h-16 animate-pulse rounded-lg bg-line-soft" />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <p className="py-10 text-center text-[15px] text-ink-muted">
-            {actions.length === 0
-              ? 'You have not logged any actions yet.'
-              : 'No actions match this search.'}
-          </p>
-        ) : (
-          <ul className="mt-5 flex flex-col divide-y divide-line-soft">
-            {visible.map((action) => {
-              const prospect = prospects.get(action.campaignProspectId);
-
-              return (
-                <li
-                  key={action.id}
-                  className="flex flex-wrap items-center gap-x-4 gap-y-2.5 py-3.5"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-muted text-ink-muted"
-                  >
-                    <ActionChannelIcon channel={toActionChannel(action.type)} />
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-navy">
-                      {action.subject}
-                    </span>
-
-                    <span className="block truncate text-[13px] text-ink-muted">
-                      {actionTypeLabel(action.type)}
-                      {prospect ? (
-                        <>
-                          {' · '}
-                          <Link
-                            href={`/work-queue/${action.campaignId}/${action.campaignProspectId}`}
-                            className="text-brand hover:underline"
-                          >
-                            {prospect.establishment.name}
-                          </Link>
-                        </>
-                      ) : null}
-                      {action.completedAt ? ` · ${formatDate(action.completedAt)}` : ''}
-                    </span>
-                  </span>
-
-                  {action.outcomeCode ? (
-                    <Badge tone="neutral">{action.outcomeCode.replace(/_/g, ' ')}</Badge>
-                  ) : null}
-
-                  <StatusBadge status={action.status} />
-
-                  <Button variant="secondary" onClick={() => setSelected(action)}>
-                    <History aria-hidden="true" className="mr-1.5 size-4" />
-                    History
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        <Alert tone="info" className="mt-5" title="Corrections are additive.">
-          Amending a completed action appends the correction; the original entry stays in the
-          history so the record shows both.
+      {error && (
+        <Alert tone="danger">
+          {l(
+            'Unable to refresh activity. Retry to see current records.',
+            'Impossible d’actualiser l’activité. Réessayez pour obtenir les données à jour.',
+          )}
         </Alert>
+      )}
+      <Card className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <SearchInput
+          className="flex-1"
+          label={l('Search loaded actions', 'Rechercher dans les actions affichées')}
+          placeholder={l(
+            'Establishment, prospector, company…',
+            'Établissement, prospecteur, entreprise…',
+          )}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch('')}
+        />
+        <SelectField
+          label={l('Status', 'État')}
+          value={status}
+          onChange={(e) => setStatus(e.target.value as typeof status)}
+          options={[
+            { value: 'all', label: l('All statuses', 'Tous les états') },
+            { value: 'planned', label: l('Planned', 'Planifiées') },
+            { value: 'started', label: l('In progress', 'En cours') },
+            { value: 'completed', label: l('Completed', 'Terminées') },
+            { value: 'cancelled', label: l('Cancelled', 'Annulées') },
+          ]}
+        />
       </Card>
-
+      {!admin ? (
+        <div className="space-y-2">
+          {rows === null && !error && (
+            <div className="h-48 animate-pulse rounded-xl bg-line-soft" aria-busy="true" />
+          )}
+          {rows !== null && !visible.length && (
+            <Card>
+              <p className="py-3 text-sm text-ink-muted">
+                {l('No actions to display', 'Aucune action à afficher')}
+              </p>
+            </Card>
+          )}
+          {visible.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setSelected(a)}
+              className="flex w-full flex-wrap items-start gap-x-5 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3 text-left hover:border-brand"
+            >
+              <span className="w-28 shrink-0 text-xs text-ink-muted">
+                {a.completedAt || a.dueAt
+                  ? new Date((a.completedAt ?? a.dueAt)!).toLocaleString(locale, {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  : '—'}
+              </span>
+              <span className="min-w-0 flex-1 basis-40">
+                <span className="block text-sm font-bold">{a.establishment.name ?? a.subject}</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">{a.subject}</span>
+                <span className="text-xs text-ink-muted">{a.campaign.name}</span>
+              </span>
+              <span className="flex flex-col items-end gap-1">
+                <ActionChannelIcon channel={toActionChannel(a.type)} />
+                <span className="rounded-full bg-brand-tint px-2 py-0.5 text-xs font-semibold text-brand">
+                  {statusLabel(a)}
+                </span>
+              </span>
+            </button>
+          ))}
+          <div className="flex items-center justify-between py-3 text-xs text-ink-muted">
+            <span>
+              {visible.length} {l('shown', 'affichées')}
+            </span>
+            {cursor && (
+              <Button variant="secondary" loading={busy} onClick={loadMore}>
+                {l('Load more', 'Charger la suite')}
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <Card padding="none">
+          <div className="relative overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-line-soft bg-surface-muted/60 text-xs text-ink-muted">
+                <tr>
+                  {[
+                    l('Establishment / action', 'Établissement / action'),
+                    l('Prospector', 'Prospecteur'),
+                    l('Company', 'Entreprise'),
+                    l('Channel', 'Canal'),
+                    l('Status', 'État'),
+                    l('Date', 'Date'),
+                  ].map((h) => (
+                    <th key={h} className="px-4 py-3 font-semibold">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((a) => (
+                  <tr
+                    key={a.id}
+                    className="border-b border-line-soft last:border-0 hover:bg-brand-wash"
+                  >
+                    <td className="max-w-72 px-4 py-4">
+                      <button
+                        className="text-left font-semibold text-navy hover:text-brand"
+                        onClick={() => setSelected(a)}
+                      >
+                        {a.establishment.name ?? a.subject}
+                      </button>
+                      <p className="mt-1 text-xs text-ink-muted">{a.subject}</p>
+                    </td>
+                    <td className="px-4">{a.actor.displayName ?? '—'}</td>
+                    <td className="px-4">{a.organization?.name ?? '—'}</td>
+                    <td className="px-4">
+                      <ActionChannelIcon channel={toActionChannel(a.type)} />
+                    </td>
+                    <td className="px-4">
+                      <span
+                        className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${a.status === 'completed' ? 'bg-success-bg text-success' : a.status === 'overdue' ? 'bg-danger-bg text-danger' : 'bg-brand-tint text-brand'}`}
+                      >
+                        {statusLabel(a)}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 text-xs text-ink-muted">
+                      {a.completedAt || a.dueAt
+                        ? new Date((a.completedAt ?? a.dueAt)!).toLocaleDateString(locale)
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rows === null && !error ? (
+            <div className="h-48 animate-pulse bg-surface-muted" aria-busy="true" />
+          ) : (
+            rows !== null &&
+            !visible.length && (
+              <div className="py-14 text-center">
+                <History className="mx-auto mb-3 size-7 text-ink-muted" />
+                <p className="font-semibold">
+                  {l('No actions to display', 'Aucune action à afficher')}
+                </p>
+                <p className="mt-2 text-sm text-ink-muted">
+                  {l(
+                    'Recorded contacts will appear here.',
+                    'Les contacts enregistrés apparaîtront ici.',
+                  )}
+                </p>
+              </div>
+            )
+          )}
+          <footer className="flex items-center justify-between border-t border-line-soft px-4 py-3 text-xs text-ink-muted">
+            <span>
+              {visible.length} {l('shown', 'affichées')}
+            </span>
+            {cursor && (
+              <Button variant="secondary" loading={busy} onClick={loadMore}>
+                {l('Load more', 'Charger la suite')}
+              </Button>
+            )}
+          </footer>
+        </Card>
+      )}
       <ActionHistoryDrawer
         actionId={selected?.id ?? null}
         status={selected?.status ?? null}
@@ -261,47 +255,4 @@ export default function ActionsPage() {
       />
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: ActionStatus }) {
-  switch (status) {
-    case 'completed':
-      return <Badge tone="success">Completed</Badge>;
-    case 'cancelled':
-      return <Badge tone="neutral">Cancelled</Badge>;
-    case 'in_progress':
-      return (
-        <Badge tone="brand" dot>
-          In progress
-        </Badge>
-      );
-    case 'overdue':
-      return (
-        <Badge tone="danger" dot>
-          Overdue
-        </Badge>
-      );
-    default:
-      return <Badge tone="warning">Planned</Badge>;
-  }
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-}
-
-function describeError(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
-  }
-
-  if (error.statusCode === 403) {
-    return 'You are not authorized to see these actions.';
-  }
-
-  return 'We could not load your actions. Please try again.';
 }

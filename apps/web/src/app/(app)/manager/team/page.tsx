@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Map as MapIcon, UserMinus, UserPlus, Users } from 'lucide-react';
 
@@ -14,7 +16,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SelectField } from '@/components/ui/select-field';
 import { StatTile } from '@/components/ui/stat-tile';
 import { ApiError } from '@/lib/api/api-error';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { listTerritoryAssignments } from '@/lib/api/territory-client';
 import type { TerritoryAssignment } from '@/lib/api/territory-types';
 import {
@@ -87,6 +89,8 @@ export default function TeamPage() {
     },
     [state, teamId],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

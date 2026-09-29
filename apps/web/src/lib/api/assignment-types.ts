@@ -64,7 +64,14 @@ export interface UnassignedProspectPage {
 }
 
 export type AssignmentOutcome =
-  'proposed' | 'already_assigned' | 'inactive_prospect' | 'missing_coordinates';
+  | 'proposed'
+  | 'already_assigned'
+  | 'inactive_prospect'
+  | 'missing_coordinates'
+  | 'capacity_exhausted'
+  | 'ineligible_target'
+  | 'no_skill_match'
+  | 'no_proximity_match';
 
 export interface AssignmentDecision {
   prospectId: string;
@@ -111,4 +118,8 @@ export const OUTCOME_LABELS: Record<AssignmentOutcome, string> = {
   already_assigned: 'Already assigned to another member',
   inactive_prospect: 'Prospect is not active',
   missing_coordinates: 'Establishment has no coordinates',
+  capacity_exhausted: 'Team or member capacity is exhausted',
+  ineligible_target: 'The target member is no longer eligible',
+  no_skill_match: 'No member has the required skills',
+  no_proximity_match: 'No member is within the allowed distance',
 };

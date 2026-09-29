@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, X } from 'lucide-react';
@@ -119,6 +121,8 @@ export default function ActionsPage() {
     },
     [teamId],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -247,7 +251,7 @@ export default function ActionsPage() {
 
   if (!teamId) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-[18px]">
         <PageHeader title={t('actions.title')} />
 
         <Alert tone="info" title={t('actions.teamScoped')}>
@@ -258,14 +262,14 @@ export default function ActionsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-[18px]">
       <PageHeader
         title={t('actions.title')}
         subtitle={t('actions.subtitle')}
         action={
           /* The history of completed work and the round planner are no longer
              in the prospector sidebar, so this is where they are reached. */
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
             <LinkButton href="/actions">{t('nav.loggedActions')}</LinkButton>
 
             <LinkButton href="/routes">{t('nav.routes')}</LinkButton>
@@ -300,7 +304,7 @@ export default function ActionsPage() {
             className={cn(
               'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold transition-colors',
               tab === item.id
-                ? 'bg-brand-tint text-brand'
+                ? 'bg-surface text-navy shadow-sm'
                 : 'bg-surface-muted text-ink-soft hover:text-ink',
             )}
           >
@@ -330,7 +334,7 @@ export default function ActionsPage() {
         <QueueSkeleton />
       ) : visible.length === 0 ? (
         <Card>
-          <div className="py-12 text-center">
+          <div className="py-6 text-center">
             <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success" />
 
             <p className="mt-3 text-[17px] font-bold text-navy">
@@ -352,8 +356,8 @@ export default function ActionsPage() {
           </div>
         </Card>
       ) : (
-        <Card className="p-0 sm:p-0">
-          <ul className="divide-y divide-line-soft">
+        <div>
+          <ul className="space-y-2">
             {visible.map((item) => (
               <ActionRow
                 key={item.id}
@@ -364,7 +368,7 @@ export default function ActionsPage() {
               />
             ))}
           </ul>
-        </Card>
+        </div>
       )}
 
       {selected.size > 0 ? (
@@ -579,7 +583,7 @@ function ActionRow({
   const overdue = classifyFollowUp(item) === 'overdue';
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6">
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3">
       <input
         type="checkbox"
         checked={selected}

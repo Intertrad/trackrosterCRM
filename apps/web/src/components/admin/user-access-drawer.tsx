@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useEffect, useState } from 'react';
 import { Building2, Map, ShieldCheck, Users } from 'lucide-react';
 
@@ -360,6 +362,20 @@ export function UserAccessDrawer({
               </Alert>
             ) : null}
 
+            <div className="flex flex-wrap gap-4">
+              <Link
+                className="text-sm font-semibold text-brand underline"
+                href={`/workspace/membership-scopes?membershipId=${member.id}`}
+              >
+                Manage access scopes
+              </Link>
+              <Link
+                className="text-sm font-semibold text-brand underline"
+                href={`/workspace/access-grants?userId=${member.id}`}
+              >
+                Manage role grants
+              </Link>
+            </div>
             <Alert tone="info" title="Access changes are audited.">
               Every role and status change is written to the audit log with the reason you give.
             </Alert>

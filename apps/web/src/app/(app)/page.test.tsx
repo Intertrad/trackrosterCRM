@@ -207,9 +207,12 @@ describe('TodayPage', () => {
     );
 
     expect(await screen.findByRole('heading', { name: "Aujourd'hui" })).toBeInTheDocument();
-    expect(screen.getByText(/Vos priorités du jour/)).toBeInTheDocument();
+    expect(screen.getByText(/relances programmées/)).toBeInTheDocument();
     expect(screen.getByText('Prochaines actions')).toBeInTheDocument();
-    expect(screen.getByText('Progression du jour')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Relances terminées' })).toHaveAttribute(
+      'aria-valuenow',
+      '12',
+    );
 
     /* A key that reaches the DOM type-checks perfectly and reads as gibberish. */
     expect(document.body.textContent).not.toMatch(
@@ -271,7 +274,7 @@ describe('TodayPage', () => {
 
     render(<TodayPage />);
 
-    expect(await screen.findByText('Your day is clear')).toBeInTheDocument();
+    expect(await screen.findByText('No follow-ups due today')).toBeInTheDocument();
   });
 
   it('shows an error and retries the same selected workspace', async () => {

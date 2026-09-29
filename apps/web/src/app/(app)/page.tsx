@@ -1,8 +1,10 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, CircleAlert, CircleDot, MapPinned, Navigation, X } from 'lucide-react';
+import { CheckCircle2, CircleAlert, MapPinned, Navigation, X } from 'lucide-react';
 
 import { ActionChannelIcon, getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import {
@@ -14,7 +16,6 @@ import {
 import { ContactActionButton } from '@/components/prospector/contact-action-button';
 import { LogOutcomeDrawer } from '@/components/prospector/log-outcome-drawer';
 import { PriorityRowMenu } from '@/components/prospector/priority-row-menu';
-import { TodayControls } from '@/components/prospector/today-controls';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,6 +28,7 @@ import { reasonLabel, type CollisionEvent } from '@/lib/api/collision-types';
 import { getProspectorToday } from '@/lib/api/prospector-today-client';
 
 import { AssignedWork } from './assigned-work';
+import { DayStart } from '@/components/prospector/day-start';
 import {
   buildVisits,
   totalVisitKm,
@@ -124,6 +126,8 @@ export default function TodayPage() {
     [teamId],
   );
 
+  useLiveRefresh(load);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -208,7 +212,7 @@ export default function TodayPage() {
 
   if (!teamId) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-[18px]">
         <PageHeader title={t('today.title')} subtitle={t('today.subtitle')} />
 
         <Alert tone="info" title={t('today.teamScoped')}>
@@ -239,140 +243,96 @@ export default function TodayPage() {
   const timeZone = today.day.timeZone;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('today.title')}
-        subtitle={`${formatDay(today.day.date, timeZone)} · ${t('today.subtitle')}`}
-        action={
-          <TodayControls
-            dayLabel={formatDayShort(today.day.date, timeZone)}
-            refreshing={refreshing}
-            onRefresh={() => void refresh()}
-          />
-        }
-      />
-
+    <div className="flex flex-col gap-[18px]">
+      <h1 className="sr-only">{t('today.title')}</h1>
       {error ? <Alert tone="warning">{error}</Alert> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
-        <Card className="p-0 sm:p-0">
-          <div className="border-b border-line-soft px-5 pt-5 pb-4 sm:px-6">
-            <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
-              {t('today.nextActions')}
-            </h2>
+      <DayStart today={today} />
+      <AssignedWork teamId={teamId} onRefresh={() => void refresh()} refreshing={refreshing} />
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {(
-                [
-                  { id: 'all', label: t('today.filter.all') },
-                  { id: 'overdue', label: t('today.filter.overdue') },
-                  { id: 'due_today', label: t('today.filter.dueToday') },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setFilter(tab.id)}
-                  aria-pressed={filter === tab.id}
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold',
-                    'transition-colors duration-150',
-                    filter === tab.id
-                      ? 'bg-brand-tint text-brand'
-                      : 'bg-surface-muted text-ink-soft hover:text-ink',
-                  )}
-                >
-                  {tab.label}
+      {counts.all === 0 ? (
+        <EmptyState filter={filter} totalToday={0} />
+      ) : (
+        <div
+          className={cn(
+            'grid gap-5 xl:items-start',
+            visits.length > 0 && 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
+          )}
+        >
+          <Card className="p-0 sm:p-0">
+            <div className="border-b border-line-soft px-[18px] pt-[18px] pb-3">
+              <h2 className="text-base font-extrabold tracking-[-0.02em] text-navy">
+                {t('today.nextActions')}
+              </h2>
 
-                  <span
+              <div className="mt-3 inline-flex flex-wrap gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
+                {(
+                  [
+                    { id: 'all', label: t('today.filter.all') },
+                    { id: 'overdue', label: t('today.filter.overdue') },
+                    { id: 'due_today', label: t('today.filter.dueToday') },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilter(tab.id)}
+                    aria-pressed={filter === tab.id}
                     className={cn(
-                      'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
-                      tab.id === 'overdue' && counts.overdue > 0
-                        ? 'bg-danger text-white'
-                        : filter === tab.id
-                          ? 'bg-brand text-white'
-                          : 'bg-line-soft text-ink-soft',
+                      'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold',
+                      'transition-colors duration-150',
+                      filter === tab.id
+                        ? 'bg-surface text-navy shadow-sm'
+                        : 'bg-surface-muted text-ink-soft hover:text-ink',
                     )}
                   >
-                    {counts[tab.id]}
-                  </span>
-                </button>
-              ))}
+                    {tab.label}
+
+                    <span
+                      className={cn(
+                        'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
+                        tab.id === 'overdue' && counts.overdue > 0
+                          ? 'bg-danger text-white'
+                          : filter === tab.id
+                            ? 'bg-brand text-white'
+                            : 'bg-line-soft text-ink-soft',
+                      )}
+                    >
+                      {counts[tab.id]}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {visible.length === 0 ? (
-            <EmptyState filter={filter} totalToday={counts.all} />
-          ) : (
-            <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
-              {visible.map((priority) => (
-                <PriorityRow
-                  key={priority.id}
-                  priority={priority}
-                  state={states.get(priority.id) ?? 'upcoming'}
-                  timeZone={timeZone}
-                  onLogged={() => void refresh()}
-                />
-              ))}
-            </ul>
-          )}
-        </Card>
+            {visible.length === 0 ? (
+              <EmptyState filter={filter} totalToday={counts.all} />
+            ) : (
+              <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
+                {visible.map((priority) => (
+                  <PriorityRow
+                    key={priority.id}
+                    priority={priority}
+                    state={states.get(priority.id) ?? 'upcoming'}
+                    timeZone={timeZone}
+                    onLogged={() => void refresh()}
+                  />
+                ))}
+              </ul>
+            )}
+          </Card>
 
-        <TodaysVisits visits={visits} timeZone={timeZone} />
-      </div>
+          {visits.length > 0 && <TodaysVisits visits={visits} timeZone={timeZone} />}
+        </div>
+      )}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] xl:items-start">
-        <Card>
-          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
-            {t('today.progress')}
-          </h2>
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-3">
-            <ProgressTile
-              icon={<CheckCircle2 aria-hidden="true" className="size-5 text-success" />}
-              tone="bg-success-bg"
-              value={today.summary.completedToday}
-              label={t('today.completed')}
-            />
-
-            <ProgressTile
-              icon={<CircleDot aria-hidden="true" className="size-5 text-brand" />}
-              tone="bg-brand-tint"
-              value={today.summary.actionsLeft}
-              label={t('today.remaining')}
-            />
-
-            <ProgressTile
-              icon={<CircleAlert aria-hidden="true" className="size-5 text-danger" />}
-              tone="bg-danger-bg"
-              value={today.summary.overdue}
-              label={t('today.overdue')}
-            />
-          </div>
-        </Card>
-
-        <CollisionNotice
-          collisions={collisions}
-          priorities={today.priorities}
-          timeZone={timeZone}
-          dismissed={noticeDismissed}
-          onDismiss={() => setNoticeDismissed(true)}
-        />
-      </div>
-
-      {/*
-       * The other half of the day.
-       *
-       * `prospector/today` builds its priorities from follow-ups alone, so a
-       * prospect assigned this morning has no follow-up and appeared nowhere — the
-       * day read as empty to someone who had just been given work. This section is
-       * the caller's own assignments, from the work queue, which the API scopes to
-       * their team and user id.
-       *
-       * Loaded separately so a failure here leaves the day's progress and
-       * priorities readable.
-       */}
-      <AssignedWork teamId={teamId} />
+      <CollisionNotice
+        collisions={collisions}
+        priorities={today.priorities}
+        timeZone={timeZone}
+        dismissed={noticeDismissed}
+        onDismiss={() => setNoticeDismissed(true)}
+      />
     </div>
   );
 }
@@ -408,7 +368,7 @@ function TodaysVisits({
     <Card className="flex flex-col">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
+          <h2 className="text-base font-extrabold tracking-[-0.02em] text-navy">
             {t('today.visits')}
           </h2>
 
@@ -424,7 +384,7 @@ function TodaysVisits({
       </div>
 
       {visits.length === 0 ? (
-        <p className="py-12 text-center text-[15px] text-ink-muted">{t('today.noPlottableStop')}</p>
+        <p className="py-6 text-center text-[15px] text-ink-muted">{t('today.noPlottableStop')}</p>
       ) : (
         <>
           <ProspectMap points={points} ordered className="mt-4 h-64 sm:h-72 xl:h-64" />
@@ -494,7 +454,7 @@ function CollisionNotice({
   dismissed: boolean;
   onDismiss: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const byProspect = new Map(priorities.map((p) => [p.campaignProspectId, p]));
 
@@ -504,17 +464,7 @@ function CollisionNotice({
       (event.decision === 'block' || event.decision === 'require_override'),
   );
 
-  if (!relevant || dismissed) {
-    return (
-      <Card>
-        <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">{t('today.clear')}</h2>
-
-        <p className="mt-2 text-[15px] text-ink-muted">
-          {relevant ? t('today.collisionHidden') : t('today.clearBody')}
-        </p>
-      </Card>
-    );
-  }
+  if (!relevant || dismissed) return null;
 
   const priority = byProspect.get(relevant.campaignProspectId)!;
 
@@ -554,7 +504,7 @@ function CollisionNotice({
 
           <p className="mt-2 text-[14px] text-ink-soft">
             {reasonLabel(relevant.reasonCode)}. Detected{' '}
-            {formatDayShort(relevant.createdAt, timeZone)} at{' '}
+            {formatDayShort(relevant.createdAt, timeZone, locale)} at{' '}
             {formatTime(relevant.createdAt, timeZone)}.
           </p>
 
@@ -581,7 +531,7 @@ function WorkspaceOverview() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-[18px]">
       <PageHeader title={t('nav.overview')} subtitle={t('overview.subtitle')} />
 
       <Card>
@@ -726,53 +676,20 @@ function PriorityRow({
   );
 }
 
-function ProgressTile({
-  icon,
-  tone,
-  value,
-  label,
-}: {
-  icon: React.ReactNode;
-  tone: string;
-  value: number;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-4">
-      <span
-        aria-hidden="true"
-        className={cn('flex size-11 shrink-0 items-center justify-center rounded-full', tone)}
-      >
-        {icon}
-      </span>
-
-      <span>
-        <span className="block text-[30px] leading-none font-bold text-navy tabular-nums">
-          {value}
-        </span>
-
-        <span className="mt-1 block text-[14px] text-ink-muted">{label}</span>
-      </span>
-    </div>
-  );
-}
-
 function EmptyState({ filter, totalToday }: { filter: FilterId; totalToday: number }) {
   const { t } = useTranslation();
 
   if (filter !== 'all' && totalToday > 0) {
-    return (
-      <p className="px-6 py-12 text-center text-[15px] text-ink-muted">{t('today.noMatch')}</p>
-    );
+    return <p className="px-6 py-6 text-center text-[15px] text-ink-muted">{t('today.noMatch')}</p>;
   }
 
   return (
-    <div className="px-6 py-14 text-center">
-      <CheckCircle2 aria-hidden="true" className="mx-auto size-10 text-success" />
-
-      <p className="mt-3 text-[18px] font-bold text-navy">{t('today.empty')}</p>
-
-      <p className="mt-1 text-[15px] text-ink-muted">{t('today.emptyBody')}</p>
+    <div className="flex items-start gap-3 rounded-xl border border-line-soft bg-surface px-[18px] py-4">
+      <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-success" />
+      <div>
+        <p className="text-sm font-bold text-navy">{t('today.empty')}</p>
+        <p className="mt-1 text-sm text-ink-muted">{t('today.emptyBody')}</p>
+      </div>
     </div>
   );
 }
@@ -810,30 +727,15 @@ function getBrowserTimeZone(): string {
   }
 }
 
-function formatDay(value: string, timeZone: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone,
-  }).format(date);
-}
-
 /** "Mon, 21 Sep" — the compact form used in the header pill. */
-function formatDayShort(value: string, timeZone: string): string {
+function formatDayShort(value: string, timeZone: string, locale?: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

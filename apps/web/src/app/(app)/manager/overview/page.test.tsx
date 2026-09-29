@@ -20,7 +20,7 @@ vi.mock('@/lib/api/manager-dashboard-client', () => ({
   getManagerDashboard: getManagerDashboardMock,
 }));
 
-vi.mock('@/lib/api/membership-client', () => ({ listMemberships: listMembershipsMock }));
+vi.mock('@/lib/api/membership-client', () => ({ listScopedMemberships: listMembershipsMock }));
 
 vi.mock('@/lib/api/override-client', () => ({
   listOverrideRequests: listOverrideRequestsMock,

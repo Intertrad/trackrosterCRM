@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { ApiError } from '@/lib/api/api-error';
 import { listConsents, recordConsent } from '@/lib/api/consent-client';
 import {
   CONSENT_CHANNELS,
   MAX_CONSENT_REASON,
-  consentChannelLabel,
   consentStatusTone,
   effectiveConsent,
   isConsentExpired,
@@ -32,7 +33,29 @@ const CONTACT_CHANNELS = ['phone', 'email', 'sms', 'visit'] as const;
  * one, never editing the old. The history stays visible because that is what
  * makes it usable as evidence of what was believed, and when.
  */
-export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
+export function ConsentPanel({
+  establishmentId,
+  onDirtyChange,
+}: {
+  establishmentId: string;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
+  const { language, locale } = useTranslation();
+  const l = useCallback((en: string, fr: string) => text(en, fr, language), [language]);
+  const channelLabel = (value: ConsentChannel) =>
+    ({
+      all: l('All channels', 'Tous les canaux'),
+      phone: l('Phone', 'Téléphone'),
+      email: 'E-mail',
+      sms: 'SMS',
+      visit: l('Visit', 'Visite'),
+    })[value];
+  const statusLabel = (value: ConsentStatus) =>
+    ({
+      allowed: l('Allowed', 'Autorisé'),
+      blocked: l('Blocked', 'Bloqué'),
+      unknown: l('Unknown', 'Inconnu'),
+    })[value];
   const [consents, setConsents] = useState<Consent[] | null>(null);
   const [recording, setRecording] = useState(false);
   const [channel, setChannel] = useState<ConsentChannel>('all');
@@ -41,6 +64,10 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
+  useEffect(() => {
+    onDirtyChange?.(busy || (recording && reason.trim().length > 0));
+    return () => onDirtyChange?.(false);
+  }, [busy, recording, reason, onDirtyChange]);
 
   const load = useCallback(
     (signal?: AbortSignal): Promise<void> =>
@@ -68,9 +95,14 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
             return;
           }
 
-          setError('We could not load contact permissions.');
+          setError(
+            l(
+              'We could not load contact permissions.',
+              'Impossible de charger les autorisations de contact.',
+            ),
+          );
         }),
-    [establishmentId],
+    [establishmentId, l],
   );
 
   useEffect(() => {
@@ -88,11 +120,11 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
   return (
     <Card>
       <CardHeader
-        title="Contact permissions"
+        title={l('Contact permissions', 'Autorisations de contact')}
         action={
           !recording ? (
             <Button variant="secondary" onClick={() => setRecording(true)}>
-              Record
+              {l('Record', 'Consigner')}
             </Button>
           ) : undefined
         }
@@ -115,8 +147,7 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
               return (
                 <li key={contactChannel}>
                   <Badge tone={governing ? consentStatusTone(governing.status) : 'neutral'} dot>
-                    {consentChannelLabel(contactChannel)}:{' '}
-                    {governing ? governing.status : 'unknown'}
+                    {channelLabel(contactChannel)}: {statusLabel(governing?.status ?? 'unknown')}
                   </Badge>
                 </li>
               );
@@ -131,7 +162,7 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] text-ink">
-                      {consentChannelLabel(consent.channel)} · {consent.status}
+                      {channelLabel(consent.channel)} · {statusLabel(consent.status)}
                     </span>
 
                     <span className="block truncate text-[13px] text-ink-muted">
@@ -139,17 +170,22 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
                     </span>
                   </span>
 
-                  {isConsentExpired(consent) ? <Badge tone="neutral">Expired</Badge> : null}
+                  {isConsentExpired(consent) ? (
+                    <Badge tone="neutral">{l('Expired', 'Expirée')}</Badge>
+                  ) : null}
 
                   <span className="shrink-0 text-[12px] text-ink-muted">
-                    {formatDate(consent.effectiveAt)}
+                    {formatDate(consent.effectiveAt, locale)}
                   </span>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="mt-4 text-[14px] text-ink-muted">
-              Nothing recorded. Every channel is treated as unknown until it is.
+              {l(
+                'Nothing recorded. Every channel is treated as unknown until it is.',
+                'Aucune décision enregistrée. Le statut des canaux reste inconnu.',
+              )}
             </p>
           )}
         </>
@@ -164,41 +200,49 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
       {recording ? (
         <div className="mt-5 flex flex-col gap-4 rounded-xl border border-line-soft bg-surface-muted p-4">
           <SelectField
-            label="Channel"
+            label={l('Channel', 'Canal')}
             value={channel}
             disabled={busy}
             onChange={(event) => setChannel(event.target.value as ConsentChannel)}
             options={CONSENT_CHANNELS.map((value) => ({
               value,
-              label: consentChannelLabel(value),
+              label: channelLabel(value),
             }))}
           />
 
           <SelectField
-            label="Decision"
+            label={l('Decision', 'Décision')}
             value={status}
             disabled={busy}
             onChange={(event) => setStatus(event.target.value as ConsentStatus)}
             options={[
-              { value: 'allowed', label: 'Allowed' },
-              { value: 'blocked', label: 'Blocked' },
-              { value: 'unknown', label: 'Unknown' },
+              { value: 'allowed', label: l('Allowed', 'Autorisé') },
+              { value: 'blocked', label: l('Blocked', 'Bloqué') },
+              { value: 'unknown', label: l('Unknown', 'Inconnu') },
             ]}
           />
 
           <TextField
-            label="Reason"
+            label={l('Reason', 'Motif')}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="How this was established"
+            placeholder={l('How this was established', 'Comment cette décision a été établie')}
             maxLength={MAX_CONSENT_REASON}
             disabled={busy}
             required
           />
 
-          <Alert tone="info" title="This is added, not substituted.">
-            Earlier records stay in the history so the trail of what was believed, and when,
-            survives.
+          <Alert
+            tone="info"
+            title={l(
+              'This is added, not substituted.',
+              'Les décisions précédentes sont conservées.',
+            )}
+          >
+            {l(
+              'Earlier records stay in the history so the trail of what was believed, and when, survives.',
+              'La nouvelle décision est ajoutée à l’historique. Les décisions antérieures restent consultables.',
+            )}
           </Alert>
 
           <div className="flex flex-wrap gap-3">
@@ -224,13 +268,16 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
                     setError(
                       caught instanceof ApiError
                         ? caught.messages.join(' ')
-                        : 'We could not record that decision.',
+                        : l(
+                            'We could not record that decision.',
+                            'Impossible d’enregistrer cette décision.',
+                          ),
                     ),
                   )
                   .finally(() => setBusy(false));
               }}
             >
-              Record decision
+              {l('Record decision', 'Consigner la décision')}
             </Button>
 
             <Button
@@ -242,7 +289,7 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
                 setError(null);
               }}
             >
-              Cancel
+              {l('Cancel', 'Annuler')}
             </Button>
           </div>
         </div>
@@ -251,10 +298,10 @@ export function ConsentPanel({ establishmentId }: { establishmentId: string }) {
   );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale?: string): string {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    : date.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 }

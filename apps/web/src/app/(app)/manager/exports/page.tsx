@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, FileDown, Plus } from 'lucide-react';
 
@@ -61,6 +63,8 @@ export default function ExportsPage() {
         }),
     [],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

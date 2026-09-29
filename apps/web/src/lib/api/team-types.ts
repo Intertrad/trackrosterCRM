@@ -47,6 +47,7 @@ export interface RosterPage {
  */
 export interface TeamCapacityMember {
   membershipId: string;
+  identityId?: string;
   displayName: string | null;
   email?: string;
   status: string;

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -80,6 +82,8 @@ function RouteDetail({ routeId }: { routeId: string }) {
         }),
     [routeId],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

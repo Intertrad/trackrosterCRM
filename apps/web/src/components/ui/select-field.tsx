@@ -23,7 +23,7 @@ export function SelectField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[14px] font-semibold text-ink">
+      <label htmlFor={id} className="text-[13.12px] font-bold text-ink">
         {label}
       </label>
 
@@ -31,8 +31,8 @@ export function SelectField({
         <select
           id={id}
           className={cn(
-            'h-12 w-full appearance-none rounded-lg border border-line bg-surface',
-            'px-3.5 pr-11 text-[15px] text-ink',
+            'h-10 w-full appearance-none rounded-[9px] border border-line bg-surface',
+            'px-3.5 pr-11 text-[14.4px] text-ink',
             'transition-colors duration-150 hover:border-brand-pale',
             'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-muted',
             className,

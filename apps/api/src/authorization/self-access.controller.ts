@@ -1,7 +1,7 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 
 import { AuthGuard } from '../auth/auth.guard.js';
-import type { AuthenticatedUser } from '../auth/auth.types.js';
+import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { SelfAccessService } from './self-access.service.js';
 import type { SelfAccessContext } from './self-access.types.js';
@@ -14,10 +14,12 @@ export class SelfAccessController {
   @Get()
   async getCurrentAccess(
     @CurrentAuth()
-    auth: AuthenticatedUser,
+    auth: AuthenticatedPrincipal,
   ): Promise<SelfAccessContext> {
     return this.selfAccessService.getContext({
       tenantId: auth.tenantId,
+
+      identityId: auth.identityId,
 
       userId: auth.userId,
     });

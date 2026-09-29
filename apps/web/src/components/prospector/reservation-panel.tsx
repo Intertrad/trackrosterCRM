@@ -14,6 +14,8 @@ import {
   releaseProspectReservation,
 } from '@/lib/api/work-queue-client';
 import type { ProspectReservationState } from '@/lib/api/work-queue-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { useReservationHeartbeat } from '@/lib/prospector/use-reservation-heartbeat';
 
 export function ReservationPanel({
@@ -29,6 +31,8 @@ export function ReservationPanel({
   reservation: ProspectReservationState | null;
   onChanged: () => void;
 }) {
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<string | null>(null);
@@ -102,7 +106,7 @@ export function ReservationPanel({
 
       onChanged();
     } catch (caught) {
-      setError(describeReservationError(caught));
+      setError(describeReservationError(caught, language));
 
       /*
        * A refused claim means the authority moved while this screen was open, so
@@ -124,7 +128,7 @@ export function ReservationPanel({
 
   return (
     <Card>
-      <CardHeader title="Reservation" />
+      <CardHeader title={l('Reservation', 'Réservation')} />
 
       {reservation === null ? (
         <div className="h-20 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />
@@ -140,34 +144,50 @@ export function ReservationPanel({
           <div className="min-w-0 flex-1">
             {reservation.state === 'none' ? (
               <>
-                <p className="text-[16px] font-bold text-navy">No active reservation</p>
+                <p className="text-[16px] font-bold text-navy">
+                  {l('No active reservation', 'Aucune réservation active')}
+                </p>
 
                 <p className="text-[14px] text-ink-muted">
-                  Reserve this prospect to block it for your team while you make contact.
+                  {l(
+                    'Reserve this prospect to block it for your team while you make contact.',
+                    'Réservez cet établissement pour votre équipe pendant la prise de contact.',
+                  )}
                 </p>
               </>
             ) : reservation.state === 'owned' ? (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[16px] font-bold text-navy">Reserved by you</p>
+                  <p className="text-[16px] font-bold text-navy">
+                    {l('Reserved by you', 'Réservé par vous')}
+                  </p>
 
                   <Badge tone={heartbeat.state === 'lost' ? 'danger' : 'success'} dot>
-                    {heartbeat.state === 'lost' ? 'Lost' : 'Active'}
+                    {heartbeat.state === 'lost' ? l('Lost', 'Perdue') : l('Active', 'Active')}
                   </Badge>
                 </div>
 
                 <p className="text-[14px] text-ink-muted">
                   {heartbeat.state === 'lost'
-                    ? 'This reservation is no longer held.'
-                    : `Renews automatically · ${remaining ?? '—'} left`}
+                    ? l(
+                        'This reservation is no longer held.',
+                        'Cette réservation n’est plus active.',
+                      )
+                    : l(
+                        `Renews automatically · ${remaining ?? '—'} left`,
+                        `Renouvellement automatique · reste ${remaining ?? '—'}`,
+                      )}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-[16px] font-bold text-navy">Reserved by another user</p>
+                <p className="text-[16px] font-bold text-navy">
+                  {l('Reserved by another user', 'Réservé par un autre utilisateur')}
+                </p>
 
                 <p className="text-[14px] text-ink-muted">
-                  Available again at {formatTime(reservation.expiresAt)}
+                  {l('Available again at', 'Disponible à nouveau à')}{' '}
+                  {formatTime(reservation.expiresAt, locale)}
                 </p>
               </>
             )}
@@ -183,7 +203,7 @@ export function ReservationPanel({
 
       {reservation?.state === 'none' ? (
         <Button fullWidth className="mt-4" loading={pending} onClick={() => void run('acquire')}>
-          Reserve
+          {l('Reserve', 'Réserver')}
         </Button>
       ) : null}
 
@@ -195,50 +215,66 @@ export function ReservationPanel({
             disabled={heartbeat.state === 'lost'}
             onClick={() => void run('extend')}
           >
-            Extend
+            {l('Extend', 'Prolonger')}
           </Button>
 
           <Button variant="secondary" loading={pending} onClick={() => void run('release')}>
-            Release reservation
+            {l('Release reservation', 'Libérer la réservation')}
           </Button>
         </div>
       ) : null}
 
       {heartbeat.state === 'lost' ? (
-        <Alert tone="warning" className="mt-4" title="Your reservation was released.">
-          It either expired or was taken over. Refresh before continuing so you do not work a
-          prospect someone else now holds.
+        <Alert
+          tone="warning"
+          className="mt-4"
+          title={l('Your reservation was released.', 'Votre réservation a été libérée.')}
+        >
+          {l(
+            'It either expired or was taken over. Refresh before continuing so you do not work a prospect someone else now holds.',
+            'Elle a expiré ou a été reprise. Actualisez avant de continuer pour vérifier la disponibilité.',
+          )}
         </Alert>
       ) : null}
     </Card>
   );
 }
 
-function describeReservationError(error: unknown): string {
+function describeReservationError(error: unknown, language: 'en' | 'fr'): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   }
 
   if (error.statusCode === 409) {
     /* Two simultaneous claims must not both succeed — this is the engine
      * working, not a failure to report as a generic error. The screen re-reads
      * itself on this, so it no longer asks the prospector to refresh. */
-    return 'Another user claimed this prospect first. The status above has been updated.';
+    return l(
+      'Another user claimed this prospect first. The status above has been updated.',
+      'Un autre utilisateur a réservé cet établissement. Le statut a été actualisé.',
+    );
   }
 
   if (error.statusCode === 403) {
-    return 'You are not authorized to reserve this prospect.';
+    return l(
+      'You are not authorized to reserve this prospect.',
+      'Vous n’êtes pas autorisé à réserver cet établissement.',
+    );
   }
 
-  return 'We could not update the reservation. Please try again.';
+  return l(
+    'We could not update the reservation. Please try again.',
+    'Impossible de modifier la réservation. Réessayez.',
+  );
 }
 
-function formatTime(value: string): string {
+function formatTime(value: string, locale?: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return value;
   }
 
-  return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(date);
+  return new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }

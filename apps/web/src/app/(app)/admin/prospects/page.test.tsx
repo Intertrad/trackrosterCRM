@@ -15,6 +15,40 @@ const { useAuthMock, listProspectsMock } = vi.hoisted(() => ({
 vi.mock('@/lib/auth/auth-context', () => ({ useAuth: useAuthMock }));
 vi.mock('@/lib/api/prospect-client', () => ({ listProspects: listProspectsMock }));
 
+const nav = vi.hoisted(() => ({
+  query: '',
+  listeners: new Set<() => void>(),
+  router: {
+    replace: vi.fn((url: string) => {
+      nav.query = url.split('?')[1] ?? '';
+      nav.listeners.forEach((fn) => fn());
+    }),
+  },
+}));
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    usePathname: () => '/admin/prospects',
+    useRouter: () => nav.router,
+    useSearchParams: () =>
+      new URLSearchParams(
+        useSyncExternalStore(
+          (fn) => {
+            nav.listeners.add(fn);
+            return () => {
+              nav.listeners.delete(fn);
+            };
+          },
+          () => nav.query,
+        ),
+      ),
+  };
+});
+vi.mock('@/components/prospector/prospect-map', () => ({
+  ProspectMap: () => null,
+  toMapPoint: () => [],
+}));
+
 import ReferentialPage from './page';
 
 function prospect(over: Partial<Prospect> = {}): Prospect {
@@ -63,6 +97,7 @@ function lastQuery(): Record<string, unknown> {
 describe('admin référentiel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    nav.query = '';
     useAuthMock.mockReturnValue(adminWorkspace());
     listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: null });
   });
@@ -76,7 +111,7 @@ describe('admin référentiel', () => {
 
     expect(lastQuery()).toMatchObject({ status: 'active', sort: 'name', limit: 50 });
     /* A department is shown but never stored; it is read from the postcode. */
-    expect(screen.getByRole('cell', { name: '20' })).toBeInTheDocument();
+    expect(screen.getByText('20200')).toBeInTheDocument();
   });
 
   /*
@@ -92,9 +127,11 @@ describe('admin référentiel', () => {
     await waitFor(() => expect(lastQuery()).toMatchObject({ category: 'cra' }));
 
     fireEvent.change(screen.getByLabelText('Department'), { target: { value: '974' } });
+    fireEvent.blur(screen.getByLabelText('Department'));
     await waitFor(() => expect(lastQuery()).toMatchObject({ department: '974' }));
 
-    fireEvent.change(screen.getByLabelText('Commune'), { target: { value: 'Lyon' } });
+    fireEvent.change(screen.getByLabelText('Town'), { target: { value: 'Lyon' } });
+    fireEvent.blur(screen.getByLabelText('Town'));
     await waitFor(() => expect(lastQuery()).toMatchObject({ city: 'Lyon' }));
 
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'all' } });
@@ -120,7 +157,7 @@ describe('admin référentiel', () => {
 
     await waitFor(() => expect(listProspectsMock).toHaveBeenCalled());
 
-    const field = screen.getByLabelText('Search the référentiel');
+    const field = screen.getByLabelText('Search prospects');
 
     /* Three keystrokes in quick succession, as typing actually arrives. */
     fireEvent.change(field, { target: { value: 'gen' } });
@@ -148,12 +185,12 @@ describe('admin référentiel', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
 
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     await waitFor(() => expect(lastQuery()).toMatchObject({ cursor: 'cursor-2' }));
-    expect(screen.getByText(/page 2/)).toBeInTheDocument();
+    expect(nav.query).toContain('cursor=cursor-2');
 
     /*
      * A cursor belongs to the query that produced it. Carrying it across a filter
@@ -162,7 +199,22 @@ describe('admin référentiel', () => {
     fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'cra' } });
 
     await waitFor(() => expect(lastQuery()).not.toHaveProperty('cursor'));
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled();
+  });
+
+  it('keeps the explicit selection on pagination and clears it when filters change', async () => {
+    listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: 'cursor-2' });
+    render(<ReferentialPage />);
+    await screen.findByLabelText('Select Brigade de Bastia');
+    fireEvent.click(screen.getByLabelText('Select Brigade de Bastia'));
+    expect(screen.getByRole('button', { name: 'Assign selection (1)' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ cursor: 'cursor-2' }));
+    expect(screen.getByRole('button', { name: 'Assign selection (1)' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'cra' } });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Assign selection (0)' })).toBeDisabled(),
+    );
   });
 
   it('opens a detail panel from the row it already has, without another request', async () => {
@@ -180,7 +232,7 @@ describe('admin référentiel', () => {
     /* The listing already returned the whole establishment. */
     expect(listProspectsMock.mock.calls.length).toBe(before);
 
-    fireEvent.click(screen.getByLabelText('Close the detail panel'));
+    fireEvent.click(screen.getByLabelText('Close'));
 
     await waitFor(() => expect(screen.queryByText('1 rue du Port')).not.toBeInTheDocument());
   });
@@ -197,7 +249,9 @@ describe('admin référentiel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Brigade de Bastia' }));
 
-    await waitFor(() => expect(screen.getByText(/cannot be placed on a map/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/No coordinates are available/)).toBeInTheDocument(),
+    );
   });
 
   it('separates an empty référentiel from an empty filter result', async () => {
@@ -205,12 +259,12 @@ describe('admin référentiel', () => {
 
     render(<ReferentialPage />);
 
-    await waitFor(() => expect(screen.getByText(/The référentiel is empty/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/The prospect base is empty/)).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText('Section'), { target: { value: 'cra' } });
 
     await waitFor(() =>
-      expect(screen.getByText('No establishment matches these filters.')).toBeInTheDocument(),
+      expect(screen.getByText('No establishments match these filters.')).toBeInTheDocument(),
     );
   });
 
@@ -229,6 +283,24 @@ describe('admin référentiel', () => {
     await waitFor(() =>
       expect(screen.getByText('department must match the required pattern')).toBeInTheDocument(),
     );
+  });
+
+  it('clears displayed rows and selection when access is revoked during a refresh', async () => {
+    render(<ReferentialPage />);
+    await screen.findByText('Brigade de Bastia');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select active prospects on this page' }));
+    listProspectsMock.mockRejectedValue(
+      new ApiError({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Forbidden',
+        error: 'Forbidden',
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh prospects' }));
+    await screen.findByText('Your access no longer permits viewing this base.');
+    expect(screen.queryByText('Brigade de Bastia')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Assign selection (0)' })).toBeDisabled();
   });
 
   it('does not render the référentiel for a workspace without administrator access', () => {

@@ -10,6 +10,13 @@ import type { WorkQueueItem } from '@/lib/api/work-queue-types';
 const { listWorkQueueMock } = vi.hoisted(() => ({ listWorkQueueMock: vi.fn() }));
 
 vi.mock('@/lib/api/work-queue-client', () => ({ listWorkQueue: listWorkQueueMock }));
+vi.mock('@/components/prospector/prospect-detail', () => ({
+  ProspectDetail: ({ campaignId, prospectId }: { campaignId: string; prospectId: string }) => (
+    <p>
+      Detail {campaignId} {prospectId}
+    </p>
+  ),
+}));
 
 import { AssignedWork } from './assigned-work';
 
@@ -97,7 +104,7 @@ describe('assigned work on Ma journée', () => {
     await waitFor(() => expect(screen.getByText('Brigade de Bastia')).toBeInTheDocument());
 
     /* The whole row is the target, so a thumb does not need precision. */
-    expect(screen.getByRole('link')).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Brigade de Bastia/ })).toHaveAttribute(
       'href',
       '/work-queue/33333333-3333-4333-8333-333333333333/22222222-2222-4222-8222-222222222222',
     );
@@ -118,6 +125,19 @@ describe('assigned work on Ma journée', () => {
     await waitFor(() => expect(screen.getByText('Follow-up')).toBeInTheDocument());
 
     expect(screen.getByText('Follow-up due')).toBeInTheDocument();
+  });
+
+  it('opens the side panel without losing the list and restores keyboard focus on close', async () => {
+    render(<AssignedWork teamId={teamId} />);
+    const row = await screen.findByRole('link', { name: /Brigade de Bastia/ });
+    row.focus();
+    fireEvent.click(row);
+    expect(screen.getByRole('dialog', { name: 'Establishment' })).toHaveTextContent(
+      'Detail 33333333-3333-4333-8333-333333333333 22222222-2222-4222-8222-222222222222',
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(row).toHaveFocus();
   });
 
   it('filters to first contacts through the server, not the loaded page', async () => {
@@ -144,14 +164,12 @@ describe('assigned work on Ma journée', () => {
 
     render(<AssignedWork teamId={teamId} />);
 
-    await waitFor(() =>
-      expect(screen.getByText(/No prospect is assigned to you yet/)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/No prospects assigned yet/)).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'To contact' }));
 
     await waitFor(() =>
-      expect(screen.getByText('Nothing left to contact for the first time.')).toBeInTheDocument(),
+      expect(screen.getByText('No new prospects to contact')).toBeInTheDocument(),
     );
   });
 
@@ -169,7 +187,9 @@ describe('assigned work on Ma journée', () => {
     render(<AssignedWork teamId={teamId} />);
 
     await waitFor(() =>
-      expect(screen.getByText('We could not load your prospects.')).toBeInTheDocument(),
+      expect(
+        screen.getByText('Could not refresh your prospects. Retry to get current data.'),
+      ).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -185,11 +205,11 @@ describe('assigned work on Ma journée', () => {
     render(<AssignedWork teamId={teamId} />);
 
     await waitFor(() =>
-      expect(screen.getByText('This team is no longer yours to work.')).toBeInTheDocument(),
+      expect(screen.getByText('You no longer have access to this team.')).toBeInTheDocument(),
     );
 
     /* No row from a previous render may survive a refusal. */
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Brigade de Bastia/ })).not.toBeInTheDocument();
   });
 
   it('discloses that the list is bounded', async () => {
@@ -198,7 +218,7 @@ describe('assigned work on Ma journée', () => {
     render(<AssignedWork teamId={teamId} />);
 
     await waitFor(() =>
-      expect(screen.getByText('Showing your 25 most recent assignments.')).toBeInTheDocument(),
+      expect(screen.getByText('Latest 25 assignments shown')).toBeInTheDocument(),
     );
   });
 
@@ -212,10 +232,12 @@ describe('assigned work on Ma journée', () => {
      * The class is the formatter's canonical form of a 64px minimum, not the
      * arbitrary-value spelling.
      */
-    expect(screen.getByRole('link').className).toContain('min-h-16');
+    expect(screen.getByRole('link', { name: /Brigade de Bastia/ }).className).toContain(
+      'min-h-[66px]',
+    );
 
     for (const control of screen.getAllByRole('button')) {
-      expect(control.className).toContain('min-h-11');
+      expect(control.className).toContain('h-11');
     }
   });
 

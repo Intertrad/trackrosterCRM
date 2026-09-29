@@ -3,10 +3,10 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AtSign, Lock, ShieldCheck } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
 import { getAuthConfig, login } from '@/lib/api/auth-client';
@@ -29,7 +29,8 @@ const FALLBACK_CONFIG: AuthConfig = {
   sso: { enabled: false },
 };
 
-export function LoginForm() {
+export function LoginForm({ language = 'en' }: { language?: 'en' | 'fr' }) {
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const router = useRouter();
   const { refreshSession, status } = useAuth();
 
@@ -70,7 +71,8 @@ export function LoginForm() {
     const trimmed = email.trim();
 
     if (!EMAIL_PATTERN.test(trimmed)) {
-      setEmailError('Enter a valid email address');
+      setEmailError(l('Enter a valid email address', 'Saisissez une adresse e-mail valide.'));
+      (event.currentTarget.elements.namedItem('email') as HTMLInputElement)?.focus();
 
       return;
     }
@@ -94,7 +96,12 @@ export function LoginForm() {
       const user = await refreshSession();
 
       if (!user) {
-        setFormError('Your session could not be established. Please sign in again.');
+        setFormError(
+          l(
+            'Your session could not be established. Please sign in again.',
+            'Votre session n’a pas pu être ouverte. Réessayez.',
+          ),
+        );
 
         return;
       }
@@ -102,7 +109,7 @@ export function LoginForm() {
       router.replace('/');
       router.refresh();
     } catch (error) {
-      setFormError(describeLoginError(error));
+      setFormError(describeLoginError(error, language));
     } finally {
       setIsSubmitting(false);
     }
@@ -113,7 +120,9 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
       <TextField
-        label="Email"
+        label={l('Professional email', 'Email professionnel')}
+        leading={<AtSign size={18} />}
+        placeholder="firstname.lastname@trackroster.fr"
         type="email"
         name="email"
         value={email}
@@ -125,7 +134,7 @@ export function LoginForm() {
           }
         }}
         error={emailError}
-        placeholder="name@company.com"
+
         autoComplete="email"
         autoCapitalize="none"
         spellCheck={false}
@@ -135,53 +144,60 @@ export function LoginForm() {
       />
 
       <TextField
-        label="Password"
+        label={l('Password', 'Mot de passe')}
+        leading={<Lock size={18} />}
+        language={language}
         type="password"
         name="password"
         value={password}
         onChange={(event) => setPassword(event.target.value)}
-        placeholder="Enter your password"
+
         autoComplete="current-password"
         maxLength={1024}
         disabled={isSubmitting}
         required
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/*
-         * "Remember this device" is deliberately absent until a trusted-device
-         * contract exists; MFA owns the only device-trust flow today.
-         */}
-        <Checkbox label="Keep me signed in on this device" disabled />
-
-        {config.passwordRecovery ? (
-          <Link
-            href="/forgot-password"
-            className="text-[14px] font-semibold text-brand hover:text-brand-hover"
-          >
-            Forgot password?
-          </Link>
-        ) : null}
-      </div>
-
       {formError ? <Alert tone="danger">{formError}</Alert> : null}
 
+      {config.passwordRecovery && (
+        <div className="flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-[15px] font-bold text-brand hover:underline"
+          >
+            {l('Forgot password?', 'Mot de passe oublié ?')}
+          </Link>
+        </div>
+      )}
       <Button type="submit" fullWidth loading={isSubmitting} disabled={!canSubmit}>
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
+        {l('Sign in', 'Se connecter')}
       </Button>
-
-      {config.sso.enabled ? <SsoOptions providers={config.sso.providers ?? []} /> : null}
+      <div className="mt-2 flex items-center gap-2.5 rounded-[10px] bg-success-bg px-4 py-3.5 text-[15px] font-semibold text-success">
+        <ShieldCheck size={18} aria-hidden="true" />
+        <span>
+          {l(
+            'Secure access — your permissions follow your account',
+            'Accès sécurisé — vos droits sont liés à votre compte',
+          )}
+        </span>
+      </div>
+      {config.sso.enabled ? (
+        <SsoOptions providers={config.sso.providers ?? []} language={language} />
+      ) : null}
     </form>
   );
 }
 
-function SsoOptions({ providers }: { providers: string[] }) {
+function SsoOptions({ providers, language }: { providers: string[]; language: 'en' | 'fr' }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-4">
         <span className="h-px flex-1 bg-line-soft" />
 
-        <span className="text-[13px] text-ink-muted">or continue with</span>
+        <span className="text-[13px] text-ink-muted">
+          {language === 'fr' ? 'ou continuer avec' : 'or continue with'}
+        </span>
 
         <span className="h-px flex-1 bg-line-soft" />
       </div>
@@ -195,36 +211,51 @@ function SsoOptions({ providers }: { providers: string[] }) {
             window.location.assign(`/api/auth/sso/${encodeURIComponent(provider)}/start`);
           }}
         >
-          <span className="capitalize">Sign in with {provider}</span>
+          <span className="capitalize">
+            {language === 'fr' ? 'Se connecter avec' : 'Sign in with'} {provider}
+          </span>
         </Button>
       ))}
     </div>
   );
 }
 
-function describeLoginError(error: unknown): string {
+function describeLoginError(error: unknown, language: 'en' | 'fr'): string {
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   }
 
   if (error.statusCode === 401) {
-    return 'Invalid email or password.';
+    return l('Invalid email or password.', 'Adresse e-mail ou mot de passe incorrect.');
   }
 
   if (error.statusCode === 423) {
-    return 'This account is locked. Contact your administrator.';
+    return l(
+      'This account is locked. Contact your administrator.',
+      'Ce compte est verrouillé. Contactez votre administrateur.',
+    );
   }
 
   if (error.statusCode === 429) {
-    return 'Too many attempts. Wait a moment and try again.';
+    return l(
+      'Too many attempts. Wait a moment and try again.',
+      'Trop de tentatives. Patientez avant de réessayer.',
+    );
   }
 
   if (error.statusCode === 400) {
-    return 'Please check your email and password.';
+    return l(
+      'Please check your email and password.',
+      'Vérifiez votre adresse e-mail et votre mot de passe.',
+    );
   }
 
   if (error.code === 'NETWORK_ERROR' || error.statusCode >= 500) {
-    return 'TrackRoster is temporarily unavailable. Please try again.';
+    return l(
+      'TrackRoster is temporarily unavailable. Please try again.',
+      'TrackRoster est momentanément indisponible. Réessayez.',
+    );
   }
 
   return error.message;

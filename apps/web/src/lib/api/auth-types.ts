@@ -28,6 +28,7 @@ export interface SelfAccessGrant {
 }
 
 export interface SelfAccessContext extends AuthenticatedUser {
+  platformAdmin?: boolean;
   email: string;
 
   displayName: string | null;

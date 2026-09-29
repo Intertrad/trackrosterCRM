@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ShieldAlert, ShieldCheck, ShieldX, TriangleAlert } from 'lucide-react';
@@ -52,6 +54,8 @@ export default function CollisionCentrePage() {
         }),
     [reasonCode],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

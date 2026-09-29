@@ -1,0 +1,50 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import { getAccountPreferences } from '@/lib/api/account-client';
+import type { AccountPreferences } from '@/lib/api/account-types';
+import { useAuth } from '@/lib/auth/auth-context';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
+/** One runtime adapter for the preferences persisted by the account API. */
+export function RuntimePreferences() {
+  const { user, status } = useAuth();
+  const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
+  const enabled = status === 'authenticated';
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!enabled) return;
+      try {
+        const response = await getAccountPreferences(signal);
+        if (!signal?.aborted) setPreferences(response.resource);
+      } catch {
+        /* The settings screen owns actionable errors; preserve the last usable theme. */
+      }
+    },
+    [enabled],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    setPreferences(null);
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load, user?.tenantId, user?.userId]);
+  useLiveRefresh(load, { enabled, interval: 60_000 });
+  useEffect(() => {
+    const root = document.documentElement;
+    const system = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      root.dataset.theme =
+        preferences?.theme === 'dark' || (preferences?.theme === 'system' && system.matches)
+          ? 'dark'
+          : 'light';
+      root.dataset.density = preferences?.density ?? 'comfortable';
+      root.dataset.reducedMotion = String(preferences?.reducedMotion ?? false);
+      root.dataset.highContrast = String(preferences?.highContrast ?? false);
+    };
+    apply();
+    system.addEventListener('change', apply);
+    return () => system.removeEventListener('change', apply);
+  }, [preferences]);
+  return null;
+}

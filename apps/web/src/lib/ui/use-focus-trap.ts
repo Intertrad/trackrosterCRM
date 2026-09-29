@@ -1,6 +1,9 @@
 'use client';
 
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useEffectEvent, type RefObject } from 'react';
+
+const activePanels: HTMLElement[] = [];
+let previousBodyOverflow = '';
 
 /**
  * Elements a keyboard can reach, in document order.
@@ -26,7 +29,8 @@ function focusableWithin(container: HTMLElement): HTMLElement[] {
    * left to exclude is content explicitly marked as hidden.
    */
   return [...container.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-    (element) => !element.closest('[hidden], [aria-hidden="true"]'),
+    (element) =>
+      !element.matches(':disabled') && !element.closest('[hidden], [aria-hidden="true"]'),
   );
 }
 
@@ -46,12 +50,22 @@ export function useFocusTrap(
   open: boolean,
   onClose: () => void,
 ): void {
+  // Draft edits and live reads may replace the callback without reopening the overlay.
+  const close = useEffectEvent(onClose);
   useEffect(() => {
     if (!open) {
       return;
     }
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
+    const panel = containerRef.current;
+    if (panel) {
+      if (activePanels.length === 0) {
+        previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+      }
+      activePanels.push(panel);
+    }
 
     /*
      * The panel itself, not its first control.
@@ -64,9 +78,11 @@ export function useFocusTrap(
     containerRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent): void {
+      // A detail drawer may open an action drawer or confirmation above it.
+      if (activePanels.at(-1) !== panel) return;
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        close();
 
         return;
       }
@@ -103,11 +119,16 @@ export function useFocusTrap(
 
     return () => {
       document.removeEventListener('keydown', onKeyDown, true);
+      if (panel) {
+        const index = activePanels.indexOf(panel);
+        if (index !== -1) activePanels.splice(index, 1);
+        if (activePanels.length === 0) document.body.style.overflow = previousBodyOverflow;
+      }
 
       /* The opener can be gone by now — a row that the action removed. */
       if (previouslyFocused?.isConnected) {
         previouslyFocused.focus();
       }
     };
-  }, [containerRef, onClose, open]);
+  }, [containerRef, open]);
 }

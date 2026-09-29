@@ -28,7 +28,14 @@ export interface ConversationParticipant {
   joinedAt: string;
 }
 
+export interface MessageAttachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  byteSize: number;
+}
 export interface Message {
+  attachments?: MessageAttachment[];
   id: string;
   tenantId: string;
   conversationId: string;

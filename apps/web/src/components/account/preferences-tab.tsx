@@ -159,19 +159,11 @@ export function PreferencesTab() {
         </Card>
 
         <Card>
-          <CardHeader title="Always on" />
-
-          {/* The dossier locks these three on; they are not part of the
-            editable matrix above because they cannot be switched off. */}
-          <div className="flex flex-col gap-3 text-[14px] text-ink-soft">
-            <p className="font-semibold text-ink">Sent regardless of the settings above:</p>
-
-            <ul className="flex list-disc flex-col gap-1.5 pl-5">
-              <li>Collision or recent-contact detected</li>
-              <li>Opposition and do-not-contact rules</li>
-              <li>Security events on your account</li>
-            </ul>
-          </div>
+          <CardHeader title="Contact safety" />
+          <p className="text-[14px] leading-relaxed text-ink-soft">
+            Reservation, collision and consent rules are checked by the server before contact
+            actions. Notification preferences do not grant permission to contact a prospect.
+          </p>
         </Card>
       </div>
     </div>

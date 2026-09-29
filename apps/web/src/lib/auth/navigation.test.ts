@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getNavigationForWorkspace,
+  getPlatformNavigation,
+  getRoleHome,
   isNavigationItemActive,
   type WorkspaceNavigationItem,
 } from './navigation';
@@ -14,13 +16,21 @@ function labelKeys(items: WorkspaceNavigationItem[]): string[] {
 }
 
 describe('workspace navigation', () => {
+  it('keeps a platform-only identity out of tenant navigation', () => {
+    expect(getRoleHome(undefined, true)).toBe('/platform/overview');
+    expect(getRoleHome('observer', true)).toBe('/observer/overview');
+    expect(getPlatformNavigation().every((item) => item.href?.startsWith('/platform/'))).toBe(true);
+  });
   it('gives the prospector the operational order from the design handoff', () => {
     expect(labelKeys(getNavigationForWorkspace('prospector'))).toEqual([
       'nav.today',
-      'nav.workQueue',
-      'nav.map',
-      'nav.actions',
+      'nav.followUps',
+      'nav.history',
       'nav.messages',
+      'nav.workQueue',
+      'nav.routes',
+      'nav.map',
+      'nav.workspaceTools',
     ]);
   });
 
@@ -36,9 +46,9 @@ describe('workspace navigation', () => {
 
     expect(items.map((item) => item.id).slice(0, 4)).toEqual([
       'administration',
-      'users',
+      'live',
       'referential',
-      'audit',
+      'users',
     ]);
 
     /* Every administration screen must be reachable, not just listed. */
@@ -50,16 +60,18 @@ describe('workspace navigation', () => {
         .map((item) => item.href),
     ).toEqual([
       '/admin/overview',
-      '/admin/users',
       '/admin/prospects',
-      '/admin/audit',
+      '/admin/users',
       '/admin/imports',
+      '/admin/audit',
     ]);
   });
 
   it('gives the manager the oversight order from the design handoff', () => {
     expect(labelKeys(getNavigationForWorkspace('manager'))).toEqual([
       'nav.overview',
+      'nav.objectives',
+      'nav.territories',
       'nav.team',
       'nav.campaigns',
       'nav.assignments',
@@ -69,6 +81,7 @@ describe('workspace navigation', () => {
       'nav.exports',
       'nav.messages',
       'nav.search',
+      'nav.workspaceTools',
     ]);
   });
 
@@ -76,7 +89,14 @@ describe('workspace navigation', () => {
     const items = getNavigationForWorkspace('observer');
 
     /* The role has no write path, so nothing here may link to a mutation. */
-    expect(labelKeys(items)).toEqual(['nav.overview', 'nav.audit']);
+    expect(labelKeys(items)).toEqual([
+      'nav.overview',
+      'nav.audit',
+      'nav.security',
+      'nav.assignments',
+      'nav.exports',
+      'nav.workspaceTools',
+    ]);
   });
 
   it.each(MODES)('never gives a planned item an href in %s navigation', (mode) => {
@@ -125,13 +145,10 @@ describe('workspace navigation', () => {
     expect(isNavigationItemActive('/work-queue', today!)).toBe(false);
   });
 
-  it('never marks planned navigation items active', () => {
-    /* Overrides is still unbuilt for the admin. A planned item carries no
-     * href, so it must never match the path it will one day own. */
+  it('connects administrator override navigation to the existing approval workflow', () => {
     const overrides = getNavigationForWorkspace('admin').find((item) => item.id === 'overrides');
-
-    expect(overrides?.availability).toBe('planned');
-    expect(isNavigationItemActive('/admin/overrides', overrides!)).toBe(false);
+    expect(overrides?.availability).toBe('ready');
+    expect(isNavigationItemActive('/manager/approvals', overrides!)).toBe(true);
   });
 
   it('exposes every manager screen now that each one exists', () => {
@@ -141,6 +158,8 @@ describe('workspace navigation', () => {
 
     expect(items.map((item) => item.href)).toEqual([
       '/manager/overview',
+      '/manager/objectives',
+      '/manager/territories',
       '/manager/team',
       '/manager/campaigns',
       '/manager/assignments',
@@ -150,6 +169,7 @@ describe('workspace navigation', () => {
       '/manager/exports',
       '/messages',
       '/search',
+      '/workspace',
     ]);
   });
 

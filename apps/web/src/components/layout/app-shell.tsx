@@ -1,4 +1,5 @@
 'use client';
+import { LiveStatus } from './live-status';
 
 import { type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -14,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   getNavigationForWorkspace,
+  getPlatformNavigation,
+  getRoleHome,
   isNavigationItemActive,
   type WorkspaceNavigationItem,
 } from '@/lib/auth/navigation';
@@ -47,6 +50,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       router.replace('/login');
     }
   }, [router, status]);
+
+  useEffect(() => {
+    const home = getRoleHome(activeWorkspace?.mode, user?.platformAdmin);
+    if (status === 'authenticated' && pathname === '/' && home !== '/') router.replace(home);
+  }, [status, activeWorkspace?.mode, user?.platformAdmin, pathname, router]);
 
   useEffect(() => {
     setMoreOpen(false);
@@ -91,7 +99,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const mode = activeWorkspace?.mode ?? 'prospector';
-  const items = getNavigationForWorkspace(mode);
+  const platformView =
+    user.platformAdmin === true && (!activeWorkspace || pathname.startsWith('/platform'));
+  const items = platformView ? getPlatformNavigation() : getNavigationForWorkspace(mode);
+  if (!platformView && user.platformAdmin)
+    items.push({
+      id: 'platform',
+      label: 'nav.platform',
+      icon: 'administration',
+      href: '/platform/overview',
+      availability: 'ready',
+      group: 'tools',
+    });
+  const roleLabel = platformView ? t('role.platform') : t(getWorkspaceModeLabelKey(mode));
+  const sidebarItems = items.filter((item) => item.group !== 'tools');
+  const toolItems = items.filter((item) => item.group === 'tools');
+  const toolActive = toolItems.some((item) => isNavigationItemActive(pathname, item));
   const primaryItems = items.filter((item) => item.primary).slice(0, 4);
   const overflowItems = items.filter((item) => !primaryItems.includes(item));
 
@@ -107,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProfileMenu
             displayName={user.displayName}
             email={user.email}
-            roleLabel={t(getWorkspaceModeLabelKey(mode))}
+            roleLabel={roleLabel}
             collapsed
             placement="down"
           />
@@ -116,11 +139,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <aside
         className={cn(
-          'relative hidden shrink-0 flex-col bg-navy transition-[width] duration-200 lg:flex',
-          collapsed ? 'w-[76px]' : 'w-[214px]',
+          'sticky top-0 hidden h-dvh shrink-0 flex-col bg-navy transition-[width] duration-200 lg:flex',
+          collapsed ? 'w-[76px]' : 'w-[220px]',
         )}
       >
-        <div className={cn('px-4 py-5', collapsed && 'px-0 text-center')}>
+        <div className={cn('px-[14px] pt-6 pb-7 text-center', collapsed && 'px-0 text-center')}>
           {collapsed ? (
             <BrandMark className="mx-auto" />
           ) : (
@@ -128,16 +151,47 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        <nav aria-label={t('nav.workspace')} className="flex-1 overflow-y-auto px-3 py-6">
-          <ul className="flex flex-col gap-2">
-            {items.map((item) => (
+        <nav
+          aria-label={t('nav.workspace')}
+          className="reference-sidebar-nav flex min-h-0 flex-1 flex-col overflow-y-auto px-[14px] py-1"
+        >
+          <ul className="my-auto flex flex-col gap-0.5">
+            {sidebarItems.map((item, index) => (
               <li key={item.id}>
+                {!collapsed && item.group && item.group !== sidebarItems[index - 1]?.group && (
+                  <p className="px-3 pt-2 pb-0.5 text-[11px] font-semibold text-ink-onDark-soft">
+                    {t(item.group === 'configuration' ? 'nav.configuration' : 'nav.tools')}
+                  </p>
+                )}
                 <SidebarItem item={item} pathname={pathname} collapsed={collapsed} />
               </li>
             ))}
           </ul>
         </nav>
 
+        {toolItems.length > 0 && (
+          <details open={toolActive} className="relative mx-3 mb-2">
+            <summary
+              aria-label={t('nav.tools')}
+              className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-ink-onDark-soft hover:bg-white/8"
+            >
+              <Settings className="size-4 shrink-0" />
+              {!collapsed && t('nav.tools')}
+            </summary>
+            <nav
+              aria-label={t('nav.tools')}
+              className="absolute bottom-full left-0 z-40 mb-1 w-60 rounded-xl border border-white/15 bg-navy p-2 shadow-overlay"
+            >
+              <ul className="space-y-1">
+                {toolItems.map((item) => (
+                  <li key={item.id}>
+                    <SidebarItem item={item} pathname={pathname} collapsed={false} />
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </details>
+        )}
         <div className={cn('border-t border-white/10 p-3', collapsed && 'px-2')}>
           {!collapsed ? (
             <div className="mb-1 flex justify-end">
@@ -148,7 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProfileMenu
             displayName={user.displayName}
             email={user.email}
-            roleLabel={t(getWorkspaceModeLabelKey(mode))}
+            roleLabel={roleLabel}
             collapsed={collapsed}
           />
         </div>
@@ -156,12 +210,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={t(collapsed ? 'nav.expand' : 'nav.collapse')}
           aria-expanded={!collapsed}
           className={cn(
-            'absolute top-1/2 -right-3 flex h-10 w-6 -translate-y-1/2 items-center justify-center',
-            'rounded-md border border-line-soft bg-surface text-ink-muted shadow-card',
-            'transition-colors hover:text-ink',
+            'absolute top-[30%] -right-6 z-10 flex h-[34px] w-6 items-center justify-center',
+            'rounded-r-lg border border-white/20 bg-navy text-white',
+            'transition-colors hover:bg-navy-800',
           )}
         >
           {collapsed ? (
@@ -172,7 +226,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1 px-4 pt-6 pb-24 sm:px-6 lg:px-8 lg:pb-10">{children}</main>
+      <main className="reference-main min-w-0 flex-1">
+        <LiveStatus />
+        {children}
+      </main>
 
       <MobileNav
         primaryItems={primaryItems}
@@ -199,7 +256,7 @@ function SidebarItem({
   const active = isNavigationItemActive(pathname, item);
 
   const shared = cn(
-    'flex items-center gap-3.5 rounded-xl px-3.5 py-3 text-[15px]',
+    'flex min-h-8 items-center gap-3 rounded-[10px] px-3 py-[7px] text-[14.4px] leading-[1.2]',
     'transition-colors duration-150',
     collapsed && 'justify-center px-0',
   );
@@ -225,13 +282,16 @@ function SidebarItem({
       className={cn(
         shared,
         active
-          ? 'bg-navy-700 font-bold text-white'
+          ? 'bg-brand font-bold text-white'
           : 'font-semibold text-white/72 hover:bg-white/8 hover:text-white',
       )}
     >
       {/* Lime on the current screen is the one accent in the sidebar, so the
           position is readable at a glance without reading a label. */}
-      <NavIcon id={item.icon} className={cn('size-5 shrink-0', active && 'text-lime')} />
+      <NavIcon
+        id={item.icon}
+        className={cn('size-4 shrink-0', active ? 'text-lime' : 'text-brand-pale')}
+      />
 
       {!collapsed ? <span className="truncate">{t(item.label)}</span> : null}
     </Link>
@@ -281,7 +341,7 @@ function MobileNav({
               </button>
             </div>
 
-            <ul className="flex flex-col gap-1">
+            <ul className="my-auto flex flex-col gap-0.5">
               {overflowItems.map((item) => (
                 <li key={item.id}>
                   <MobileMoreItem item={item} />
@@ -331,7 +391,10 @@ function MobileNav({
               key={item.id}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={cn(shared, active ? 'text-brand' : 'text-ink-muted')}
+              className={cn(
+                shared,
+                active ? 'rounded-xl bg-brand-tint text-brand' : 'text-ink-muted',
+              )}
             >
               {content}
             </Link>
@@ -346,7 +409,7 @@ function MobileNav({
         >
           <MoreHorizontal aria-hidden="true" className="size-[22px]" />
 
-          <span className="text-[11px] font-semibold">More</span>
+          <span className="text-[11px] font-semibold">{t('nav.more')}</span>
         </button>
       </nav>
     </>
@@ -380,7 +443,7 @@ function ShellSkeleton() {
     <div className="flex min-h-dvh bg-canvas" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading your workspace…</span>
 
-      <div className="hidden w-[214px] shrink-0 bg-navy lg:block" />
+      <div className="hidden w-[220px] shrink-0 bg-navy lg:block" />
 
       <div className="min-w-0 flex-1 animate-pulse px-6 py-8">
         <div className="h-9 w-56 rounded bg-line-soft" />

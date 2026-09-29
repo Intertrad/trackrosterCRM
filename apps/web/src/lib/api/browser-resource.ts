@@ -1,3 +1,4 @@
+import { announceMutation } from '@/lib/live/live-events';
 import { ApiError } from './api-error';
 import { browserJson } from './browser-json';
 
@@ -32,6 +33,7 @@ export async function browserResource<T>(
   }
 
   const etag = response.headers.get('etag');
+  if (response.ok) announceMutation(init?.method);
 
   if (!response.ok) {
     /* Reuse the shared error normalization by replaying the parsed body. */
@@ -47,7 +49,16 @@ export async function browserResource<T>(
     return { resource: undefined as T, etag };
   }
 
-  return { resource: (await response.json()) as T, etag };
+  const resource = (await response.json()) as T;
+  // Some canonical endpoints carry their mutable-row validator in the response body.
+  const bodyEtag =
+    resource &&
+    typeof resource === 'object' &&
+    'etag' in resource &&
+    typeof resource.etag === 'string'
+      ? resource.etag
+      : null;
+  return { resource, etag: etag ?? bodyEtag };
 }
 
 function toApiError(status: number, body: unknown): ApiError {

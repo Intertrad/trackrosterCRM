@@ -40,11 +40,10 @@ import {
   type CampaignEnrolmentResult,
   type CampaignEnrolmentSelection,
 } from '@/lib/api/campaign-types';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
 import { listTeams } from '@/lib/api/team-client';
 import type { Team } from '@/lib/api/team-types';
-import { getWorkQueueOptions } from '@/lib/api/work-queue-client';
 import type { WorkQueueCampaignOption } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildTeamRoster, rosterStatus } from '@/lib/manager/team-roster';
@@ -145,60 +144,29 @@ export default function AssignmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  /*
-   * Campaign is mandatory for the unassigned queue, so it is chosen first — but
-   * the list cannot come from the same place for both roles.
-   *
-   * The work-queue options are the caller's *own* assigned campaigns, which is
-   * right for a manager and always empty for an administrator, who is assigned
-   * nothing. It is emptiest exactly after a bulk enrolment, which is when an
-   * administrator comes here. So administration reads the campaigns themselves.
-   */
+  // Campaign reads resolve the manager's scope; the personal queue is prospector-only.
   useEffect(() => {
     const controller = new AbortController();
-
-    if (isAdmin) {
-      listCampaigns({ limit: 100, sort: 'name' }, controller.signal)
-        .then((page) => {
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          /* Completed and archived campaigns refuse assignment upstream. */
-          const open = page.items.filter(
-            (campaign) => campaign.status !== 'completed' && campaign.status !== 'archived',
-          );
-
-          setCampaigns(open.map((campaign) => ({ id: campaign.id, name: campaign.name })));
-          setCampaignOrganizations(
-            new Map(open.map((campaign) => [campaign.id, campaign.organizationId])),
-          );
-          setCampaignId((current) => current || (open[0]?.id ?? ''));
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setCampaigns([]);
-          }
-        });
-
-      return () => controller.abort();
-    }
-
-    if (!workspaceTeamId) {
-      return () => controller.abort();
-    }
-
-    getWorkQueueOptions({ teamId: workspaceTeamId, signal: controller.signal })
-      .then((options) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setCampaigns(options.campaigns);
-        setCampaignId((current) => current || (options.campaigns[0]?.id ?? ''));
+    listCampaigns({ limit: 100, sort: 'name' }, controller.signal)
+      .then((page) => {
+        if (controller.signal.aborted) return;
+        const open = page.items.filter(
+          (campaign) => campaign.status !== 'completed' && campaign.status !== 'archived',
+        );
+        setCampaigns(open.map((campaign) => ({ id: campaign.id, name: campaign.name })));
+        setCampaignOrganizations(
+          new Map(open.map((campaign) => [campaign.id, campaign.organizationId])),
+        );
+        setCampaignId((current) =>
+          open.some((campaign) => campaign.id === current) ? current : (open[0]?.id ?? ''),
+        );
       })
-      .catch(() => setCampaigns([]));
-
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setCampaigns([]);
+          setError('Campaigns could not be loaded. Refresh to try again.');
+        }
+      });
     return () => controller.abort();
   }, [isAdmin, workspaceTeamId]);
 

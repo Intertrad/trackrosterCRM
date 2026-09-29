@@ -1,36 +1,27 @@
+import Image from 'next/image';
 import { cn } from '@/lib/ui/cn';
 
-/*
- * The 3 x 3 grid is a functional code in the product system: separated
- * cells stand for clear distribution with no overlap and no collision
- * (dossier p.4). The lit cells follow the approved handoff artwork.
- */
-const LIT_CELLS = new Set([0, 1, 2, 3, 5, 6, 7, 8]);
-const ACCENT_CELLS = new Set([6, 7, 8]);
-
+/** Original artwork from the user-supplied TrackRoster frontend. */
 export function BrandMark({
   className,
-  tone = 'light',
+  hero = false,
 }: {
   className?: string;
   tone?: 'light' | 'dark';
+  hero?: boolean;
 }) {
   return (
-    <span aria-hidden="true" className={cn('grid grid-cols-3 gap-[3px]', className)}>
-      {Array.from({ length: 9 }, (_, index) => (
-        <span
-          key={index}
-          className={cn(
-            'block size-[9px] rounded-[2px]',
-            !LIT_CELLS.has(index) && 'opacity-0',
-            ACCENT_CELLS.has(index) ? 'bg-brand' : tone === 'light' ? 'bg-white' : 'bg-navy',
-          )}
-        />
-      ))}
-    </span>
+    <Image
+      src="/brand/roster.png"
+      alt=""
+      aria-hidden="true"
+      width={hero ? 208 : 38}
+      height={hero ? 208 : 38}
+      className={cn('shrink-0 object-contain', className)}
+      priority
+    />
   );
 }
-
 export function BrandLockup({
   className,
   tone = 'light',
@@ -39,12 +30,11 @@ export function BrandLockup({
   tone?: 'light' | 'dark';
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-3', className)}>
-      <BrandMark tone={tone} />
-
+    <span className={cn('inline-flex items-center gap-2.5', className)}>
+      <BrandMark />
       <span
         className={cn(
-          'text-[22px] font-bold tracking-[-0.02em]',
+          'text-[19.2px] font-bold tracking-tight',
           tone === 'light' ? 'text-white' : 'text-navy',
         )}
       >

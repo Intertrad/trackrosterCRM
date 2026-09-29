@@ -15,8 +15,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  md: 'h-11 px-4 text-[15px] rounded-lg',
-  lg: 'h-12 px-5 text-[16px] rounded-lg',
+  md: 'min-h-11 sm:min-h-9 px-3 py-1.5 text-[13.12px] rounded-lg',
+  lg: 'min-h-11 sm:min-h-10 px-4 py-2.5 text-[14.4px] rounded-[10px]',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -45,7 +45,7 @@ export function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center gap-2 font-semibold',
+        'inline-flex items-center justify-center gap-2 font-bold',
         'transition-colors duration-150',
         'disabled:cursor-not-allowed disabled:opacity-55',
         VARIANTS[variant],

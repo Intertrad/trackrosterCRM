@@ -23,6 +23,8 @@ describe('SelfAccessService', () => {
   const userId = '22222222-2222-4222-8222-222222222222';
 
   let databaseRows: Array<{ locale: string }> = [];
+  let platformRows: Array<{ role: string }> = [];
+  let queryCount = 0;
 
   beforeEach(() => {
     authorizationService = {
@@ -52,12 +54,14 @@ describe('SelfAccessService', () => {
     /* Only the settings lookup is exercised here; the locale falls back to the
      * column default when a membership has never saved preferences. */
     databaseRows = [];
+    platformRows = [];
+    queryCount = 0;
 
     const database = {
       select: () => ({
         from: () => ({
           where: () => ({
-            limit: () => Promise.resolve(databaseRows),
+            limit: () => Promise.resolve(queryCount++ === 0 ? databaseRows : platformRows),
           }),
         }),
       }),
@@ -71,6 +75,25 @@ describe('SelfAccessService', () => {
       database as unknown as Database,
     );
   });
+
+  it.each([
+    ['super_admin', true],
+    ['support_admin', false],
+    ['', false],
+  ])(
+    'reports platform authority only for an active super admin grant (%s)',
+    async (role, expected) => {
+      authorizationService.getUserGrants.mockResolvedValue([]);
+      platformRows = role ? [{ role }] : [];
+      const context = await service.getContext({
+        tenantId,
+        userId,
+        identityId: '33333333-3333-4333-8333-333333333333',
+      });
+      expect(context.platformAdmin).toBe(expected);
+      expect(queryCount).toBe(2);
+    },
+  );
 
   it('returns authenticated identity with sanitized access grants', async () => {
     const organizationId = '33333333-3333-4333-8333-333333333333';

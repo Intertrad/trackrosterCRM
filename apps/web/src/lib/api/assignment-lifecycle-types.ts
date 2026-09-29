@@ -13,6 +13,7 @@ export interface Assignment {
   tenantId: string;
   campaignId: string;
   campaignProspectId: string;
+  prospectName?: string;
   organizationId: string;
   teamId: string;
   assignedUserId: string | null;

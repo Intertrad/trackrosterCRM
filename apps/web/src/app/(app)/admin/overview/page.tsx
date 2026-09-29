@@ -1,505 +1,347 @@
 'use client';
-
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-  ChevronRight,
-  Building2,
-  CircleAlert,
-  Megaphone,
-  TriangleAlert,
-  Upload,
-  Users,
-} from 'lucide-react';
-
+import { Clock, RefreshCw, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
-import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
-import { StatTile } from '@/components/ui/stat-tile';
+import { ApiError } from '@/lib/api/api-error';
 import { getAdminDashboard } from '@/lib/api/admin-client';
 import type { AdminDashboard } from '@/lib/api/admin-types';
-import { ApiError } from '@/lib/api/api-error';
-import { listAuditEvents } from '@/lib/api/audit-client';
-import {
-  auditActionLabel,
-  auditResourceLabel,
-  auditSeverity,
-  type AuditEvent,
-} from '@/lib/api/audit-types';
+import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
+import type { ManagerDashboardResponse } from '@/lib/api/manager-dashboard-types';
 import { listMemberships } from '@/lib/api/membership-client';
-import type { MembershipSummary } from '@/lib/api/membership-types';
-import { roleLabel, TENANT_ROLES } from '@/lib/api/role-types';
+import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+import { text } from '@/lib/workspace/copy';
 
-/* One page is enough for every tenant seeded so far; truncation is disclosed. */
-const MEMBERSHIP_PAGE_SIZE = 100;
-
-export default function AdministrationOverviewPage() {
+export default function Page() {
   return (
-    <AdminGuard title="Administration overview" subtitle="Configure and protect this workspace">
-      <AdministrationOverview />
+    <AdminGuard title="Vue d’ensemble">
+      <Overview />
     </AdminGuard>
   );
 }
-
-function AdministrationOverview() {
-  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
-  const [members, setMembers] = useState<MembershipSummary[] | null>(null);
-  const [membersTruncated, setMembersTruncated] = useState(false);
-  const [activity, setActivity] = useState<AuditEvent[] | null>(null);
-  const [activityDenied, setActivityDenied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getAdminDashboard(controller.signal)
-      .then(setDashboard)
-      .catch((caught: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(describeAdminError(caught));
-        }
-      });
-
-    listMemberships({ limit: MEMBERSHIP_PAGE_SIZE }, controller.signal)
-      .then((page) => {
-        setMembers(page.items);
-        setMembersTruncated(page.nextCursor !== null);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
+function Overview() {
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const [data, setData] = useState<AdminDashboard | null>(null),
+    [management, setManagement] = useState<ManagerDashboardResponse | null>(null),
+    [members, setMembers] = useState<MembershipSummary[]>([]),
+    [error, setError] = useState(false);
+  const request = useRef(0);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const version = ++request.current;
+    try {
+      const from = new Date();
+      from.setDate(from.getDate() - 14);
+      const [a, m, p] = await Promise.all([
+        getAdminDashboard(signal),
+        getManagerDashboard({ from: from.toISOString(), to: new Date().toISOString() }, signal),
+        listMemberships({ limit: 100 }, signal),
+      ]);
+      if (signal?.aborted || version !== request.current) return;
+      setData(a);
+      setManagement(m);
+      setMembers(p.items);
+      setError(false);
+    } catch (caught) {
+      if (!signal?.aborted && version === request.current) {
+        setError(true);
+        if (caught instanceof ApiError && [401, 403].includes(caught.statusCode)) {
+          setData(null);
+          setManagement(null);
           setMembers([]);
         }
-      });
-
-    /*
-     * Audit access is a separate grant from tenant administration, so a
-     * denial here is expected rather than an error for the whole page.
-     */
-    listAuditEvents({ limit: 6 }, controller.signal)
-      .then((page) => setActivity(page.items))
-      .catch((caught: unknown) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setActivity([]);
-        setActivityDenied(caught instanceof ApiError && isAuditDenial(caught));
-      });
-
-    return () => controller.abort();
+      }
+    }
   }, []);
-
-  const metrics = dashboard?.metrics ?? null;
-
-  const attention = useMemo(() => buildAttention(metrics), [metrics]);
-
-  const adoption = useMemo(() => buildAdoption(members), [members]);
-
-  if (error) {
-    return (
-      <div className="flex flex-col gap-6">
-        <PageHeader title="Administration overview" />
-
-        <Alert tone="danger" title="We could not load the administration overview.">
-          {error}
-        </Alert>
-      </div>
-    );
-  }
-
+  useEffect(() => {
+    const c = new AbortController();
+    void load(c.signal);
+    return () => {
+      c.abort();
+      request.current += 1;
+    };
+  }, [load]);
+  useLiveRefresh(load);
+  const metrics = data?.metrics;
+  const coverage = metrics?.totalEstablishments
+    ? Math.round((100 * metrics.contactedEstablishments) / metrics.totalEstablishments)
+    : null;
+  const name = (id: string) => {
+    const member = members.find((m) => m.id === id);
+    return member ? membershipName(member) : l('Team member', 'Membre de l’équipe');
+  };
+  const rows = management?.byProspector ?? [];
+  const days = data?.activityByDay ?? [];
+  const max = Math.max(1, ...days.map((d) => d.total));
+  const stats = [
+    {
+      value: metrics?.totalEstablishments,
+      label: l('Establishments', 'Établissements'),
+      color: 'bg-navy',
+    },
+    {
+      value: coverage === null ? '—' : `${coverage} %`,
+      label: l('Base coverage', 'Couverture de la base'),
+      color: 'bg-brand-pale',
+    },
+    {
+      value: management?.activities.total,
+      label: l('Actions · last 14 days', 'Actions · 14 derniers jours'),
+      color: 'bg-brand',
+    },
+    {
+      value: management?.assignments.current,
+      label: l('Current assignments', 'Attributions en cours'),
+      color: 'bg-brand-mid',
+    },
+    {
+      value: management?.followUps.pending,
+      label: l('Pending follow-ups', 'Relances à effectuer'),
+      color: 'bg-lime',
+    },
+  ];
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-[18px]">
       <PageHeader
-        title="Administration overview"
-        subtitle="Configure and protect this workspace"
+        title={l('Overview', 'Vue d’ensemble')}
+        subtitle={l(
+          'Activity over the last 14 days and the state of your base.',
+          'Activité des 14 derniers jours et état de la base.',
+        )}
         action={
-          <div className="flex flex-wrap gap-3">
-            <LinkButton href="/admin/imports" variant="secondary">
-              Start import
-            </LinkButton>
-
-            <LinkButton href="/admin/users">Invite users</LinkButton>
-          </div>
+          <Button variant="secondary" onClick={() => void load()}>
+            <RefreshCw className="size-4" />
+            {l('Refresh', 'Actualiser')}
+          </Button>
         }
       />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={<Users aria-hidden="true" className="size-5" />}
-          tone="success"
-          value={metrics?.activeMembers ?? null}
-          label="Active users"
-          delta={metrics ? `${metrics.sessionsLast30Days} sessions in 30 days` : undefined}
-        />
-
-        <StatTile
-          icon={<Building2 aria-hidden="true" className="size-5" />}
-          tone="brand"
-          value={metrics?.activeOrganizations ?? null}
-          label="Organizations"
-          delta={metrics ? `${metrics.activeTeams} active teams` : undefined}
-        />
-
-        <StatTile
-          icon={<Megaphone aria-hidden="true" className="size-5" />}
-          tone="brand"
-          value={metrics?.activeCampaigns ?? null}
-          label="Active campaigns"
-        />
-
-        <StatTile
-          icon={<Upload aria-hidden="true" className="size-5" />}
-          tone={metrics && metrics.importsAwaitingCommit > 0 ? 'warning' : 'neutral'}
-          value={metrics?.importsAwaitingCommit ?? null}
-          label="Imports awaiting commit"
-          delta="Validated but not yet applied"
-        />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
-        <ConfigurationAreas />
-
-        <Card>
-          <CardHeader title="Attention required" />
-
-          {attention.length === 0 ? (
-            <p className="py-6 text-center text-[15px] text-ink-muted">
-              {metrics ? 'Nothing needs attention right now.' : 'Loading…'}
+      {error && (
+        <Alert tone="danger">
+          {l(
+            'The dashboard could not be refreshed. Retry to see current data.',
+            'Le tableau de bord n’a pas pu être actualisé. Réessayez pour consulter les données à jour.',
+          )}
+        </Alert>
+      )}
+      <div className="grid grid-cols-2 gap-3.5 md:grid-cols-3 xl:grid-cols-5">
+        {stats.map((s) => (
+          <Card key={s.label} padding="none" className="flex min-h-28 flex-col gap-1.5 p-4">
+            <p className="text-[12.48px] font-bold text-ink-muted">{s.label}</p>
+            <p className="text-[30.4px] leading-tight font-extrabold tracking-tight tabular-nums text-navy">
+              {typeof s.value === 'number' ? s.value.toLocaleString(locale) : (s.value ?? '—')}
             </p>
-          ) : (
-            <ul className="flex flex-col gap-2.5">
-              {attention.map((item) => (
-                <li key={item.id}>
-                  <Link
-                    href={item.href}
-                    className="flex items-center gap-3 rounded-xl border border-line-soft px-3.5 py-3 transition-colors hover:border-brand hover:bg-brand-tint/40"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={
-                        item.tone === 'danger'
-                          ? 'flex size-9 shrink-0 items-center justify-center rounded-full bg-danger-bg text-danger'
-                          : 'flex size-9 shrink-0 items-center justify-center rounded-full bg-warning-bg text-warning'
-                      }
-                    >
-                      {item.tone === 'danger' ? (
-                        <CircleAlert className="size-5" />
-                      ) : (
-                        <TriangleAlert className="size-5" />
-                      )}
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-bold text-navy">
-                        {item.count} {item.title}
-                      </span>
-
-                      <span className="block truncate text-[13px] text-ink-muted">
-                        {item.description}
-                      </span>
-                    </span>
-
-                    <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-line" />
-                  </Link>
+            {s.color === 'bg-brand-pale' ? (
+              <span className="h-1.5 w-full rounded bg-line-soft">
+                <span
+                  className="block h-full rounded bg-brand"
+                  style={{ width: `${coverage ?? 0}%` }}
+                />
+              </span>
+            ) : (
+              <p className="text-[12.48px] text-ink-muted">
+                {s.color === 'bg-navy'
+                  ? `${metrics?.contactedEstablishments?.toLocaleString(locale) ?? '—'} ${l('already contacted', 'déjà contactés')}`
+                  : s.color === 'bg-brand'
+                    ? l('Recorded by your teams', 'Enregistrées par vos équipes')
+                    : s.color === 'bg-lime'
+                      ? l('Scheduled contacts', 'Contacts programmés')
+                      : l('Across all teams', 'Toutes les équipes')}
+              </p>
+            )}
+          </Card>
+        ))}
+      </div>
+      <div className="grid gap-3.5 xl:grid-cols-[2fr_1fr]">
+        <Card>
+          <CardHeader
+            title={l('Actions by day (14 days)', 'Actions par jour (14 jours)')}
+            action={<span className="text-xs text-ink-muted">Europe/Paris</span>}
+          />
+          <div
+            className="flex h-[200px] items-end gap-2"
+            role="img"
+            aria-label={l(
+              'Daily recorded activity for the past 14 days',
+              'Activité enregistrée sur les 14 derniers jours',
+            )}
+          >
+            {days.map((d) => (
+              <div className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2" key={d.date}>
+                <div
+                  title={`${d.date} : ${d.total}`}
+                  className="mx-auto w-full max-w-[34px] min-h-[2px] rounded-t-md bg-brand"
+                  style={{ height: `${(d.total / max) * 85}%` }}
+                />
+                <span className="flex flex-col text-center text-[11px] leading-tight text-ink-muted">
+                  <b className="text-navy">{Number(d.date.slice(-2))}</b>
+                  <small>
+                    {new Date(`${d.date}T12:00:00`).toLocaleDateString(locale, { month: 'short' })}
+                  </small>
+                </span>
+              </div>
+            ))}
+          </div>
+          {data && days.every((d) => !d.total) && (
+            <p className="mt-3 text-sm text-ink-muted">
+              {l(
+                'No activity recorded in this period.',
+                'Aucune activité enregistrée sur cette période.',
+              )}
+            </p>
+          )}
+          <details className="mt-3 text-xs text-ink-muted">
+            <summary className="cursor-pointer">
+              {l('View chart data', 'Voir les données du graphique')}
+            </summary>
+            <ul>
+              {days.map((d) => (
+                <li key={d.date}>
+                  {d.date} : {d.total}
                 </li>
               ))}
             </ul>
+          </details>
+        </Card>
+        <Card>
+          <CardHeader title={l('Needs attention', 'À traiter')} />
+          <ul className="space-y-2">
+            {rows
+              .filter((r) => r.overdueFollowUps > 0)
+              .map((r) => (
+                <li
+                  key={r.userId}
+                  className="flex items-start gap-2 rounded-[9px] bg-danger-bg px-3 py-2 text-[13.76px] font-semibold text-danger"
+                >
+                  <Clock className="size-4 shrink-0 text-warning" />
+                  {name(r.userId)} : {r.overdueFollowUps}{' '}
+                  {l('overdue follow-ups', 'relances en retard')}
+                </li>
+              ))}
+          </ul>
+          {management && !rows.some((r) => r.overdueFollowUps) && (
+            <p className="flex items-center gap-2 py-2 text-sm text-ink-muted">
+              <ShieldCheck className="size-5 text-success" />
+              {l('No overdue follow-ups.', 'Aucune relance en retard.')}
+            </p>
           )}
+          <Link
+            href="/follow-ups"
+            className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand"
+          >
+            {l('Open follow-ups', 'Consulter les relances')}
+            <ArrowUpRight className="size-4" />
+          </Link>
         </Card>
       </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:items-start">
-        <Card>
+      <Card padding="none">
+        <div className="px-5 pt-5">
           <CardHeader
-            title="Recent administration activity"
+            title={l('Team · 14 days', 'Équipe — 14 jours')}
             action={
-              <Link
-                href="/admin/audit"
-                className="text-[14px] font-semibold text-brand hover:text-brand-hover"
-              >
-                Open audit
+              <Link href="/admin/users" className="text-sm text-brand">
+                {l('Manage team', 'Gérer l’équipe')}
               </Link>
             }
           />
-
-          {activityDenied ? (
-            <Alert tone="info" title="Audit access is granted separately.">
-              Your workspace can administer this tenant but does not hold audit access, so the
-              activity log is not shown here.
-            </Alert>
-          ) : activity === null ? (
-            <div className="flex flex-col gap-2" aria-busy="true">
-              {[0, 1, 2, 3].map((row) => (
-                <div key={row} className="h-11 animate-pulse rounded-lg bg-line-soft" />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-y border-line-soft bg-surface-muted/50 text-xs text-ink-muted">
+              <tr>
+                {[
+                  l('Prospector', 'Prospecteur'),
+                  l('Actions', 'Actions'),
+                  l('Assigned', 'Attribués'),
+                  l('Follow-ups', 'Relances'),
+                  l('Overdue', 'En retard'),
+                ].map((h) => (
+                  <th key={h} className="px-4 py-3 font-semibold">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.userId} className="border-b border-line-soft last:border-0">
+                  <td className="px-4 py-4 font-semibold">{name(r.userId)}</td>
+                  <td className="px-4">{r.activities}</td>
+                  <td className="px-4">{r.currentAssignments}</td>
+                  <td className="px-4">{r.pendingFollowUps}</td>
+                  <td className="px-4">
+                    <span
+                      className={
+                        r.overdueFollowUps ? 'rounded-full bg-danger-bg px-2 py-1 text-danger' : ''
+                      }
+                    >
+                      {r.overdueFollowUps}
+                    </span>
+                  </td>
+                </tr>
               ))}
-            </div>
-          ) : activity.length === 0 ? (
-            <p className="py-6 text-center text-[15px] text-ink-muted">
-              No administration activity has been recorded yet.
-            </p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line-soft">
-              {activity.map((event) => (
-                <li key={event.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5">
-                  <span className="w-40 shrink-0 text-[13px] text-ink-muted">
-                    {formatTimestamp(event.occurredAt)}
-                  </span>
-
-                  <span className="min-w-0 flex-1 text-[14px] font-semibold text-navy">
-                    {auditActionLabel(event.action)}
-                  </span>
-
-                  <Badge tone={auditSeverity(event.action) === 'warning' ? 'warning' : 'neutral'}>
-                    {auditResourceLabel(event.resourceType)}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
+            </tbody>
+          </table>
+        </div>
+        {management && !rows.length && (
+          <p className="p-6 text-sm text-ink-muted">
+            {l(
+              'Team activity will appear after the first assignment.',
+              'L’activité de l’équipe apparaîtra après les premières attributions.',
+            )}
+          </p>
+        )}
+      </Card>
+      <div className="grid gap-3.5 md:grid-cols-2">
         <Card>
-          <CardHeader title="Members by role" />
-
-          {members === null ? (
-            <div className="flex flex-col gap-3" aria-busy="true">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="h-10 animate-pulse rounded-lg bg-line-soft" />
-              ))}
+          <CardHeader title={l('Workspace', 'Votre espace')} />
+          <div className="grid grid-cols-3 gap-3 text-center">
+            {[
+              [metrics?.activeMembers, l('Members', 'Membres')],
+              [metrics?.activeTeams, l('Teams', 'Équipes')],
+              [metrics?.activeOrganizations, l('Companies', 'Entreprises')],
+            ].map(([value, label]) => (
+              <div key={label}>
+                <strong className="block text-2xl">{value ?? '—'}</strong>
+                <span className="text-xs text-ink-muted">{label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <CardHeader title={l('Data quality', 'Qualité des données')} />
+          {[
+            [
+              l('Without a phone number', 'Sans numéro de téléphone'),
+              metrics?.prospectsMissingPhone,
+            ],
+            [
+              l('Without coordinates', 'Sans coordonnées géographiques'),
+              metrics?.prospectsMissingCoordinates,
+            ],
+            [l('Imports to confirm', 'Imports à confirmer'), metrics?.importsAwaitingCommit],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="flex justify-between gap-4 border-b border-line-soft py-3 text-sm last:border-0"
+            >
+              <span className="text-ink-muted">{label}</span>
+              <strong>{typeof value === 'number' ? value.toLocaleString(locale) : '—'}</strong>
             </div>
-          ) : adoption.total === 0 ? (
-            <p className="py-6 text-center text-[15px] text-ink-muted">
-              No memberships to summarise.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-3.5">
-              {adoption.rows.map((row) => (
-                <li key={row.role}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[14px] font-semibold text-navy">
-                      {roleLabel(row.role)}
-                    </span>
-
-                    <span className="text-[13px] tabular-nums text-ink-muted">
-                      {row.count} / {adoption.total}
-                    </span>
-                  </div>
-
-                  <div
-                    className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-muted"
-                    role="img"
-                    aria-label={`${roleLabel(row.role)}: ${row.count} of ${adoption.total} members`}
-                  >
-                    <div
-                      className="h-full rounded-full bg-brand"
-                      style={{ width: `${Math.round((row.count / adoption.total) * 100)}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {membersTruncated ? (
-            <p className="mt-4 text-[13px] text-ink-muted">
-              Counted from the first {MEMBERSHIP_PAGE_SIZE} memberships; this workspace has more.
-            </p>
-          ) : null}
+          ))}
+          <Link
+            href="/admin/prospects"
+            className="mt-4 inline-block text-sm font-semibold text-brand"
+          >
+            {l('Open the base', 'Consulter la base')}
+          </Link>
         </Card>
       </div>
     </div>
   );
-}
-
-/*
- * The design shows a readiness table with a status, owner and last-updated
- * date per module. No endpoint reports any of those three, so this card links
- * to the areas that exist instead of asserting a state nothing measures.
- */
-function ConfigurationAreas() {
-  const areas: Array<{
-    id: string;
-    title: string;
-    description: string;
-    href?: string;
-  }> = [
-    {
-      id: 'identity',
-      title: 'Identity & access',
-      description: 'Users, roles, scopes and invitations',
-      href: '/admin/users',
-    },
-    {
-      id: 'imports',
-      title: 'Prospect data',
-      description: 'Import, map, de-duplicate and commit prospect records',
-      href: '/admin/imports',
-    },
-    {
-      id: 'audit',
-      title: 'Audit',
-      description: 'Sensitive changes and security-relevant activity',
-      href: '/admin/audit',
-    },
-    {
-      id: 'territories',
-      title: 'Territory structure',
-      description: 'Regions, territories and boundaries',
-    },
-    {
-      id: 'collisions',
-      title: 'Collision policy',
-      description: 'Rules, exceptions and override handling',
-    },
-    {
-      id: 'integrations',
-      title: 'Integrations',
-      description: 'External systems and scheduled synchronisation',
-    },
-  ];
-
-  return (
-    <Card>
-      <CardHeader title="Configuration areas" />
-
-      <ul className="flex flex-col divide-y divide-line-soft">
-        {areas.map((area) => (
-          <li key={area.id} className="flex flex-wrap items-center gap-3 py-3">
-            <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-bold text-navy">{area.title}</span>
-
-              <span className="block text-[13px] text-ink-muted">{area.description}</span>
-            </span>
-
-            {area.href ? (
-              <LinkButton href={area.href} variant="secondary">
-                Manage
-              </LinkButton>
-            ) : (
-              <Badge tone="neutral">Not available yet</Badge>
-            )}
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-interface AttentionItem {
-  id: string;
-  count: number;
-  title: string;
-  description: string;
-  href: string;
-  tone: 'danger' | 'warning';
-}
-
-function buildAttention(metrics: AdminDashboard['metrics'] | null): AttentionItem[] {
-  if (!metrics) {
-    return [];
-  }
-
-  const items: AttentionItem[] = [
-    {
-      id: 'imports',
-      count: metrics.importsAwaitingCommit,
-      title: 'imports awaiting commit',
-      description: 'Validated files that have not been applied',
-      href: '/admin/imports',
-      tone: 'warning',
-    },
-    {
-      id: 'exports',
-      count: metrics.failedExports,
-      title: 'failed exports',
-      description: 'Export jobs that did not complete',
-      href: '/admin/audit?stream=exports',
-      tone: 'danger',
-    },
-    {
-      id: 'coordinates',
-      count: metrics.prospectsMissingCoordinates,
-      title: 'prospects without coordinates',
-      description: 'These cannot appear on the map or in routes',
-      href: '/admin/imports',
-      tone: 'warning',
-    },
-    {
-      id: 'phone',
-      count: metrics.prospectsMissingPhone,
-      title: 'prospects without a phone number',
-      description: 'Limits the channels a prospector can use',
-      href: '/admin/imports',
-      tone: 'warning',
-    },
-  ];
-
-  return items.filter((item) => item.count > 0);
-}
-
-function buildAdoption(members: MembershipSummary[] | null): {
-  total: number;
-  rows: Array<{ role: string; count: number }>;
-} {
-  if (!members || members.length === 0) {
-    return { total: 0, rows: [] };
-  }
-
-  const counts = new Map<string, number>();
-
-  for (const member of members) {
-    /* A membership can hold several grants; it is counted under each role. */
-    for (const role of member.roles) {
-      counts.set(role, (counts.get(role) ?? 0) + 1);
-    }
-  }
-
-  const rows = TENANT_ROLES.map((role) => ({ role: role as string, count: counts.get(role) ?? 0 }))
-    .concat(
-      [...counts.keys()]
-        .filter((role) => !(TENANT_ROLES as readonly string[]).includes(role))
-        .map((role) => ({ role, count: counts.get(role) ?? 0 })),
-    )
-    .filter((row) => row.count > 0)
-    .sort((left, right) => right.count - left.count);
-
-  return { total: members.length, rows };
-}
-
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/* The audit controller answers a missing grant with 400, not 403. */
-function isAuditDenial(error: ApiError): boolean {
-  return (
-    error.statusCode === 403 ||
-    (error.statusCode === 400 && error.messages.some((message) => /audit access/i.test(message)))
-  );
-}
-
-function describeAdminError(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
-  }
-
-  if (error.statusCode === 403) {
-    return 'You are not authorized to administer this workspace.';
-  }
-
-  return 'We could not reach TrackRoster. Please try again.';
 }

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Activity, Building2, Target, TrendingUp, TriangleAlert } from 'lucide-react';
@@ -20,7 +22,7 @@ import {
   rankObjectives,
   type DirectorDashboard,
 } from '@/lib/api/director-types';
-import { listMemberships } from '@/lib/api/membership-client';
+import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
 import { getReport } from '@/lib/api/report-client';
 import { formatRate, type ConversionsReport, type ReportEnvelope } from '@/lib/api/report-types';
@@ -79,6 +81,8 @@ export default function DirectorOverviewPage() {
     },
     [days],
   );
+
+  useLiveRefresh(load);
 
   useEffect(() => {
     const controller = new AbortController();

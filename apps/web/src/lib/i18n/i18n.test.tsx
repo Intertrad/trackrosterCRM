@@ -90,7 +90,7 @@ describe('I18nProvider', () => {
     );
 
     expect(screen.getByTestId('language')).toHaveTextContent('fr');
-    expect(screen.getByTestId('nav')).toHaveTextContent("Aujourd'hui");
+    expect(screen.getByTestId('nav')).toHaveTextContent('Ma journée');
     expect(screen.getByTestId('interpolated')).toHaveTextContent('Appeler Garage Dupont');
   });
 
@@ -113,13 +113,13 @@ describe('I18nProvider', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId('nav')).toHaveTextContent('Today');
+    expect(screen.getByTestId('nav')).toHaveTextContent('My day');
     expect(document.documentElement.lang).toBe('de-DE');
   });
 
   it('works without a provider rather than blanking the screen', () => {
     render(<Probe />);
 
-    expect(screen.getByTestId('nav')).toHaveTextContent('Today');
+    expect(screen.getByTestId('nav')).toHaveTextContent('My day');
   });
 });

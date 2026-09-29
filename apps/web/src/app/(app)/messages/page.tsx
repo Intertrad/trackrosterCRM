@@ -1,7 +1,12 @@
 'use client';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BellOff, MessagesSquare, Plus, Send, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { MessageAttachments } from '@/components/messaging/message-attachments';
+import { text } from '@/lib/workspace/copy';
+import { Pencil, BellOff, MessagesSquare, Plus, Send, Trash2 } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +27,7 @@ import {
 import {
   createConversation,
   deleteMessage,
+  editMessage,
   listConversations,
   listMessages,
   listParticipants,
@@ -34,7 +40,6 @@ import {
   MAX_MESSAGE_BODY,
   conversationKindLabelKey,
   conversationName,
-  hasUnread,
   isMuted,
   muteUntil,
   type Conversation,
@@ -47,7 +52,7 @@ import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 
 export default function MessagesPage() {
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   /*
    * `userId` on the session is the membership id: the auth guard builds the
@@ -56,15 +61,31 @@ export default function MessagesPage() {
    * compare against.
    */
   const me = user?.userId ?? null;
+  const canReadDirectory =
+    user?.grants.some((grant) => grant.role === 'client_admin' && grant.scopeType === 'tenant') ??
+    false;
 
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const olderLoaded = useRef(false);
   const [participants, setParticipants] = useState<ConversationParticipant[]>([]);
   const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
 
   const [search, setSearch] = useState('');
-  const [draft, setDraft] = useState('');
+  const [filter, setFilter] = useState<'all' | 'active' | 'archived'>('all');
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const draft = activeId ? (drafts[activeId] ?? '') : '';
+  const setDraft = (value: string) => {
+    if (activeId) setDrafts((current) => ({ ...current, [activeId]: value }));
+  };
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [deleting, setDeleting] = useState<Message | null>(null);
+  const threadScroll = useRef<HTMLDivElement | null>(null);
+  const nearBottom = useRef(true);
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
@@ -83,7 +104,9 @@ export default function MessagesPage() {
           setConversations(page.items);
           setReadError(null);
 
-          setActiveId((current) => current ?? page.items[0]?.id ?? null);
+          setActiveId((current) =>
+            current && page.items.some((item) => item.id === current) ? current : null,
+          );
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
@@ -99,12 +122,27 @@ export default function MessagesPage() {
 
     void loadConversations(controller.signal);
 
-    listMemberships({ limit: 100 }, controller.signal)
-      .then((page) => setPeople(new Map(page.items.map((item) => [item.id, item]))))
-      .catch(() => setPeople(new Map()));
-
     return () => controller.abort();
   }, [loadConversations]);
+
+  useEffect(() => {
+    // The membership directory is an admin-only resource. Conversation access
+    // does not confer permission to browse every member in the tenant.
+    const controller = new AbortController();
+    setPeople(new Map());
+    if (!canReadDirectory) return () => controller.abort();
+
+    listMemberships({ limit: 100 }, controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted)
+          setPeople(new Map(page.items.map((item) => [item.id, item])));
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPeople(new Map());
+      });
+
+    return () => controller.abort();
+  }, [canReadDirectory, user?.tenantId]);
 
   const loadThread = useCallback(
     (conversationId: string, signal?: AbortSignal): Promise<void> =>
@@ -118,7 +156,15 @@ export default function MessagesPage() {
           }
 
           /* The API returns newest first; a thread reads oldest to newest. */
-          setMessages([...page.items].reverse());
+          setMessages((current) => {
+            const recent = [...page.items].reverse();
+            const ids = new Set(recent.map((item) => item.id));
+            const next = olderLoaded.current
+              ? [...(current ?? []).filter((item) => !ids.has(item.id)), ...recent]
+              : recent;
+            return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+          });
+          if (!olderLoaded.current) setOlderCursor(page.nextCursor);
           setParticipants(members);
         })
         .catch((caught: unknown) => {
@@ -130,6 +176,14 @@ export default function MessagesPage() {
     [],
   );
 
+  useLiveRefresh(
+    async (signal) => {
+      await loadConversations(signal);
+      if (activeId && !signal.aborted) await loadThread(activeId, signal);
+    },
+    { interval: 5_000, scope: activeId ?? '' },
+  );
+
   useEffect(() => {
     if (!activeId) {
       setMessages(null);
@@ -138,6 +192,10 @@ export default function MessagesPage() {
     }
 
     const controller = new AbortController();
+    setMessages(null);
+    setOlderCursor(null);
+    olderLoaded.current = false;
+    nearBottom.current = true;
 
     void loadThread(activeId, controller.signal).then(() => {
       if (!controller.signal.aborted) {
@@ -152,7 +210,8 @@ export default function MessagesPage() {
   }, [activeId, loadConversations, loadThread]);
 
   useEffect(() => {
-    listEnd.current?.scrollIntoView({ block: 'end' });
+    if (nearBottom.current && threadScroll.current)
+      threadScroll.current.scrollTop = threadScroll.current.scrollHeight;
   }, [messages]);
 
   const active = useMemo(
@@ -182,14 +241,12 @@ export default function MessagesPage() {
 
     const query = search.trim().toLowerCase();
 
-    if (query === '') {
-      return conversations;
-    }
-
-    return conversations.filter((conversation) =>
-      conversationName(conversation, t).toLowerCase().includes(query),
+    return conversations.filter(
+      (conversation) =>
+        (filter === 'all' || conversation.status === filter) &&
+        conversationName(conversation, t).toLowerCase().includes(query),
     );
-  }, [conversations, search, t]);
+  }, [conversations, search, filter, t]);
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -220,24 +277,52 @@ export default function MessagesPage() {
         title={t('messages.title')}
         subtitle={t('messages.subtitle')}
         action={
-          <Button onClick={() => setComposing(true)}>
+          <Button disabled={loadingOlder} onClick={() => setComposing(true)}>
             <Plus aria-hidden="true" className="mr-2 size-4" />
-            New conversation
+            {t('messages.newConversation')}
           </Button>
         }
       />
 
       {readError ? <Alert tone="danger">{readError}</Alert> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
-        <Card>
-          <SearchInput
-            label={t('messages.search')}
-            placeholder={`${t('messages.search')}…`}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div
+          className="inline-flex gap-0.5 rounded-[11px] bg-surface-muted p-[3px]"
+          aria-label={text('Conversation filters', 'Filtres des conversations', language)}
+        >
+          {(['all', 'active', 'archived'] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+              className={`rounded-[9px] px-3.5 py-[7px] text-sm font-bold ${filter === value ? 'bg-surface text-navy shadow-sm' : 'text-ink-muted'}`}
+            >
+              {value === 'all'
+                ? text('All', 'Tous', language)
+                : value === 'active'
+                  ? text('Active', 'En cours', language)
+                  : text('Archived', 'Archivés', language)}
+            </button>
+          ))}
+        </div>
+        <SearchInput
+          className="min-w-48 flex-1"
+          label={t('messages.search')}
+          placeholder={text('Subject or conversation', 'Objet ou conversation', language)}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+      <div
+        className={
+          active
+            ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]'
+            : 'grid grid-cols-1'
+        }
+      >
+        <div className={active ? 'hidden lg:block' : ''}>
           {conversations === null ? (
             <div className="mt-4 flex flex-col gap-2" aria-busy="true">
               {[0, 1, 2].map((row) => (
@@ -259,35 +344,30 @@ export default function MessagesPage() {
               ) : null}
             </div>
           ) : (
-            <ul className="mt-4 flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {visible.map((conversation) => {
-                const unread = hasUnread(conversation, myParticipation);
-
                 return (
                   <li key={conversation.id}>
                     <button
                       type="button"
-                      onClick={() => setActiveId(conversation.id)}
+                      disabled={loadingOlder}
+                      onClick={() => {
+                        nearBottom.current = true;
+                        setActiveId(conversation.id);
+                      }}
                       className={
                         conversation.id === activeId
-                          ? 'w-full rounded-xl border border-brand bg-brand-tint/50 px-3.5 py-3 text-left'
-                          : 'w-full rounded-xl border border-line-soft px-3.5 py-3 text-left hover:border-brand'
+                          ? 'w-full rounded-xl border border-brand bg-surface px-3.5 py-3 text-left ring-2 ring-brand/15'
+                          : 'w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-left hover:border-brand'
                       }
                     >
                       <span className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-navy">
+                        <span className="min-w-0 flex-1 text-[15px] font-bold text-navy">
                           {conversationName(conversation, t)}
                         </span>
-
-                        {conversation.id !== activeId && unread ? (
-                          <span
-                            aria-label={t('messages.unread')}
-                            className="size-2 shrink-0 rounded-full bg-brand"
-                          />
-                        ) : null}
                       </span>
 
-                      <span className="mt-0.5 flex items-center gap-2 text-[13px] text-ink-muted">
+                      <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-ink-muted">
                         <Badge tone="neutral">
                           {t(conversationKindLabelKey(conversation.kind))}
                         </Badge>
@@ -300,185 +380,338 @@ export default function MessagesPage() {
               })}
             </ul>
           )}
-        </Card>
+        </div>
 
-        <Card className="flex min-h-[28rem] flex-col">
-          {active === null ? (
-            <p className="py-20 text-center text-[15px] text-ink-muted">
-              Choose a conversation to read it.
-            </p>
-          ) : (
-            <>
-              <CardHeader
-                title={nameFor(active, participants)}
-                action={
-                  <div className="flex flex-wrap items-center gap-2">
-                    {isMuted(myParticipation) ? (
-                      <Badge tone="neutral">
-                        <BellOff aria-hidden="true" className="mr-1 inline size-3.5" />
-                        Muted
-                      </Badge>
-                    ) : null}
+        {active && (
+          <Card className="flex min-h-[28rem] flex-col">
+            {active === null ? (
+              <p className="py-20 text-center text-[15px] text-ink-muted">
+                Choose a conversation to read it.
+              </p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="mb-4 self-start text-sm font-bold text-brand hover:underline"
+                  onClick={() => setActiveId(null)}
+                >
+                  {text('← All conversations', '← Toutes les conversations', language)}
+                </button>
+                <CardHeader
+                  title={nameFor(active, participants)}
+                  action={
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-brand"
+                        href={`/workspace/conversation-members?id=${active.id}`}
+                      >
+                        {text('Members', 'Membres', language)}
+                      </Link>
+                      <Link
+                        className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-brand"
+                        href={`/workspace/conversation-settings?id=${active.id}`}
+                      >
+                        {text('Settings', 'Paramètres', language)}
+                      </Link>
+                      {isMuted(myParticipation) ? (
+                        <Badge tone="neutral">
+                          <BellOff aria-hidden="true" className="mr-1 inline size-3.5" />
+                          {text('Muted', 'En sourdine', language)}
+                        </Badge>
+                      ) : null}
 
+                      <Button
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          const next = isMuted(myParticipation) ? null : muteUntil(8);
+
+                          setBusy(true);
+
+                          muteConversation(active.id, next)
+                            .then(() => loadThread(active.id))
+                            .catch((caught: unknown) =>
+                              setActionError(describeMessagingError(caught, t)),
+                            )
+                            .finally(() => setBusy(false));
+                        }}
+                      >
+                        {t(isMuted(myParticipation) ? 'messages.unmute' : 'messages.mute8h')}
+                      </Button>
+                    </div>
+                  }
+                />
+
+                {actionError ? (
+                  <Alert tone="danger" className="mb-4">
+                    {actionError}
+                  </Alert>
+                ) : null}
+
+                <div
+                  ref={threadScroll}
+                  onScroll={() => {
+                    const el = threadScroll.current;
+                    if (el)
+                      nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  }}
+                  className="max-h-[55vh] min-h-48 flex-1 overflow-y-auto rounded-lg bg-canvas p-4"
+                >
+                  {olderCursor && (
                     <Button
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        const next = isMuted(myParticipation) ? null : muteUntil(8);
-
-                        setBusy(true);
-
-                        muteConversation(active.id, next)
-                          .then(() => loadThread(active.id))
-                          .catch((caught: unknown) =>
-                            setActionError(describeMessagingError(caught, t)),
-                          )
-                          .finally(() => setBusy(false));
+                      variant="ghost"
+                      size="md"
+                      loading={loadingOlder}
+                      onClick={async () => {
+                        if (!activeId || loadingOlder) return;
+                        setLoadingOlder(true);
+                        const scroller = threadScroll.current;
+                        const height = scroller?.scrollHeight ?? 0;
+                        try {
+                          const page = await listMessages(activeId, {
+                            limit: 100,
+                            cursor: olderCursor,
+                          });
+                          olderLoaded.current = true;
+                          nearBottom.current = false;
+                          setMessages((current) => {
+                            const ids = new Set((current ?? []).map((item) => item.id));
+                            return [
+                              ...page.items.reverse().filter((item) => !ids.has(item.id)),
+                              ...(current ?? []),
+                            ];
+                          });
+                          setOlderCursor(page.nextCursor);
+                          requestAnimationFrame(() => {
+                            if (scroller) scroller.scrollTop += scroller.scrollHeight - height;
+                          });
+                        } catch (error) {
+                          setActionError(describeMessagingError(error, t));
+                        } finally {
+                          setLoadingOlder(false);
+                        }
                       }}
                     >
-                      {t(isMuted(myParticipation) ? 'messages.unmute' : 'messages.mute8h')}
+                      {text('Load older messages', 'Charger les messages précédents', language)}
                     </Button>
-                  </div>
-                }
-              />
+                  )}
+                  {messages === null ? (
+                    <div className="flex flex-col gap-2" aria-busy="true">
+                      {[0, 1, 2].map((row) => (
+                        <div key={row} className="h-12 animate-pulse rounded-lg bg-line-soft" />
+                      ))}
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <p className="py-16 text-center text-[15px] text-ink-muted">
+                      {text(
+                        'No messages yet. Start the conversation.',
+                        'Aucun message pour le moment. Commencez la conversation.',
+                        language,
+                      )}
+                    </p>
+                  ) : (
+                    <ol className="flex flex-col gap-3">
+                      {messages.map((message) => {
+                        const mine = message.senderId === me;
+                        const sender = people.get(message.senderId);
 
-              {actionError ? (
-                <Alert tone="danger" className="mb-4">
-                  {actionError}
-                </Alert>
-              ) : null}
-
-              <div className="flex-1 overflow-y-auto">
-                {messages === null ? (
-                  <div className="flex flex-col gap-2" aria-busy="true">
-                    {[0, 1, 2].map((row) => (
-                      <div key={row} className="h-12 animate-pulse rounded-lg bg-line-soft" />
-                    ))}
-                  </div>
-                ) : messages.length === 0 ? (
-                  <p className="py-16 text-center text-[15px] text-ink-muted">
-                    No messages yet. Say something.
-                  </p>
-                ) : (
-                  <ol className="flex flex-col gap-3">
-                    {messages.map((message) => {
-                      const mine = message.senderId === me;
-                      const sender = people.get(message.senderId);
-
-                      return (
-                        <li
-                          key={message.id}
-                          className={mine ? 'flex justify-end' : 'flex justify-start'}
-                        >
-                          <div className="flex max-w-[85%] items-start gap-2.5">
-                            {!mine ? (
-                              <span
-                                aria-hidden="true"
-                                className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[12px] font-bold text-brand"
-                              >
-                                {sender ? membershipInitials(sender) : '?'}
-                              </span>
-                            ) : null}
-
-                            <div
-                              className={
-                                mine
-                                  ? 'rounded-2xl rounded-br-sm bg-brand px-3.5 py-2.5 text-white'
-                                  : 'rounded-2xl rounded-bl-sm bg-surface-muted px-3.5 py-2.5'
-                              }
-                            >
+                        return (
+                          <li
+                            key={message.id}
+                            className={mine ? 'flex justify-end' : 'flex justify-start'}
+                          >
+                            <div className="flex max-w-[85%] items-start gap-2.5">
                               {!mine ? (
-                                <p className="text-[12px] font-semibold text-ink-muted">
-                                  {sender ? membershipName(sender) : t('messages.unknownSender')}
-                                </p>
+                                <span
+                                  aria-hidden="true"
+                                  className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[12px] font-bold text-brand"
+                                >
+                                  {sender ? membershipInitials(sender) : '?'}
+                                </span>
                               ) : null}
 
-                              {message.status === 'deleted' ? (
-                                <p
-                                  className={
-                                    mine
-                                      ? 'text-[14px] italic text-white/70'
-                                      : 'text-[14px] italic text-ink-muted'
-                                  }
-                                >
-                                  This message was deleted
-                                </p>
-                              ) : (
-                                <p
-                                  className={
-                                    mine
-                                      ? 'text-[15px] whitespace-pre-wrap text-white'
-                                      : 'text-[15px] whitespace-pre-wrap text-ink'
-                                  }
-                                >
-                                  {message.body}
-                                </p>
-                              )}
-
-                              <p
+                              <div
                                 className={
                                   mine
-                                    ? 'mt-1 text-[11px] text-white/70'
-                                    : 'mt-1 text-[11px] text-ink-muted'
+                                    ? 'rounded-2xl rounded-br-sm bg-brand px-3.5 py-2.5 text-white'
+                                    : 'rounded-2xl rounded-bl-sm bg-surface-muted px-3.5 py-2.5'
                                 }
                               >
-                                {formatTimestamp(message.createdAt)}
-                                {message.status === 'edited' ? ' · edited' : ''}
-                              </p>
+                                {!mine ? (
+                                  <p className="text-[12px] font-semibold text-ink-muted">
+                                    {sender ? membershipName(sender) : t('messages.unknownSender')}
+                                  </p>
+                                ) : null}
+
+                                {message.status === 'deleted' ? (
+                                  <p
+                                    className={
+                                      mine
+                                        ? 'text-[14px] italic text-white/70'
+                                        : 'text-[14px] italic text-ink-muted'
+                                    }
+                                  >
+                                    {text(
+                                      'This message was deleted',
+                                      'Ce message a été supprimé',
+                                      language,
+                                    )}
+                                  </p>
+                                ) : (
+                                  <p
+                                    className={
+                                      mine
+                                        ? 'text-[15px] whitespace-pre-wrap text-white'
+                                        : 'text-[15px] whitespace-pre-wrap text-ink'
+                                    }
+                                  >
+                                    {message.body}
+                                  </p>
+                                )}
+
+                                {message.status !== 'deleted' && (
+                                  <MessageAttachments
+                                    message={message}
+                                    mine={mine}
+                                    onUpdated={() => void loadThread(active.id)}
+                                  />
+                                )}
+                                <p
+                                  className={
+                                    mine
+                                      ? 'mt-1 text-[11px] text-white/70'
+                                      : 'mt-1 text-[11px] text-ink-muted'
+                                  }
+                                >
+                                  {formatTimestamp(message.createdAt)}
+                                  {message.status === 'edited'
+                                    ? text(' · edited', ' · modifié', language)
+                                    : ''}
+                                </p>
+                              </div>
+
+                              {mine && message.status === 'sent' && (
+                                <button
+                                  type="button"
+                                  aria-label={text('Edit message', 'Modifier le message', language)}
+                                  className="mt-1 shrink-0 p-1 text-ink-muted hover:text-brand"
+                                  onClick={() => {
+                                    setEditing(message);
+                                    setEditBody(message.body);
+                                  }}
+                                >
+                                  <Pencil aria-hidden="true" className="size-4" />
+                                </button>
+                              )}
+                              {mine && message.status !== 'deleted' ? (
+                                <button
+                                  type="button"
+                                  aria-label={t('messages.deleteMessage')}
+                                  disabled={busy}
+                                  className="mt-1 shrink-0 text-ink-muted hover:text-danger disabled:opacity-40"
+                                  onClick={() => setDeleting(message)}
+                                >
+                                  <Trash2 aria-hidden="true" className="size-4" />
+                                </button>
+                              ) : null}
                             </div>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
 
-                            {mine && message.status !== 'deleted' ? (
-                              <button
-                                type="button"
-                                aria-label={t('messages.deleteMessage')}
-                                disabled={busy}
-                                className="mt-1 shrink-0 text-ink-muted hover:text-danger disabled:opacity-40"
-                                onClick={() => {
-                                  setBusy(true);
-
-                                  deleteMessage(message.id)
-                                    .then(() => loadThread(active.id))
-                                    .catch((caught: unknown) =>
-                                      setActionError(describeMessagingError(caught, t)),
-                                    )
-                                    .finally(() => setBusy(false));
-                                }}
-                              >
-                                <Trash2 aria-hidden="true" className="size-4" />
-                              </button>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-
-                <div ref={listEnd} />
-              </div>
-
-              <form onSubmit={(event) => void send(event)} className="mt-4 flex gap-2.5">
-                <div className="min-w-0 flex-1">
-                  <TextField
-                    label={t('messages.message')}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder={t('messages.writeMessage')}
-                    maxLength={MAX_MESSAGE_BODY}
-                    disabled={busy}
-                  />
+                  <div ref={listEnd} />
                 </div>
 
-                <Button type="submit" loading={busy} disabled={draft.trim().length === 0}>
-                  <Send aria-hidden="true" className="size-4" />
-                  <span className="sr-only">{t('messages.send')}</span>
-                </Button>
-              </form>
-            </>
-          )}
-        </Card>
+                <form
+                  noValidate
+                  onSubmit={(event) => void send(event)}
+                  className="mt-4 flex gap-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <TextField
+                      label={t('messages.message')}
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      placeholder={t('messages.writeMessage')}
+                      maxLength={MAX_MESSAGE_BODY}
+                      disabled={busy}
+                    />
+                  </div>
+
+                  <Button type="submit" loading={busy} disabled={draft.trim().length === 0}>
+                    <Send aria-hidden="true" className="size-4" />
+                    <span className="sr-only">{t('messages.send')}</span>
+                  </Button>
+                </form>
+              </>
+            )}
+          </Card>
+        )}
       </div>
 
+      <ConfirmDialog
+        open={!!deleting}
+        title={text('Delete message?', 'Supprimer le message ?', language)}
+        description={text(
+          'The message will be replaced with a deletion notice.',
+          'Le message sera remplacé par un avis de suppression.',
+          language,
+        )}
+        confirmLabel={text('Delete message', 'Supprimer le message', language)}
+        busy={busy}
+        onClose={() => {
+          if (!busy) setDeleting(null);
+        }}
+        onConfirm={() => {
+          if (!deleting || busy) return;
+          setBusy(true);
+          deleteMessage(deleting.id)
+            .then(async () => {
+              setDeleting(null);
+              if (activeId) await loadThread(activeId);
+            })
+            .catch((error) => setActionError(describeMessagingError(error, t)))
+            .finally(() => setBusy(false));
+        }}
+      />
+      <Drawer
+        open={!!editing}
+        title={text('Edit message', 'Modifier le message', language)}
+        onClose={() => {
+          if (!busy) setEditing(null);
+        }}
+      >
+        <form
+          noValidate
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!editing || busy || !editBody.trim()) return;
+            setBusy(true);
+            editMessage(editing.id, editBody.trim())
+              .then(async () => {
+                setEditing(null);
+                if (activeId) await loadThread(activeId);
+              })
+              .catch((error) => setActionError(describeMessagingError(error, t)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {actionError && <Alert tone="danger">{actionError}</Alert>}
+          <TextField
+            label={t('messages.message')}
+            value={editBody}
+            maxLength={MAX_MESSAGE_BODY}
+            required
+            onChange={(e) => setEditBody(e.target.value)}
+          />
+          <Button type="submit" loading={busy} disabled={!editBody.trim()}>
+            {text('Save message', 'Enregistrer le message', language)}
+          </Button>
+        </form>
+      </Drawer>
       <ComposeDrawer
         open={composing}
         people={[...people.values()].filter((person) => person.id !== me)}

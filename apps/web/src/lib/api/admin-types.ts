@@ -6,6 +6,8 @@
  * no data-quality percentage, so the overview screen must not imply any.
  */
 export interface AdminDashboardMetrics {
+  totalEstablishments: number;
+  contactedEstablishments: number;
   activeMembers: number;
   sessionsLast30Days: number;
   activeOrganizations: number;
@@ -18,6 +20,8 @@ export interface AdminDashboardMetrics {
 }
 
 export interface AdminDashboard {
+  activityByDay: Array<{ date: string; total: number }>;
+  activityTimeZone: string;
   generatedAt: string;
   scope: { tenantId: string };
   metrics: AdminDashboardMetrics;

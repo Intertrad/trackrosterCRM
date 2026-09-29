@@ -468,6 +468,24 @@ describe('Canonical assignment lifecycle', () => {
     );
     expect(list.statusCode, list.body).toBe(200);
     expect(list.json().items).toHaveLength(1);
+    expect(list.json().items[0]).toMatchObject({
+      id: r.id,
+      prospectName: expect.any(String),
+      etag: r.etag,
+    });
+    // Enrichment must preserve the mutation ETag of the assignment itself.
+    expect(
+      (
+        await mutate(
+          r.id,
+          'update',
+          { priority: 'high' },
+          admin,
+          randomUUID(),
+          list.json().items[0].etag,
+        )
+      ).statusCode,
+    ).toBe(200);
     expect((await call('GET', `/assignments/${r.id}`)).json().history).toHaveLength(1);
     const queue = await call('GET', `/assignments/unassigned?campaignId=${campaign}`);
     expect(queue.statusCode, queue.body).toBe(200);

@@ -1,5 +1,9 @@
 import {
-  BadgeCheck,
+  FileText,
+  Radio,
+  Flag,
+  SlidersHorizontal,
+  Activity,
   Building2,
   Calendar,
   ClipboardList,
@@ -18,6 +22,9 @@ import {
 import type { NavigationIconId } from '@/lib/auth/navigation';
 
 const ICONS = {
+  live: Radio,
+  rules: SlidersHorizontal,
+  activity: Activity,
   today: Calendar,
   prospects: Building2,
   map: MapIcon,
@@ -27,8 +34,8 @@ const ICONS = {
   dashboard: LayoutDashboard,
   team: Users,
   assignments: ClipboardList,
-  campaigns: Navigation,
-  reports: BadgeCheck,
+  campaigns: Flag,
+  reports: FileText,
   imports: Upload,
   administration: Settings,
   overrides: ShieldAlert,

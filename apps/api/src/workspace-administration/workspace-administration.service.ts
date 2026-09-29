@@ -421,7 +421,7 @@ export class WorkspaceAdministrationService {
         ),
       );
     const members = await this.database
-      .execute(sql`SELECT m.id AS "membershipId",m.status,i.status AS "identityStatus",ms.capacity,
+      .execute(sql`SELECT m.id AS "membershipId",m.identity_id AS "identityId",m.display_name AS "displayName",i.email,m.status,i.status AS "identityStatus",ms.capacity,
       (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=m.tenant_id AND a.assigned_user_id=m.id AND a.ended_at IS NULL) AS "globalWorkload",
       (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=m.tenant_id AND a.assigned_user_id=m.id AND a.team_id=${id} AND a.ended_at IS NULL) AS "teamWorkload"
       FROM tenant_memberships m JOIN identities i ON i.id=m.identity_id LEFT JOIN membership_settings ms ON ms.tenant_id=m.tenant_id AND ms.membership_id=m.id

@@ -32,13 +32,15 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn('flex items-center gap-4', className)}>
+    <div
+      className={cn(
+        'flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-4',
+        className,
+      )}
+    >
       <span
         aria-hidden="true"
-        className={cn(
-          'flex size-12 shrink-0 items-center justify-center rounded-full',
-          TONES[tone],
-        )}
+        className={cn('flex size-9 shrink-0 items-center justify-center rounded-lg', TONES[tone])}
       >
         {icon}
       </span>

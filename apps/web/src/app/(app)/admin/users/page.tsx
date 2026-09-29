@@ -1,8 +1,10 @@
 'use client';
 
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
+
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MailPlus, ShieldOff, UserCheck, Users } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { InviteUserDrawer } from '@/components/admin/invite-user-drawer';
@@ -15,8 +17,9 @@ import { Card } from '@/components/ui/card';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
-import { StatTile } from '@/components/ui/stat-tile';
 import { Tabs } from '@/components/ui/tabs';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { ApiError } from '@/lib/api/api-error';
 import { listMemberships, resendInvitation } from '@/lib/api/membership-client';
 import {
@@ -48,6 +51,8 @@ export default function UsersAndRolesPage() {
 }
 
 function UsersAndRoles() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const searchParams = useSearchParams();
 
   const tab = useMemo<TabId>(() => {
@@ -88,6 +93,8 @@ function UsersAndRoles() {
       });
   }, []);
 
+  useLiveRefresh(load);
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -125,74 +132,53 @@ function UsersAndRoles() {
     });
   }, [members, roleFilter, search, statusFilter]);
 
-  const counts = useMemo(() => {
-    const all = members ?? [];
-
-    return {
-      active: all.filter((member) => member.status === 'active').length,
-      invited: all.filter((member) => member.status === 'invited').length,
-      suspended: all.filter((member) => member.status === 'suspended').length,
-      departed: all.filter((member) => member.status === 'departed').length,
-    };
-  }, [members]);
-
   const invitations = useMemo(
     () => (members ?? []).filter((member) => member.status === 'invited'),
     [members],
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        title="Users & roles"
-        subtitle="Control workspace access by role, team and territory"
-        action={<Button onClick={() => setInviting(true)}>Invite users</Button>}
+        title={l('Users & roles', 'Équipe')}
+        subtitle={l(
+          'Control workspace access by role, team and territory',
+          'Créez les accès des prospecteurs et réglez ce que chacun peut faire.',
+        )}
+        action={
+          <Button onClick={() => setInviting(true)}>
+            <Plus className="size-4" />
+            {l('New member', 'Nouveau membre')}
+          </Button>
+        }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={<UserCheck aria-hidden="true" className="size-5" />}
-          tone="success"
-          value={members === null ? null : counts.active}
-          label="Active users"
-        />
-
-        <StatTile
-          icon={<MailPlus aria-hidden="true" className="size-5" />}
-          tone="brand"
-          value={members === null ? null : counts.invited}
-          label="Pending invites"
-          delta="Invitations not yet accepted"
-        />
-
-        <StatTile
-          icon={<ShieldOff aria-hidden="true" className="size-5" />}
-          tone={counts.suspended > 0 ? 'danger' : 'neutral'}
-          value={members === null ? null : counts.suspended}
-          label="Suspended"
-          delta="Temporarily blocked accounts"
-        />
-
-        <StatTile
-          icon={<Users aria-hidden="true" className="size-5" />}
-          tone="neutral"
-          value={members === null ? null : counts.departed}
-          label="Departed"
-        />
-      </div>
-
       <Tabs
-        label="Users and roles sections"
+        label={l('Users and roles sections', 'Sections de l’équipe')}
         activeId={tab}
         items={[
-          { id: 'users', label: 'Users', href: '/admin/users' },
-          { id: 'roles', label: 'Role permissions', href: '/admin/users?tab=roles' },
-          { id: 'invitations', label: 'Invitations', href: '/admin/users?tab=invitations' },
+          { id: 'users', label: l('Users', 'Membres'), href: '/admin/users' },
+          {
+            id: 'roles',
+            label: l('Role permissions', 'Droits des rôles'),
+            href: '/admin/users?tab=roles',
+          },
+          {
+            id: 'invitations',
+            label: l('Invitations', 'Invitations'),
+            href: '/admin/users?tab=invitations',
+          },
         ]}
       />
 
       {error ? (
-        <Alert tone="danger" title="We could not load this workspace’s people.">
+        <Alert
+          tone="danger"
+          title={l(
+            'We could not load this workspace’s people.',
+            'Impossible de charger les membres de l’équipe.',
+          )}
+        >
           {error}
         </Alert>
       ) : null}
@@ -208,35 +194,37 @@ function UsersAndRoles() {
           onChanged={() => void load()}
         />
       ) : (
-        <Card>
-          <div className="flex flex-col gap-4">
+        <div>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
             <SearchInput
-              label="Search users"
-              placeholder="Search users, name or email…"
+              className="min-w-52 flex-1"
+              label={l('Search users', 'Rechercher un membre')}
+              placeholder={l('Search users, name or email…', 'Nom ou adresse e-mail…')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onClear={() => setSearch('')}
             />
 
             <div className="flex flex-wrap items-end gap-3">
               <FilterSelect
-                label="Role"
+                label={l('Role', 'Rôle')}
                 value={roleFilter}
                 options={[
-                  { value: 'all', label: 'All' },
+                  { value: 'all', label: l('All', 'Tous') },
                   ...TENANT_ROLES.map((value) => ({ value, label: roleLabel(value) })),
                 ]}
                 onChange={setRoleFilter}
               />
 
               <FilterSelect
-                label="Status"
+                label={l('Status', 'État')}
                 value={statusFilter}
                 options={[
-                  { value: 'all', label: 'All' },
-                  { value: 'active', label: 'Active' },
-                  { value: 'invited', label: 'Invited' },
-                  { value: 'suspended', label: 'Suspended' },
-                  { value: 'departed', label: 'Departed' },
+                  { value: 'all', label: l('All', 'Tous') },
+                  { value: 'active', label: l('Active', 'Actifs') },
+                  { value: 'invited', label: l('Invited', 'Invités') },
+                  { value: 'suspended', label: l('Suspended', 'Suspendus') },
+                  { value: 'departed', label: l('Departed', 'Désactivés') },
                 ]}
                 onChange={setStatusFilter}
               />
@@ -251,7 +239,7 @@ function UsersAndRoles() {
                   }}
                   className="pb-2 text-[14px] font-semibold text-brand hover:text-brand-hover"
                 >
-                  Reset filters
+                  {l('Reset filters', 'Effacer les filtres')}
                 </button>
               ) : null}
             </div>
@@ -266,19 +254,22 @@ function UsersAndRoles() {
           ) : visible.length === 0 ? (
             <p className="py-10 text-center text-[15px] text-ink-muted">
               {members.length === 0
-                ? 'This workspace has no memberships yet.'
-                : 'No users match these filters.'}
+                ? l(
+                    'This workspace has no memberships yet.',
+                    'Aucun membre dans cet espace pour le moment.',
+                  )
+                : l('No users match these filters.', 'Aucun membre ne correspond à ces filtres.')}
             </p>
           ) : (
             <>
-              <div className="mt-5 hidden overflow-x-auto md:block">
+              <div className="hidden overflow-x-auto rounded-[14px] border border-line bg-surface md:block">
                 <table className="w-full min-w-[36rem] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-line-soft">
-                      <Th>User</Th>
-                      <Th>Roles</Th>
-                      <Th>Capacity</Th>
-                      <Th>Status</Th>
+                      <Th>{l('User', 'Nom')}</Th>
+                      <Th>{l('Roles', 'Rôles')}</Th>
+                      <Th>{l('Capacity', 'Capacité')}</Th>
+                      <Th>{l('Status', 'État')}</Th>
                     </tr>
                   </thead>
 
@@ -286,11 +277,16 @@ function UsersAndRoles() {
                     {visible.map((member) => (
                       <tr
                         key={member.id}
-                        onClick={() => setSelected(member)}
                         className="cursor-pointer border-b border-line-soft hover:bg-surface-muted"
                       >
                         <td className="px-3 py-3">
-                          <UserCell member={member} />
+                          <button
+                            type="button"
+                            onClick={() => setSelected(member)}
+                            className="text-left hover:text-brand"
+                          >
+                            <UserCell member={member} />
+                          </button>
                         </td>
 
                         <td className="px-3 py-3">
@@ -320,7 +316,7 @@ function UsersAndRoles() {
                 </table>
               </div>
 
-              <ul className="mt-5 flex flex-col gap-2.5 md:hidden">
+              <ul className="flex flex-col gap-2.5 md:hidden">
                 {visible.map((member) => (
                   <li key={member.id}>
                     <button
@@ -352,7 +348,7 @@ function UsersAndRoles() {
               </p>
             </>
           )}
-        </Card>
+        </div>
       )}
 
       <UserAccessDrawer

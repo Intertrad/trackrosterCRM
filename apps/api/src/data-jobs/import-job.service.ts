@@ -258,15 +258,16 @@ export class ImportJobService {
         if (data.issues.some((i) => i.severity === 'error')) data.status = 'invalid';
         if (data.establishment) {
           const e = data.establishment;
-          const keys = [
-            JSON.stringify([
-              normalizeEstablishmentName(e.name),
-              e.postalCode?.trim().toLowerCase() ?? '',
-              e.city?.trim().toLowerCase() ?? '',
-              e.countryCode,
-            ]),
-            ...(e.externalReference ? ['external:' + e.externalReference] : []),
-          ];
+          const keys = e.externalReference
+            ? ['external:' + e.externalReference.trim().toLowerCase()]
+            : [
+                JSON.stringify([
+                  normalizeEstablishmentName(e.name),
+                  e.postalCode?.trim().toLowerCase() ?? '',
+                  e.city?.trim().toLowerCase() ?? '',
+                  e.countryCode,
+                ]),
+              ];
           if (
             keys.some((k) => seenKeys.has(k)) &&
             !data.issues.some((i) => i.code === 'duplicate_in_file')
