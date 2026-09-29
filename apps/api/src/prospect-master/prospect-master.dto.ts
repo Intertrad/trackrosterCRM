@@ -50,7 +50,11 @@ export class ListProspectsDto extends PageDto {
   /* Two digits, or three for the overseas 97x/98x codes. See postal-department.ts. */
   @IsOptional() @Matches(DEPARTMENT_PATTERN) department?: string;
 
+  @IsOptional() @IsString() @MaxLength(32) postalCode?: string;
+
   @IsOptional() @IsString() @MaxLength(150) city?: string;
+
+  @IsOptional() @IsString() @MaxLength(255) address?: string;
 
   @IsOptional() @IsIn(['active', 'inactive', 'archived', 'all']) status:
     'active' | 'inactive' | 'archived' | 'all' = 'active';

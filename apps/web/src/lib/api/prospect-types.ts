@@ -124,7 +124,9 @@ export interface ProspectQuery {
   category?: EstablishmentCategory;
   /** Two digits, or three for the overseas 97x/98x codes. */
   department?: string;
+  postalCode?: string;
   city?: string;
+  address?: string;
   regionId?: string;
   campaignId?: string;
   status?: ProspectStatus | 'all';

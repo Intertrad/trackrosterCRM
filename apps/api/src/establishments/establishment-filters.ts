@@ -15,7 +15,9 @@ import type { EstablishmentCategory } from '../database/schema/establishments.js
 export interface EstablishmentFilter {
   category?: EstablishmentCategory;
   department?: string;
+  postalCode?: string;
   city?: string;
+  address?: string;
   regionId?: string;
   search?: string;
 }
@@ -57,7 +59,13 @@ export function establishmentFilterConditions(
       sql`${alias}.postal_code ~ '^[0-9]{5}$' AND ${alias}.postal_code LIKE ${filter.department + '%'}`,
     );
 
+  if (filter.postalCode)
+    conditions.push(sql`${alias}.postal_code ILIKE ${contains(filter.postalCode)}`);
+
   if (filter.city) conditions.push(sql`${alias}.city ILIKE ${contains(filter.city)}`);
+
+  if (filter.address)
+    conditions.push(sql`${alias}.address_line1 ILIKE ${contains(filter.address)}`);
 
   return conditions;
 }

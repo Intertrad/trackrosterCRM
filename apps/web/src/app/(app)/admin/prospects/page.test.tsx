@@ -118,7 +118,7 @@ describe('admin référentiel', () => {
    * The point of the whole screen: 14,649 rows cannot be narrowed in the browser,
    * so each filter must appear in the request rather than in a local predicate.
    */
-  it('sends section, department, commune, status and ordering to the server', async () => {
+  it('sends composable address filters, status and ordering to the server', async () => {
     render(<ReferentialPage />);
 
     await waitFor(() => expect(listProspectsMock).toHaveBeenCalled());
@@ -130,9 +130,17 @@ describe('admin référentiel', () => {
     fireEvent.blur(screen.getByLabelText('Department'));
     await waitFor(() => expect(lastQuery()).toMatchObject({ department: '974' }));
 
+    fireEvent.change(screen.getByLabelText('Postcode'), { target: { value: '97400' } });
+    fireEvent.blur(screen.getByLabelText('Postcode'));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ postalCode: '97400' }));
+
     fireEvent.change(screen.getByLabelText('Town'), { target: { value: 'Lyon' } });
     fireEvent.blur(screen.getByLabelText('Town'));
     await waitFor(() => expect(lastQuery()).toMatchObject({ city: 'Lyon' }));
+
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: 'Rue Victor Hugo' } });
+    fireEvent.blur(screen.getByLabelText('Address'));
+    await waitFor(() => expect(lastQuery()).toMatchObject({ address: 'Rue Victor Hugo' }));
 
     fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'all' } });
     await waitFor(() => expect(lastQuery()).toMatchObject({ status: 'all' }));

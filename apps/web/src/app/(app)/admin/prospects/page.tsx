@@ -73,7 +73,9 @@ function Referential() {
       ...(DEPARTMENT_SHAPE.test(p.get('department') ?? '')
         ? { department: p.get('department')! }
         : {}),
+      ...(p.get('postalCode') ? { postalCode: p.get('postalCode')! } : {}),
       ...(p.get('city') ? { city: p.get('city')! } : {}),
+      ...(p.get('address') ? { address: p.get('address')! } : {}),
       status: ['active', 'inactive', 'archived', 'all'].includes(status)
         ? (status as ProspectQuery['status'])
         : 'active',
@@ -180,7 +182,9 @@ function Referential() {
     query.search,
     query.category,
     query.department,
+    query.postalCode,
     query.city,
+    query.address,
     query.status !== 'active',
   ].filter(Boolean).length;
   return (
@@ -245,7 +249,16 @@ function Referential() {
             onClick={() => {
               setSearch('');
               setDepartmentError(false);
-              update({ search: '', category: '', department: '', city: '', status: '', sort: '' });
+              update({
+                search: '',
+                category: '',
+                department: '',
+                postalCode: '',
+                city: '',
+                address: '',
+                status: '',
+                sort: '',
+              });
             }}
             disabled={!filterCount}
           >
@@ -253,7 +266,7 @@ function Referential() {
             {filterCount ? ` (${filterCount})` : ''}
           </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
           <SelectField
             label={l('Section', 'Secteur')}
             value={query.category ?? ''}
@@ -288,10 +301,24 @@ function Referential() {
             onChange={() => setDepartmentError(false)}
           />
           <TextField
+            key={query.postalCode ?? 'postalCode'}
+            label={l('Postcode', 'Code postal')}
+            placeholder="75001"
+            defaultValue={query.postalCode ?? ''}
+            onBlur={(e) => update({ postalCode: e.target.value.trim() })}
+          />
+          <TextField
             key={query.city ?? 'city'}
             label={l('Town', 'Commune')}
             defaultValue={query.city ?? ''}
             onBlur={(e) => update({ city: e.target.value.trim() })}
+          />
+          <TextField
+            key={query.address ?? 'address'}
+            label={l('Address', 'Adresse')}
+            placeholder={l('Street or number', 'Rue ou numéro')}
+            defaultValue={query.address ?? ''}
+            onBlur={(e) => update({ address: e.target.value.trim() })}
           />
           <SelectField
             label={l('Status', 'Statut')}
