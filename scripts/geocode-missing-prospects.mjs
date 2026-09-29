@@ -11,10 +11,24 @@
  * backfill, not the restricted application role.
  */
 import pg from '../apps/api/node_modules/pg/lib/index.js';
+import { existsSync, readFileSync } from 'node:fs';
 
 const { Pool } = pg;
 
 const args = new Set(process.argv.slice(2));
+
+/* Load the root .env without evaluating it. Secrets in this file may contain
+ * shell metacharacters, so sourcing it would be unsafe and can truncate values. */
+if (!process.env.DATABASE_SEED_URL && existsSync(new URL('../.env', import.meta.url))) {
+  for (const line of readFileSync(new URL('../.env', import.meta.url), 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    const separator = trimmed.indexOf('=');
+    if (!trimmed || trimmed.startsWith('#') || separator < 1) continue;
+    const key = trimmed.slice(0, separator);
+    const value = trimmed.slice(separator + 1);
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
 const valueFor = (name, fallback) => {
   const prefix = `--${name}=`;
   const found = process.argv.slice(2).find((arg) => arg.startsWith(prefix));
