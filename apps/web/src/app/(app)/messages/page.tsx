@@ -47,6 +47,141 @@ import {
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 
+const DEMO_MESSAGES_ENABLED = process.env.NODE_ENV !== 'production';
+const DEMO_CONVERSATION_ID = '00000000-0000-4000-8000-000000000001';
+const DEMO_ADMIN_ID = '00000000-0000-4000-8000-000000000010';
+const DEMO_PROSPECTOR_ID = '00000000-0000-4000-8000-000000000011';
+
+const demoAdmin = {
+  membershipId: DEMO_ADMIN_ID,
+  displayName: 'Karim Benali',
+  email: 'karim.benali@example.test',
+  roles: ['tenant_admin'],
+  designation: 'tenant_admin',
+};
+const demoProspector = {
+  membershipId: DEMO_PROSPECTOR_ID,
+  displayName: 'Awa Sy',
+  email: 'awa.sy@example.test',
+  roles: ['prospector'],
+  designation: 'prospector',
+};
+
+const demoConversations: Conversation[] = [
+  {
+    id: DEMO_CONVERSATION_ID,
+    tenantId: '00000000-0000-4000-8000-000000000099',
+    kind: 'prospect',
+    title: 'Complément d’information — volume et langues',
+    status: 'active',
+    createdBy: DEMO_ADMIN_ID,
+    createdAt: '2026-09-21T13:00:00.000Z',
+    updatedAt: '2026-09-21T15:57:00.000Z',
+    context: {
+      establishment: 'Direction interrégionale de la protection judiciaire de la jeunesse (DIRPJJ)',
+      location: 'Île-de-France et Outre-Mer, Paris',
+      action: 'Appel du 21 sept., 12:57 — Intéressé, besoin identifié',
+      outcome:
+        'Besoin régulier, surtout la nuit et le week-end. Souhaite une liste d’interprètes joignables rapidement.',
+    },
+    latestMessage: {
+      id: '00000000-0000-4000-8000-000000000101',
+      body: 'Bonjour, environ 10 à 12 demandes par mois, surtout en dari et en pachto, souvent le soir. La greffière souhaite une réponse sous 2 heures.',
+      status: 'sent',
+      createdAt: '2026-09-21T15:57:00.000Z',
+      sender: demoProspector,
+    },
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000002',
+    tenantId: '00000000-0000-4000-8000-000000000099',
+    kind: 'prospect',
+    title: 'Numéro erroné — Commissariat de police de Drancy',
+    status: 'active',
+    createdBy: DEMO_PROSPECTOR_ID,
+    createdAt: '2026-09-29T08:00:00.000Z',
+    updatedAt: '2026-09-29T09:00:00.000Z',
+    latestMessage: {
+      id: '00000000-0000-4000-8000-000000000102',
+      body: 'Le numéro de la fiche aboutit au standard de la mairie. Le bon numéro semble être celui affiché dans la fiche.',
+      status: 'sent',
+      createdAt: '2026-09-29T09:00:00.000Z',
+      sender: demoAdmin,
+    },
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000003',
+    tenantId: '00000000-0000-4000-8000-000000000099',
+    kind: 'prospect',
+    title: 'Interlocuteur à préciser',
+    status: 'active',
+    createdBy: DEMO_PROSPECTOR_ID,
+    createdAt: '2026-09-28T13:00:00.000Z',
+    updatedAt: '2026-09-28T13:00:00.000Z',
+    latestMessage: {
+      id: '00000000-0000-4000-8000-000000000103',
+      body: 'Bonjour Moussa, qui est l’interlocuteur exact et a-t-il donné une adresse e-mail directe ?',
+      status: 'sent',
+      createdAt: '2026-09-28T13:00:00.000Z',
+      sender: demoAdmin,
+    },
+  },
+];
+
+const demoMessages: Message[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000201',
+    tenantId: demoConversations[0]!.tenantId,
+    conversationId: DEMO_CONVERSATION_ID,
+    senderId: DEMO_ADMIN_ID,
+    body: 'Bonjour Awa, pouvez-vous préciser le volume mensuel estimé et les langues les plus demandées ? Je prépare une proposition.',
+    status: 'sent',
+    createdAt: '2026-09-21T15:57:00.000Z',
+    updatedAt: '2026-09-21T15:57:00.000Z',
+    sender: demoAdmin,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000202',
+    tenantId: demoConversations[0]!.tenantId,
+    conversationId: DEMO_CONVERSATION_ID,
+    senderId: DEMO_PROSPECTOR_ID,
+    body: 'Bonjour, environ 10 à 12 demandes par mois, surtout en dari et en pachto, souvent le soir. La greffière souhaite une réponse sous 2 heures.',
+    status: 'sent',
+    createdAt: '2026-09-21T17:57:00.000Z',
+    updatedAt: '2026-09-21T17:57:00.000Z',
+    sender: demoProspector,
+  },
+];
+
+const demoParticipants: ConversationParticipant[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000301',
+    tenantId: demoConversations[0]!.tenantId,
+    conversationId: DEMO_CONVERSATION_ID,
+    membershipId: DEMO_ADMIN_ID,
+    lastReadAt: '2026-09-21T15:57:00.000Z',
+    mutedUntil: null,
+    joinedAt: '2026-09-21T13:00:00.000Z',
+    displayName: demoAdmin.displayName,
+    email: demoAdmin.email,
+    roles: demoAdmin.roles,
+    designation: demoAdmin.designation,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000302',
+    tenantId: demoConversations[0]!.tenantId,
+    conversationId: DEMO_CONVERSATION_ID,
+    membershipId: DEMO_PROSPECTOR_ID,
+    lastReadAt: null,
+    mutedUntil: null,
+    joinedAt: '2026-09-21T13:00:00.000Z',
+    displayName: demoProspector.displayName,
+    email: demoProspector.email,
+    roles: demoProspector.roles,
+    designation: demoProspector.designation,
+  },
+];
+
 export default function MessagesPage() {
   const { user } = useAuth();
   const { t, language } = useTranslation();
@@ -68,7 +203,7 @@ export default function MessagesPage() {
   const [people, setPeople] = useState<Map<string, MessagingMember>>(new Map());
 
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'archived'>('all');
+  const [filter, setFilter] = useState<'all' | 'unread' | 'waiting' | 'closed'>('all');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const draft = activeId ? (drafts[activeId] ?? '') : '';
   const setDraft = (value: string) => {
@@ -94,17 +229,42 @@ export default function MessagesPage() {
             return;
           }
 
-          setConversations(page.items);
+          const serverItems = page.items.filter(
+            (item) => !demoConversations.some((demo) => demo.id === item.id),
+          );
+          const items = DEMO_MESSAGES_ENABLED
+            ? [...demoConversations, ...serverItems]
+            : serverItems;
+          setConversations(items);
           setReadError(null);
 
+          if (DEMO_MESSAGES_ENABLED) {
+            setPeople((current) =>
+              new Map(current)
+                .set(demoAdmin.membershipId, demoAdmin)
+                .set(demoProspector.membershipId, demoProspector),
+            );
+          }
+
           setActiveId((current) =>
-            current && page.items.some((item) => item.id === current) ? current : null,
+            current && items.some((item) => item.id === current)
+              ? current
+              : DEMO_MESSAGES_ENABLED
+                ? DEMO_CONVERSATION_ID
+                : null,
           );
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
-            setConversations([]);
-            setReadError(describeMessagingError(caught, t));
+            setConversations(DEMO_MESSAGES_ENABLED ? demoConversations : []);
+            setReadError(DEMO_MESSAGES_ENABLED ? null : describeMessagingError(caught, t));
+            if (DEMO_MESSAGES_ENABLED) {
+              setPeople((current) =>
+                new Map(current)
+                  .set(demoAdmin.membershipId, demoAdmin)
+                  .set(demoProspector.membershipId, demoProspector),
+              );
+            }
           }
         }),
     [],
@@ -127,59 +287,78 @@ export default function MessagesPage() {
           setPeople(new Map(page.map((item) => [item.membershipId, item])));
       })
       .catch(() => {
-        if (!controller.signal.aborted) setPeople(new Map());
+        if (!controller.signal.aborted) {
+          setPeople(
+            DEMO_MESSAGES_ENABLED
+              ? new Map([
+                  [demoAdmin.membershipId, demoAdmin],
+                  [demoProspector.membershipId, demoProspector],
+                ])
+              : new Map(),
+          );
+        }
       });
 
     return () => controller.abort();
   }, [user?.tenantId]);
 
-  const loadThread = useCallback(
-    (conversationId: string, signal?: AbortSignal): Promise<void> =>
-      Promise.all([
-        listMessages(conversationId, { limit: 100 }, signal),
-        listParticipants(conversationId, signal).catch(() => []),
-      ])
-        .then(([page, members]) => {
-          if (signal?.aborted) {
-            return;
-          }
+  const loadThread = useCallback((conversationId: string, signal?: AbortSignal): Promise<void> => {
+    if (DEMO_MESSAGES_ENABLED && conversationId === DEMO_CONVERSATION_ID) {
+      setMessages(demoMessages);
+      setParticipants(demoParticipants);
+      setOlderCursor(null);
+      setPeople((current) =>
+        new Map(current)
+          .set(demoAdmin.membershipId, demoAdmin)
+          .set(demoProspector.membershipId, demoProspector),
+      );
+      return Promise.resolve();
+    }
 
-          /* The API returns newest first; a thread reads oldest to newest. */
-          setMessages((current) => {
-            const recent = [...page.items].reverse();
-            const ids = new Set(recent.map((item) => item.id));
-            const next = olderLoaded.current
-              ? [...(current ?? []).filter((item) => !ids.has(item.id)), ...recent]
-              : recent;
-            return JSON.stringify(current) === JSON.stringify(next) ? current : next;
-          });
-          setPeople((current) => {
-            const next = new Map(current);
-            for (const member of members) {
-              next.set(member.membershipId, {
-                membershipId: member.membershipId,
-                displayName: member.displayName ?? null,
-                email: member.email ?? '',
-                roles: member.roles ?? [],
-                designation: member.designation ?? member.roles?.[0] ?? 'member',
-              });
-            }
-            for (const message of page.items) {
-              if (message.sender) next.set(message.sender.membershipId, message.sender);
-            }
-            return next;
-          });
-          if (!olderLoaded.current) setOlderCursor(page.nextCursor);
-          setParticipants(members);
-        })
-        .catch((caught: unknown) => {
-          if (!signal?.aborted) {
-            setMessages([]);
-            setActionError(describeMessagingError(caught, t));
+    return Promise.all([
+      listMessages(conversationId, { limit: 100 }, signal),
+      listParticipants(conversationId, signal).catch(() => []),
+    ])
+      .then(([page, members]) => {
+        if (signal?.aborted) {
+          return;
+        }
+
+        /* The API returns newest first; a thread reads oldest to newest. */
+        setMessages((current) => {
+          const recent = [...page.items].reverse();
+          const ids = new Set(recent.map((item) => item.id));
+          const next = olderLoaded.current
+            ? [...(current ?? []).filter((item) => !ids.has(item.id)), ...recent]
+            : recent;
+          return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+        });
+        setPeople((current) => {
+          const next = new Map(current);
+          for (const member of members) {
+            next.set(member.membershipId, {
+              membershipId: member.membershipId,
+              displayName: member.displayName ?? null,
+              email: member.email ?? '',
+              roles: member.roles ?? [],
+              designation: member.designation ?? member.roles?.[0] ?? 'member',
+            });
           }
-        }),
-    [],
-  );
+          for (const message of page.items) {
+            if (message.sender) next.set(message.sender.membershipId, message.sender);
+          }
+          return next;
+        });
+        if (!olderLoaded.current) setOlderCursor(page.nextCursor);
+        setParticipants(members);
+      })
+      .catch((caught: unknown) => {
+        if (!signal?.aborted) {
+          setMessages([]);
+          setActionError(describeMessagingError(caught, t));
+        }
+      });
+  }, []);
 
   useLiveRefresh(
     async (signal) => {
@@ -205,9 +384,11 @@ export default function MessagesPage() {
     void loadThread(activeId, controller.signal).then(() => {
       if (!controller.signal.aborted) {
         /* Opening a thread is what marks it read. */
-        markConversationRead(activeId)
-          .then(() => void loadConversations())
-          .catch(() => undefined);
+        if (!(DEMO_MESSAGES_ENABLED && activeId === DEMO_CONVERSATION_ID)) {
+          markConversationRead(activeId)
+            .then(() => void loadConversations())
+            .catch(() => undefined);
+        }
       }
     });
 
@@ -257,9 +438,16 @@ export default function MessagesPage() {
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      return (filter === 'all' || conversation.status === filter) && haystack.includes(query);
+      const unread = conversation.latestMessage?.sender?.membershipId !== me;
+      const waiting = conversation.latestMessage?.sender?.membershipId === me;
+      const matchesFilter =
+        filter === 'all' ||
+        (filter === 'unread' && unread) ||
+        (filter === 'waiting' && waiting) ||
+        (filter === 'closed' && conversation.status === 'archived');
+      return matchesFilter && haystack.includes(query);
     });
-  }, [conversations, search, filter, t]);
+  }, [conversations, search, filter, t, me]);
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -272,6 +460,34 @@ export default function MessagesPage() {
     setActionError(null);
 
     try {
+      if (DEMO_MESSAGES_ENABLED && activeId === DEMO_CONVERSATION_ID) {
+        const sender =
+          (me ? people.get(me) : undefined) ??
+          ({
+            membershipId: me ?? 'demo-current-user',
+            displayName: user?.displayName ?? 'Vous',
+            email: user?.email ?? 'you@example.test',
+            roles: ['prospector'],
+            designation: 'prospector',
+          } satisfies MessagingMember);
+        const now = new Date().toISOString();
+        const localMessage: Message = {
+          id: crypto.randomUUID(),
+          tenantId: demoConversations[0]!.tenantId,
+          conversationId: DEMO_CONVERSATION_ID,
+          senderId: sender.membershipId,
+          body: draft.trim(),
+          status: 'sent',
+          createdAt: now,
+          updatedAt: now,
+          sender,
+        };
+        setMessages((current) => [...(current ?? []), localMessage]);
+        setPeople((current) => new Map(current).set(sender.membershipId, sender));
+        setDraft('');
+        setBusy(false);
+        return;
+      }
       await sendMessage(activeId, draft.trim());
 
       setDraft('');
@@ -304,7 +520,7 @@ export default function MessagesPage() {
           className="inline-flex gap-0.5 rounded-[11px] bg-surface-muted p-[3px]"
           aria-label={text('Conversation filters', 'Filtres des conversations', language)}
         >
-          {(['all', 'active', 'archived'] as const).map((value) => (
+          {(['all', 'unread', 'waiting', 'closed'] as const).map((value) => (
             <button
               key={value}
               type="button"
@@ -313,10 +529,12 @@ export default function MessagesPage() {
               className={`rounded-[9px] px-3.5 py-[7px] text-sm font-bold ${filter === value ? 'bg-surface text-navy shadow-sm' : 'text-ink-muted'}`}
             >
               {value === 'all'
-                ? text('All', 'Tous', language)
-                : value === 'active'
-                  ? text('Active', 'En cours', language)
-                  : text('Archived', 'Archivés', language)}
+                ? text('All', 'Toutes', language)
+                : value === 'unread'
+                  ? text('Unread replies', 'Réponses à lire', language)
+                  : value === 'waiting'
+                    ? text('Waiting for prospect', 'En attente du prospecteur', language)
+                    : text('Closed', 'Clôturées', language)}
             </button>
           ))}
         </div>
@@ -476,6 +694,31 @@ export default function MessagesPage() {
                     </div>
                   }
                 />
+
+                {active.context ? (
+                  <div className="mb-4 rounded-xl border border-line-soft bg-surface-muted px-4 py-3 text-[14px] text-ink-muted">
+                    <p>
+                      <span className="font-semibold text-navy">
+                        {text('Establishment', 'Établissement', language)}:
+                      </span>{' '}
+                      <span className="font-semibold text-brand">
+                        {active.context.establishment}
+                      </span>
+                      {active.context.location ? ` — ${active.context.location}` : ''}
+                    </p>
+                    {active.context.action ? (
+                      <p className="mt-2">
+                        <span className="font-semibold text-navy">
+                          {text('Related action', 'Action concernée', language)}:
+                        </span>{' '}
+                        {active.context.action}
+                      </p>
+                    ) : null}
+                    {active.context.outcome ? (
+                      <p className="mt-2 text-ink">{active.context.outcome}</p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {actionError ? (
                   <Alert tone="danger" className="mb-4">

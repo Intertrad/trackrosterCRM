@@ -23,6 +23,12 @@ export interface Conversation {
     createdAt: string;
     sender: MessagingMember | null;
   } | null;
+  context?: {
+    establishment: string;
+    location?: string;
+    action?: string;
+    outcome?: string;
+  } | null;
 }
 
 export interface ConversationParticipant {
