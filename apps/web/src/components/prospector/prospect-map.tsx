@@ -30,6 +30,8 @@ export interface MapPoint {
   longitude: number;
   stage: LifecycleStageKey;
   href?: string;
+  cluster?: boolean;
+  count?: number;
 }
 
 /**
@@ -84,6 +86,7 @@ export function ProspectMap({
   className,
   onSelect,
   onVisibleChange,
+  onViewportChange,
   selectedId = null,
 }: {
   points: MapPoint[];
@@ -105,6 +108,15 @@ export function ProspectMap({
    * how many points were handed to it.
    */
   onVisibleChange?: (ids: string[]) => void;
+
+  /** Emits settled WGS84 bounds so the page can request server-side map data. */
+  onViewportChange?: (viewport: {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+    zoom: number;
+  }) => void;
 
   /** Draws a ring around one point, to show which popup is open. */
   selectedId?: string | null;
@@ -322,6 +334,31 @@ export function ProspectMap({
     }
   }, [ready, territories]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !onViewportChange) return;
+
+    const report = () => {
+      const bounds = map.getBounds();
+      onViewportChange({
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+        zoom: map.getZoom(),
+      });
+    };
+
+    map.on('moveend', report);
+    if (map.isStyleLoaded()) report();
+    else map.once('load', report);
+
+    return () => {
+      map.off('moveend', report);
+      map.off('load', report);
+    };
+  }, [onViewportChange, ready]);
+
   /* Markers are rebuilt when the filtered set changes, then the view is fitted
    * to what the prospector is actually allowed to see. */
   useEffect(() => {
@@ -364,7 +401,11 @@ export function ProspectMap({
         element.type = 'button';
         element.setAttribute(
           'aria-label',
-          ordered ? `Stop ${index + 1}: ${point.name}` : point.name,
+          point.cluster
+            ? `${point.count ?? 0} prospects`
+            : ordered
+              ? `Stop ${index + 1}: ${point.name}`
+              : point.name,
         );
         element.style.cssText = [
           ordered ? 'width:26px' : 'width:18px',
@@ -377,8 +418,10 @@ export function ProspectMap({
           ...(point.id === selectedId
             ? [`box-shadow:0 0 0 4px ${STAGE_COLORS[point.stage]}55,0 1px 4px rgba(5,18,74,0.35)`]
             : []),
-          ...(ordered
+          ...(point.cluster
             ? [
+                'width:34px',
+                'height:34px',
                 'color:#ffffff',
                 'font-size:12px',
                 'font-weight:700',
@@ -387,19 +430,31 @@ export function ProspectMap({
                 'align-items:center',
                 'justify-content:center',
               ]
-            : []),
+            : ordered
+              ? [
+                  'color:#ffffff',
+                  'font-size:12px',
+                  'font-weight:700',
+                  'line-height:1',
+                  'display:flex',
+                  'align-items:center',
+                  'justify-content:center',
+                ]
+              : []),
         ].join(';');
 
         if (ordered) {
           element.textContent = String(index + 1);
         }
+        if (point.cluster) element.textContent = String(point.count ?? 0);
 
-        element.addEventListener('click', () => onSelect?.(point));
+        if (!point.cluster) element.addEventListener('click', () => onSelect?.(point));
 
-        const marker = new Marker({ element })
-          .setLngLat([point.longitude, point.latitude])
-          .setPopup(new Popup({ offset: 14, closeButton: false }).setText(point.name))
-          .addTo(mapRef.current!);
+        const marker = new Marker({ element }).setLngLat([point.longitude, point.latitude]);
+        if (!point.cluster) {
+          marker.setPopup(new Popup({ offset: 14, closeButton: false }).setText(point.name));
+        }
+        marker.addTo(mapRef.current!);
 
         markersRef.current.push(marker);
         plotted.push([point.longitude, point.latitude]);

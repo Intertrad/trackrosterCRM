@@ -1,7 +1,7 @@
 'use client';
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { LocateFixed, TriangleAlert } from 'lucide-react';
 
 import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
@@ -14,6 +14,8 @@ import { LinkButton } from '@/components/ui/link-button';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api/api-error';
+import { listMapProspects } from '@/lib/api/map-client';
+import type { MapViewport } from '@/lib/api/map-types';
 import { listNearbyProspects } from '@/lib/api/nearby-client';
 import {
   DEFAULT_NEARBY_RADIUS_METERS,
@@ -23,8 +25,7 @@ import {
 import { SearchInput } from '@/components/ui/search-input';
 import { getTerritoryMap } from '@/lib/api/territory-client';
 import type { TerritoryFeatureCollection } from '@/lib/api/territory-types';
-import { listWorkQueue } from '@/lib/api/work-queue-client';
-import type { WorkQueueItem, WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
+import type { WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 
@@ -36,7 +37,11 @@ export default function TerritoryMapPage() {
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [items, setItems] = useState<WorkQueueItem[] | null>(null);
+  const [points, setPoints] = useState<MapPoint[]>([]);
+  const [mapSummary, setMapSummary] = useState<{ prospects: number; truncated: boolean } | null>(
+    null,
+  );
+  const [viewport, setViewport] = useState<MapViewport | null>(null);
   const [selected, setSelected] = useState<MapPoint | null>(null);
   const [territories, setTerritories] = useState<TerritoryFeatureCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,51 +61,58 @@ export default function TerritoryMapPage() {
   useLiveRefresh(() => setRefreshVersion((version) => version + 1));
 
   useEffect(() => {
-    if (!teamId) {
-      return;
-    }
+    if (!viewport) return;
 
     const controller = new AbortController();
-
-    listWorkQueue({
-      teamId,
-      limit: 100,
-      ...(status !== 'all' ? { lifecycleStage: status as WorkQueueLifecycleStage } : {}),
-      signal: controller.signal,
-    })
-      .then((response) => {
-        if (!controller.signal.aborted) {
-          setItems(response.items);
+    const timer = window.setTimeout(() => {
+      listMapProspects(
+        {
+          ...viewport,
+          ...(teamId ? { teamId } : {}),
+          ...(status !== 'all' ? { lifecycleStage: status as WorkQueueLifecycleStage } : {}),
+          ...(search.trim() ? { search: search.trim() } : {}),
+        },
+        controller.signal,
+      )
+        .then((response) => {
+          if (controller.signal.aborted) return;
+          const next = response.features.flatMap((feature) => {
+            const [longitude, latitude] = feature.geometry.coordinates;
+            const props = feature.properties;
+            const stage = props.stages?.[0] ?? 'to_contact';
+            return toMapPoint(
+              props.establishmentId ?? feature.id,
+              props.name ?? 'Prospect cluster',
+              latitude,
+              longitude,
+              stage,
+              props.cluster ? undefined : `/admin/prospects/${props.establishmentId ?? feature.id}`,
+            ).map((point) => ({
+              ...point,
+              cluster: props.cluster,
+              count: props.count,
+            }));
+          });
+          setPoints(next);
+          setMapSummary({ prospects: response.summary.prospects, truncated: response.truncated });
           setError(null);
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setError('We could not load prospects for the map.');
-        }
-      });
+        })
+        .catch((caught: unknown) => {
+          if (!controller.signal.aborted) {
+            setError(
+              caught instanceof ApiError
+                ? caught.message
+                : 'We could not load prospects for the map.',
+            );
+          }
+        });
+    }, 200);
 
-    return () => controller.abort();
-  }, [status, teamId, refreshVersion]);
-
-  const points = useMemo<MapPoint[]>(() => {
-    const query = search.trim().toLowerCase();
-
-    return (items ?? []).flatMap((item) => {
-      if (query && !item.establishment.name.toLowerCase().includes(query)) {
-        return [];
-      }
-
-      return toMapPoint(
-        item.campaignProspectId,
-        item.establishment.name,
-        item.establishment.latitude,
-        item.establishment.longitude,
-        item.lifecycleStage,
-        `/work-queue/${item.campaign.id}/${item.campaignProspectId}`,
-      );
-    });
-  }, [items, search]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search, status, teamId, viewport, refreshVersion]);
 
   /* Boundaries are scoped server-side, so no team filter is applied here. */
   useEffect(() => {
@@ -199,7 +211,12 @@ export default function TerritoryMapPage() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
         <div className="flex flex-col gap-3">
-          <ProspectMap points={points} territories={territories} onSelect={handleSelect} />
+          <ProspectMap
+            points={points}
+            territories={territories}
+            onSelect={handleSelect}
+            onViewportChange={setViewport}
+          />
 
           <MapLegend includeUnavailable={false} />
         </div>
@@ -263,7 +280,9 @@ export default function TerritoryMapPage() {
             )}
 
             <p className="mt-4 text-[14px] text-ink-muted">
-              {points.length} prospect{points.length === 1 ? '' : 's'} plotted
+              {mapSummary?.prospects ?? 0} prospect{(mapSummary?.prospects ?? 0) === 1 ? '' : 's'}{' '}
+              plotted
+              {mapSummary?.truncated ? ' (zoom in to load more)' : ''}
             </p>
 
             {error ? (
