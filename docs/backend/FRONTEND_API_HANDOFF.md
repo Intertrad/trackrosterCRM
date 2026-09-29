@@ -1,12 +1,14 @@
 # Frontend API integration handoff
 
-Snapshot: 2026-09-23, after map APIs and campaign lifecycle completion. Base path: `/api/v1`.
+Snapshot: 2026-09-29, integrated `main` development baseline. Base path: `/api/v1`.
+
+For the repository-wide development and data status, see [Current development status](../CURRENT_STATUS.md).
 
 ## Readiness summary
 
 **Use for frontend integration in a migrated development/test environment:** 192 verified product-contract operations plus 3 verified extensions (two geographic-allocation routes and authenticated export file download). All 192 verified ledger entries were matched to actual controller declarations for this handoff. This is a conservative verified list, not the total number of existing backend routes.
 
-**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. Only the isolated validation database has been migrated through `0056`. Production email delivery/key provisioning, restricted database credentials and tenant RLS, recovery/load/failure validation, and complete API documentation remain open. Password-reset and invitation delivery currently use the selected local Mailpit mailbox; its adapter refuses production mode.
+**Production deployment is not yet signed off.** Verification means implemented behavior with test evidence, not a deployed or fully hardened production service. The repository now includes restricted runtime credentials, tenant RLS policies, worker tenant context, and the force-RLS migration; live restricted-role certification, provider key validation, recovery/load/failure validation, and complete API documentation remain deployment gates. Password-reset and invitation delivery use the configured local mailbox in development until a production provider is approved.
 
 Latest recorded validation: 659 API unit tests, 568 API integration tests and 10 worker integration tests passed. API build/typecheck, affected-file lint and 57 migration integrity entries passed. Counts reflect the latest implementation validation; they do not certify a production deployment.
 

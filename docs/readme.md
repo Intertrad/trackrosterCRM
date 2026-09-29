@@ -136,6 +136,9 @@ Major architectural decisions must be recorded as ADRs.
 
 This documentation set is organized by audience:
 
+**Current baseline:** [Current development status](CURRENT_STATUS.md) (2026-09-29).
+Use it to interpret dated audits and implementation snapshots.
+
 - `architecture/`: system, API, database, security, and technology decisions.
 - `backend/`: endpoint contracts, implementation progress, and frontend handoff.
 - `api/`: public API reference.

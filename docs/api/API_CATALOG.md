@@ -1,6 +1,8 @@
 # TrackRoster codebase and API catalog
 
-Implementation snapshot: 2026-09-28, including the working tree at the time of analysis.
+Implementation snapshot: 2026-09-29, including the integrated `main` baseline.
+
+For development, data, and certification status, see [Current development status](../CURRENT_STATUS.md).
 
 The application registers **389 backend method/path pairs in 90 controllers**, and the web app defines **185 browser API handlers**. Backend version aliases are not counted twice. The browser's dynamic override-decision handler accepts three decision values. These are separate API surfaces on separate application origins.
 

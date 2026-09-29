@@ -1,5 +1,9 @@
 # Schema Source of Truth
 
+> **Current snapshot — 2026-09-29:** Tenant policies, restricted runtime credentials,
+> request/worker tenant context, and the force-RLS migration are present in the current
+> migration chain. Live deployment certification remains operational work.
+
 > **2026-09-22 implementation update:** Native membership authentication and operational actor references, personal account APIs, workspace administration, notification extensions, session audit and authentication throttling have been added. Migrations 0026–0028 were verified on an isolated database; deployment to the existing database remains separate. See [the current backend implementation ledger](../backend/IMPLEMENTATION_STATUS.md). The dated baseline below is retained as historical evidence. Full backend completion and production readiness remain pending.
 
 **Decision:** The TrackRoster Drizzle schema and its generated, reviewed migrations are

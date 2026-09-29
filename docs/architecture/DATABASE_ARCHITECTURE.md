@@ -1,9 +1,9 @@
 # TrackRoster Database Architecture
 
-**Status:** Partially implemented; production certification pending (updated 2026-09-23)
+**Status:** Implemented tenant/RLS architecture; production certification pending (updated 2026-09-29)
 
 This document describes the implemented database model and clearly separates it from
-production controls that are not yet enabled. The schema and migrations are the source
+production controls and their certification state. The schema and migrations are the source
 of truth; examples in this document must not be treated as migration instructions.
 
 ## Primary Database
@@ -23,11 +23,16 @@ attachments; PostgreSQL stores their object keys, ownership, expiry, and audit s
 - Audit tables retain administrative and operational evidence.
 - Migration files under `database/migrations` are applied in order.
 - R2 object metadata is persisted after worker generation.
+- Runtime API access uses the restricted `trackroster_app` role and request/worker tenant
+  context before tenant-owned queries execute.
+- Migrations `0071`–`0073` define tenant policies and `FORCE ROW LEVEL SECURITY` for
+  tenant-bearing tables.
 
 ## Pending production controls
 
-- Database row-level security policies are not yet enforced for runtime credentials.
-- API and worker credentials are not yet separated from migration credentials.
+- Live restricted-role and cross-tenant regression certification must be repeated for
+  every deployment environment.
+- API/worker runtime credentials must remain separate from migration and seed credentials.
 - A production backup, restore, and failover certification is still required.
 - Retention and deletion automation requires final policy approval.
 

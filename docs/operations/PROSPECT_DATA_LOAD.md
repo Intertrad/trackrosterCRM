@@ -5,7 +5,8 @@ data actually contains, and what to expect when it is loaded.
 
 ## The source
 
-`TrackRoster_Base_Prospection_Interpretes_France.xlsx` — **14,649 establishments**
+`TrackRoster_Base_Prospection_Interpretes_France-1.xlsx` (the local copy; older notes
+omit `-1`) — **14,649 establishments**
 across seven sheets, plus five operational sheets (Pilotage, Historique,
 Consolidation, Campagnes, Mode emploi et sources) that are not imported.
 
@@ -177,6 +178,14 @@ Measured on the real base:
 There is no screen for enrolment yet; it is an API call an admin makes. The manager
 dispatch screen (TR-925) is where it belongs.
 
+## Current development load
+
+On 2026-09-29 the seven category CSVs were imported and committed into the local
+`intertrad` development tenant: **14,649 establishments and 3,492 contacts**. The
+seven import jobs completed with zero invalid rows and zero unresolved duplicates.
+This is local database state, not repository content; a clone must run the import
+against its own database.
+
 ## Where it goes
 
 **Decided: the référentiel is tenant-level and shared.** All five entities — OFTI,
@@ -200,5 +209,5 @@ Two consequences worth knowing:
   the second prospector's lease unless the two organizations are explicitly
   independent — not by denying enrolment.
 
-Still open: whether the base lands in development first or straight into the
-environment the pilot runs on.
+Production placement remains a deployment decision. Follow [DATA_LIFECYCLE.md](DATA_LIFECYCLE.md)
+for the canary, backup, validation, and production-import sequence.

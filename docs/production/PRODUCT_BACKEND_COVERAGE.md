@@ -1,5 +1,9 @@
 # Product and Backend Coverage
 
+> **Current snapshot — 2026-09-29:** The dated assessment below is historical. Use
+> [Current development status](../CURRENT_STATUS.md), the backend implementation ledger,
+> and the source-linked route inventory for the present baseline.
+
 > **2026-09-22 implementation update:** Native membership authentication and operational actor references, personal account APIs, workspace administration, notification extensions, session audit and authentication throttling have been added. Migrations 0026–0028 were verified on an isolated database; deployment to the existing database remains separate. See [the current backend implementation ledger](../backend/IMPLEMENTATION_STATUS.md). The dated baseline below is retained as historical evidence. Full backend completion and production readiness remain pending.
 
 **Assessment date:** 2026-09-21  

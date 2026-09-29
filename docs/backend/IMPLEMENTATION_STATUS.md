@@ -6,7 +6,25 @@
 > [TRACKROSTER_REMAINING_WORK.md](../TRACKROSTER_REMAINING_WORK.md) for the backlog.
 > A feature being listed below does not mean it is production-ready.
 
-## Current implementation note — 2026-09-23
+## Current implementation note — 2026-09-29
+
+The repository is now on the integrated `main` baseline. The implementation ledger
+still contains 381 product-contract operations (192 verified, 0 partial, 189 pending
+verification); these are acceptance statuses, not a count of routes missing from the
+source. The static controller inventory currently finds 335 declared operations.
+
+Tenant RLS policies, tenant-context request/worker execution, the restricted
+`trackroster_app` role, and the `FORCE ROW LEVEL SECURITY` migration are present. Keep
+the production-readiness distinction: live provider credentials, restricted-role
+cross-tenant certification, load/recovery testing, and deployment evidence are still
+required before a production launch.
+
+The local development tenant has seven committed workbook import jobs containing
+14,649 establishments and 3,492 contacts. The workbook itself is intentionally not
+tracked; use [the data lifecycle runbook](../operations/DATA_LIFECYCLE.md) to repeat
+the import in another environment.
+
+### Historical implementation note — 2026-09-23
 
 The backend now includes platform administrator authorization, tenant administration,
 tenant usage summaries, tenant platform configuration, and platform-user grant/revoke
@@ -18,11 +36,9 @@ generation, Brevo delivery, compliance artifact persistence, webhook retries, an
 opt-in infrastructure probes. Live provider validation still requires configured
 PostgreSQL, Redis, R2, and Brevo services.
 
-The following remain explicitly incomplete: database RLS and restricted credentials,
-encrypted OAuth token persistence/refresh, provider sync jobs, complete platform
-subscription/billing APIs, feature flags, security incidents, support access, global
-search, notes, offline sync, notification policies/templates, and full OpenAPI
-publication. These areas must not be described as production-ready.
+The original 2026-09-23 note is retained as historical evidence. The current state
+and remaining release gates are maintained in [CURRENT_STATUS.md](../CURRENT_STATUS.md)
+and [TRACKROSTER_REMAINING_WORK.md](../TRACKROSTER_REMAINING_WORK.md).
 
 The user requested every API in API_BUILD_LIST.md (P0, P1 and P2), using the product and design handoff as requirements. Frontend work is deferred. Existing implementations and migrations are preserved. A route is not complete merely because a controller exists: authorization, persistence, business rules, validation, auditing, idempotency and tests must support the intended behavior.
 

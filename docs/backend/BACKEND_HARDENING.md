@@ -1,12 +1,13 @@
 # Backend hardening record
 
 What was done to the backend in the production-readiness pass, what it proved, and what
-is left. Every figure here comes from a command that was run against the working system,
-not from reading code.
+is left. The historical measurements below remain evidence; the current development
+snapshot is [CURRENT_STATUS.md](../CURRENT_STATUS.md).
 
 - **Period:** 2026-09-24 to 2026-09-25
-- **Branch:** `codex/backend-completion` (22 commits, `19cfcca`…`347bb8e`)
-- **Migrations added:** `0073`…`0080`
+- **Historical branch:** `codex/backend-completion`
+- **Current branch:** `main`
+- **Migrations added in that pass:** `0073`…`0080`; later migrations are in the main chain
 - **Backlog and estimates:** [TRACKROSTER_REMAINING_WORK.md](../TRACKROSTER_REMAINING_WORK.md)
   is the execution source of truth. This document records what changed and why; that one
   says what to do next.

@@ -443,6 +443,7 @@ See:
 
 - [Database Architecture](./docs/architecture/DATABASE_ARCHITECTURE.md)
 - [Data lifecycle and secure imports](./docs/operations/DATA_LIFECYCLE.md)
+- [Current development status](./docs/CURRENT_STATUS.md)
 
 ---
 

@@ -1,6 +1,6 @@
 # Implemented API Inventory
 
-**Snapshot date:** 2026-09-23  
+**Snapshot date:** 2026-09-29
 **Implementation:** continuously updated; verify routes against `docs/backend/CONTROLLER_ROUTE_INVENTORY.json`
 
 This file documents the API that actually exists. It is not an aspirational product API.
@@ -10,6 +10,10 @@ different paths.
 The API currently exposes compatibility routes and `/api/v1` aliases. A generated OpenAPI
 contract and production approval are still pending. This inventory records implemented
 behavior, not the complete product roadmap.
+
+The current development baseline has 335 statically declared controller operations;
+see `docs/backend/CONTROLLER_ROUTE_INVENTORY.json` for source-linked entries and
+`docs/CURRENT_STATUS.md` for certification limits.
 
 ## Recently added platform routes
 

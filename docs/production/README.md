@@ -1,5 +1,10 @@
 # Production Readiness
 
+> **Current snapshot — 2026-09-29:** Read [Current development status](../CURRENT_STATUS.md)
+> first. The repository includes tenant RLS, restricted runtime credentials, worker
+> tenant context, and the local prospect import. Production remains gated by live
+> provider, load, recovery, and restricted-role certification.
+
 > **2026-09-22 implementation update:** Native membership authentication and operational actor references, personal account APIs, workspace administration, notification extensions, session audit and authentication throttling have been added. Migrations 0026–0028 were verified on an isolated database; deployment to the existing database remains separate. See [the current backend implementation ledger](../backend/IMPLEMENTATION_STATUS.md). The dated baseline below is retained as historical evidence. Full backend completion and production readiness remain pending.
 
 This directory records the evidence required to decide whether TrackRoster can be
@@ -13,7 +18,7 @@ It separates three questions that must not be confused:
 
 Passing unit tests answers only the first question.
 
-## Current decision
+## Historical decision baseline
 
 As of 2026-09-21:
 

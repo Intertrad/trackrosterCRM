@@ -1,5 +1,10 @@
 # TrackRoster backend API readiness audit
 
+> **Historical audit:** This document records the 2026-09-24/25 audit. For the current
+> development baseline, read [Current development status](CURRENT_STATUS.md). Several
+> statements below describe the pre-force-RLS state and are retained as audit evidence,
+> not as the current implementation status.
+
 Audit date: 2026-09-24  
 Branch audited: `codex/backend-completion`  
 Evidence: API source, schema/migrations, integration tests, worker tests, and current restricted-role runs.
