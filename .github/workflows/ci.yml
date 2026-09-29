@@ -33,6 +33,11 @@ jobs:
       JWT_REFRESH_SECRET: trackroster-ci-refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       JWT_REFRESH_TTL: 7d
       PROSPECT_COOLING_OFF_MINUTES: '1440'
+      # Deterministic local providers used by the integration suite. These are
+      # test-only values; production secrets are never committed here.
+      MFA_ENCRYPTION_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
+      AUTH_PUBLIC_ORIGIN: http://127.0.0.1:3000
+      MAILPIT_URL: http://127.0.0.1:58025
 
     services:
       postgres:
@@ -63,6 +68,12 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+
+      mailpit:
+        image: axllent/mailpit:v1.27
+
+        ports:
+          - 58025:8025
 
     steps:
       - name: Checkout repository
