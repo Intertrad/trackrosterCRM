@@ -110,17 +110,15 @@ export class ScriptService {
           ...value,
         })
         .returning();
-      await tx
-        .insert(auditEvents)
-        .values({
-          tenantId: auth.tenantId,
-          actorType: 'user',
-          actorUserId: auth.membershipId,
-          resourceType: 'script_template',
-          resourceId: row!.id,
-          action: 'script_template.created',
-          metadata: { name: value.name, channel: value.channel },
-        });
+      await tx.insert(auditEvents).values({
+        tenantId: auth.tenantId,
+        actorType: 'user',
+        actorUserId: auth.membershipId,
+        resourceType: 'script_template',
+        resourceId: row!.id,
+        action: 'script_template.created',
+        metadata: { name: value.name, channel: value.channel },
+      });
       return row;
     });
   }
@@ -140,17 +138,15 @@ export class ScriptService {
         .where(and(eq(scriptTemplates.tenantId, auth.tenantId), eq(scriptTemplates.id, id)))
         .returning();
       if (!row) throw new NotFoundException('Script not found');
-      await tx
-        .insert(auditEvents)
-        .values({
-          tenantId: auth.tenantId,
-          actorType: 'user',
-          actorUserId: auth.membershipId,
-          resourceType: 'script_template',
-          resourceId: id,
-          action: 'script_template.updated',
-          metadata: { before: current, after: row },
-        });
+      await tx.insert(auditEvents).values({
+        tenantId: auth.tenantId,
+        actorType: 'user',
+        actorUserId: auth.membershipId,
+        resourceType: 'script_template',
+        resourceId: id,
+        action: 'script_template.updated',
+        metadata: { before: current, after: row },
+      });
       return row;
     });
   }
@@ -161,17 +157,15 @@ export class ScriptService {
       await tx
         .delete(scriptTemplates)
         .where(and(eq(scriptTemplates.tenantId, auth.tenantId), eq(scriptTemplates.id, id)));
-      await tx
-        .insert(auditEvents)
-        .values({
-          tenantId: auth.tenantId,
-          actorType: 'user',
-          actorUserId: auth.membershipId,
-          resourceType: 'script_template',
-          resourceId: id,
-          action: 'script_template.deleted',
-          metadata: { name: current.name },
-        });
+      await tx.insert(auditEvents).values({
+        tenantId: auth.tenantId,
+        actorType: 'user',
+        actorUserId: auth.membershipId,
+        resourceType: 'script_template',
+        resourceId: id,
+        action: 'script_template.deleted',
+        metadata: { name: current.name },
+      });
       return { deleted: true, id };
     });
   }
@@ -204,17 +198,15 @@ export class ScriptService {
         new Date(Date.now() + 15 * 60_000),
         tx,
       );
-      await tx
-        .insert(auditEvents)
-        .values({
-          tenantId: auth.tenantId,
-          actorType: 'user',
-          actorUserId: auth.membershipId,
-          resourceType: 'script_template',
-          resourceId: id,
-          action: 'script_template.test_sent',
-          metadata: { recipient: to.trim().toLowerCase() },
-        });
+      await tx.insert(auditEvents).values({
+        tenantId: auth.tenantId,
+        actorType: 'user',
+        actorUserId: auth.membershipId,
+        resourceType: 'script_template',
+        resourceId: id,
+        action: 'script_template.test_sent',
+        metadata: { recipient: to.trim().toLowerCase() },
+      });
     });
     return { queued: true, recipient: to.trim().toLowerCase() };
   }
