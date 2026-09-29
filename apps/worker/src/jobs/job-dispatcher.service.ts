@@ -7,6 +7,7 @@ import {
   WEBHOOK_DELIVERY_JOB,
   SCHEDULED_REPORT_JOB,
   COMPLIANCE_ARTIFACT_JOB,
+  PROSPECT_GEOCODE_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
   type FollowUpReminderJobData,
@@ -14,6 +15,7 @@ import {
   type WebhookDeliveryJobData,
   type ScheduledReportJobData,
   type ComplianceArtifactJobData,
+  type ProspectGeocodeJobData,
   type SystemHealthCheckJobData,
   type SystemRetryProbeJobData,
   type TrackRosterJobData,
@@ -28,6 +30,7 @@ import { SystemRetryProbeProcessor } from './processors/system-retry-probe.proce
 import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processor.js';
 import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
 import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
+import { ProspectGeocodeProcessor } from './processors/prospect-geocode.processor.js';
 
 type AnyTrackRosterJobData = TrackRosterJobData<TrackRosterJobName>;
 
@@ -46,6 +49,7 @@ export class JobDispatcherService {
     private readonly webhookDeliveryProcessor?: WebhookDeliveryProcessor,
     private readonly scheduledReportProcessor?: ScheduledReportProcessor,
     private readonly complianceArtifactProcessor?: ComplianceArtifactProcessor,
+    private readonly prospectGeocodeProcessor?: ProspectGeocodeProcessor,
   ) {}
 
   async dispatch(job: TrackRosterJob): Promise<JobProcessorResult> {
@@ -83,6 +87,10 @@ export class JobDispatcherService {
         if (!this.complianceArtifactProcessor)
           throw new Error('Compliance artifact processor unavailable');
         return this.complianceArtifactProcessor.process(job.data as ComplianceArtifactJobData);
+      case PROSPECT_GEOCODE_JOB:
+        if (!this.prospectGeocodeProcessor)
+          throw new Error('Prospect geocode processor unavailable');
+        return this.prospectGeocodeProcessor.process(job.data as ProspectGeocodeJobData);
 
       case SYSTEM_RETRY_PROBE_JOB:
         return this.systemRetryProbeProcessor.process(

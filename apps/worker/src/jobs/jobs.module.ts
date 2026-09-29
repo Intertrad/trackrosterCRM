@@ -17,6 +17,7 @@ import { ScheduledReportProcessor } from './processors/scheduled-report.processo
 import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
 import { WorkerArtifactStorageService } from '../providers/worker-artifact-storage.service.js';
 import { WorkerMailService } from '../providers/worker-mail.service.js';
+import { ProspectGeocodeProcessor } from './processors/prospect-geocode.processor.js';
 
 @Module({
   imports: [WorkerDatabaseModule, ReservationRedisModule],
@@ -36,6 +37,7 @@ import { WorkerMailService } from '../providers/worker-mail.service.js';
     WebhookDeliveryProcessor,
     ScheduledReportProcessor,
     ComplianceArtifactProcessor,
+    ProspectGeocodeProcessor,
 
     SystemHealthCheckProcessor,
 

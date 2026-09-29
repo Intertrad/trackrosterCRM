@@ -9,6 +9,7 @@ import { ImportDeduplicationService } from './import-deduplication.service.js';
 import { ImportExecutionController } from './import-execution.controller.js';
 import { ImportExecutionService } from './import-execution.service.js';
 import { ImportPreviewModule } from './import-preview.module.js';
+import { JobQueueModule } from '../jobs/job-queue.module.js';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ImportPreviewModule } from './import-preview.module.js';
     ImportPreviewModule,
     EstablishmentModule,
     EstablishmentContactModule,
+    JobQueueModule,
   ],
 
   controllers: [ImportExecutionController],

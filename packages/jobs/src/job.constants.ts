@@ -23,6 +23,7 @@ export const RESERVATION_EXPIRY_JOB = 'reservation.expire' as const;
 export const WEBHOOK_DELIVERY_JOB = 'webhook.delivery' as const;
 export const SCHEDULED_REPORT_JOB = 'scheduled-report.generate' as const;
 export const COMPLIANCE_ARTIFACT_JOB = 'compliance.artifact' as const;
+export const PROSPECT_GEOCODE_JOB = 'prospect.geocode' as const;
 
 export const DEFAULT_JOB_ATTEMPTS = 3;
 

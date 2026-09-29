@@ -4,6 +4,7 @@ import {
   WEBHOOK_DELIVERY_JOB,
   SCHEDULED_REPORT_JOB,
   COMPLIANCE_ARTIFACT_JOB,
+  PROSPECT_GEOCODE_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
 } from './job.constants.js';
@@ -111,6 +112,9 @@ export interface ScheduledReportJobData extends BaseJobData {
 export interface ComplianceArtifactJobData extends BaseJobData {
   exportId: string;
 }
+export interface ProspectGeocodeJobData extends BaseJobData {
+  prospectId: string;
+}
 
 export interface TrackRosterJobMap {
   [SYSTEM_HEALTH_CHECK_JOB]: SystemHealthCheckJobData;
@@ -123,6 +127,7 @@ export interface TrackRosterJobMap {
   [WEBHOOK_DELIVERY_JOB]: WebhookDeliveryJobData;
   [SCHEDULED_REPORT_JOB]: ScheduledReportJobData;
   [COMPLIANCE_ARTIFACT_JOB]: ComplianceArtifactJobData;
+  [PROSPECT_GEOCODE_JOB]: ProspectGeocodeJobData;
 }
 
 export type TrackRosterJobName = keyof TrackRosterJobMap;

@@ -1,4 +1,7 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { JobProducerService } from '../jobs/job-producer.service.js';
+import { PROSPECT_GEOCODE_JOB } from '@trackroster/jobs';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
@@ -35,6 +38,7 @@ export class ImportExecutionService {
     private readonly contactService: EstablishmentContactService,
 
     private readonly contactRepository: EstablishmentContactRepository,
+    @Optional() private readonly jobs?: JobProducerService,
   ) {}
 
   async executeCsv(tenantId: string, csvContent: string): Promise<ImportExecutionResult> {
@@ -236,6 +240,17 @@ export class ImportExecutionService {
       });
 
       this.applyTransactionSummary(result, transactionResult);
+
+      /* Coordinate enrichment is asynchronous: an import must not wait on a
+       * public geocoder, and a provider outage must not roll back valid data. */
+      if (this.jobs && transactionResult.row.establishmentId) {
+        await this.jobs.enqueue(PROSPECT_GEOCODE_JOB, {
+          jobId: randomUUID(),
+          tenantId,
+          requestedAt: new Date().toISOString(),
+          prospectId: transactionResult.row.establishmentId,
+        });
+      }
 
       return transactionResult.row;
     } catch {

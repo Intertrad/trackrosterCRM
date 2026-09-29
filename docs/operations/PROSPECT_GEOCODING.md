@@ -11,6 +11,12 @@ API. BAN is free for this use. The script is intentionally rate-limited to one
 request per 1.1 seconds by default and never replaces coordinates that already
 exist.
 
+New imports are now automatically queued for the same geocoding worker after
+their database transaction commits. Import requests do not wait for BAN and a
+BAN outage cannot roll back a valid import. The worker uses the same tenant
+context as every other background job and safely no-ops when coordinates were
+filled by another process.
+
 Preview the first 25 records without writing:
 
 ```bash
