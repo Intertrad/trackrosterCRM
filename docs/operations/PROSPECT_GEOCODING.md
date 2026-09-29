@@ -29,6 +29,13 @@ Apply a reviewed batch:
 pnpm geocode:prospects --tenant=<tenant-id> --limit=100 --apply
 ```
 
+For the existing backlog, a single run may process the full eligible set. Keep
+the default delay in place so the public BAN service is not overwhelmed:
+
+```bash
+pnpm run geocode:prospects -- --limit=20000 --apply
+```
+
 The script uses `DATABASE_SEED_URL` (or `DATABASE_MIGRATION_URL`) because the
 restricted runtime role must not be given broad backfill privileges. Each write
 still sets `trackroster.tenant_id` in a transaction and includes the tenant in

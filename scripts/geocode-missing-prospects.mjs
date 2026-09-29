@@ -35,7 +35,7 @@ const valueFor = (name, fallback) => {
   return found ? found.slice(prefix.length) : fallback;
 };
 
-const limit = Math.min(Math.max(Number(valueFor('limit', '100')), 1), 1000);
+const limit = Math.min(Math.max(Number(valueFor('limit', '100')), 1), 20000);
 const delayMs = Math.min(Math.max(Number(valueFor('delay-ms', '1100')), 1000), 60000);
 const tenantId = valueFor('tenant', null);
 const apply = args.has('--apply');
