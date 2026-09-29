@@ -162,9 +162,51 @@ export class MessagingService {
       .orderBy(desc(conversations.updatedAt), desc(conversations.id))
       .limit(limit + 1);
     const items = rows.slice(0, limit);
+    const latestRows = items.length
+      ? await this.db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.tenantId, a.tenantId),
+              inArray(
+                messages.conversationId,
+                items.map((conversation) => conversation.id),
+              ),
+            ),
+          )
+          .orderBy(desc(messages.createdAt), desc(messages.id))
+      : [];
+    const latestByConversation = new Map<string, (typeof latestRows)[number]>();
+    for (const message of latestRows) {
+      if (!latestByConversation.has(message.conversationId))
+        latestByConversation.set(message.conversationId, message);
+    }
+    const latestSenderIds = [
+      ...new Set([...latestByConversation.values()].map((message) => message.senderId)),
+    ];
+    const latestSenders = latestSenderIds.length ? await this.profiles(a, latestSenderIds) : [];
+    const latestSenderByMembership = new Map(
+      latestSenders.map((profile) => [profile.membershipId, profile]),
+    );
+    const inboxItems = items.map((conversation) => {
+      const latest = latestByConversation.get(conversation.id);
+      return {
+        ...conversation,
+        latestMessage: latest
+          ? {
+              id: latest.id,
+              body: latest.body,
+              status: latest.status,
+              createdAt: latest.createdAt,
+              sender: latestSenderByMembership.get(latest.senderId) ?? null,
+            }
+          : null,
+      };
+    });
     const last = items.at(-1);
     return {
-      items,
+      items: inboxItems,
       nextCursor: rows.length > limit && last ? encodeCursor(last.updatedAt, last.id) : null,
     };
   }

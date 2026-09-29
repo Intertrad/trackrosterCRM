@@ -246,11 +246,19 @@ export default function MessagesPage() {
 
     const query = search.trim().toLowerCase();
 
-    return conversations.filter(
-      (conversation) =>
-        (filter === 'all' || conversation.status === filter) &&
-        conversationName(conversation, t).toLowerCase().includes(query),
-    );
+    return conversations.filter((conversation) => {
+      const sender = conversation.latestMessage?.sender;
+      const haystack = [
+        conversationName(conversation, t, sender ? [membershipName(sender)] : []),
+        conversation.latestMessage?.body,
+        sender ? membershipName(sender) : undefined,
+        sender?.designation,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return (filter === 'all' || conversation.status === filter) && haystack.includes(query);
+    });
   }, [conversations, search, filter, t]);
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -351,6 +359,13 @@ export default function MessagesPage() {
           ) : (
             <ul className="flex flex-col gap-2">
               {visible.map((conversation) => {
+                const latest = conversation.latestMessage;
+                const latestSender = latest?.sender ?? null;
+                const subject = conversationName(
+                  conversation,
+                  t,
+                  latestSender ? [membershipName(latestSender)] : [],
+                );
                 return (
                   <li key={conversation.id}>
                     <button
@@ -366,18 +381,33 @@ export default function MessagesPage() {
                           : 'w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-left hover:border-brand'
                       }
                     >
-                      <span className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 text-[15px] font-bold text-navy">
-                          {conversationName(conversation, t)}
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] font-bold text-navy">
+                            {subject}
+                          </span>
+                          <span className="mt-1 block truncate text-[13px] text-ink-muted">
+                            {latestSender
+                              ? `${membershipName(latestSender)} · ${formatDesignation(latestSender.designation)}`
+                              : t(conversationKindLabelKey(conversation.kind))}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[12px] text-ink-muted">
+                          {formatTimestamp(latest?.createdAt ?? conversation.updatedAt)}
                         </span>
                       </span>
 
-                      <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[13px] text-ink-muted">
-                        <Badge tone="neutral">
-                          {t(conversationKindLabelKey(conversation.kind))}
+                      <span className="mt-2 flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-[13px] text-ink-muted">
+                          {latest?.body || text('No messages yet', 'Aucun message', language)}
+                        </span>
+                        <Badge tone={conversation.status === 'archived' ? 'neutral' : 'success'}>
+                          {conversation.status === 'archived'
+                            ? text('Closed', 'Clôturée', language)
+                            : latest
+                              ? text('Active', 'Active', language)
+                              : text('Open', 'Ouverte', language)}
                         </Badge>
-
-                        {formatTimestamp(conversation.updatedAt)}
                       </span>
                     </button>
                   </li>

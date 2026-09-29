@@ -16,6 +16,13 @@ export interface Conversation {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  latestMessage?: {
+    id: string;
+    body: string;
+    status: MessageStatus;
+    createdAt: string;
+    sender: MessagingMember | null;
+  } | null;
 }
 
 export interface ConversationParticipant {
