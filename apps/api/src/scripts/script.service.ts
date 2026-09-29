@@ -4,6 +4,8 @@ import { AuthMailService } from '../auth/auth-mail.service.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { withTenantContext } from '../database/tenant-context.js';
 import { auditEvents, organizations, scriptTemplates } from '../database/schema/index.js';
 
 export const SCRIPT_CHANNELS = ['call', 'visit', 'email'] as const;
@@ -71,8 +73,13 @@ export class ScriptService {
   async list(
     auth: AuthenticatedPrincipal,
     filters: { channel?: ScriptChannel; organizationId?: string; sector?: string },
-  ) {
-    return this.db
+  ): Promise<Array<typeof scriptTemplates.$inferSelect>> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.list(auth, filters));
+    }
+
+    const tx = currentTenantExecutor()!;
+    return tx
       .select()
       .from(scriptTemplates)
       .where(
@@ -88,7 +95,15 @@ export class ScriptService {
       .orderBy(asc(scriptTemplates.channel), asc(scriptTemplates.name));
   }
 
-  async get(auth: AuthenticatedPrincipal, id: string, tx: DatabaseExecutor = this.db) {
+  async get(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    tx: DatabaseExecutor = this.db,
+  ): Promise<typeof scriptTemplates.$inferSelect> {
+    if (tx === this.db && !currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, (scopedTx) => this.get(auth, id, scopedTx));
+    }
+
     const [row] = await tx
       .select()
       .from(scriptTemplates)
@@ -97,9 +112,17 @@ export class ScriptService {
     return row;
   }
 
-  async create(auth: AuthenticatedPrincipal, input: ScriptInput) {
+  async create(
+    auth: AuthenticatedPrincipal,
+    input: ScriptInput,
+  ): Promise<typeof scriptTemplates.$inferSelect> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.create(auth, input));
+    }
+
     const value = clean(input);
-    return this.db.transaction(async (tx) => {
+    const tx = currentTenantExecutor()!;
+    return (async () => {
       await this.ensureOrganization(tx, auth.tenantId, value.organizationId);
       const [row] = await tx
         .insert(scriptTemplates)
@@ -110,6 +133,7 @@ export class ScriptService {
           ...value,
         })
         .returning();
+      if (!row) throw new BadRequestException('Script could not be created');
       await tx.insert(auditEvents).values({
         tenantId: auth.tenantId,
         actorType: 'user',
@@ -120,17 +144,26 @@ export class ScriptService {
         metadata: { name: value.name, channel: value.channel },
       });
       return row;
-    });
+    })();
   }
 
-  async update(auth: AuthenticatedPrincipal, id: string, input: Partial<ScriptInput>) {
-    const current = await this.get(auth, id);
+  async update(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    input: Partial<ScriptInput>,
+  ): Promise<typeof scriptTemplates.$inferSelect> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.update(auth, id, input));
+    }
+
+    const tx = currentTenantExecutor()!;
+    const current = await this.get(auth, id, tx);
     const value = clean({
       ...current,
       ...input,
       channel: (input.channel ?? current.channel) as ScriptChannel,
     });
-    return this.db.transaction(async (tx) => {
+    return (async () => {
       await this.ensureOrganization(tx, auth.tenantId, value.organizationId);
       const [row] = await tx
         .update(scriptTemplates)
@@ -148,11 +181,16 @@ export class ScriptService {
         metadata: { before: current, after: row },
       });
       return row;
-    });
+    })();
   }
 
-  async remove(auth: AuthenticatedPrincipal, id: string) {
-    return this.db.transaction(async (tx) => {
+  async remove(auth: AuthenticatedPrincipal, id: string): Promise<{ deleted: true; id: string }> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.remove(auth, id));
+    }
+
+    const tx = currentTenantExecutor()!;
+    return (async () => {
       const current = await this.get(auth, id, tx);
       await tx
         .delete(scriptTemplates)
@@ -167,14 +205,28 @@ export class ScriptService {
         metadata: { name: current.name },
       });
       return { deleted: true, id };
-    });
+    })();
   }
 
-  async preview(auth: AuthenticatedPrincipal, id: string, values: Record<string, string>) {
+  async preview(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    values: Record<string, string>,
+  ): Promise<{
+    id: string;
+    channel: ScriptChannel;
+    subject: string;
+    body: string;
+    missingVariables: string[];
+  }> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.preview(auth, id, values));
+    }
+
     const script = await this.get(auth, id);
     return {
       id: script.id,
-      channel: script.channel,
+      channel: script.channel as ScriptChannel,
       subject: render(script.subject, values),
       body: render(script.body, values),
       missingVariables: script.variables.filter((key) => !values[key]),
@@ -186,13 +238,19 @@ export class ScriptService {
     id: string,
     to: string,
     values: Record<string, string>,
-  ) {
+  ): Promise<{ queued: true; recipient: string }> {
     if (!/^\S+@\S+\.\S+$/.test(to))
       throw new BadRequestException('A valid recipient email is required');
+
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () => this.sendTest(auth, id, to, values));
+    }
+
     const preview = await this.preview(auth, id, values);
     if (preview.channel !== 'email')
       throw new BadRequestException('Only email scripts can be sent as a test');
-    await this.db.transaction(async (tx) => {
+    const tx = currentTenantExecutor()!;
+    await (async () => {
       await this.mail.enqueue(
         { to: to.trim().toLowerCase(), subject: `[Test] ${preview.subject}`, text: preview.body },
         new Date(Date.now() + 15 * 60_000),
@@ -207,7 +265,7 @@ export class ScriptService {
         action: 'script_template.test_sent',
         metadata: { recipient: to.trim().toLowerCase() },
       });
-    });
+    })();
     return { queued: true, recipient: to.trim().toLowerCase() };
   }
 }
