@@ -232,9 +232,12 @@ export default function MessagesPage() {
           const serverItems = page.items.filter(
             (item) => !demoConversations.some((demo) => demo.id === item.id),
           );
-          const items = DEMO_MESSAGES_ENABLED
-            ? [...demoConversations, ...serverItems]
-            : serverItems;
+          // Keep the demo inbox as a development fallback only. Once the API
+          // has conversations, the server is the source of truth; this avoids
+          // opening a client-only conversation through the real API and
+          // producing a misleading "not a participant" error.
+          const items =
+            DEMO_MESSAGES_ENABLED && serverItems.length === 0 ? demoConversations : serverItems;
           setConversations(items);
           setReadError(null);
 
@@ -250,7 +253,7 @@ export default function MessagesPage() {
             current && items.some((item) => item.id === current)
               ? current
               : DEMO_MESSAGES_ENABLED
-                ? DEMO_CONVERSATION_ID
+                ? (items[0]?.id ?? null)
                 : null,
           );
         })
@@ -303,7 +306,13 @@ export default function MessagesPage() {
   }, [user?.tenantId]);
 
   const loadThread = useCallback((conversationId: string, signal?: AbortSignal): Promise<void> => {
-    if (DEMO_MESSAGES_ENABLED && conversationId === DEMO_CONVERSATION_ID) {
+    // Demo data is deliberately local and must never be sent to the API.
+    // Keep this guard independent of NODE_ENV so a stale production bundle
+    // cannot turn a mock conversation into a forbidden API request.
+    if (
+      conversationId === DEMO_CONVERSATION_ID &&
+      demoConversations.some((item) => item.id === conversationId)
+    ) {
       setMessages(demoMessages);
       setParticipants(demoParticipants);
       setOlderCursor(null);
@@ -384,7 +393,7 @@ export default function MessagesPage() {
     void loadThread(activeId, controller.signal).then(() => {
       if (!controller.signal.aborted) {
         /* Opening a thread is what marks it read. */
-        if (!(DEMO_MESSAGES_ENABLED && activeId === DEMO_CONVERSATION_ID)) {
+        if (activeId !== DEMO_CONVERSATION_ID) {
           markConversationRead(activeId)
             .then(() => void loadConversations())
             .catch(() => undefined);
@@ -460,7 +469,7 @@ export default function MessagesPage() {
     setActionError(null);
 
     try {
-      if (DEMO_MESSAGES_ENABLED && activeId === DEMO_CONVERSATION_ID) {
+      if (activeId === DEMO_CONVERSATION_ID) {
         const sender =
           (me ? people.get(me) : undefined) ??
           ({
