@@ -3,12 +3,14 @@ import { sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { prospectReadScope } from '../actions/action-access.js';
 import { resourceScopePredicate } from '../resource-scopes/resource-scope.service.js';
 import type {
   HeatmapDto,
   MapAggregateDto,
   MapViewportDto,
   NearbyProspectsDto,
+  MapCollisionDto,
   ProspectMapFiltersDto,
 } from './map.dto.js';
 const MAX_MEMBERSHIPS = 20000;
@@ -212,5 +214,65 @@ export class MapService {
       coverageBasis: 'completed_contact_actions_over_visible_prospects',
       overlappingTerritories: 'counted_independently',
     };
+  }
+
+  async collisions(a: AuthenticatedPrincipal, q: MapCollisionDto) {
+    const bbox = viewport(q.bbox);
+    const lookbackHours = q.lookbackHours ?? 24;
+    const cutoff = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
+    const result = await this.db.execute(sql`
+      SELECT DISTINCT ON (e.id)
+        r.id,
+        r.created_at AS "reservedAt",
+        r.expires_at AS "expiresAt",
+        e.id AS "establishmentId",
+        e.name,
+        e.longitude,
+        e.latitude
+      FROM reservation_records r
+      JOIN establishments e
+        ON e.tenant_id = r.tenant_id AND e.id = r.establishment_id
+      WHERE r.tenant_id = ${a.tenantId}
+        AND r.status IN ('pending','active')
+        AND r.created_at >= ${cutoff}
+        AND r.expires_at > clock_timestamp()
+        AND e.status = 'active'
+        AND e.location IS NOT NULL
+        AND ${this.spatial(bbox)}
+        AND ${prospectReadScope(a, sql`r.campaign_prospect_id`)}
+        ${q.campaignId ? sql`AND r.campaign_id=${q.campaignId}` : sql``}
+        ${
+          q.organizationId
+            ? sql`AND EXISTS (
+          SELECT 1 FROM campaign_prospect_assignments ca
+          WHERE ca.tenant_id=r.tenant_id AND ca.campaign_prospect_id=r.campaign_prospect_id
+            AND ca.organization_id=${q.organizationId} AND ca.ended_at IS NULL
+        )`
+            : sql``
+        }
+        ${
+          q.teamId
+            ? sql`AND EXISTS (
+          SELECT 1 FROM campaign_prospect_assignments ca
+          WHERE ca.tenant_id=r.tenant_id AND ca.campaign_prospect_id=r.campaign_prospect_id
+            AND ca.team_id=${q.teamId} AND ca.ended_at IS NULL
+        )`
+            : sql``
+        }
+        ${q.search ? sql`AND e.name ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}` : sql``}
+      ORDER BY e.id, r.created_at DESC, r.id DESC
+      LIMIT 100
+    `);
+    const items = result.rows.map((row) => ({
+      id: row.id,
+      establishmentId: row.establishmentId,
+      name: row.name,
+      longitude: Number(row.longitude),
+      latitude: Number(row.latitude),
+      reservedAt: row.reservedAt,
+      expiresAt: row.expiresAt,
+      severity: 'warning' as const,
+    }));
+    return { items, count: items.length, lookbackHours, bbox };
   }
 }

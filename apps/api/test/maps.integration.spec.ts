@@ -20,6 +20,7 @@ import {
   membershipResourceScopes,
   membershipScopeDenials,
   organizations,
+  reservationRecords,
   teams,
   tenantMemberships,
   tenantRolePermissions,
@@ -43,6 +44,7 @@ describe('Scoped prospect maps', () => {
     duplicateCampaign = randomUUID(),
     foreignCampaign = randomUUID(),
     territory = randomUUID();
+  const reservation = randomUUID();
   const places = Array.from({ length: 5 }, () => randomUUID()),
     prospects = Array.from({ length: 6 }, () => randomUUID()),
     assignments = Array.from({ length: 4 }, () => randomUUID());
@@ -154,6 +156,30 @@ describe('Scoped prospect maps', () => {
       subject: 'Map completed contact',
       completedAt: new Date(),
     });
+    await db.insert(reservationRecords).values({
+      id: reservation,
+      tenantId: tenant,
+      campaignId: campaign,
+      campaignProspectId: prospects[0]!,
+      establishmentId: places[0]!,
+      ownerMembershipId: member,
+      lease: {
+        reservationId: reservation,
+        tenantId: tenant,
+        organizationId: org,
+        campaignId: campaign,
+        campaignProspectId: prospects[0]!,
+        establishmentId: places[0]!,
+        assignmentId: assignments[0]!,
+        teamId: team,
+        userId: member,
+        acquiredAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      },
+      ruleSnapshot: {},
+      status: 'active',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
     for (const id of actors) {
       const r = await app.inject({
         method: 'POST',
@@ -168,6 +194,7 @@ describe('Scoped prospect maps', () => {
     if (db) {
       const ids = [tenant, foreignTenant];
       for (const t of [
+        reservationRecords,
         actions,
         idempotencyRecords,
         auditEvents,
@@ -203,6 +230,7 @@ describe('Scoped prospect maps', () => {
       `/prospects/map?bbox=${bbox}&zoom=99`,
       '/prospects/nearby?latitude=91&longitude=0',
       `/map/heatmap?bbox=${bbox}&from=2020-01-01&to=2026-01-01`,
+      `/map/collisions?bbox=${bbox}&lookbackHours=169`,
     ])
       expect((await call(url)).statusCode, url).toBe(400);
   });
@@ -279,6 +307,16 @@ describe('Scoped prospect maps', () => {
     expect(
       (await call('/prospects/nearby?latitude=48.85&longitude=2.35&radiusMeters=1')).json().items,
     ).toHaveLength(1);
+  });
+  it('lists privacy-safe recent reservations only inside the caller scope', async () => {
+    const result = await call(`/map/collisions?bbox=${bbox}`);
+    expect(result.statusCode, result.body).toBe(200);
+    expect(result.json()).toMatchObject({
+      count: 1,
+      items: [{ establishmentId: places[0], severity: 'warning' }],
+    });
+    expect(result.body).not.toContain(member);
+    expect((await call(`/map/collisions?bbox=${bbox}`, outsider)).json().items).toEqual([]);
   });
   it('aggregates heatmap activity and conversion without revealing another owner', async () => {
     const all = await call(`/map/heatmap?bbox=${bbox}&zoom=0`);

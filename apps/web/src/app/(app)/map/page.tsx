@@ -16,6 +16,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api/api-error';
 import { listMapProspects } from '@/lib/api/map-client';
 import type { MapViewport } from '@/lib/api/map-types';
+import { listMapCollisions } from '@/lib/api/map-collision-client';
+import type { MapCollision } from '@/lib/api/map-collision-types';
 import { listNearbyProspects } from '@/lib/api/nearby-client';
 import {
   DEFAULT_NEARBY_RADIUS_METERS,
@@ -58,6 +60,8 @@ export default function TerritoryMapPage() {
   } | null>(null);
   const [locating, setLocating] = useState(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
+  const [collisions, setCollisions] = useState<MapCollision[] | null>(null);
+  const [collisionError, setCollisionError] = useState<string | null>(null);
 
   const scoped = Boolean(teamId);
 
@@ -117,6 +121,22 @@ export default function TerritoryMapPage() {
       controller.abort();
     };
   }, [search, status, teamId, viewport, refreshVersion]);
+
+  useEffect(() => {
+    if (!viewport) return;
+    const controller = new AbortController();
+    listMapCollisions({ ...viewport, ...(teamId ? { teamId } : {}) }, controller.signal)
+      .then((response) => {
+        if (!controller.signal.aborted) {
+          setCollisions(response.items);
+          setCollisionError(null);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCollisionError('We could not load recent reservations.');
+      });
+    return () => controller.abort();
+  }, [teamId, viewport, refreshVersion]);
 
   /* Boundaries are scoped server-side, so no team filter is applied here. */
   useEffect(() => {
@@ -318,10 +338,28 @@ export default function TerritoryMapPage() {
               Recent reservations in your area
             </p>
 
-            {/* The collision-event register exists; wiring it is the next step. */}
-            <Alert tone="info" className="mt-4">
-              Recent collisions in your area are not listed yet.
-            </Alert>
+            {collisionError ? (
+              <Alert tone="warning" className="mt-4">
+                {collisionError}
+              </Alert>
+            ) : null}
+            {!collisionError && collisions?.length === 0 ? (
+              <p className="mt-4 text-[14px] text-ink-muted">
+                No recent reservations in this area.
+              </p>
+            ) : null}
+            {collisions && collisions.length > 0 ? (
+              <ul className="mt-4 flex flex-col divide-y divide-line-soft">
+                {collisions.map((collision) => (
+                  <li key={collision.id} className="flex items-center gap-3 py-2.5">
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-navy">
+                      {collision.name}
+                    </span>
+                    <span className="shrink-0 text-[13px] text-ink-muted">Recently reserved</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </Card>
         </div>
       </div>

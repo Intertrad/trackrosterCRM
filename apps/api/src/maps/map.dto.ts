@@ -38,6 +38,9 @@ export class MapAggregateDto extends MapViewportDto {
   @IsOptional() @IsDateString({ strict: true }) from?: string;
   @IsOptional() @IsDateString({ strict: true }) to?: string;
 }
+export class MapCollisionDto extends MapViewportDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(168) lookbackHours = 24;
+}
 export class HeatmapDto extends MapAggregateDto {
   @IsOptional() @IsIn(['activity', 'conversion']) metric: 'activity' | 'conversion' = 'activity';
 }

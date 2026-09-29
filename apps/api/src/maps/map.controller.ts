@@ -5,7 +5,13 @@ import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { MapService } from './map.service.js';
-import { HeatmapDto, MapAggregateDto, MapViewportDto, NearbyProspectsDto } from './map.dto.js';
+import {
+  HeatmapDto,
+  MapAggregateDto,
+  MapCollisionDto,
+  MapViewportDto,
+  NearbyProspectsDto,
+} from './map.dto.js';
 @Controller('prospects')
 @UseGuards(AuthGuard)
 export class ProspectMapController {
@@ -26,6 +32,12 @@ export class MapAggregateController {
   }
   @Get('coverage') coverage(@CurrentAuth() a: AuthenticatedPrincipal, @Query() q: MapAggregateDto) {
     return this.maps.coverage(a, q);
+  }
+  @Get('collisions') collisions(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: MapCollisionDto,
+  ) {
+    return this.maps.collisions(a, q);
   }
 }
 @Module({
