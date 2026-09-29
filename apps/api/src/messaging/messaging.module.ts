@@ -87,18 +87,24 @@ export class MessagingService {
         displayName: tenantMemberships.displayName,
         email: identities.email,
         roles: sql<string[]>`(
-          SELECT coalesce(jsonb_agg(DISTINCT CASE g.role
+          SELECT coalesce(jsonb_agg(DISTINCT CASE role_grants.role
             WHEN 'client_admin' THEN 'tenant_admin'
             WHEN 'observer' THEN 'auditor'
-            ELSE g.role::text
-          END ORDER BY CASE g.role
+            ELSE role_grants.role
+          END ORDER BY CASE role_grants.role
             WHEN 'client_admin' THEN 'tenant_admin'
             WHEN 'observer' THEN 'auditor'
-            ELSE g.role::text
+            ELSE role_grants.role
           END), '[]'::jsonb)
-          FROM user_access_grants g
-          WHERE g.tenant_id = ${a.tenantId}
-            AND g.user_id = ${tenantMemberships.id}
+          FROM (
+            SELECT g.role::text AS role
+            FROM user_access_grants g
+            WHERE g.tenant_id = ${a.tenantId} AND g.user_id = ${tenantMemberships.id}
+            UNION
+            SELECT r.role::text AS role
+            FROM membership_resource_scopes r
+            WHERE r.tenant_id = ${a.tenantId} AND r.user_id = ${tenantMemberships.id}
+          ) role_grants
         )`,
       })
       .from(tenantMemberships)
@@ -238,13 +244,20 @@ export class MessagingService {
             displayName: tenantMemberships.displayName,
             email: identities.email,
             roles: sql<string[]>`(
-            SELECT coalesce(jsonb_agg(DISTINCT CASE g.role
+            SELECT coalesce(jsonb_agg(DISTINCT CASE role_grants.role
               WHEN 'client_admin' THEN 'tenant_admin'
               WHEN 'observer' THEN 'auditor'
-              ELSE g.role::text
+              ELSE role_grants.role
             END), '[]'::jsonb)
-            FROM user_access_grants g
-            WHERE g.tenant_id = ${a.tenantId} AND g.user_id = ${tenantMemberships.id}
+            FROM (
+              SELECT g.role::text AS role
+              FROM user_access_grants g
+              WHERE g.tenant_id = ${a.tenantId} AND g.user_id = ${tenantMemberships.id}
+              UNION
+              SELECT r.role::text AS role
+              FROM membership_resource_scopes r
+              WHERE r.tenant_id = ${a.tenantId} AND r.user_id = ${tenantMemberships.id}
+            ) role_grants
           )`,
           },
         })

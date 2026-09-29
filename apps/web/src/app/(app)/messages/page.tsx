@@ -887,6 +887,7 @@ function initials(member: { displayName?: string | null; email?: string }): stri
 
 function formatDesignation(value?: string): string {
   if (!value) return 'Member';
+  if (value === 'tenant_admin' || value === 'client_admin') return 'Admin';
   return value
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
