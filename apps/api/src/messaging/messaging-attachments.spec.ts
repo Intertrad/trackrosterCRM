@@ -7,6 +7,7 @@ import {
   conversationParticipants,
   messages,
   messageAttachments,
+  tenantMemberships,
 } from '../database/schema/index.js';
 import { MessagingService } from './messaging.module.js';
 
@@ -34,6 +35,29 @@ function fixture(member = true) {
                 { id: 'message', status: 'sent', createdAt: new Date('2026-01-01') },
                 { id: 'deleted', status: 'deleted', createdAt: new Date('2026-01-01') },
               ],
+            }),
+          }),
+        };
+      if (table === tenantMemberships)
+        return {
+          innerJoin: () => ({
+            where: vi.fn().mockResolvedValue([
+              {
+                membershipId: 'member-a',
+                displayName: 'Member A',
+                email: 'member-a@example.test',
+                roles: ['prospector'],
+              },
+            ]),
+            innerJoin: () => ({
+              where: vi.fn().mockResolvedValue([
+                {
+                  membershipId: 'member-a',
+                  displayName: 'Member A',
+                  email: 'member-a@example.test',
+                  roles: ['prospector'],
+                },
+              ]),
             }),
           }),
         };

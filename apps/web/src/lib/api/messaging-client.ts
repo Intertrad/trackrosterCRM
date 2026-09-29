@@ -6,6 +6,7 @@ import type {
   ConversationParticipant,
   Message,
   MessagePage,
+  MessagingMember,
 } from './messaging-types';
 
 function writeHeaders(): Record<string, string> {
@@ -34,6 +35,14 @@ export function listConversations(
     search ? `/api/conversations?${search}` : '/api/conversations',
     { cache: 'no-store', signal },
   );
+}
+
+/** Every active tenant member may start a conversation with another member. */
+export function listMessagingMembers(signal?: AbortSignal): Promise<MessagingMember[]> {
+  return browserJson<MessagingMember[]>('/api/conversations/members', {
+    cache: 'no-store',
+    signal,
+  });
 }
 
 export function createConversation(input: {

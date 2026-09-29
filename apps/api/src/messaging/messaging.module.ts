@@ -27,6 +27,7 @@ import {
   conversationParticipants,
   messages,
   messageAttachments,
+  identities,
   tenantMemberships,
 } from '../database/schema/index.js';
 import { AuthGuard } from '../auth/auth.guard.js';
@@ -72,6 +73,56 @@ function decodeCursor(cursor: string | undefined): Keyset | undefined {
 @Injectable()
 export class MessagingService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
+
+  /**
+   * Messaging needs a small, tenant-scoped directory for composing a new
+   * conversation. The membership administration endpoint is intentionally
+   * client-admin-only, so exposing that endpoint here would make ordinary
+   * prospectors unable to start a conversation with another active member.
+   */
+  private async profiles(a: Auth, membershipIds?: string[]) {
+    const rows = await this.db
+      .select({
+        membershipId: tenantMemberships.id,
+        displayName: tenantMemberships.displayName,
+        email: identities.email,
+        roles: sql<string[]>`(
+          SELECT coalesce(jsonb_agg(DISTINCT CASE g.role
+            WHEN 'client_admin' THEN 'tenant_admin'
+            WHEN 'observer' THEN 'auditor'
+            ELSE g.role::text
+          END ORDER BY CASE g.role
+            WHEN 'client_admin' THEN 'tenant_admin'
+            WHEN 'observer' THEN 'auditor'
+            ELSE g.role::text
+          END), '[]'::jsonb)
+          FROM user_access_grants g
+          WHERE g.tenant_id = ${a.tenantId}
+            AND g.user_id = ${tenantMemberships.id}
+        )`,
+      })
+      .from(tenantMemberships)
+      .innerJoin(identities, eq(identities.id, tenantMemberships.identityId))
+      .where(
+        and(
+          eq(tenantMemberships.tenantId, a.tenantId),
+          eq(tenantMemberships.status, 'active'),
+          eq(identities.status, 'active'),
+          membershipIds?.length ? inArray(tenantMemberships.id, membershipIds) : undefined,
+        ),
+      );
+    return rows.map((row) => ({
+      membershipId: row.membershipId,
+      displayName: row.displayName,
+      email: row.email,
+      roles: row.roles ?? [],
+      designation: row.roles?.[0] ?? 'member',
+    }));
+  }
+
+  async directory(a: Auth) {
+    return this.profiles(a);
+  }
   private async member(a: Auth, id: string) {
     const [m] = await this.db
       .select({ id: conversationParticipants.id })
@@ -180,13 +231,46 @@ export class MessagingService {
   participants(a: Auth, id: string) {
     return this.member(a, id).then(() =>
       this.db
-        .select()
+        .select({
+          membership: conversationParticipants,
+          profile: {
+            membershipId: tenantMemberships.id,
+            displayName: tenantMemberships.displayName,
+            email: identities.email,
+            roles: sql<string[]>`(
+            SELECT coalesce(jsonb_agg(DISTINCT CASE g.role
+              WHEN 'client_admin' THEN 'tenant_admin'
+              WHEN 'observer' THEN 'auditor'
+              ELSE g.role::text
+            END), '[]'::jsonb)
+            FROM user_access_grants g
+            WHERE g.tenant_id = ${a.tenantId} AND g.user_id = ${tenantMemberships.id}
+          )`,
+          },
+        })
         .from(conversationParticipants)
+        .innerJoin(
+          tenantMemberships,
+          and(
+            eq(tenantMemberships.tenantId, conversationParticipants.tenantId),
+            eq(tenantMemberships.id, conversationParticipants.membershipId),
+          ),
+        )
+        .innerJoin(identities, eq(identities.id, tenantMemberships.identityId))
         .where(
           and(
             eq(conversationParticipants.tenantId, a.tenantId),
             eq(conversationParticipants.conversationId, id),
           ),
+        )
+        .then((rows) =>
+          rows.map(({ membership, profile }) => ({
+            ...membership,
+            displayName: profile.displayName,
+            email: profile.email,
+            roles: profile.roles ?? [],
+            designation: profile.roles?.[0] ?? 'member',
+          })),
         ),
     );
   }
@@ -240,6 +324,12 @@ export class MessagingService {
       .orderBy(desc(messages.createdAt), desc(messages.id))
       .limit(limit + 1);
     const items = rows.slice(0, limit);
+    const senderProfiles = await this.profiles(a, [
+      ...new Set(items.map((message) => message.senderId)),
+    ]);
+    const profileByMembership = new Map(
+      senderProfiles.map((profile) => [profile.membershipId, profile]),
+    );
     // Batch attachment metadata after membership and tenant checks; never expose storage keys.
     const visibleIds = items
       .filter((message) => message.status !== 'deleted')
@@ -265,6 +355,7 @@ export class MessagingService {
     return {
       items: items.map((message) => ({
         ...message,
+        sender: profileByMembership.get(message.senderId) ?? null,
         attachments: attachments.filter((attachment) => attachment.messageId === message.id),
       })),
       nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : null,
@@ -357,6 +448,9 @@ export class MessagingService {
 @UseGuards(AuthGuard)
 export class ConversationController {
   constructor(private readonly s: MessagingService) {}
+  @Get('members') directory(@CurrentAuth() a: Auth) {
+    return this.s.directory(a);
+  }
   @Get() list(@CurrentAuth() a: Auth, @Query() q: ConversationListDto) {
     return this.s.list(a, q);
   }

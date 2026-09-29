@@ -18,18 +18,14 @@ import { SearchInput } from '@/components/ui/search-input';
 import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
-import { listMemberships } from '@/lib/api/membership-client';
-import {
-  membershipInitials,
-  membershipName,
-  type MembershipSummary,
-} from '@/lib/api/membership-types';
+import { membershipName } from '@/lib/api/membership-types';
 import {
   createConversation,
   deleteMessage,
   editMessage,
   listConversations,
   listMessages,
+  listMessagingMembers,
   listParticipants,
   markConversationRead,
   muteConversation,
@@ -46,6 +42,7 @@ import {
   type ConversationKind,
   type ConversationParticipant,
   type Message,
+  type MessagingMember,
 } from '@/lib/api/messaging-types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
@@ -61,10 +58,6 @@ export default function MessagesPage() {
    * compare against.
    */
   const me = user?.userId ?? null;
-  const canReadDirectory =
-    user?.grants.some((grant) => grant.role === 'client_admin' && grant.scopeType === 'tenant') ??
-    false;
-
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
@@ -72,7 +65,7 @@ export default function MessagesPage() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const olderLoaded = useRef(false);
   const [participants, setParticipants] = useState<ConversationParticipant[]>([]);
-  const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
+  const [people, setPeople] = useState<Map<string, MessagingMember>>(new Map());
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'archived'>('all');
@@ -126,23 +119,19 @@ export default function MessagesPage() {
   }, [loadConversations]);
 
   useEffect(() => {
-    // The membership directory is an admin-only resource. Conversation access
-    // does not confer permission to browse every member in the tenant.
     const controller = new AbortController();
     setPeople(new Map());
-    if (!canReadDirectory) return () => controller.abort();
-
-    listMemberships({ limit: 100 }, controller.signal)
+    listMessagingMembers(controller.signal)
       .then((page) => {
         if (!controller.signal.aborted)
-          setPeople(new Map(page.items.map((item) => [item.id, item])));
+          setPeople(new Map(page.map((item) => [item.membershipId, item])));
       })
       .catch(() => {
         if (!controller.signal.aborted) setPeople(new Map());
       });
 
     return () => controller.abort();
-  }, [canReadDirectory, user?.tenantId]);
+  }, [user?.tenantId]);
 
   const loadThread = useCallback(
     (conversationId: string, signal?: AbortSignal): Promise<void> =>
@@ -163,6 +152,22 @@ export default function MessagesPage() {
               ? [...(current ?? []).filter((item) => !ids.has(item.id)), ...recent]
               : recent;
             return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+          });
+          setPeople((current) => {
+            const next = new Map(current);
+            for (const member of members) {
+              next.set(member.membershipId, {
+                membershipId: member.membershipId,
+                displayName: member.displayName ?? null,
+                email: member.email ?? '',
+                roles: member.roles ?? [],
+                designation: member.designation ?? member.roles?.[0] ?? 'member',
+              });
+            }
+            for (const message of page.items) {
+              if (message.sender) next.set(message.sender.membershipId, message.sender);
+            }
+            return next;
           });
           if (!olderLoaded.current) setOlderCursor(page.nextCursor);
           setParticipants(members);
@@ -228,7 +233,7 @@ export default function MessagesPage() {
     const others = members
       .filter((participant) => participant.membershipId !== me)
       .map((participant) => people.get(participant.membershipId))
-      .filter((person): person is MembershipSummary => Boolean(person))
+      .filter((person): person is MessagingMember => Boolean(person))
       .map((person) => membershipName(person));
 
     return conversationName(conversation, t, others);
@@ -513,7 +518,7 @@ export default function MessagesPage() {
                     <ol className="flex flex-col gap-3">
                       {messages.map((message) => {
                         const mine = message.senderId === me;
-                        const sender = people.get(message.senderId);
+                        const sender = message.sender ?? people.get(message.senderId);
 
                         return (
                           <li
@@ -526,7 +531,7 @@ export default function MessagesPage() {
                                   aria-hidden="true"
                                   className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[12px] font-bold text-brand"
                                 >
-                                  {sender ? membershipInitials(sender) : '?'}
+                                  {sender ? initials(sender) : '?'}
                                 </span>
                               ) : null}
 
@@ -540,6 +545,7 @@ export default function MessagesPage() {
                                 {!mine ? (
                                   <p className="text-[12px] font-semibold text-ink-muted">
                                     {sender ? membershipName(sender) : t('messages.unknownSender')}
+                                    {sender ? ` · ${formatDesignation(sender.designation)}` : ''}
                                   </p>
                                 ) : null}
 
@@ -714,7 +720,7 @@ export default function MessagesPage() {
       </Drawer>
       <ComposeDrawer
         open={composing}
-        people={[...people.values()].filter((person) => person.id !== me)}
+        people={[...people.values()].filter((person) => person.membershipId !== me)}
         onClose={() => setComposing(false)}
         onCreated={(conversation) => {
           setComposing(false);
@@ -733,7 +739,7 @@ function ComposeDrawer({
   onCreated,
 }: {
   open: boolean;
-  people: MembershipSummary[];
+  people: MessagingMember[];
   onClose: () => void;
   onCreated: (conversation: Conversation) => void;
 }) {
@@ -787,18 +793,18 @@ function ComposeDrawer({
           ) : (
             <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
               {people.map((person) => (
-                <li key={person.id}>
+                <li key={person.membershipId}>
                   <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-line-soft px-3 py-2">
                     <input
                       type="checkbox"
                       className="size-4"
-                      checked={selected.includes(person.id)}
+                      checked={selected.includes(person.membershipId)}
                       disabled={busy}
                       onChange={(event) =>
                         setSelected((current) =>
                           event.target.checked
-                            ? [...current, person.id]
-                            : current.filter((id) => id !== person.id),
+                            ? [...current, person.membershipId]
+                            : current.filter((id) => id !== person.membershipId),
                         )
                       }
                     />
@@ -809,7 +815,7 @@ function ComposeDrawer({
                       </span>
 
                       <span className="block truncate text-[12px] text-ink-muted">
-                        {person.email}
+                        {person.email} · {formatDesignation(person.designation)}
                       </span>
                     </span>
                   </label>
@@ -863,6 +869,28 @@ function formatTimestamp(value: string): string {
         hour: '2-digit',
         minute: '2-digit',
       });
+}
+
+function initials(member: { displayName?: string | null; email?: string }): string {
+  const source = membershipName({
+    displayName: member.displayName ?? null,
+    email: member.email ?? '',
+  });
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+  return (
+    parts
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('') || '?'
+  ).toUpperCase();
+}
+
+function formatDesignation(value?: string): string {
+  if (!value) return 'Member';
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function describeMessagingError(error: unknown, t: Translate): string {

@@ -26,6 +26,18 @@ export interface ConversationParticipant {
   lastReadAt: string | null;
   mutedUntil: string | null;
   joinedAt: string;
+  displayName?: string | null;
+  email?: string;
+  roles?: string[];
+  designation?: string;
+}
+
+export interface MessagingMember {
+  membershipId: string;
+  displayName: string | null;
+  email: string;
+  roles: string[];
+  designation: string;
 }
 
 export interface MessageAttachment {
@@ -44,6 +56,7 @@ export interface Message {
   status: MessageStatus;
   createdAt: string;
   updatedAt: string;
+  sender?: MessagingMember | null;
 }
 
 /**
