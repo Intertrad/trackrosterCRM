@@ -420,27 +420,73 @@ function Referential() {
           </div>
         ) : map ? (
           <div>
-            <p className="px-5 py-4 text-sm text-ink-muted">
+            <div className="border-b border-line-soft px-5 py-4 text-sm text-ink-muted">
               {l(
                 `${points.length} of ${items.length} records on this page have coordinates. Locations do not indicate contact availability.`,
                 `${points.length} établissements sur les ${items.length} de cette page sont géolocalisés. Les positions n’indiquent pas les droits de contact.`,
               )}
-            </p>
-            {points.length ? (
-              <ProspectMap
-                points={points}
-                selectedId={detail?.id}
-                onSelect={(p) => setDetail(items.find((r) => r.id === p.id) ?? null)}
-                className="h-[460px]"
-              />
-            ) : (
-              <Alert tone="info" className="m-5">
-                {l(
-                  'No coordinates on this page. Try another section or page.',
-                  'Aucune coordonnée sur cette page. Essayez un autre secteur ou une autre page.',
-                )}
-              </Alert>
-            )}
+            </div>
+            <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.7fr)]">
+              {points.length ? (
+                <ProspectMap
+                  points={points}
+                  selectedId={detail?.id}
+                  onSelect={(p) => setDetail(items.find((r) => r.id === p.id) ?? null)}
+                  className="h-[520px]"
+                />
+              ) : (
+                <Alert tone="info" className="flex min-h-[260px] items-center">
+                  {l(
+                    'No coordinates on this page. The filtered records remain available in the results panel; add coordinates to place them on the map.',
+                    'Aucune coordonnée sur cette page. Les établissements filtrés restent disponibles dans la liste ; ajoutez des coordonnées pour les placer sur la carte.',
+                  )}
+                </Alert>
+              )}
+              <aside className="max-h-[520px] overflow-y-auto rounded-xl border border-line-soft bg-surface-muted/50">
+                <div className="sticky top-0 z-10 border-b border-line-soft bg-surface px-4 py-3">
+                  <p className="text-sm font-bold text-navy">
+                    {l('Filtered prospects', 'Résultats filtrés')}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {l('Select records or open a location.', 'Sélectionnez ou ouvrez une fiche.')}
+                  </p>
+                </div>
+                <div className="divide-y divide-line-soft">
+                  {items.map((r) => (
+                    <div key={r.id} className="flex gap-3 p-3 hover:bg-brand-wash">
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4 shrink-0 accent-brand"
+                        checked={selected.has(r.id)}
+                        disabled={
+                          r.status !== 'active' ||
+                          (!selected.has(r.id) && selected.size >= MAX_BATCH_SIZE)
+                        }
+                        aria-label={`${l('Select', 'Sélectionner')} ${r.name}`}
+                        onChange={() => setSelected((s) => toggleRecord(s, r, MAX_BATCH_SIZE))}
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 text-left"
+                        onClick={() => setDetail(r)}
+                      >
+                        <span className="block truncate text-sm font-bold text-navy hover:text-brand">
+                          {r.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-ink-muted">
+                          {[r.postalCode, r.city].filter(Boolean).join(' ') || '—'}
+                        </span>
+                        {r.latitude === null || r.longitude === null ? (
+                          <span className="mt-1 block text-[11px] text-warning">
+                            {l('Missing map coordinates', 'Coordonnées manquantes')}
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </aside>
+            </div>
           </div>
         ) : (
           <div className="relative overflow-x-auto">
