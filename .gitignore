@@ -88,6 +88,20 @@ Thumbs.db
 
 *.sqlite
 *.sqlite3
+*.dump
+*.dump.gz
+
+# =========================================================
+# Private data imports and exports
+# =========================================================
+# Real prospect workbooks, database exports, and generated import artifacts
+# belong in private storage or a local working directory, never in Git.
+
+*.xls
+*.xlsx
+/data/private/
+/data/imports/
+/data/exports/
 
 
 # =========================================================
