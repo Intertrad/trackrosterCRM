@@ -93,6 +93,7 @@ try {
       `select id, tenant_id, name, address_line1, postal_code, city, country_code
        from establishments
        where (latitude is null or longitude is null)
+         and (address_line1 is not null or postal_code is not null or city is not null)
          and ($1::uuid is null or tenant_id = $1::uuid)
        order by tenant_id, id
        limit $2`,
