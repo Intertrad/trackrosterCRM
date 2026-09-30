@@ -25,7 +25,6 @@ export default defineConfig({
      */
     fileParallelism: false,
     maxWorkers: 1,
-    minWorkers: 1,
 
     /*
      * The authentication limiter keys on IP plus identity, and every suite

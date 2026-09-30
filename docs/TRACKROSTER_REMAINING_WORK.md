@@ -38,7 +38,7 @@ mechanism (tenant context for background work) and one hygiene task (a green gat
 | `pnpm typecheck`           | **PASS** — 5/5 packages                       |
 | `pnpm build`               | **PASS** — 4/4 tasks                          |
 | `pnpm db:migrations:check` | **PASS** — 78 entries, contiguous chain       |
-| `pnpm lint`                | **FAIL** — 1 error, 10 warnings (see TR-904)  |
+| `pnpm lint`                | **PASS** — API lint is 0 errors / 0 warnings  |
 | api unit                   | **746 passed / 0 failed**                     |
 | api integration            | **582 passed / 1 failed** — the one is TR-916 |
 | worker unit                | **65 passed / 0 failed**                      |

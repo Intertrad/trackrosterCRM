@@ -103,7 +103,7 @@ export class ActionService {
         message: 'Prospect opposition blocks this contact channel',
       });
   }
-  async list(auth: AuthenticatedPrincipal, q: ListActionsDto): Promise<any> {
+  async list(auth: AuthenticatedPrincipal, q: ListActionsDto): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, auth.tenantId, () => this.list(auth, q));
     /*
@@ -134,6 +134,8 @@ export class ActionService {
 
         actorDisplayName: tenantMemberships.displayName,
         establishmentName: establishments.name,
+        establishmentLatitude: establishments.latitude,
+        establishmentLongitude: establishments.longitude,
         campaignName: campaigns.name,
         organizationId: campaigns.organizationId,
         organizationName: organizations.name,
@@ -194,7 +196,12 @@ export class ActionService {
           displayName: r.actorDisplayName,
         },
 
-        establishment: { id: r.action.establishmentId, name: r.establishmentName },
+        establishment: {
+          id: r.action.establishmentId,
+          name: r.establishmentName,
+          latitude: r.establishmentLatitude,
+          longitude: r.establishmentLongitude,
+        },
 
         campaign: { id: r.action.campaignId, name: r.campaignName },
 
@@ -204,7 +211,7 @@ export class ActionService {
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.action.id : null,
     };
   }
-  async detail(auth: AuthenticatedPrincipal, id: string): Promise<any> {
+  async detail(auth: AuthenticatedPrincipal, id: string): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, auth.tenantId, () => this.detail(auth, id));
     const action = await this.authorize(auth, id);
@@ -222,7 +229,7 @@ export class ActionService {
       .where(and(eq(actionEffects.tenantId, auth.tenantId), eq(actionEffects.actionId, id)));
     return { ...action, etag: resourceETag(action), outcome: outcome ?? null, effects };
   }
-  async events(auth: AuthenticatedPrincipal, id: string, q: ListActionsDto): Promise<any> {
+  async events(auth: AuthenticatedPrincipal, id: string, q: ListActionsDto): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, auth.tenantId, () => this.events(auth, id, q));
     await this.authorize(auth, id);

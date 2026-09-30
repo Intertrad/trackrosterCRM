@@ -98,7 +98,7 @@ export class MembershipService {
     auth: AuthenticatedPrincipal,
     id: string,
     executor: DatabaseExecutor = this.db,
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (!currentTenantExecutor() && executor === this.db)
       return withTenantContext(this.db, auth.tenantId, (tx) => this.get(auth, id, tx));
     const [row] = await executor
@@ -163,7 +163,7 @@ export class MembershipService {
     id: string,
     input: UpdateMembershipDto,
     ifMatch?: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, auth.tenantId, () => this.update(auth, id, input, ifMatch));
     if (!Object.entries(input).some(([key, value]) => key !== 'reason' && value !== undefined))
@@ -174,7 +174,10 @@ export class MembershipService {
       throw new BadRequestException('Scope fields require a role');
     return this.db.transaction(async (tx) => {
       const member = await this.lock(auth, id, tx);
-      const before = await this.get(auth, id, tx);
+      const before = (await this.get(auth, id, tx)) as { activeAssignments: number } & Record<
+        string,
+        unknown
+      >;
       assertResourceMatches(ifMatch, before);
       if (input.status && input.status !== member.status) {
         if (member.status === 'invited' && input.status !== 'departed')

@@ -14,6 +14,7 @@ export function createIntegrationPool(connectionString: string): Pool {
   const rejectUnauthorized = configured
     ? configured.toLowerCase() !== 'false'
     : !(!isProduction && /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString));
+  const explicitlyDisablesTls = /(?:^|[?&])sslmode=disable(?:&|$)/i.test(connectionString);
 
   const config: PoolConfig = {
     connectionString,
@@ -21,8 +22,9 @@ export function createIntegrationPool(connectionString: string): Pool {
   };
 
   if (
-    configured !== undefined ||
-    (!isProduction && /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString))
+    !explicitlyDisablesTls &&
+    (configured !== undefined ||
+      (!isProduction && /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString)))
   ) {
     const parsed = new URL(connectionString);
     parsed.searchParams.delete('sslmode');

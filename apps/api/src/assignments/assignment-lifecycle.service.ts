@@ -64,7 +64,7 @@ export class AssignmentLifecycleService {
     await this.batches.authorize(a, r.campaignId, [r.teamId], tx);
     return r;
   }
-  async list(a: AuthenticatedPrincipal, q: AssignmentListDto): Promise<any> {
+  async list(a: AuthenticatedPrincipal, q: AssignmentListDto): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.list(a, q));
     const rows = await this.db
@@ -106,7 +106,7 @@ export class AssignmentLifecycleService {
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.assignment.id : null,
     };
   }
-  async detail(a: AuthenticatedPrincipal, id: string): Promise<any> {
+  async detail(a: AuthenticatedPrincipal, id: string): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.detail(a, id));
     const r = await this.row(a, id);
@@ -169,7 +169,7 @@ export class AssignmentLifecycleService {
    * resolved from it — the alternative would have changed the shape of a cursor
    * clients already hold.
    */
-  async unassigned(a: AuthenticatedPrincipal, q: UnassignedListDto): Promise<any> {
+  async unassigned(a: AuthenticatedPrincipal, q: UnassignedListDto): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.unassigned(a, q));
     await this.batches.authorize(a, q.campaignId, q.teamId ? [q.teamId] : null);
@@ -214,7 +214,7 @@ export class AssignmentLifecycleService {
       nextCursor: rows.rows.length > q.limit ? rows.rows[q.limit - 1]!.campaignProspectId : null,
     };
   }
-  async create(a: AuthenticatedPrincipal, b: CreateAssignmentDto): Promise<any> {
+  async create(a: AuthenticatedPrincipal, b: CreateAssignmentDto): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.create(a, b));
     const result = await this.batches.run(
@@ -235,7 +235,7 @@ export class AssignmentLifecycleService {
     op: 'update' | 'complete' | 'revoke' | 'reassign',
     b: UpdateAssignmentDto | AssignmentEndDto | ReassignAssignmentDto,
     version?: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.mutate(a, id, op, b, version));
     if (Object.values(b).some((v) => v === null) && !('teamId' in b))

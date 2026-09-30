@@ -29,8 +29,10 @@ export const databaseProviders: Provider[] = [
       const rejectUnauthorized = configService.get<string>('DATABASE_SSL_REJECT_UNAUTHORIZED');
       const isDevelopment = configService.get<string>('NODE_ENV')?.toLowerCase() === 'development';
       const usesRequiredTls = /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString);
+      const explicitlyDisablesTls = /(?:^|[?&])sslmode=disable(?:&|$)/i.test(connectionString);
       const ssl =
-        rejectUnauthorized === undefined && !(isDevelopment && usesRequiredTls)
+        explicitlyDisablesTls ||
+        (rejectUnauthorized === undefined && !(isDevelopment && usesRequiredTls))
           ? undefined
           : {
               rejectUnauthorized:

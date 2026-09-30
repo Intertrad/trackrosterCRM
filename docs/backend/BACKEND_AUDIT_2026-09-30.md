@@ -19,7 +19,7 @@ historical.
 | API typecheck/build     | Passed                                                   |
 | Worker typecheck/build  | Passed                                                   |
 | Migration integrity     | Passed: 85 journal entries and snapshots                 |
-| Backend lint            | 0 errors, 10 existing `no-explicit-any` warnings         |
+| Backend lint            | Passed: 0 errors and 0 warnings                          |
 
 ## Changes completed in this audit
 
@@ -32,6 +32,11 @@ historical.
 - Applied migration `0084` successfully to the configured database.
 - Updated the status, schema, production-readiness, testing, and remaining-work
   documentation to point at this snapshot.
+- Made the database provider and integration pool honor an explicit
+  `sslmode=disable` for disposable local integration databases while preserving
+  the production TLS policy.
+- Replaced the ten unbounded service return types that produced the API lint
+  warnings with `unknown` contracts; API typecheck, build, and lint remain green.
 
 ## Full integration caveat
 
@@ -73,6 +78,19 @@ integration environment.
 | R2 object storage                  | **Blocked:** endpoint, bucket, and credentials are not configured in the audit environment                      |
 | SSO encryption                     | **Blocked:** `SSO_ENCRYPTION_KEY` is not configured                                                             |
 
+### Local completion pass
+
+| Checkpoint                                                                     | Result                                                                                                         |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Disposable local database                                                      | Passed; 85 migrations replayed against Postgres on `127.0.0.1:55439`                                           |
+| Restricted runtime RLS suite                                                   | Passed; 1 file, 2 tests with `trackroster_app`                                                                 |
+| Full local API integration                                                     | **Environment-gated:** 46 files failed, 12 passed; failures were dominated by missing Mailpit and incomplete   |
+| local identity fixtures, so this run is not treated as a product certification |
+| Local backup/restore                                                           | Passed; `pg_dump`/`pg_restore` restored the disposable schema with 92 public tables                            |
+| API lint cleanup                                                               | Passed; 0 errors and 0 warnings                                                                                |
+| Controller route inventory                                                     | Passed static inventory; 340 controller routes across 63 files, 192 ledger entries verified and 189 acceptance |
+| entries remain pending in the product ledger                                   |
+
 The live database checks were read-only. No database role, RLS policy, provider
 credential, or production setting was changed during this checkpoint pass.
 
@@ -88,3 +106,7 @@ node scripts/check-migration-integrity.mjs
 ./node_modules/.bin/vitest run                           # apps/worker
 ./node_modules/.bin/vitest run --config vitest.integration.config.ts test/reservation.integration.spec.ts test/manager-override.integration.spec.ts # apps/api
 ```
+
+The full local integration run additionally requires the `mailpit` service from
+`docker-compose.backend-test.yml`; the image was intentionally not started in
+this environment because the configured MinIO image could not be pulled.
