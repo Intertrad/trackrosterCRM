@@ -1,12 +1,12 @@
 'use client';
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ConfirmDialog } from '@/components/ui/dialog';
 import { MessageAttachments } from '@/components/messaging/message-attachments';
 import { text } from '@/lib/workspace/copy';
-import { Pencil, BellOff, MessagesSquare, Plus, Send, Trash2 } from 'lucide-react';
+import { BellOff, MessagesSquare, Paperclip, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ import {
   muteConversation,
   sendMessage,
 } from '@/lib/api/messaging-client';
+import { uploadMessageAttachment } from '@/lib/api/message-attachment-client';
 import {
   CONVERSATION_KINDS,
   MAX_MESSAGE_BODY,
@@ -216,6 +217,10 @@ export default function MessagesPage() {
   const nearBottom = useRef(true);
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [composerFile, setComposerFile] = useState<File | null>(null);
+  const [pendingAttachmentMessageId, setPendingAttachmentMessageId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const composerFileId = useId();
   const [readError, setReadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -378,6 +383,11 @@ export default function MessagesPage() {
   );
 
   useEffect(() => {
+    // Never carry a selected file or a failed upload retry into another thread.
+    setComposerFile(null);
+    setPendingAttachmentMessageId(null);
+    setUploadProgress(null);
+
     if (!activeId) {
       setMessages(null);
 
@@ -395,7 +405,10 @@ export default function MessagesPage() {
         /* Opening a thread is what marks it read. */
         if (activeId !== DEMO_CONVERSATION_ID) {
           markConversationRead(activeId)
-            .then(() => void loadConversations())
+            .then(() => {
+              window.dispatchEvent(new Event('trackroster:messages-read'));
+              return loadConversations();
+            })
             .catch(() => undefined);
         }
       }
@@ -461,10 +474,12 @@ export default function MessagesPage() {
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
-    if (!activeId || draft.trim().length === 0 || busy) {
+    if (!activeId || busy || (draft.trim().length === 0 && !pendingAttachmentMessageId)) {
       return;
     }
 
+    const body = draft.trim();
+    const file = composerFile;
     setBusy(true);
     setActionError(null);
 
@@ -494,12 +509,34 @@ export default function MessagesPage() {
         setMessages((current) => [...(current ?? []), localMessage]);
         setPeople((current) => new Map(current).set(sender.membershipId, sender));
         setDraft('');
+        setComposerFile(null);
         setBusy(false);
         return;
       }
-      await sendMessage(activeId, draft.trim());
+      const sentMessage = pendingAttachmentMessageId
+        ? { id: pendingAttachmentMessageId }
+        : await sendMessage(activeId, body);
 
-      setDraft('');
+      if (!pendingAttachmentMessageId) setDraft('');
+      if (file) {
+        setPendingAttachmentMessageId(sentMessage.id);
+        setUploadProgress(0);
+        try {
+          await uploadMessageAttachment(sentMessage.id, file, setUploadProgress);
+          setComposerFile(null);
+          setPendingAttachmentMessageId(null);
+        } catch {
+          setActionError(
+            text(
+              'Message sent, but the attachment could not be uploaded. Retry it from the composer.',
+              'Message envoyé, mais la pièce jointe n’a pas pu être transférée. Réessayez depuis le composeur.',
+              language,
+            ),
+          );
+        } finally {
+          setUploadProgress(null);
+        }
+      }
       await loadThread(activeId);
       await loadConversations();
     } catch (caught) {
@@ -801,6 +838,17 @@ export default function MessagesPage() {
                       {messages.map((message) => {
                         const mine = message.senderId === me;
                         const sender = message.sender ?? people.get(message.senderId);
+                        const readByOther =
+                          mine &&
+                          participants.some((participant) => {
+                            if (participant.membershipId === me || !participant.lastReadAt)
+                              return false;
+                            const readAt = new Date(participant.lastReadAt).getTime();
+                            const sentAt = new Date(message.createdAt).getTime();
+                            return (
+                              !Number.isNaN(readAt) && !Number.isNaN(sentAt) && readAt >= sentAt
+                            );
+                          });
 
                         return (
                           <li
@@ -820,7 +868,7 @@ export default function MessagesPage() {
                               <div
                                 className={
                                   mine
-                                    ? 'rounded-2xl rounded-br-sm bg-brand px-3.5 py-2.5 text-white'
+                                    ? 'group rounded-2xl rounded-br-sm bg-brand px-3.5 py-2.5 text-white'
                                     : 'rounded-2xl rounded-bl-sm bg-surface-muted px-3.5 py-2.5'
                                 }
                               >
@@ -875,6 +923,11 @@ export default function MessagesPage() {
                                   {message.status === 'edited'
                                     ? text(' · edited', ' · modifié', language)
                                     : ''}
+                                  {mine
+                                    ? readByOther
+                                      ? text(' · read', ' · lu', language)
+                                      : text(' · sent', ' · envoyé', language)
+                                    : ''}
                                 </p>
                               </div>
 
@@ -912,26 +965,119 @@ export default function MessagesPage() {
                   <div ref={listEnd} />
                 </div>
 
-                <form
-                  noValidate
-                  onSubmit={(event) => void send(event)}
-                  className="mt-4 flex gap-2.5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <TextField
-                      label={t('messages.message')}
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      placeholder={t('messages.writeMessage')}
-                      maxLength={MAX_MESSAGE_BODY}
-                      disabled={busy}
-                    />
-                  </div>
+                <form noValidate onSubmit={(event) => void send(event)} className="mt-4">
+                  <label
+                    htmlFor={`${composerFileId}-message`}
+                    className="text-[13px] font-bold text-ink"
+                  >
+                    {t('messages.message')}
+                  </label>
+                  <div className="mt-1.5 flex items-end gap-2.5">
+                    <div className="min-w-0 flex-1">
+                      <textarea
+                        id={`${composerFileId}-message`}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            event.currentTarget.form?.requestSubmit();
+                          }
+                        }}
+                        placeholder={t('messages.writeMessage')}
+                        maxLength={MAX_MESSAGE_BODY}
+                        disabled={busy}
+                        rows={2}
+                        className="min-h-11 w-full resize-y rounded-[9px] border border-line bg-surface px-3.5 py-2.5 text-[14.4px] text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30 disabled:cursor-not-allowed disabled:bg-surface-muted disabled:text-ink-muted"
+                      />
+                    </div>
 
-                  <Button type="submit" loading={busy} disabled={draft.trim().length === 0}>
-                    <Send aria-hidden="true" className="size-4" />
-                    <span className="sr-only">{t('messages.send')}</span>
-                  </Button>
+                    <input
+                      id={composerFileId}
+                      type="file"
+                      className="sr-only"
+                      disabled={busy}
+                      onChange={(event) => {
+                        const next = event.target.files?.[0] ?? null;
+                        event.currentTarget.value = '';
+                        if (!next) return;
+                        if (!next.size || next.size > 25_000_000) {
+                          setActionError(
+                            text(
+                              'Choose a non-empty file smaller than 25 MB.',
+                              'Choisissez un fichier non vide de moins de 25 Mo.',
+                              language,
+                            ),
+                          );
+                          return;
+                        }
+                        setActionError(null);
+                        setComposerFile(next);
+                      }}
+                    />
+                    <label
+                      htmlFor={composerFileId}
+                      className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface px-3 text-ink-muted transition-colors hover:border-brand hover:text-brand has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-55"
+                      title={text('Add attachment', 'Ajouter une pièce jointe', language)}
+                    >
+                      <Paperclip aria-hidden="true" className="size-[18px]" />
+                      <span className="sr-only">
+                        {text('Add attachment', 'Ajouter une pièce jointe', language)}
+                      </span>
+                    </label>
+
+                    <Button
+                      type="submit"
+                      loading={busy}
+                      disabled={draft.trim().length === 0 && !pendingAttachmentMessageId}
+                      aria-label={
+                        pendingAttachmentMessageId
+                          ? text('Retry attachment upload', 'Réessayer le transfert', language)
+                          : t('messages.send')
+                      }
+                    >
+                      <Send aria-hidden="true" className="size-4" />
+                      <span className="sr-only">{t('messages.send')}</span>
+                    </Button>
+                  </div>
+                  {composerFile && (
+                    <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-brand-pale bg-brand-tint px-3 py-2 text-sm text-ink">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{composerFile.name}</p>
+                        <p className="text-xs text-ink-muted">
+                          {(composerFile.size / 1024).toFixed(1)} KB
+                          {uploadProgress !== null ? ` · ${uploadProgress}%` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label={text(
+                          'Remove attachment',
+                          'Supprimer la pièce jointe',
+                          language,
+                        )}
+                        className="rounded p-1 text-ink-muted hover:text-danger"
+                        disabled={busy}
+                        onClick={() => {
+                          setComposerFile(null);
+                          setPendingAttachmentMessageId(null);
+                        }}
+                      >
+                        <X aria-hidden="true" className="size-4" />
+                      </button>
+                    </div>
+                  )}
+                  {uploadProgress !== null && (
+                    <div
+                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-line-soft"
+                      aria-label={text('Upload progress', 'Progression du transfert', language)}
+                    >
+                      <div
+                        className="h-full rounded-full bg-brand transition-[width]"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  )}
                 </form>
               </>
             )}

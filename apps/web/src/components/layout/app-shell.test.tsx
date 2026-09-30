@@ -1,16 +1,20 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-const { useAuthMock, replaceMock, pathnameMock } = vi.hoisted(() => ({
+const { useAuthMock, replaceMock, pathnameMock, unreadMessagesMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   replaceMock: vi.fn(),
   pathnameMock: vi.fn(),
+  unreadMessagesMock: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/auth-context', () => ({ useAuth: useAuthMock }));
+vi.mock('@/lib/api/messaging-client', () => ({
+  getUnreadMessageCount: unreadMessagesMock,
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: replaceMock, push: vi.fn(), refresh: vi.fn() }),
@@ -36,6 +40,7 @@ describe('AppShell', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     pathnameMock.mockReturnValue('/');
+    unreadMessagesMock.mockResolvedValue({ count: 0 });
     window.localStorage.clear();
   });
 
@@ -55,6 +60,20 @@ describe('AppShell', () => {
     ).toEqual(['My day', 'Follow-ups', 'History', 'Messages']);
     fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
     expect(screen.getAllByRole('link', { name: 'My prospects' }).length).toBeGreaterThan(0);
+  });
+
+  it('shows the unread message count on the sidebar', async () => {
+    unreadMessagesMock.mockResolvedValue({ count: 4 });
+    authenticated();
+
+    render(<AppShell>content</AppShell>);
+
+    await waitFor(() => expect(screen.getByLabelText('4 unread messages')).toBeInTheDocument());
+    expect(
+      within(screen.getByRole('navigation', { name: 'Workspace' })).getByRole('link', {
+        name: /Messages/,
+      }),
+    ).toHaveTextContent('4');
   });
 
   it('renders the sidebar in the language the membership stores', () => {

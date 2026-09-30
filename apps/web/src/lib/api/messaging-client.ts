@@ -45,6 +45,13 @@ export function listMessagingMembers(signal?: AbortSignal): Promise<MessagingMem
   });
 }
 
+export function getUnreadMessageCount(signal?: AbortSignal): Promise<{ count: number }> {
+  return browserJson<{ count: number }>('/api/conversations/unread-count', {
+    cache: 'no-store',
+    signal,
+  });
+}
+
 export function createConversation(input: {
   kind: ConversationKind;
   title?: string;

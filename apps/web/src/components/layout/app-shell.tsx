@@ -13,6 +13,7 @@ import { Alert } from '@/components/ui/alert';
 import { BrandLockup, BrandMark } from '@/components/ui/brand-mark';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth/auth-context';
+import { getUnreadMessageCount } from '@/lib/api/messaging-client';
 import {
   getNavigationForWorkspace,
   getPlatformNavigation,
@@ -35,6 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   /* Per-viewer convenience only; never a source of truth for access. */
   useEffect(() => {
@@ -59,6 +61,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setMoreOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    const controller = new AbortController();
+    const refresh = () => {
+      void getUnreadMessageCount(controller.signal)
+        .then((result) => {
+          if (!controller.signal.aborted) setUnreadMessages(result.count);
+        })
+        .catch(() => undefined);
+    };
+
+    refresh();
+    window.addEventListener('trackroster:messages-read', refresh);
+    const timer = window.setInterval(refresh, 15_000);
+    return () => {
+      controller.abort();
+      window.removeEventListener('trackroster:messages-read', refresh);
+      window.clearInterval(timer);
+    };
+  }, [status]);
 
   function toggleCollapsed(): void {
     setCollapsed((current) => {
@@ -163,7 +187,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {t(item.group === 'configuration' ? 'nav.configuration' : 'nav.tools')}
                   </p>
                 )}
-                <SidebarItem item={item} pathname={pathname} collapsed={collapsed} />
+                <SidebarItem
+                  item={item}
+                  pathname={pathname}
+                  collapsed={collapsed}
+                  unreadCount={item.id === 'messages' ? unreadMessages : 0}
+                />
               </li>
             ))}
           </ul>
@@ -246,10 +275,12 @@ function SidebarItem({
   item,
   pathname,
   collapsed,
+  unreadCount = 0,
 }: {
   item: WorkspaceNavigationItem;
   pathname: string;
   collapsed: boolean;
+  unreadCount?: number;
 }) {
   const { t } = useTranslation();
 
@@ -293,7 +324,19 @@ function SidebarItem({
         className={cn('size-4 shrink-0', active ? 'text-lime' : 'text-brand-pale')}
       />
 
-      {!collapsed ? <span className="truncate">{t(item.label)}</span> : null}
+      {!collapsed ? (
+        <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <span className="truncate">{t(item.label)}</span>
+          {unreadCount > 0 ? (
+            <span
+              aria-label={`${unreadCount} unread messages`}
+              className="flex size-6 shrink-0 items-center justify-center rounded-full bg-lime text-[12px] font-bold leading-none text-navy"
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </Link>
   );
 }

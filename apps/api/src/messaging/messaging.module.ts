@@ -129,6 +129,34 @@ export class MessagingService {
   async directory(a: Auth) {
     return this.profiles(a);
   }
+  async unreadCount(a: Auth) {
+    const [row] = await this.db
+      .select({
+        count: sql<number>`count(*)`,
+      })
+      .from(conversations)
+      .innerJoin(
+        conversationParticipants,
+        and(
+          eq(conversationParticipants.tenantId, a.tenantId),
+          eq(conversationParticipants.conversationId, conversations.id),
+          eq(conversationParticipants.membershipId, a.membershipId),
+        ),
+      )
+      .innerJoin(
+        messages,
+        and(
+          eq(messages.tenantId, a.tenantId),
+          eq(messages.conversationId, conversations.id),
+          sql`${messages.senderId} <> ${a.membershipId}`,
+          sql`${messages.status} <> 'deleted'`,
+          sql`${conversationParticipants.lastReadAt} IS NULL OR ${messages.createdAt} > ${conversationParticipants.lastReadAt}`,
+        ),
+      )
+      .where(eq(conversations.tenantId, a.tenantId));
+
+    return { count: Number(row?.count ?? 0) };
+  }
   private async member(a: Auth, id: string) {
     const [m] = await this.db
       .select({ id: conversationParticipants.id })
@@ -505,6 +533,9 @@ export class ConversationController {
   constructor(private readonly s: MessagingService) {}
   @Get('members') directory(@CurrentAuth() a: Auth) {
     return this.s.directory(a);
+  }
+  @Get('unread-count') unreadCount(@CurrentAuth() a: Auth) {
+    return this.s.unreadCount(a);
   }
   @Get() list(@CurrentAuth() a: Auth, @Query() q: ConversationListDto) {
     return this.s.list(a, q);

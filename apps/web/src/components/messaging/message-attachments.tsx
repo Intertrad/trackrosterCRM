@@ -1,15 +1,16 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
 import { ApiError } from '@/lib/api/api-error';
+import { uploadMessageAttachment } from '@/lib/api/message-attachment-client';
 import type { Message } from '@/lib/api/messaging-types';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
-import { isRecord, readOperation, writeOperation } from '@/lib/workspace/client';
+import { isRecord, readOperation } from '@/lib/workspace/client';
 
 function safeUrl(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Missing storage URL');
@@ -35,66 +36,19 @@ export function MessageAttachments({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [links, setLinks] = useState<Record<string, string>>({});
-  const inFlight = useRef(false);
-  const attempt = useRef<{
-    file: File;
-    key: string;
-    objectKey?: string;
-    uploaded?: boolean;
-  } | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const attachmentCount = message.attachments?.length ?? 0;
   if (!mine && !attachmentCount) return null;
 
   async function upload() {
-    if (!file || inFlight.current) return;
-    if (file.size > 25_000_000 || file.size === 0) {
-      setError(
-        text(
-          'Choose a non-empty file smaller than 25 MB.',
-          'Choisissez un fichier non vide de moins de 25 Mo.',
-          language,
-        ),
-      );
-      return;
-    }
-    inFlight.current = true;
+    if (!file || busy) return;
     setBusy(true);
     setError(null);
-    if (attempt.current?.file !== file) attempt.current = { file, key: crypto.randomUUID() };
-    const current = attempt.current;
-    const metadata = {
-      filename: file.name,
-      contentType: file.type || 'application/octet-stream',
-      byteSize: file.size,
-    };
     try {
-      if (!current.uploaded) {
-        const { resource } = await writeOperation(
-          'POST /uploads/presign',
-          {},
-          metadata,
-          `${current.key}-presign`,
-        );
-        if (!isRecord(resource) || typeof resource.objectKey !== 'string')
-          throw new Error('Invalid upload response');
-        const response = await fetch(safeUrl(resource.uploadUrl), {
-          method: 'PUT',
-          credentials: 'omit',
-          body: file,
-          headers: { 'content-type': metadata.contentType },
-        });
-        if (!response.ok) throw new Error('Storage upload failed');
-        current.objectKey = resource.objectKey;
-        current.uploaded = true;
-      }
-      await writeOperation(
-        'POST /messages/:messageId/attachments',
-        { messageId: message.id },
-        { ...metadata, objectKey: current.objectKey },
-        `${current.key}-attach`,
-      );
+      setProgress(0);
+      await uploadMessageAttachment(message.id, file, setProgress);
       setFile(null);
-      attempt.current = null;
+      setProgress(null);
       onUpdated();
     } catch (caught) {
       setError(
@@ -107,7 +61,6 @@ export function MessageAttachments({
             ),
       );
     } finally {
-      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -116,7 +69,12 @@ export function MessageAttachments({
     <>
       <button
         type="button"
-        className="mt-2 flex items-center gap-1.5 rounded px-1 py-1 text-xs font-semibold underline underline-offset-2"
+        aria-label={
+          attachmentCount
+            ? text('Open message attachments', 'Ouvrir les pièces jointes', language)
+            : text('Add an attachment', 'Ajouter une pièce jointe', language)
+        }
+        className={`mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-[11px] font-semibold text-current/70 transition-opacity hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40 ${mine && !attachmentCount ? 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100' : ''}`}
         onClick={() => setOpen(true)}
       >
         <Paperclip aria-hidden="true" className="size-3.5" />
@@ -126,7 +84,7 @@ export function MessageAttachments({
               `${attachmentCount} pièce(s) jointe(s)`,
               language,
             )
-          : text('Attach file', 'Joindre un fichier', language)}
+          : text('Add attachment', 'Ajouter une pièce jointe', language)}
       </button>
       <Drawer
         open={open}
@@ -234,6 +192,11 @@ export function MessageAttachments({
                 )}
               </p>
               {file && <p className="break-all text-sm">{file.name}</p>}
+              {progress !== null && (
+                <p className="text-xs text-ink-muted" aria-live="polite">
+                  {text(`Uploading… ${progress}%`, `Transfert… ${progress}%`, language)}
+                </p>
+              )}
               <Button type="submit" loading={busy} disabled={!file}>
                 {text('Upload file', 'Transférer le fichier', language)}
               </Button>
