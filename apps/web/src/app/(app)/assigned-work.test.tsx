@@ -124,7 +124,7 @@ describe('assigned work on Ma journée', () => {
 
     await waitFor(() => expect(screen.getByText('Follow-up')).toBeInTheDocument());
 
-    expect(screen.getByText('Follow-up due')).toBeInTheDocument();
+    expect(screen.getByText('Follow-up overdue since')).toBeInTheDocument();
   });
 
   it('opens the side panel without losing the list and restores keyboard focus on close', async () => {

@@ -114,7 +114,7 @@ describe('FollowUpsPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('does not load operational data outside a prospector team workspace', async () => {
+  it('loads the workspace-wide queue for an administrator', async () => {
     useAuthMock.mockReturnValue({
       user: { email: 'admin@intertrad.test', displayName: 'Admin' },
       activeWorkspace: { mode: 'admin', scopeType: 'tenant', teamId: null },
@@ -122,10 +122,12 @@ describe('FollowUpsPage', () => {
 
     render(<FollowUpsPage />);
 
-    expect(screen.getByText('This view is scoped to a team.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Showing follow-ups across the workspace as an administrator.'),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(listFollowUpQueueMock).not.toHaveBeenCalled();
+      expect(listFollowUpQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId: null }));
     });
   });
 
