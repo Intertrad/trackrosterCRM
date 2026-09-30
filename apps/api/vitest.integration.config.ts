@@ -18,6 +18,16 @@ export default defineConfig({
     hookTimeout: 10_000,
 
     /*
+     * The Supabase session pool is shared by every Nest application created by
+     * these suites. Running dozens of files concurrently exhausts its client
+     * cap and turns otherwise independent tests into EMAXCONNSESSION failures.
+     * Keep the integration gate deterministic and below the provider limit.
+     */
+    fileParallelism: false,
+    maxWorkers: 1,
+    minWorkers: 1,
+
+    /*
      * The authentication limiter keys on IP plus identity, and every suite
      * signs in from 127.0.0.1 against one Redis. At the production default of
      * 60 logins per minute the suites exhaust a single shared bucket, so

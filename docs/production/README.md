@@ -1,5 +1,10 @@
 # Production Readiness
 
+> **Current backend evidence — 2026-09-30:** See
+> [Backend audit 2026-09-30](../backend/BACKEND_AUDIT_2026-09-30.md). Internal
+> consistency gates pass; full remote integration is still environment-gated by
+> Supabase session-pool latency and must be rerun on a dedicated integration stack.
+
 > **Current snapshot — 2026-09-29:** Read [Current development status](../CURRENT_STATUS.md)
 > first. The repository includes tenant RLS, restricted runtime credentials, worker
 > tenant context, and the local prospect import. Production remains gated by live

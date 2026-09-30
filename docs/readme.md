@@ -1,5 +1,10 @@
 # TrackRoster Documentation
 
+> **Current snapshot — 2026-09-30:** Backend verification and remaining release gates
+> are recorded in [Backend audit 2026-09-30](backend/BACKEND_AUDIT_2026-09-30.md) and
+> [Current status](CURRENT_STATUS.md). Historical dated documents remain available
+> for implementation traceability.
+
 This directory contains the technical, product, architectural, and operational
 documentation for TrackRoster.
 

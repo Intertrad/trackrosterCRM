@@ -1,6 +1,19 @@
 # Current development status
 
-**Snapshot:** 2026-09-29 · **Branch:** `main`
+**Snapshot:** 2026-09-30 · **Branch:** `main`
+
+## Backend audit snapshot — 2026-09-30
+
+The current backend audit verified **55 schema tables**, **85 migrations with matching
+snapshots**, **757 API unit tests**, **65 worker unit tests**, and **26/26 focused
+reservation/override integration tests**. API and worker typechecks/builds and
+migration integrity pass. The backend lint gate has zero errors and ten existing
+`no-explicit-any` warnings. See the complete evidence and release gates in
+[Backend audit 2026-09-30](backend/BACKEND_AUDIT_2026-09-30.md).
+
+The API integration runner now serializes files because the shared Supabase session
+pool rejects concurrent suites. The full remote run still needs a dedicated low-
+latency integration database: many suites exceed their existing timeouts there.
 
 This is the current development baseline for TrackRoster. Detailed contracts and
 historical audits remain useful, but dated status claims must be read against this
@@ -10,7 +23,8 @@ page and the source code/migrations.
 
 - The API, web application, worker, database migrations, and operational tooling are
   present in the repository.
-- The static controller inventory contains **335 declared HTTP operations**. The
+- The static controller inventory contains **340 direct HTTP decorators** (the
+  inventory script may count aliases and composed decorators differently). The
   acceptance ledger contains **381 product-contract operations**: 192 verified, 0
   partial, and 189 awaiting contract verification. A pending ledger item may have
   related implementation; it is not automatically a missing route.

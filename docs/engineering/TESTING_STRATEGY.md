@@ -1,5 +1,12 @@
 # TrackRoster Testing Strategy
 
+> **2026-09-30 runner requirement:** API integration files must run with
+> `fileParallelism: false`, `maxWorkers: 1`, and `minWorkers: 1` when pointed at the
+> shared Supabase session pool. Parallel Nest applications exhaust the provider
+> client cap and produce `EMAXCONNSESSION`, obscuring test results. Use a dedicated
+> local/staging database for the complete integration gate; see
+> [the backend audit](../backend/BACKEND_AUDIT_2026-09-30.md).
+
 **Status:** Proposed team standard
 
 ## 1. Testing objective

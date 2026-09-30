@@ -1,5 +1,16 @@
 # TrackRoster Remaining Work
 
+> **Current snapshot — 2026-09-30:** The latest backend evidence is in
+> [BACKEND_AUDIT_2026-09-30.md](backend/BACKEND_AUDIT_2026-09-30.md). It supersedes
+> the dated 2026-09-25 branch audit below for current counts and test results. The
+> older execution notes are retained as historical evidence.
+
+Verified now: 55 schema tables, 85 migrations/snapshots, passing API and worker
+typechecks/builds, 757 API unit tests, 65 worker unit tests, 10 worker integration
+tests, and 26/26 focused reservation/override integration tests. The remaining
+backend gate is a full API integration run on a dedicated low-latency database and
+Redis instance, followed by restricted-role, provider, load, and recovery evidence.
+
 The execution document for finishing TrackRoster. Every status below is backed by a
 command that was run, a file that was read, or a test that was executed — never by
 the existence of a file. Where something is unverified it says so.

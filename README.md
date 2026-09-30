@@ -1,5 +1,10 @@
 # TrackRoster
 
+> **Current backend snapshot — 2026-09-30:** See
+> [`docs/backend/BACKEND_AUDIT_2026-09-30.md`](docs/backend/BACKEND_AUDIT_2026-09-30.md)
+> for verified test gates, migration/schema counts, fixes, and remaining production
+> evidence.
+
 > Documentation status: implementation-aligned overview. See [`docs/README.md`](docs/readme.md) for the documentation index and [`docs/backend/IMPLEMENTATION_STATUS.md`](docs/backend/IMPLEMENTATION_STATUS.md) for verified versus pending work.
 
 > **Each prospect, at the right time, by the right team.**

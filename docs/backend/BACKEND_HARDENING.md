@@ -1,5 +1,11 @@
 # Backend hardening record
 
+> **Current audit — 2026-09-30:** Internal typecheck, build, migration-integrity,
+> unit, worker, and focused reservation/override gates pass. The exhaustive API
+> integration gate must run on a dedicated low-latency database/Redis stack because
+> the shared Supabase session pool causes client-cap errors or timeout cascades.
+> See [backend audit](./BACKEND_AUDIT_2026-09-30.md).
+
 What was done to the backend in the production-readiness pass, what it proved, and what
 is left. The historical measurements below remain evidence; the current development
 snapshot is [CURRENT_STATUS.md](../CURRENT_STATUS.md).

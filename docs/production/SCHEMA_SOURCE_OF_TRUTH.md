@@ -1,5 +1,11 @@
 # Schema Source of Truth
 
+> **Current snapshot — 2026-09-30:** The implemented Drizzle schema contains **55
+> tables** and the forward-only migration chain contains **85 SQL files and 85
+> matching snapshots**. Migration integrity passes. The durable reservation ledger
+> and lifecycle-event evidence introduced in migration `0084` are part of the
+> authoritative schema. The older 23-table/26-migration counts below are historical.
+
 > **Current snapshot — 2026-09-29:** Tenant policies, restricted runtime credentials,
 > request/worker tenant context, and the force-RLS migration are present in the current
 > migration chain. Live deployment certification remains operational work.

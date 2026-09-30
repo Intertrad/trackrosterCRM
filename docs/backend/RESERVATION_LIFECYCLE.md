@@ -1,5 +1,12 @@
 # Reservation rules, lifecycle and durable evidence
 
+> **Current implementation — 2026-09-30:** Redis remains the live lease authority,
+> while PostgreSQL `reservation_records` and `reservation_events` provide durable
+> intent, observed outcomes, reconciliation, and expiry evidence. Migration `0084`
+> adds the lifecycle constraints and event safeguards. The historical 0041/42-count
+> note below is retained for traceability; use the current migration journal and
+> [backend audit](./BACKEND_AUDIT_2026-09-30.md) for present counts.
+
 Implemented 2026-09-22. Eleven additional product contracts are implemented. The earlier `/reservations/check` collision workflow remains available. All paths below have `/api/v1` and existing unversioned aliases.
 
 | Method | Endpoint                                  | Behavior                                                                         |
@@ -93,7 +100,10 @@ If Redis succeeds but database confirmation fails, the API may return an error a
 
 ## Migration and validation
 
-Migration `0041_reservation_lifecycle.sql` adds `reservation_rules`, `reservation_records` and `reservation_events`, scoped uniqueness/indexes, tenant constraints and the manually maintained append-only event trigger. There are 54 tables and 42 migrations. Migration 0041 was applied only to the isolated backend validation database. Apply it before deploying this API version.
+Migration `0041_reservation_lifecycle.sql` originally introduced the lifecycle tables;
+the current chain has since progressed through migration `0084`, which adds the
+durable lifecycle constraints and evidence safeguards. See the migration journal
+before deployment.
 
 Validation: 647 API unit tests, 465 API integration tests (19 new reservation-lifecycle cases), and 10 worker integration tests passed. API build/typecheck, affected-file lint and all 42 migration integrity entries passed. Coverage includes rule precedence and lifecycle, tenant/scope isolation, cooldown/exception enforcement, atomic key renewal, concurrent maximum-hold checks, stale/replaced/missing keys, consent/reassignment release, uncertain claim/renewal confirmation, changed coordination, expired preparation and idempotent observed-expiry history.
 
