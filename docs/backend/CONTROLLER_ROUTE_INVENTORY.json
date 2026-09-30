@@ -1,5 +1,5 @@
 {
-  "snapshot": "2026-09-29",
+  "snapshot": "2026-09-30",
   "scope": "Static controller declarations, not runtime registration or production certification",
   "routes": [
     {
@@ -1124,16 +1124,23 @@
     },
     {
       "method": "GET",
+      "path": "/api/v1/map/collisions",
+      "source": "apps/api/src/maps/map.controller.ts",
+      "line": 36,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "GET",
       "path": "/api/v1/map/coverage",
       "source": "apps/api/src/maps/map.controller.ts",
-      "line": 27,
+      "line": 33,
       "ledgerStatus": "Verified: territory/prospect scope intersection, boundary-inclusive contact coverage and counts"
     },
     {
       "method": "GET",
       "path": "/api/v1/map/heatmap",
       "source": "apps/api/src/maps/map.controller.ts",
-      "line": 24,
+      "line": 30,
       "ledgerStatus": "Verified: authorized canonical activity and current-conversion grid aggregates"
     },
     {
@@ -1359,6 +1366,34 @@
       "source": "apps/api/src/objectives/objective.controller.ts",
       "line": 61,
       "ledgerStatus": "Verified: scoped targets, immutable started definitions, contribution history and explained risk"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organization-coordination-policies",
+      "source": "apps/api/src/coordination/organization-coordination-policy.controller.ts",
+      "line": 43,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organization-coordination-policies",
+      "source": "apps/api/src/coordination/organization-coordination-policy.controller.ts",
+      "line": 51,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organization-coordination-policies/:policyId",
+      "source": "apps/api/src/coordination/organization-coordination-policy.controller.ts",
+      "line": 90,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/organization-coordination-policies/:policyId",
+      "source": "apps/api/src/coordination/organization-coordination-policy.controller.ts",
+      "line": 66,
+      "ledgerStatus": "Outside matched product ledger; not certified by this inventory"
     },
     {
       "method": "GET",
@@ -1700,14 +1735,14 @@
       "method": "GET",
       "path": "/api/v1/prospects/map",
       "source": "apps/api/src/maps/map.controller.ts",
-      "line": 13,
+      "line": 19,
       "ledgerStatus": "Verified: prospect-authorized GeoJSON clustering, lifecycle summary and bounded viewport queries"
     },
     {
       "method": "GET",
       "path": "/api/v1/prospects/nearby",
       "source": "apps/api/src/maps/map.controller.ts",
-      "line": 16,
+      "line": 22,
       "ledgerStatus": "Verified: authorized geography-radius search, deduplication and stable distance/UUID pagination"
     },
     {
