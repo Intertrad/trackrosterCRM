@@ -80,16 +80,17 @@ integration environment.
 
 ### Local completion pass
 
-| Checkpoint                                                                     | Result                                                                                                         |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| Disposable local database                                                      | Passed; 85 migrations replayed against Postgres on `127.0.0.1:55439`                                           |
-| Restricted runtime RLS suite                                                   | Passed; 1 file, 2 tests with `trackroster_app`                                                                 |
-| Full local API integration                                                     | **Environment-gated:** 46 files failed, 12 passed; failures were dominated by missing Mailpit and incomplete   |
-| local identity fixtures, so this run is not treated as a product certification |
-| Local backup/restore                                                           | Passed; `pg_dump`/`pg_restore` restored the disposable schema with 92 public tables                            |
-| API lint cleanup                                                               | Passed; 0 errors and 0 warnings                                                                                |
-| Controller route inventory                                                     | Passed static inventory; 340 controller routes across 63 files, 192 ledger entries verified and 189 acceptance |
-| entries remain pending in the product ledger                                   |
+| Checkpoint                                   | Result                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Disposable local database                    | Passed; 85 migrations replayed against Postgres on `127.0.0.1:55439`                                           |
+| Restricted runtime RLS suite                 | Passed; 1 file, 2 tests with `trackroster_app`                                                                 |
+| Full local API integration                   | **In progress:** 53 files passed, 5 failed; 603 tests passed, 9 failed. Remaining failures are isolated to     |
+|                                              | reservation/idempotency/collision lifecycle expectations and require a follow-up fix before certification      |
+| Local worker integration                     | Passed with privileged fixture connection; 4 files, 12 tests passed, 2 intentionally skipped                   |
+| Local backup/restore                         | Passed; `pg_dump`/`pg_restore` restored the disposable schema with 92 public tables                            |
+| API lint cleanup                             | Passed; 0 errors and 0 warnings                                                                                |
+| Controller route inventory                   | Passed static inventory; 340 controller routes across 63 files, 192 ledger entries verified and 189 acceptance |
+| entries remain pending in the product ledger |
 
 The live database checks were read-only. No database role, RLS policy, provider
 credential, or production setting was changed during this checkpoint pass.
@@ -108,5 +109,9 @@ node scripts/check-migration-integrity.mjs
 ```
 
 The full local integration run additionally requires the `mailpit` service from
-`docker-compose.backend-test.yml`; the image was intentionally not started in
-this environment because the configured MinIO image could not be pulled.
+`docker-compose.backend-test.yml`; Mailpit is now running locally. The configured
+MinIO image could not be pulled, so object-storage paths remain untested.
+
+The remaining API failures are four idempotency reservation cases, two
+reservation expiry/stale-release cases, one manager-override reservation case,
+one durable reservation intent case, and one collision evidence/RLS assertion.
