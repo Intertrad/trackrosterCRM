@@ -1,4 +1,14 @@
-import { index, pgEnum, pgTable, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core';
+import {
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 import { tenants } from './tenants.js';
 
@@ -23,6 +33,21 @@ export const organizations = pgTable(
     slug: varchar('slug', {
       length: 100,
     }).notNull(),
+
+    /** Public-facing short code shown beside the full organization name. */
+    shortName: varchar('short_name', { length: 100 }),
+
+    phone: varchar('phone', { length: 80 }),
+    email: varchar('email', { length: 320 }),
+    website: varchar('website', { length: 500 }),
+    address: text('address'),
+    color: varchar('color', { length: 7 }).default('#05124A'),
+    currency: varchar('currency', { length: 3 }).default('EUR'),
+    argumentaire: text('argumentaire'),
+    prospectedSectors: text('prospected_sectors')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
 
     status: organizationStatusEnum('status').default('active').notNull(),
 

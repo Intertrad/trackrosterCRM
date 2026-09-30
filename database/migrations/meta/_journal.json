@@ -582,6 +582,13 @@
       "when": 1790600000000,
       "tag": "0082_script_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1790601000000,
+      "tag": "0083_organization_profile",
+      "breakpoints": true
     }
   ]
 }

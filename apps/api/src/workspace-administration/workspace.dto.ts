@@ -1,11 +1,15 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsEmail,
   IsIn,
   IsInt,
   IsLocale,
   IsString,
   IsTimeZone,
   IsUUID,
+  IsUrl,
   Matches,
   Max,
   MaxLength,
@@ -31,6 +35,23 @@ export class ListTeamsDto extends ListWorkspaceResourcesDto {
 export class CreateOrganizationDto {
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(255) name!: string;
   @Transform(trim) @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(100) slug!: string;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(100) shortName?: string;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(80) phone?: string;
+  @ValidateIf(optional) @Transform(trim) @IsEmail() @MaxLength(320) email?: string;
+  @ValidateIf(optional)
+  @Transform(trim)
+  @IsUrl({ require_protocol: true })
+  @MaxLength(500)
+  website?: string;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(2000) address?: string;
+  @ValidateIf(optional) @Transform(trim) @Matches(/^#[0-9A-Fa-f]{6}$/) color?: string;
+  @ValidateIf(optional) @Transform(trim) @Matches(/^[A-Za-z]{3}$/) currency?: string;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(5000) argumentaire?: string;
+  @ValidateIf(optional)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  prospectedSectors?: string[];
 }
 
 export class UpdateOrganizationDto {
@@ -42,6 +63,23 @@ export class UpdateOrganizationDto {
   @MaxLength(100)
   slug?: string;
   @ValidateIf(optional) @IsIn(['active', 'inactive']) status?: 'active' | 'inactive';
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(100) shortName?: string | null;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(80) phone?: string | null;
+  @ValidateIf(optional) @Transform(trim) @IsEmail() @MaxLength(320) email?: string | null;
+  @ValidateIf(optional)
+  @Transform(trim)
+  @IsUrl({ require_protocol: true })
+  @MaxLength(500)
+  website?: string | null;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(2000) address?: string | null;
+  @ValidateIf(optional) @Transform(trim) @Matches(/^#[0-9A-Fa-f]{6}$/) color?: string | null;
+  @ValidateIf(optional) @Transform(trim) @Matches(/^[A-Za-z]{3}$/) currency?: string | null;
+  @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(5000) argumentaire?: string | null;
+  @ValidateIf(optional)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  prospectedSectors?: string[];
 }
 
 export class CreateTeamDto extends CreateOrganizationDto {
