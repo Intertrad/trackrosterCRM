@@ -1,5 +1,8 @@
 import { ReservationPolicyService } from './reservation-policy.service.js';
-import { ReservationLedgerService } from './reservation-ledger.service.js';
+import {
+  ReservationClaimConflictError,
+  ReservationLedgerService,
+} from './reservation-ledger.service.js';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -385,7 +388,7 @@ export class ReservationService {
      * two simultaneous conflicting reservations.
      */
     try {
-      await this.ledger?.prepare(reservation, rule ?? {});
+      await this.ledger?.prepare(reservation, rule ?? {}, blockingOrganizationIds);
       const acquired = await this.reservationRepository.acquireWithinOrganizationScope(
         reservation,
         blockingOrganizationIds,
@@ -431,8 +434,37 @@ export class ReservationService {
         throw error;
       }
 
+      if (error instanceof ReservationClaimConflictError || this.isUniqueViolation(error)) {
+        throw new ConflictException('Campaign prospect is currently reserved');
+      }
+
+      /*
+       * A durable pending row must never be left behind merely because the
+       * Redis response was lost or confirmation failed. Mark it failed so
+       * reconciliation can distinguish an abandoned claim from an active
+       * lease. Cleanup is best effort because this branch already represents
+       * an infrastructure failure.
+       */
+      try {
+        await this.ledger?.close(
+          input.tenantId,
+          reservation.reservationId,
+          'failed',
+          error instanceof Error ? error.message : 'Reservation confirmation failed',
+        );
+      } catch {
+        this.logger.warn(
+          `Reservation evidence could not be closed reservationId=${reservation.reservationId}`,
+        );
+      }
+
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    return 'code' in error && error.code === '23505';
   }
   async validateRenewal(current: ProspectReservation) {
     const context = await this.requireReservationEligibility({

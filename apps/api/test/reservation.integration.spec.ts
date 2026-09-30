@@ -20,6 +20,7 @@ import { establishments } from '../src/database/schema/establishments.js';
 import { organizations } from '../src/database/schema/organizations.js';
 import { prospectActivities } from '../src/database/schema/prospect-activities.js';
 import { prospectFollowUps } from '../src/database/schema/prospect-follow-ups.js';
+import { reservationRecords } from '../src/database/schema/reservation-lifecycle.js';
 import { teams } from '../src/database/schema/teams.js';
 import { tenants } from '../src/database/schema/tenants.js';
 import { users } from '../src/database/schema/users.js';
@@ -184,6 +185,11 @@ describe('Reservation HTTP integration', () => {
         legacyCollisionKey,
         organizationCollisionKey,
       ]);
+
+    // The durable ledger is the source of truth for collision checks. Redis
+    // cleanup alone leaves pending/active rows behind and makes later tests
+    // look like a real reservation already exists.
+    await getDatabase().delete(reservationRecords).where(eq(reservationRecords.tenantId, tenantId));
   }
 
   async function clearActivityHistory(): Promise<void> {

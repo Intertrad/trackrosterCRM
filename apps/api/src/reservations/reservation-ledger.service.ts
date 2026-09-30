@@ -6,6 +6,10 @@ import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import { reservationRecords, reservationEvents } from '../database/schema/index.js';
 import { RedisService } from '../redis/redis.service.js';
 import type { ProspectReservation } from './reservation.types.js';
+
+export class ReservationClaimConflictError extends Error {
+  readonly code = 'RESERVATION_CLAIM_CONFLICT';
+}
 @Injectable()
 export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -36,8 +40,45 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
   ) {
     await tx.insert(reservationEvents).values({ tenantId, reservationId: id, type, data });
   }
-  async prepare(lease: ProspectReservation, rule: Record<string, unknown>) {
+  async prepare(
+    lease: ProspectReservation,
+    rule: Record<string, unknown>,
+    blockingOrganizationIds: string[] = [lease.organizationId],
+  ) {
     await this.db.transaction(async (tx) => {
+      /*
+       * Redis remains the fast lease/co-ordination layer, but it is not the
+       * authority for durable ownership. Serialize claims for the same
+       * tenant/establishment in PostgreSQL before creating the pending row.
+       * This closes the window where two callers could both prepare a lease
+       * before either caller reached Redis.
+       */
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${lease.tenantId}:${lease.establishmentId}`}, 0))`,
+      );
+
+      const openRows = await tx.execute<{ lease: ProspectReservation }>(sql`
+        SELECT lease
+        FROM reservation_records
+        WHERE tenant_id = ${lease.tenantId}::uuid
+          AND establishment_id = ${lease.establishmentId}::uuid
+          AND status IN ('pending', 'active')
+          AND expires_at > clock_timestamp()
+        FOR UPDATE
+      `);
+
+      const blocking = new Set(blockingOrganizationIds);
+      if (
+        openRows.rows.some((row) => {
+          const existing = row.lease;
+          return (
+            existing.reservationId !== lease.reservationId && blocking.has(existing.organizationId)
+          );
+        })
+      ) {
+        throw new ReservationClaimConflictError('A conflicting reservation already exists');
+      }
+
       await tx.insert(reservationRecords).values({
         id: lease.reservationId,
         tenantId: lease.tenantId,

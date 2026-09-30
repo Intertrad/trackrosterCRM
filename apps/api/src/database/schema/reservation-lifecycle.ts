@@ -85,6 +85,15 @@ export const reservationRecords = pgTable(
     index('reservation_records_queue_idx').on(t.tenantId, t.status, t.id),
     index('reservation_records_due_idx').on(t.status, t.expiresAt),
     index('reservation_records_scope_idx').on(t.tenantId, t.campaignProspectId),
+    uniqueIndex('reservation_records_active_prospect_unique')
+      .on(t.tenantId, t.campaignProspectId)
+      .where(sql`${t.status} = 'active'`),
+    index('reservation_records_open_establishment_idx').on(
+      t.tenantId,
+      t.establishmentId,
+      t.status,
+      t.expiresAt,
+    ),
   ],
 );
 export const reservationEvents = pgTable(

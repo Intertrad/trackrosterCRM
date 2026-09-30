@@ -21,8 +21,41 @@ export const databaseProviders: Provider[] = [
         throw new Error('DATABASE_URL is required');
       }
 
+      // `pg` currently interprets sslmode=require as certificate verification
+      // in some versions. Local Supabase proxies and test environments may
+      // present a self-signed chain, so make that decision explicit instead of
+      // relying on pg-connection-string defaults. Production should leave this
+      // unset (or set it to true) and use a trusted CA chain.
+      const rejectUnauthorized = configService.get<string>('DATABASE_SSL_REJECT_UNAUTHORIZED');
+      const isDevelopment = configService.get<string>('NODE_ENV')?.toLowerCase() === 'development';
+      const usesRequiredTls = /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString);
+      const ssl =
+        rejectUnauthorized === undefined && !(isDevelopment && usesRequiredTls)
+          ? undefined
+          : {
+              rejectUnauthorized:
+                rejectUnauthorized?.toLowerCase() !== 'false' &&
+                !(isDevelopment && usesRequiredTls),
+            };
+
+      // pg gives sslmode in the URL precedence over the explicit `ssl` object.
+      // Strip it when we provide an explicit policy, otherwise `require` can
+      // silently re-enable certificate verification and reject local chains.
+      let poolConnectionString = connectionString;
+      if (ssl) {
+        try {
+          const parsed = new URL(connectionString);
+          parsed.searchParams.delete('sslmode');
+          parsed.searchParams.delete('uselibpqcompat');
+          poolConnectionString = parsed.toString();
+        } catch {
+          // Preserve the original value so pg can report a normal URL error.
+        }
+      }
+
       const pool = new Pool({
-        connectionString,
+        connectionString: poolConnectionString,
+        ...(ssl ? { ssl } : {}),
         connectionTimeoutMillis: 3000,
       });
 

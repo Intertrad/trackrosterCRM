@@ -74,7 +74,10 @@ import { ScriptsModule } from './scripts/scripts.module.js';
     CampaignOrganizationModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../.env',
+      // The API is commonly started from either the workspace root
+      // (`pnpm --filter api dev`) or apps/api. Resolve the project env file
+      // from both locations so database SSL settings are actually loaded.
+      envFilePath: ['.env', '../.env', '../../.env'],
       validate: validateEnvironment,
     }),
 

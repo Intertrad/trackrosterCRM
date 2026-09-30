@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq, like } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { DATABASE } from '../database/database.constants.js';
@@ -15,6 +15,7 @@ import { withTenantContext } from '../database/tenant-context.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { TenantRepository } from '../tenants/tenant.repository.js';
 import { OrganizationRepository } from './organization.repository.js';
+import { createIntegrationPool } from '../../test/support/integration-pool.js';
 
 describe('Organization and Team tenant isolation', () => {
   let pool: Pool | undefined;
@@ -33,9 +34,7 @@ describe('Organization and Team tenant isolation', () => {
       throw new Error('DATABASE_URL is required for integration tests');
     }
 
-    pool = new Pool({
-      connectionString,
-    });
+    pool = createIntegrationPool(connectionString);
 
     database = drizzle(pool, {
       schema,

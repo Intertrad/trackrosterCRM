@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
+import type { Pool } from 'pg';
+import { createIntegrationPool } from './integration-pool.js';
 
 import * as schema from '../../src/database/schema/index.js';
 import { runWithTenantExecutor } from '../../src/database/request-tenant-executor.js';
@@ -39,7 +40,7 @@ export function getSeedDatabase(): Database {
     throw new Error('DATABASE_SEED_URL or DATABASE_URL is required to seed integration fixtures');
   }
 
-  pool = new Pool({ connectionString, connectionTimeoutMillis: 3000 });
+  pool = createIntegrationPool(connectionString);
 
   /*
    * Plain drizzle, not the request-aware wrapper the application provider

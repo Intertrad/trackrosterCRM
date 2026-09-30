@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "reservation_records_active_prospect_unique" ON "reservation_records" USING btree ("tenant_id","campaign_prospect_id") WHERE "reservation_records"."status" = 'active';--> statement-breakpoint
+CREATE INDEX "reservation_records_open_establishment_idx" ON "reservation_records" USING btree ("tenant_id","establishment_id","status","expires_at");

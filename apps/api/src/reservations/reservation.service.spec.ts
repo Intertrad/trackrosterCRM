@@ -12,6 +12,8 @@ import { ReservationCoordinationScopeService } from '../coordination/reservation
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
+import { ReservationClaimConflictError } from './reservation-ledger.service.js';
+import { ReservationLedgerService } from './reservation-ledger.service.js';
 import { ReservationRepository } from './reservation.repository.js';
 import { ReservationService } from './reservation.service.js';
 import type { ProspectReservation } from './reservation.types.js';
@@ -69,6 +71,12 @@ describe('ReservationService', () => {
 
   let reservationExpirySchedulerService: {
     schedule: ReturnType<typeof vi.fn>;
+  };
+
+  let reservationLedgerService: {
+    prepare: ReturnType<typeof vi.fn>;
+    confirm: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
   };
 
   let service: ReservationService;
@@ -322,6 +330,12 @@ describe('ReservationService', () => {
       schedule: vi.fn().mockResolvedValue(undefined),
     };
 
+    reservationLedgerService = {
+      prepare: vi.fn().mockResolvedValue(undefined),
+      confirm: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
     service = new ReservationService(
       reservationRepository as unknown as ReservationRepository,
 
@@ -344,6 +358,8 @@ describe('ReservationService', () => {
       reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
 
       reservationExpirySchedulerService as unknown as ReservationExpirySchedulerService,
+      undefined,
+      reservationLedgerService as unknown as ReservationLedgerService,
     );
   });
 
@@ -959,6 +975,28 @@ describe('ReservationService', () => {
 
         userId,
       });
+      expect(reservationLedgerService.prepare).toHaveBeenCalledWith(
+        expect.objectContaining({ campaignProspectId: prospectId }),
+        expect.anything(),
+        [organizationId],
+      );
+    });
+
+    it('maps a durable claim conflict to a reservation conflict', async () => {
+      reservationLedgerService.prepare.mockRejectedValue(
+        new ReservationClaimConflictError('already claimed'),
+      );
+
+      await expect(
+        service.acquire({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).rejects.toThrow('Campaign prospect is currently reserved');
+
+      expect(reservationRepository.acquireWithinOrganizationScope).not.toHaveBeenCalled();
     });
   });
 
