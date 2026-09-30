@@ -2,6 +2,15 @@
 import type { Operation } from './types';
 
 export const OPERATIONS: Record<string, Operation> = {
+  'DELETE /organizations/:organizationId/permanent': {
+    method: 'DELETE',
+    path: '/organizations/:organizationId/permanent',
+    status: 200,
+    fields: [],
+    query: [],
+    idempotent: true,
+    etag: true,
+  },
   'DELETE /api-clients/:clientId': {
     method: 'DELETE',
     path: '/api-clients/:clientId',

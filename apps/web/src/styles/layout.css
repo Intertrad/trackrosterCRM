@@ -1,0 +1,120 @@
+/* libehon/TrackRoster a8a5455: original frame and component measurements.
+   Existing API-connected components remain the owners of interaction/state. */
+.reference-main {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding: 32px clamp(30px, 3vw, 44px) 40px;
+}
+.reference-sidebar-nav {
+  scrollbar-width: none;
+}
+.reference-sidebar-nav::-webkit-scrollbar {
+  display: none;
+}
+.reference-main table {
+  border-collapse: collapse;
+  font-size: 14.08px;
+}
+.reference-main thead {
+  background: var(--color-canvas);
+}
+.reference-main th {
+  padding: 10px 14px;
+  font-size: 11.84px;
+  font-weight: 700;
+  color: var(--color-ink-muted);
+}
+.reference-main td {
+  padding: 12px 14px;
+  vertical-align: top;
+}
+.reference-main tbody tr {
+  border-color: var(--color-surface-muted);
+}
+.reference-auth-layout {
+  display: flex;
+  min-height: 100dvh;
+}
+.reference-auth-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 14px;
+  background: var(--color-navy);
+}
+.reference-auth-page {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 2fr 5fr 3fr;
+  padding: 7vh 0 5vh;
+  background: url('/brand/roster-muted.png') no-repeat right 3% top 35%;
+  background-size: min(33%, 380px);
+}
+.reference-auth-form {
+  grid-column: 2;
+}
+.reference-auth-form input {
+  height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+.reference-auth-form label {
+  font-size: 14.4px;
+  font-weight: 700;
+}
+.reference-auth-form button[type='submit'] {
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 16px;
+}
+.reference-auth-form input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-brand);
+}
+.reference-auth-form h1,
+.reference-auth-form h2 {
+  font-size: 35.2px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+@media (max-width: 1023px) {
+  .reference-main {
+    padding-bottom: 96px;
+  }
+}
+@media (max-width: 900px) {
+  .reference-auth-page {
+    display: block;
+    padding: 40px 20px;
+    background-image: none;
+  }
+}
+@media (max-width: 700px) {
+  .reference-main {
+    padding: 22px 16px 96px;
+  }
+  .reference-auth-layout {
+    flex-direction: column;
+  }
+  .reference-auth-sidebar {
+    width: 100%;
+    align-items: flex-start;
+    padding: 14px 20px;
+  }
+  .reference-auth-sidebar > p,
+  .reference-auth-sidebar > div {
+    display: none;
+  }
+  .reference-auth-page {
+    padding: 32px 20px;
+  }
+  .reference-auth-form h1,
+  .reference-auth-form h2 {
+    font-size: 28px;
+  }
+}

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -6,13 +6,16 @@ export function Card({
   children,
   className,
   padding = 'default',
+  style,
 }: {
   children: ReactNode;
+  style?: CSSProperties;
   className?: string;
   padding?: 'default' | 'none';
 }) {
   return (
     <section
+      style={style}
       className={cn(
         'min-w-0 rounded-[14px] border border-line bg-surface shadow-card',
         padding === 'default' && 'p-[18px]',

@@ -1,0 +1,147 @@
+/*
+ * TrackRoster design tokens.
+ *
+ * Source: TrackRoster frontend src/index.css and src/shared/ui/ui.css.
+ * Semantic status text uses the reference pill foregrounds for readability. Every colour used by a
+ * component must resolve to a token here — no raw hex in JSX.
+ */
+@theme {
+  /* Brand — dossier palette */
+  --color-navy: #05124a;
+  --color-navy-950: #030c33;
+  --color-navy-900: #05124a;
+  --color-navy-800: #0a1d63;
+  --color-navy-700: #102a80;
+  --color-navy-600: #1739a1;
+
+  --color-brand: #0f59fa;
+  --color-brand-hover: #0c4cd9;
+  --color-brand-active: #0939ab;
+  --color-brand-mid: #5f92f6;
+  --color-brand-pale: #a2c0fa;
+  --color-brand-tint: #e3ecff;
+  --color-brand-wash: #f4f8ff;
+
+  --color-company-teal: #0e9f6e;
+  --color-company-purple: #7c3aed;
+  --color-company-orange: #e8790a;
+  --color-lime: #a7dc41;
+  --color-lime-deep: #98cc35;
+
+  --color-line: #d7dce7;
+  --color-line-soft: #d7dce7;
+
+  /* Canvas */
+  --color-canvas: #f6f8fc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef1f7;
+
+  /* Text */
+  --color-ink: #05124a;
+  --color-ink-soft: #3d4a6d;
+  --color-ink-muted: #64748b;
+  --color-ink-onDark: #ffffff;
+  --color-ink-onDark-soft: #b9c8ea;
+
+  /* Status — collision, opposition and security alerts are never
+     decorative, so each state owns a full fg/bg/border triple. */
+  --color-success: #1d7a45;
+  --color-success-bg: #dcf2e5;
+  --color-success-border: #b7e6c9;
+
+  --color-warning: #9a5a00;
+  --color-warning-bg: #fbedd0;
+  --color-warning-border: #f5d9a8;
+
+  --color-danger: #b3262c;
+  --color-danger-bg: #fdeaea;
+  --color-danger-border: #f3c6c8;
+
+  --color-critical: #b91c1c;
+  --color-critical-bg: #fde8e8;
+
+  --color-info: #0f59fa;
+  --color-info-bg: #e3ecff;
+  --color-info-border: #bdd4fd;
+
+  /* Same-company matrix cells from the frontend settings.css. */
+  --color-settings-same-bg: #e9f0ff;
+  --color-settings-same-border: #b9ccf5;
+
+  /* Additional accents from the frontend index.css. */
+  --color-orange: #f0a13c;
+  --color-green: #2c9e5f;
+  --color-red: #e5484d;
+  --color-selection: #dce7fb;
+
+  /* Typography */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-display:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+
+  /* Elevation */
+  --shadow-card: 0 0 0 transparent;
+  --shadow-raised: 0 4px 16px rgb(5 18 74 / 8%), 0 1px 3px rgb(5 18 74 / 5%);
+  --shadow-overlay: 0 16px 48px rgb(5 18 74 / 16%);
+
+  /* Motion — respects the mobile-first, low-latency UX goal */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Account preference adapter; the brand palette remains the canonical source. */
+html[data-theme='dark'] {
+  --color-settings-same-bg: #1a315e;
+  --color-settings-same-border: #5f92f6;
+  color-scheme: dark;
+  --color-canvas: #080e22;
+  --color-surface: #101a34;
+  --color-surface-muted: #16213d;
+  --color-ink: #f2f5ff;
+  --color-ink-soft: #d1daf0;
+  --color-ink-muted: #a8b8d8;
+  --color-line: #40506f;
+  --color-line-soft: #2a3855;
+  --color-brand-tint: #1a315e;
+  --color-brand-wash: #142747;
+  --color-success-bg: #153526;
+  --color-warning-bg: #392b16;
+  --color-danger-bg: #3d202b;
+  --color-critical-bg: #3d202b;
+  --color-info-bg: #172e55;
+}
+html[data-theme='dark'] .text-navy {
+  color: var(--color-ink);
+}
+html[data-theme='dark'] .text-brand {
+  color: var(--color-brand-pale);
+}
+html[data-high-contrast='true'] {
+  --color-ink-muted: #344264;
+  --color-line: #66738f;
+}
+html[data-theme='dark'][data-high-contrast='true'] {
+  --color-ink-muted: #e0e8ff;
+  --color-line: #8c9cba;
+}
+html[data-density='compact'] tbody td {
+  padding-block: 0.5rem;
+}
+html[data-reduced-motion='true'] *,
+html[data-reduced-motion='true'] *::before,
+html[data-reduced-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

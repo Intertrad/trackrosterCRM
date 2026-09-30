@@ -222,6 +222,55 @@ export class WorkspaceAdministrationService {
     });
   }
 
+  async deleteOrganizationPermanently(auth: AuthenticatedPrincipal, id: string, ifMatch?: string) {
+    await this.requireAdmin(auth);
+    try {
+      return await this.database.transaction(async (transaction) => {
+        const [before] = await transaction
+          .select()
+          .from(organizations)
+          .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.id, id)))
+          .for('update');
+        if (!before) throw new NotFoundException('Organization not found');
+        assertResourceMatches(ifMatch, await this.organization(auth, id, transaction));
+        // These references would otherwise cascade or clear themselves on deletion.
+        const links = await transaction.execute(sql`
+          SELECT 1 FROM user_access_grants WHERE tenant_id = ${auth.tenantId} AND organization_id = ${id}
+          UNION ALL SELECT 1 FROM script_templates WHERE tenant_id = ${auth.tenantId} AND organization_id = ${id}
+          LIMIT 1
+        `);
+        if (links.rows.length)
+          throw new ConflictException(
+            'This company is still linked to access grants or scripts. Remove those links or deactivate it instead.',
+          );
+        // Keep related business records: restrictive foreign keys refuse linked deletions.
+        await transaction
+          .delete(organizations)
+          .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.id, id)));
+        await this.record(
+          auth,
+          'organization',
+          id,
+          'deleted',
+          { name: before.name, slug: before.slug },
+          transaction,
+        );
+        return { deleted: true, id };
+      });
+    } catch (error) {
+      let cause: unknown = error;
+      for (let depth = 0; depth < 5 && typeof cause === 'object' && cause !== null; depth++) {
+        if ('code' in cause && cause.code === '23503') {
+          throw new ConflictException(
+            'This company is still linked to other records. Remove those links or deactivate it instead.',
+          );
+        }
+        cause = 'cause' in cause ? cause.cause : null;
+      }
+      throw error;
+    }
+  }
+
   async listTeams(auth: AuthenticatedPrincipal, query: ListTeamsDto) {
     const rows = await this.database
       .select(this.teamColumns())

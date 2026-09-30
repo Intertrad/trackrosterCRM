@@ -1,0 +1,399 @@
+/* Rules and settings: adapt the supplied settings.css / ui.css to the
+   connected markup. Existing settings links identify this page without
+   changing React components or styling other workspace modules. */
+@scope (.reference-main .space-y-6:has(> nav a[href='/admin/settings?section=reservation-rules'])) {
+  :scope > :not(:last-child) {
+    margin-block-end: 16px;
+  }
+  :scope > header {
+    margin-block-end: 20px;
+    align-items: center;
+  }
+  :scope > header p {
+    max-width: 65ch;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  :scope > nav {
+    padding-block: 2px;
+  }
+  :scope > nav ul {
+    vertical-align: middle;
+  }
+  :scope > nav a {
+    min-height: 40px;
+    align-content: center;
+  }
+  /* Preserve the existing sync/filter bar and its status information. */
+  :scope > nav + div {
+    gap: 10px 16px;
+    padding: 12px 18px;
+    border-radius: 14px;
+  }
+  :scope > nav + div > p {
+    flex: 1 1 280px;
+    font-size: 13.12px;
+    line-height: 1.5;
+  }
+  :scope > nav + div > p > span {
+    flex-shrink: 0;
+  }
+  :scope > section > dl {
+    gap: 18px 16px;
+  }
+  dl dt {
+    margin-bottom: 6px;
+    color: var(--color-ink);
+    font-size: 13.12px;
+    font-weight: 700;
+    letter-spacing: normal;
+    overflow-wrap: anywhere;
+  }
+  dl dd {
+    font-size: 14.4px;
+    line-height: 1.5;
+  }
+  :scope > section:has(> dl) {
+    padding: 18px;
+  }
+  table th {
+    padding: 12px 16px;
+    line-height: 1.4;
+  }
+  table td {
+    padding: 14px 16px;
+    vertical-align: middle;
+    line-height: 1.5;
+  }
+  table td .tabular-nums {
+    display: inline-block;
+    min-width: 48px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--color-brand-wash);
+    color: var(--color-ink);
+    font-size: 15.2px;
+    font-weight: 700;
+    text-align: center;
+  }
+  button:enabled,
+  a {
+    cursor: pointer;
+  }
+  /* Reference cards and field rhythm. Numeric fields share a row;
+     pickers and text fields stay full width. Keep native control behavior. */
+  [role='dialog'][aria-modal='true'] {
+    max-width: 640px;
+  }
+  [role='dialog'] > header {
+    padding: 20px 24px;
+  }
+  [role='dialog'] > .overflow-y-auto {
+    background: var(--color-canvas);
+    padding: 18px 24px;
+    scrollbar-gutter: stable;
+  }
+  [role='dialog'] form > .space-y-5:not(:empty),
+  [role='dialog'] > .overflow-y-auto > .space-y-5:not(:empty):not(:has([role='alert'])) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+    padding: 18px;
+    border: 1px solid var(--color-line);
+    border-radius: 14px;
+    background: var(--color-surface);
+  }
+  [role='dialog'] .space-y-5 > .space-y-2 {
+    min-width: 0;
+    margin-block: 0;
+    grid-column: 1 / -1;
+  }
+  [role='dialog'] .space-y-5 > .space-y-2:has(input[type='number']) {
+    grid-column: auto;
+  }
+  [role='dialog'] input[type='number'] {
+    max-width: 140px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  [role='dialog'] input[type='checkbox'] + label {
+    font-weight: 700;
+    color: var(--color-ink);
+  }
+  [role='dialog'] > footer {
+    background: var(--color-canvas);
+  }
+  @media (max-width: 700px) {
+    :scope > nav a {
+      min-height: 44px;
+    }
+    :scope > nav + div {
+      padding: 12px 14px;
+    }
+    [role='dialog'] > header,
+    [role='dialog'] > .overflow-y-auto {
+      padding: 16px;
+    }
+    [role='dialog'] form > .space-y-5:not(:empty),
+    [role='dialog'] > .overflow-y-auto > .space-y-5:not(:empty):not(:has([role='alert'])) {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 16px;
+    }
+    [role='dialog'] :is(input:not([type='checkbox']), select, textarea) {
+      font-size: 16px;
+    }
+    [role='dialog'] input:not([type='checkbox']),
+    [role='dialog'] select {
+      min-height: 44px;
+    }
+    [role='dialog'] > footer > div {
+      flex-wrap: wrap;
+    }
+  }
+}
+
+/* Align settings actions with the existing sidebar and mobile navigation. */
+@media (min-width: 1024px) {
+  aside + .reference-main {
+    --settings-sidebar-width: 220px;
+  }
+  aside.w-\[76px\] + .reference-main {
+    --settings-sidebar-width: 76px;
+  }
+}
+@media (max-width: 1023px) {
+  .reference-main:has(table.border-separate) ~ nav {
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Reservation matrix added in e4de851. Match the supplied settings.css
+   using the existing table and labels; organization colors remain data-owned. */
+@scope (.reference-main .space-y-5:has(> section > .overflow-x-auto > table.border-separate)) {
+  :scope {
+    padding-bottom: 0;
+  }
+  :scope > header h1 {
+    font-size: 35.2px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+  :scope > header p {
+    line-height: 1.5;
+  }
+  :scope > section {
+    padding: 18px;
+    container-type: inline-size;
+  }
+  :scope > section > p {
+    margin-top: -6px;
+    margin-bottom: 14px;
+    font-size: 13.12px;
+    line-height: 1.5;
+  }
+  :scope > section > .overflow-x-auto {
+    padding: 3px;
+    margin: -3px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-muted) var(--color-surface-muted);
+  }
+  :scope table {
+    min-width: calc(
+      var(--company-label-width, 100px) + var(--company-count) * 48px + (var(--company-count) + 2) *
+        5px
+    );
+    table-layout: fixed;
+    width: 100%;
+    max-width: calc(
+      var(--company-label-width, 100px) + var(--company-count) * 110px +
+        (var(--company-count) + 2) * 5px
+    );
+    border-collapse: separate;
+    border-spacing: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  :scope thead {
+    background: transparent;
+  }
+  :scope table th {
+    max-width: 170px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: var(--color-ink-onDark);
+    font-size: 12.8px;
+    line-height: 1.35;
+    font-weight: 800;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  :scope thead th:first-child {
+    min-width: 80px;
+    width: var(--company-label-width, 100px);
+    padding: 0 8px 5px 0;
+    color: var(--color-ink-muted);
+    font-size: 12.16px;
+    font-weight: 700;
+    text-align: left;
+    vertical-align: bottom;
+  }
+  :scope thead th:not(:first-child),
+  :scope tbody th {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  :scope .settings-company-name {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  :scope tbody th .settings-company-name {
+    width: max-content;
+    max-width: 176px;
+  }
+  :scope thead th:not(:first-child) {
+    width: auto;
+  }
+  :scope tbody th {
+    padding: 11px 12px;
+    text-align: left;
+  }
+  :scope table td {
+    padding: 0;
+    vertical-align: middle;
+  }
+  :scope table input[type='number'] {
+    width: 100%;
+    min-width: 48px;
+    max-width: 100px;
+    min-height: 42px;
+    padding: 9px 6px;
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-size: 15.2px;
+    font-weight: 700;
+    text-align: center;
+    appearance: textfield;
+  }
+  /* Match company identity, never the API sort order or the editable day value. */
+  :scope
+    table
+    input:is(
+      [aria-label='GFTIJ to GFTIJ'],
+      [aria-label='InterTrad to InterTrad'],
+      [aria-label='OFTI to OFTI'],
+      [aria-label='SDI to SDI'],
+      [aria-label='AFTIJ to AFTIJ']
+    ) {
+    background: var(--color-settings-same-bg);
+    border-color: var(--color-settings-same-border);
+  }
+  :scope table input::-webkit-inner-spin-button,
+  :scope table input::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  :scope table input:hover {
+    border-color: var(--color-brand-pale);
+  }
+  :scope table input:focus-visible {
+    border-color: var(--color-brand);
+    outline: 3px solid var(--color-brand-tint);
+    outline-offset: 0;
+  }
+  :scope > section > .grid {
+    margin-top: 18px;
+    gap: 14px 16px;
+  }
+  :scope label {
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14.4px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+  :scope input[type='checkbox'] {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    accent-color: var(--color-brand);
+    cursor: pointer;
+  }
+  :scope > .flex:last-child {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    gap: 10px;
+    margin: 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--color-line);
+    background: var(--color-canvas);
+  }
+  :scope button:enabled {
+    cursor: pointer;
+  }
+  @container (max-width: 600px) {
+    :scope table {
+      border-spacing: 3px;
+      min-width: calc(
+        var(--company-label-width, 100px) + var(--company-count) * 48px +
+          (var(--company-count) + 2) * 3px
+      );
+    }
+    :scope table th {
+      max-width: 100px;
+      padding: 7px 5px;
+      font-size: 11px;
+    }
+    :scope thead th:not(:first-child),
+    :scope tbody th {
+      white-space: normal;
+    }
+    :scope thead th:not(:first-child) {
+      width: auto;
+      max-width: 110px;
+    }
+    :scope thead .settings-company-name {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    :scope tbody th .settings-company-name {
+      max-width: 120px;
+    }
+    :scope thead th:first-child {
+      min-width: 80px;
+      font-size: 11px;
+    }
+    :scope table input[type='number'] {
+      width: 100%;
+      min-height: 44px;
+      padding: 7px 2px;
+      font-size: 16px;
+    }
+  }
+  @media (max-width: 1023px) {
+    :scope > .flex:last-child {
+      bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+  @media (max-width: 700px) {
+    :scope > header h1 {
+      font-size: 28px;
+    }
+    :scope > section {
+      padding: 16px;
+    }
+    :scope > .flex:last-child {
+      flex-wrap: wrap;
+      padding-inline: 0;
+    }
+  }
+}

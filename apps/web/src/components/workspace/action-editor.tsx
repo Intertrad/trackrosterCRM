@@ -20,7 +20,9 @@ import {
 import { getOperation } from '@/lib/workspace/client';
 import { copy, text } from '@/lib/workspace/copy';
 import type { Action, DataRecord, Field } from '@/lib/workspace/types';
+import { companySlug } from '@/lib/workspace/company-slug';
 import { validateFields } from '@/lib/workspace/validation';
+import { CompanyColorPicker } from './company-color-picker';
 import { SchemaFields } from './schema-fields';
 import { ValueView } from './record-view';
 
@@ -32,6 +34,7 @@ export function ActionEditor({
   reloadKey,
   onClose,
   onSaved,
+  onPermanentDelete,
 }: {
   action: Action;
   context: DataRecord;
@@ -40,9 +43,22 @@ export function ActionEditor({
   reloadKey?: string;
   onClose: () => void;
   onSaved: () => void;
+  onPermanentDelete?: () => void;
 }) {
   const { language } = useTranslation();
-  const operation = getOperation(action.operation);
+  const sourceOperation = getOperation(action.operation);
+  const companyColors =
+    action.operation === 'POST /organizations' ||
+    action.operation === 'PATCH /organizations/:organizationId';
+  const operation = companyColors
+    ? {
+        ...sourceOperation,
+        fields: [
+          ...sourceOperation.fields.filter((field) => field.name !== 'color'),
+          { name: 'color', type: 'string' as const, optional: true, default: '#05124a' },
+        ],
+      }
+    : sourceOperation;
   const parameterFields: Field[] = pathKeys(operation.path)
     .filter((key) => !context[key])
     .map((name) => ({
@@ -105,10 +121,21 @@ export function ActionEditor({
   };
   async function save() {
     if (inFlight.current) return;
+    const submitted =
+      companyColors && typeof values.slug === 'string'
+        ? { ...values, slug: companySlug(values.slug) }
+        : values;
     const found = {
-      ...validateFields(operation.fields, values, language),
+      ...validateFields(operation.fields, submitted, language),
       ...validateFields(parameterFields, parameters, language),
     };
+    if (companyColors && typeof values.slug === 'string' && values.slug.trim() && !submitted.slug) {
+      found.slug = text(
+        'Use at least one letter from A to Z or a number in the short name.',
+        'Le nom court doit contenir au moins une lettre de A à Z ou un chiffre.',
+        language,
+      );
+    }
     setErrors(found);
     setError(null);
     if (Object.keys(found).length) {
@@ -117,12 +144,12 @@ export function ActionEditor({
       );
       return;
     }
-    const body = serializeFields(operation.fields, values);
+    const body = serializeFields(operation.fields, submitted);
     if (operation.method === 'PATCH')
       for (const field of operation.fields) {
         if (
           field.optional &&
-          JSON.stringify(values[field.name]) === JSON.stringify(initial.current[field.name])
+          JSON.stringify(submitted[field.name]) === JSON.stringify(initial.current[field.name])
         )
           delete body[field.name];
       }
@@ -144,7 +171,22 @@ export function ActionEditor({
       setSaved(true);
       onSaved();
     } catch (caught) {
-      setError(caught instanceof Error ? caught : new Error('Request failed'));
+      if (
+        companyColors &&
+        caught instanceof ApiError &&
+        caught.statusCode === 409 &&
+        caught.message.includes('slug')
+      ) {
+        setErrors({
+          slug: text(
+            'This short name is already used, possibly by an inactive company. Choose another one or reactivate that company.',
+            'Ce nom court est déjà utilisé, éventuellement par une entreprise inactive. Choisissez-en un autre ou réactivez cette entreprise.',
+            language,
+          ),
+        });
+      } else {
+        setError(caught instanceof Error ? caught : new Error('Request failed'));
+      }
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -193,12 +235,33 @@ export function ActionEditor({
               {text('Done', 'Terminer', language)}
             </Button>
           ) : (
-            <div className="flex justify-end gap-3">
-              <Button variant="secondary" disabled={busy} onClick={close}>
+            <div
+              className={
+                onPermanentDelete ? 'flex items-center gap-2' : 'flex flex-wrap justify-end gap-3'
+              }
+            >
+              {onPermanentDelete && (
+                <Button
+                  variant="danger"
+                  size="md"
+                  className="mr-auto shrink-0"
+                  disabled={busy}
+                  onClick={onPermanentDelete}
+                >
+                  {text('Delete', 'Supprimer', language)}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                size={onPermanentDelete ? 'md' : 'lg'}
+                disabled={busy}
+                onClick={close}
+              >
                 {text('Cancel', 'Annuler', language)}
               </Button>
               <Button
                 variant={action.danger ? 'danger' : 'primary'}
+                size={onPermanentDelete ? 'md' : 'lg'}
                 loading={busy}
                 disabled={conflict || (edit && !dirty)}
                 onClick={() => void save()}
@@ -333,7 +396,11 @@ export function ActionEditor({
             />
             <SchemaFields
               context={{ ...context, ...parameters, ...values }}
-              fields={operation.fields}
+              fields={
+                companyColors
+                  ? operation.fields.filter((field) => field.name !== 'color')
+                  : operation.fields
+              }
               values={values}
               onChange={(next) => {
                 setValues(next);
@@ -341,6 +408,12 @@ export function ActionEditor({
               }}
               errors={errors}
             />
+            {companyColors && (
+              <CompanyColorPicker
+                value={typeof values.color === 'string' ? values.color : '#05124a'}
+                onChange={(color) => setValues({ ...values, color })}
+              />
+            )}
             {!operation.fields.length && !parameterFields.length && (
               <p className="text-sm text-ink-soft">
                 {text(

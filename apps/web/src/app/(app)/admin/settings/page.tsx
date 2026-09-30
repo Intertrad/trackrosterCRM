@@ -1,5 +1,6 @@
 'use client';
-import { Suspense } from 'react';
+import { Suspense, type CSSProperties } from 'react';
+import { companyLabel } from '@/lib/ui/company-label';
 import { useSearchParams } from 'next/navigation';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Tabs } from '@/components/ui/tabs';
@@ -7,7 +8,7 @@ import { WorkspaceModulePage } from '@/components/workspace/workspace-module';
 import { WORKSPACE_MODULES } from '@/lib/workspace/modules';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -86,6 +87,29 @@ type ReservationRule = {
 function ReservationSettings({ language }: { language: string }) {
   const l = (en: string, fr: string) => text(en, fr, language) ?? en;
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [labelWidth, setLabelWidth] = useState(100);
+  useEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    let active = true;
+    const measure = () => {
+      if (!active) return;
+      const widths = [
+        ...table.querySelectorAll<HTMLElement>('tbody th .settings-company-name'),
+      ].map((label) => label.getBoundingClientRect().width);
+      setLabelWidth(Math.min(200, Math.max(80, ...widths.map((width) => Math.ceil(width) + 24))));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(table.parentElement!);
+    void document.fonts.ready.then(measure);
+    measure();
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [organizations]);
+
   const [policies, setPolicies] = useState<CoordinationPolicy[]>([]);
   const [rule, setRule] = useState<ReservationRule | null>(null);
   const [matrix, setMatrix] = useState<Record<string, number>>({});
@@ -94,7 +118,7 @@ function ReservationSettings({ language }: { language: string }) {
   const load = async () => {
     try {
       const [orgPage, policyRows, rulePage] = await Promise.all([
-        browserJson<{ items: Organization[] }>('/api/organizations?limit=100', {
+        browserJson<{ items: Organization[] }>('/api/organizations?limit=100&status=active', {
           cache: 'no-store',
         }),
         listCoordinationPolicies(),
@@ -199,7 +223,16 @@ function ReservationSettings({ language }: { language: string }) {
           )}
         </p>
         <div className="overflow-x-auto">
-          <table className="min-w-[640px] border-separate border-spacing-1 text-center text-sm">
+          <table
+            className="min-w-[640px] border-separate border-spacing-1 text-center text-sm"
+            ref={tableRef}
+            style={
+              {
+                '--company-count': organizations.length,
+                '--company-label-width': `${labelWidth}px`,
+              } as CSSProperties
+            }
+          >
             <thead>
               <tr>
                 <th className="p-2 text-left">
@@ -211,7 +244,9 @@ function ReservationSettings({ language }: { language: string }) {
                     className="rounded-lg px-3 py-2 text-white"
                     style={{ backgroundColor: org.color ?? '#155eef' }}
                   >
-                    {org.shortName ?? org.name}
+                    <span className="settings-company-name" title={org.shortName ?? org.name}>
+                      {companyLabel(org.shortName ?? org.name)}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -223,7 +258,9 @@ function ReservationSettings({ language }: { language: string }) {
                     className="rounded-lg px-3 py-2 text-left text-white"
                     style={{ backgroundColor: row.color ?? '#155eef' }}
                   >
-                    {row.shortName ?? row.name}
+                    <span className="settings-company-name" title={row.shortName ?? row.name}>
+                      {companyLabel(row.shortName ?? row.name)}
+                    </span>
                   </th>
                   {organizations.map((col) => (
                     <td key={col.id}>

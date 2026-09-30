@@ -124,6 +124,62 @@ describe('Workspace administration HTTP authorization and persistence', () => {
     'idempotency-key': randomUUID(),
   });
 
+  it('permanently deletes only an unlinked company after admin and version checks', async () => {
+    const payload = { name: 'Deletion test', slug: `delete-${randomUUID()}`, color: '#7c3aed' };
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations',
+      headers: headers(),
+      payload,
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json().id;
+    const url = `/api/v1/organizations/${id}/permanent`;
+    const before = await app.inject({
+      method: 'GET',
+      url: `/api/v1/organizations/${id}`,
+      headers: headers(),
+    });
+    const denied = await app.inject({ method: 'DELETE', url, headers: headers(managerId) });
+    expect(denied.statusCode).toBe(403);
+    const wrongTenant = await app.inject({ method: 'DELETE', url, headers: headers(otherAdminId) });
+    expect(wrongTenant.statusCode).toBe(404);
+    const stale = await app.inject({
+      method: 'DELETE',
+      url,
+      headers: { ...headers(), 'if-match': '"stale"' },
+    });
+    expect(stale.statusCode).toBe(412);
+    const linked = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/organizations/${orgId}/permanent`,
+      headers: headers(),
+    });
+    expect(linked.statusCode).toBe(409);
+    const removed = await app.inject({
+      method: 'DELETE',
+      url,
+      headers: { ...headers(), 'if-match': String(before.headers.etag) },
+    });
+    expect(removed.statusCode, removed.body).toBe(200);
+    expect(removed.json()).toMatchObject({ deleted: true, id });
+    const missing = await app.inject({
+      method: 'GET',
+      url: `/api/v1/organizations/${id}`,
+      headers: headers(),
+    });
+    expect(missing.statusCode).toBe(404);
+    const recreated = await app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations',
+      headers: headers(),
+      payload,
+    });
+    expect(recreated.statusCode, recreated.body).toBe(201);
+    expect(recreated.json()).toMatchObject(payload);
+    expect(recreated.json().id).not.toBe(id);
+  });
+
   it('keeps enriched organization reads compatible with conditional updates', async () => {
     const headers = { authorization: `Bearer ${tokens.get(adminId)}` };
     const before = await app.inject({

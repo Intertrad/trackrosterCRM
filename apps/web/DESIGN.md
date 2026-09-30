@@ -32,7 +32,7 @@ Audience: French field and desk teams, managers, directors, tenant administrator
 
 ## Token ownership
 
-`src/app/globals.css` is the canonical runtime token source (model B). Tailwind semantic utilities resolve those tokens. Preserve its six dossier brand colors. Do not copy independent hex palettes into screen components. Account theme, density, contrast and motion preferences are adapted once by `components/account/runtime-preferences.tsx`. Dark-theme overrides live alongside the base tokens; navy navigation remains navy while text tokens adapt. Reduced motion respects both the OS and the account setting.
+`src/styles/theme.css` is the canonical runtime token source (model B), imported by the Tailwind v4 entry point `src/app/globals.css`. Base rules live in `src/styles/base.css`, shared frame styles in `src/styles/layout.css`, and Rules and settings overrides in `src/styles/admin/settings.css`. The palette follows the supplied frontend `src/index.css` and `src/shared/ui/ui.css`, including their readable status-pill foregrounds. Tailwind semantic utilities resolve those tokens. Preserve its six dossier brand colors. Do not copy independent hex palettes into screen components. Account theme, density, contrast and motion preferences are adapted once by `components/account/runtime-preferences.tsx`. Dark-theme overrides live alongside the base tokens; navy navigation remains navy while text tokens adapt. Reduced motion respects both the OS and the account setting.
 
 ## Layout and typography
 

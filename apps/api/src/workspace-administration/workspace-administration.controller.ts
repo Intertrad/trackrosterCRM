@@ -84,6 +84,17 @@ export class OrganizationAdministrationController {
   ) {
     return this.workspace.updateOrganization(auth, id, input, ifMatch);
   }
+  @Delete(':organizationId/permanent')
+  @Idempotent('organization.delete_permanently')
+  @UseGuards(ClientAdminGuard)
+  deletePermanently(
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+    @Param('organizationId', new ParseUUIDPipe()) id: string,
+    @Headers('if-match') ifMatch?: string,
+  ) {
+    return this.workspace.deleteOrganizationPermanently(auth, id, ifMatch);
+  }
+
   @Delete(':organizationId')
   @Idempotent('organization.deactivate')
   @UseGuards(ClientAdminGuard)
