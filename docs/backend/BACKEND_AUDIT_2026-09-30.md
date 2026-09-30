@@ -59,6 +59,23 @@ integration environment.
 - Resolve the ten existing lint warnings where their dynamic payloads can be typed
   without weakening API contracts.
 
+## Checkpoint execution — 2026-09-30
+
+| Checkpoint                         | Result                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Jobs package typecheck/build/tests | Passed; 4/4 tests                                                                                               |
+| Live migration journal             | Passed; 85 applied migrations                                                                                   |
+| Live public schema                 | 91 tables; 82 tables forced to RLS                                                                              |
+| Restricted runtime role            | **Blocked:** `trackroster_app` is not present; inspection used the PostgreSQL owner connection                  |
+| Redis dependency                   | Passed; `PONG`                                                                                                  |
+| BAN geocoder                       | Passed; HTTP 200 and a precise result for `8 Allee Bourvil, 94000 Créteil`                                      |
+| Brevo provider                     | **Blocked:** API key is configured, but Brevo rejected the current IP (`46.193.160.63`) until it is allowlisted |
+| R2 object storage                  | **Blocked:** endpoint, bucket, and credentials are not configured in the audit environment                      |
+| SSO encryption                     | **Blocked:** `SSO_ENCRYPTION_KEY` is not configured                                                             |
+
+The live database checks were read-only. No database role, RLS policy, provider
+credential, or production setting was changed during this checkpoint pass.
+
 ## Reproduction commands
 
 ```bash
