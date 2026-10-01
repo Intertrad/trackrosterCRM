@@ -62,4 +62,69 @@ describe('NotificationEventService', () => {
     expect(order).toEqual(['notification', 'delivery']);
     expect(jobs.enqueue).toHaveBeenCalledTimes(1);
   });
+
+  it('resolves override recipients from active manager grants', async () => {
+    const managerId = '77777777-7777-4777-8777-777777777777';
+    const where = vi.fn().mockResolvedValue([{ userId: managerId }]);
+    const db = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where,
+      }),
+    };
+    const repository = {
+      createIfAbsent: vi.fn().mockResolvedValue(notification),
+      queueDelivery: vi.fn().mockResolvedValue({ id: '88888888-8888-4888-8888-888888888888' }),
+    };
+    const jobs = { enqueue: vi.fn() };
+    const service = new NotificationEventService(db as never, repository as never, jobs as never);
+
+    await service.overrideRequested({
+      tenantId,
+      teamId: '99999999-9999-4999-8999-999999999999',
+      campaignProspectId: '44444444-4444-4444-8444-444444444444',
+      requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+
+    expect(repository.createIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: managerId,
+        type: 'override_requested',
+        channels: ['push'],
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('resolves import anomaly recipients from active client-admin grants', async () => {
+    const adminId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const db = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([{ userId: adminId }]),
+      }),
+    };
+    const repository = {
+      createIfAbsent: vi.fn().mockResolvedValue(notification),
+      queueDelivery: vi.fn(),
+    };
+    const service = new NotificationEventService(db as never, repository as never);
+
+    await service.importAnomalies({
+      tenantId,
+      importId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      anomalyCount: 3,
+    });
+
+    expect(repository.createIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientUserId: adminId,
+        type: 'import_completed_with_anomalies',
+        severity: 'info',
+      }),
+      expect.anything(),
+    );
+  });
 });

@@ -70,10 +70,10 @@ the requirements matrix and notification matrix now use that source of truth.
 The six dossier-approved MVP event producers, tenant-scoped recipient resolution,
 deduplicated in-app persistence, email/push outboxes, bounded delivery handling,
 critical collision preference enforcement, reservation-expiry notifications,
-inactivity-digest processor and import-anomaly notification path are implemented and
-covered by focused tests. Provider certification, production digest scheduling and
-authenticated role delivery evidence remain open. Assignment/generic system/messaging
-events are intentionally outside TR-907.
+inactivity-digest processor and scheduler, and import-anomaly notification path are
+implemented and covered by focused tests. Provider certification and authenticated
+role delivery evidence remain open. Assignment/generic system/messaging events are
+intentionally outside TR-907.
 
 ### Providers
 

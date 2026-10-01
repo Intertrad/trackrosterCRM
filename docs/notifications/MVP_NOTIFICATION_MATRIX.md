@@ -23,4 +23,12 @@
 
 ## Evidence status
 
-The API/worker unit suites and static checks are green. Disposable PostgreSQL integration and provider certification were not claimable in this environment: the configured local database connection at `127.0.0.1:5433` is denied with `EPERM`, and Brevo/push credentials are not configured. The digest processor is tenant-safe and daily-idempotent, but its production scheduler cadence and a supported realtime transport/evidence path still need to be wired before G-07 can be closed.
+The API/worker unit suites and static checks are green. The daily digest scheduler now
+discovers active tenants, enqueues one deterministic `notification.digest` job per UTC
+day, and is covered by `notification-digest-scheduler.service.spec.ts`. Disposable
+PostgreSQL integration and provider certification were not claimable in this
+environment: the configured local database connection at `127.0.0.1:5433` is denied
+with `EPERM`, and Brevo/push credentials are not configured. The digest processor and
+scheduler are tenant-safe and idempotent. Authenticated role delivery, live collision
+inbox evidence, and real provider success/failure certification still require a
+controlled staging environment.

@@ -7,13 +7,14 @@ import { NotificationController } from './notification.controller.js';
 import { NotificationRepositoryModule } from './notification-repository.module.js';
 import { NotificationService } from './notification.service.js';
 import { NotificationEventService } from './notification-event.service.js';
+import { NotificationDigestSchedulerService } from './notification-digest-scheduler.service.js';
 
 @Module({
   imports: [AuthModule, DatabaseModule, JobQueueModule, NotificationRepositoryModule],
 
   controllers: [NotificationController],
 
-  providers: [NotificationService, NotificationEventService],
+  providers: [NotificationService, NotificationEventService, NotificationDigestSchedulerService],
 
   exports: [NotificationService, NotificationEventService],
 })

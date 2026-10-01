@@ -29,6 +29,46 @@ describe('WorkerMailService', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.brevo.com/v3/smtp/email');
   });
 
+  it('sends a notification through the same tenant-safe provider contract', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messageId: 'notification-message-id' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const service = new WorkerMailService(
+      new ConfigService({
+        BREVO_API_KEY: 'mock-api-key',
+        BREVO_SENDER_EMAIL: 'sender@example.com',
+      }),
+    );
+
+    await expect(
+      service.sendNotification('recipient@example.com', 'Follow-up due', 'A follow-up is due.'),
+    ).resolves.toEqual({ sent: true, providerId: 'notification-message-id' });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.brevo.com/v3/smtp/email',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'api-key': 'mock-api-key' }),
+      }),
+    );
+  });
+
+  it('keeps notification delivery disabled when Brevo is not configured', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const service = new WorkerMailService(new ConfigService());
+
+    await expect(
+      service.sendNotification('recipient@example.com', 'Follow-up due', 'A follow-up is due.'),
+    ).resolves.toEqual({ sent: false, providerId: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('surfaces provider failures for worker retry handling', async () => {
     vi.stubGlobal(
       'fetch',
