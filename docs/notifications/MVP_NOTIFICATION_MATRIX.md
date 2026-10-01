@@ -38,9 +38,17 @@ still not claimable because the configured local database connection at `127.0.0
 is denied with `EPERM`. Authenticated role delivery, live collision inbox evidence, and
 provider retry/final-failure evidence still require a controlled staging environment.
 
-The controlled beta role fixtures now include director, observer/auditor, and super-admin
-accounts. Their authenticated notification API reads returned HTTP 200, and browser checks
-at `/notifications` rendered the inbox, priority rules, and delivery preferences for each;
-the super-admin access context also reported `platformAdmin: true`. This is browser/read
-evidence only: recipient delivery, tenant-isolation, digest, and collision acceptance
-remain open until the complete six-role matrix is exercised.
+The controlled beta role fixtures include manager, prospector, client-admin, director,
+observer/auditor, and super-admin accounts. Authenticated API reads returned HTTP 200 for
+all six role families, and browser checks at `/notifications` rendered the inbox, priority
+rules, and delivery preferences for every role; the super-admin access context also
+reported `platformAdmin: true`.
+
+TR-909 recipient evidence is complete: disposable beta event keys produced one matching
+notification row for each manager, prospector, and client-admin recipient, with one durable
+email outbox row per recipient. The authenticated API returned only the row for the current
+recipient. The manager inbox displayed the daily digest event and the prospector inbox
+displayed the critical collision event. Email provider and worker certification is recorded
+above; push remains unverified because the available OneSignal test subscription is
+Email-channel. Tenant-RLS denial remains covered by the disposable runtime integration
+suite and is retained as a release-gate artifact.
