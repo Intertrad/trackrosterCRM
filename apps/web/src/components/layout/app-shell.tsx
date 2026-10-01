@@ -26,6 +26,7 @@ import {
   getNavigationForWorkspace,
   getPlatformNavigation,
   getRoleHome,
+  isRouteAllowedForWorkspace,
   isNavigationItemActive,
   type WorkspaceNavigationItem,
 } from '@/lib/auth/navigation';
@@ -65,6 +66,18 @@ export function AppShell({ children }: { children: ReactNode }) {
     const home = getRoleHome(activeWorkspace?.mode, user?.platformAdmin);
     if (status === 'authenticated' && pathname === '/' && home !== '/') router.replace(home);
   }, [status, activeWorkspace?.mode, user?.platformAdmin, pathname, router]);
+
+  const routeAllowed = isRouteAllowedForWorkspace(
+    pathname,
+    activeWorkspace?.mode,
+    user?.platformAdmin,
+  );
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !user || routeAllowed) return;
+
+    router.replace(getRoleHome(activeWorkspace?.mode, user.platformAdmin));
+  }, [activeWorkspace?.mode, routeAllowed, router, status, user]);
 
   useEffect(() => {
     setMoreOpen(false);
@@ -127,6 +140,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated' || !user) {
+    return <ShellSkeleton />;
+  }
+
+  if (!routeAllowed) {
     return <ShellSkeleton />;
   }
 

@@ -1,6 +1,6 @@
 # TrackRoster remediation report
 
-**Run date:** 2026-10-01  
+**Run date:** 2026-10-02
 **Decision:** **Not ready for production deployment.** The P0 code and test gates are
 green, but provider provisioning, product approval, notification delivery, recovery,
 authenticated six-role E2E, and load evidence are still open.
@@ -49,11 +49,19 @@ the requirements matrix and notification matrix now use that source of truth.
 
 ## P0 status
 
-1. **Tenant RLS / restricted runtime — green for the tested paths; role matrix open.**
-   API and worker paths run with `trackroster_app`, and cross-tenant reads/writes are
-   denied. The six-role authenticated browser matrix has not been executed. The
-   environment validator still refuses `TENANT_RLS_MODE=enforce` until every access
-   path is certified; do not enable that setting in production based only on this run.
+1. **Tenant RLS / restricted runtime — API and desktop role evidence green; release
+   certification remains open.** API and worker paths run with `trackroster_app`, and
+   cross-tenant reads/writes are denied. The beta six-role API matrix passed the
+   authenticated identity, grants and notification checks; role-scoped dashboard,
+   assignment and export responses matched the expected 200/403 policy, and an
+   observer completion mutation returned 403. The desktop browser matrix passed
+   login for manager, director, prospector, observer/auditor, client-admin and
+   super-admin. A frontend workspace route guard was added and the forbidden pasted
+   URL checks now redirect to each role's home. Responsive breakpoints, a second
+   populated tenant assertion and the remaining worker-path matrix are still open.
+   The environment validator still refuses `TENANT_RLS_MODE=enforce` until every
+   access path is certified; do not enable that setting in production based only on
+   this run.
 2. **Collision, override, reservation, sweep and tenant-RLS API failures — green in
    the disposable suite.** The final run passed all API files and worker files listed
    above.
@@ -99,9 +107,32 @@ runbook are not complete enough for a production claim.
 
 ### Authenticated E2E
 
-No authenticated browser run has yet certified manager, director, prospector, auditor,
-client-admin and super-admin journeys together with responsive layouts and ACL denial
-cases. The existing web tests are component/page tests and do not replace that matrix.
+The beta desktop login and ACL matrix now certifies manager, director, prospector,
+observer/auditor, client-admin and super-admin journeys. It includes allowed role
+homes, forbidden pasted URLs and a browser route-guard redirect, with API responses
+recorded alongside the checks. The existing web tests are component/page tests and do
+not replace responsive evidence, a second populated tenant assertion or the remaining
+worker-path matrix. Mobile/tablet breakpoints therefore remain open.
+
+### TR-910 evidence update — 2 October 2026
+
+The missing client-side workspace guard is implemented in
+`apps/web/src/lib/auth/navigation.ts` and enforced by `AppShell`. New unit coverage
+passes **34/34** tests, ESLint passes for the changed files, and web type generation
+plus `tsc --noEmit` passes. The beta browser rerun confirmed:
+
+| Role                 | Login home           | Forbidden URL exercised | Result                         |
+| -------------------- | -------------------- | ----------------------- | ------------------------------ |
+| Manager              | `/manager/overview`  | `/director/overview`    | Redirected to manager home     |
+| Director             | `/director/overview` | `/admin/overview`       | Redirected to director home    |
+| Prospector           | `/`                  | `/manager/overview`     | Redirected to Today            |
+| Observer/auditor     | `/observer/overview` | `/manager/assignments`  | Redirected to observer home    |
+| Client administrator | `/admin/overview`    | `/director/overview`    | Allowed by administrator scope |
+| Super administrator  | `/admin/overview`    | `/manager/overview`     | Allowed by administrator scope |
+
+This closes the frontend route-guard defect, but does not close G-02/G-10: responsive
+390/768/1440 evidence, second-tenant browser denial and the remaining worker-path
+authorization proof are still required.
 
 ## P2 status
 

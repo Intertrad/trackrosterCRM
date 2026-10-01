@@ -597,3 +597,31 @@ export function getRoleHome(mode: WorkspaceMode | undefined, platformAdmin = fal
   if (mode === 'prospector' || !mode) return '/';
   return `/${mode}/overview`;
 }
+
+/**
+ * Keep browser navigation inside the viewer's active workspace.
+ *
+ * API authorization remains the security boundary, but rendering a different
+ * role's route after a pasted URL is confusing and can expose UI chrome that
+ * the viewer cannot use. The route families mirror the server's role scope:
+ * administrators can inspect every tenant workspace, directors can inspect
+ * manager reporting, and managers/observers stay within their own surfaces.
+ */
+export function isRouteAllowedForWorkspace(
+  pathname: string,
+  mode: WorkspaceMode | undefined,
+  platformAdmin = false,
+): boolean {
+  const segment = pathname.split('/')[1] ?? '';
+
+  if (segment === 'platform') return platformAdmin;
+  if (segment === 'admin') return mode === 'admin' || platformAdmin;
+  if (segment === 'director') return mode === 'admin' || mode === 'director' || platformAdmin;
+  if (segment === 'manager') {
+    return mode === 'admin' || mode === 'director' || mode === 'manager' || platformAdmin;
+  }
+  if (segment === 'observer')
+    return mode === 'admin' || mode === 'director' || mode === 'observer' || platformAdmin;
+
+  return true;
+}

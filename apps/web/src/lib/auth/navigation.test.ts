@@ -4,6 +4,7 @@ import {
   getNavigationForWorkspace,
   getPlatformNavigation,
   getRoleHome,
+  isRouteAllowedForWorkspace,
   isNavigationItemActive,
   type WorkspaceNavigationItem,
 } from './navigation';
@@ -16,6 +17,32 @@ function labelKeys(items: WorkspaceNavigationItem[]): string[] {
 }
 
 describe('workspace navigation', () => {
+  describe('workspace route guard', () => {
+    it('keeps each tenant role inside its authorized route families', () => {
+      expect(isRouteAllowedForWorkspace('/manager/overview', 'manager')).toBe(true);
+      expect(isRouteAllowedForWorkspace('/director/overview', 'manager')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/admin/overview', 'manager')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/manager/overview', 'prospector')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/observer/overview', 'observer')).toBe(true);
+      expect(isRouteAllowedForWorkspace('/manager/overview', 'observer')).toBe(false);
+    });
+
+    it('allows the expected oversight hierarchy without widening platform routes', () => {
+      expect(isRouteAllowedForWorkspace('/manager/assignments', 'director')).toBe(true);
+      expect(isRouteAllowedForWorkspace('/director/reports', 'director')).toBe(true);
+      expect(isRouteAllowedForWorkspace('/admin/users', 'director')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/admin/users', 'admin')).toBe(true);
+      expect(isRouteAllowedForWorkspace('/platform/overview', 'admin')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/platform/overview', 'admin', true)).toBe(true);
+    });
+
+    it('leaves shared routes reachable from every workspace', () => {
+      for (const mode of MODES) {
+        expect(isRouteAllowedForWorkspace('/messages', mode)).toBe(true);
+      }
+    });
+  });
+
   it('keeps a platform-only identity out of tenant navigation', () => {
     expect(getRoleHome(undefined, true)).toBe('/platform/overview');
     expect(getRoleHome('observer', true)).toBe('/observer/overview');
