@@ -37,3 +37,10 @@ worker's `target_channel: push` contract; no push was sent. Disposable PostgreSQ
 still not claimable because the configured local database connection at `127.0.0.1:5433`
 is denied with `EPERM`. Authenticated role delivery, live collision inbox evidence, and
 provider retry/final-failure evidence still require a controlled staging environment.
+
+The controlled beta role fixtures now include director, observer/auditor, and super-admin
+accounts. Their authenticated notification API reads returned HTTP 200, and browser checks
+at `/notifications` rendered the inbox, priority rules, and delivery preferences for each;
+the super-admin access context also reported `platformAdmin: true`. This is browser/read
+evidence only: recipient delivery, tenant-isolation, digest, and collision acceptance
+remain open until the complete six-role matrix is exercised.

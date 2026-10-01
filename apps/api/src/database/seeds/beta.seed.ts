@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 
+import { and, eq, isNull } from 'drizzle-orm';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from '../../app.module.js';
@@ -11,6 +12,7 @@ import { TenantService } from '../../tenants/tenant.service.js';
 import { UserRepository } from '../../users/user.repository.js';
 import { DATABASE } from '../database.constants.js';
 import type { Database } from '../database.types.js';
+import { platformAccessGrants } from '../schema/index.js';
 import { withTenantContext } from '../tenant-context.js';
 
 /*
@@ -159,7 +161,7 @@ async function seed(): Promise<void> {
     // ----------------------------------------------------------------
     // Identities
     //
-    // One hash for all four: they are local beta test accounts sharing one
+    // One hash for all seven: they are local beta test accounts sharing one
     // generated password held only in .env.beta, and hashing once keeps a
     // re-run quick. The password is never logged.
     //
@@ -225,7 +227,9 @@ async function seed(): Promise<void> {
         email: string,
         role: 'client_admin' | 'director' | 'manager' | 'prospector' | 'observer',
         scope:
-          { scopeType: 'tenant' } | { scopeType: 'team'; organizationId: string; teamId: string },
+          | { scopeType: 'tenant' }
+          | { scopeType: 'organization'; organizationId: string }
+          | { scopeType: 'team'; organizationId: string; teamId: string },
       ): Promise<void> {
         const grants = await grantRepository.findByUser(tenantId, userId);
 
@@ -234,7 +238,11 @@ async function seed(): Promise<void> {
             grant.role === role &&
             grant.scopeType === scope.scopeType &&
             (scope.scopeType === 'tenant' ||
-              (grant.organizationId === scope.organizationId && grant.teamId === scope.teamId)),
+              (scope.scopeType === 'organization' &&
+                grant.organizationId === scope.organizationId) ||
+              (scope.scopeType === 'team' &&
+                grant.organizationId === scope.organizationId &&
+                grant.teamId === scope.teamId)),
         );
 
         if (present) {
@@ -288,6 +296,62 @@ async function seed(): Promise<void> {
         organizationId: gftijOrganizationId,
         teamId: gftijTeamId,
       });
+
+      const director = await ensureUser('director@beta.trackroster.test', 'Beta Director');
+
+      await ensureGrant(director.id, director.email, 'director', {
+        scopeType: 'organization',
+        organizationId: oftiOrganizationId,
+      });
+
+      /* The persisted role is `observer`; product language also calls this
+       * read-only persona an auditor. Keep the canonical database role so the
+       * fixture exercises the same authorization path as production. */
+      const observer = await ensureUser('observer@beta.trackroster.test', 'Beta Observer Auditor');
+
+      await ensureGrant(observer.id, observer.email, 'observer', {
+        scopeType: 'organization',
+        organizationId: oftiOrganizationId,
+      });
+
+      /* Platform authority is identity-level and separate from tenant roles.
+       * A tenant membership is still required by login, so this fixture has a
+       * tenant-scoped client-admin grant solely to make authenticated browser
+       * checks possible; platformAdmin is derived from the grant below. */
+      const superAdmin = await ensureUser(
+        'super-admin@beta.trackroster.test',
+        'Beta Super Administrator',
+      );
+
+      await ensureGrant(superAdmin.id, superAdmin.email, 'client_admin', {
+        scopeType: 'tenant',
+      });
+
+      const [existingPlatformGrant] = await database
+        .select({ id: platformAccessGrants.id })
+        .from(platformAccessGrants)
+        .where(
+          and(
+            eq(platformAccessGrants.identityId, superAdmin.id),
+            eq(platformAccessGrants.role, 'super_admin'),
+            isNull(platformAccessGrants.revokedAt),
+          ),
+        )
+        .limit(1);
+
+      if (existingPlatformGrant) {
+        console.log(`Beta super_admin platform grant already exists: ${superAdmin.email}`);
+      } else {
+        await database.insert(platformAccessGrants).values({
+          identityId: superAdmin.id,
+          role: 'super_admin',
+          grantSource: 'bootstrap',
+          grantReason: 'TrackRoster beta role certification fixture',
+          externalReference: 'trackroster-beta-super-admin',
+        });
+
+        console.log(`Created beta super_admin platform grant: ${superAdmin.email}`);
+      }
     });
 
     console.log('Beta bootstrap complete.');
