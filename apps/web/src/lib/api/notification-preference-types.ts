@@ -28,6 +28,13 @@ export const NOTIFICATION_CHANNELS = ['email', 'push', 'inApp'] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+export function isChannelRequired(
+  category: NotificationCategory,
+  channel: NotificationChannel,
+): boolean {
+  return category === 'collisions' && channel === 'inApp';
+}
+
 const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   assignments: 'Assignments',
   followUps: 'Follow-ups',
@@ -76,6 +83,8 @@ export function isChannelEnabled(
   category: NotificationCategory,
   channel: NotificationChannel,
 ): boolean {
+  if (isChannelRequired(category, channel)) return true;
+
   return preferences[category]?.[channel] ?? true;
 }
 
@@ -85,6 +94,8 @@ export function setChannel(
   channel: NotificationChannel,
   enabled: boolean,
 ): NotificationPreferences {
+  if (isChannelRequired(category, channel)) return preferences;
+
   return {
     ...preferences,
     [category]: { ...(preferences[category] ?? {}), [channel]: enabled },

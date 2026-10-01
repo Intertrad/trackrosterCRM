@@ -77,6 +77,21 @@ export interface GetCurrentReservationInput {
   campaignProspectId: string;
 }
 
+/**
+ * Signals that Redis owns a lease but durable confirmation was interrupted.
+ * The tenant transaction interceptor persists the pending evidence after the
+ * request transaction commits so reconciliation can recover it safely.
+ */
+export class ReservationConfirmationUncertainException extends ServiceUnavailableException {
+  readonly commitTenantTransaction = true;
+  readonly persistAfterCommit: () => Promise<void>;
+
+  constructor(persistAfterCommit: () => Promise<void>) {
+    super('Reservation confirmation is pending reconciliation');
+    this.persistAfterCommit = persistAfterCommit;
+  }
+}
+
 @Injectable()
 export class ReservationService {
   private readonly logger = new Logger(ReservationService.name);
@@ -387,8 +402,11 @@ export class ReservationService {
      * Therefore manager override can never authorize
      * two simultaneous conflicting reservations.
      */
+    let redisAcquired = false;
+    let ledgerPrepared = false;
     try {
       await this.ledger?.prepare(reservation, rule ?? {}, blockingOrganizationIds);
+      ledgerPrepared = true;
       const acquired = await this.reservationRepository.acquireWithinOrganizationScope(
         reservation,
         blockingOrganizationIds,
@@ -396,6 +414,7 @@ export class ReservationService {
       );
 
       if (acquired) {
+        redisAcquired = true;
         await this.ledger?.confirm(reservation);
         await this.scheduleExpiryBestEffort(reservation);
 
@@ -439,22 +458,30 @@ export class ReservationService {
       }
 
       /*
-       * A durable pending row must never be left behind merely because the
-       * Redis response was lost or confirmation failed. Mark it failed so
-       * reconciliation can distinguish an abandoned claim from an active
-       * lease. Cleanup is best effort because this branch already represents
-       * an infrastructure failure.
+       * A failed confirmation happens after Redis has acquired the lease.
+       * Keep the durable row pending so reconciliation can recover the
+       * authoritative lease instead of converting a potentially successful
+       * claim into a permanently failed record. Preparation failures happen
+       * before a row exists and need no cleanup.
        */
-      try {
-        await this.ledger?.close(
-          input.tenantId,
-          reservation.reservationId,
-          'failed',
-          error instanceof Error ? error.message : 'Reservation confirmation failed',
-        );
-      } catch {
-        this.logger.warn(
-          `Reservation evidence could not be closed reservationId=${reservation.reservationId}`,
+      if (ledgerPrepared && !redisAcquired) {
+        try {
+          await this.ledger?.close(
+            input.tenantId,
+            reservation.reservationId,
+            'failed',
+            error instanceof Error ? error.message : 'Reservation confirmation failed',
+          );
+        } catch {
+          this.logger.warn(
+            `Reservation evidence could not be closed reservationId=${reservation.reservationId}`,
+          );
+        }
+      }
+
+      if (redisAcquired) {
+        throw new ReservationConfirmationUncertainException(
+          () => this.ledger?.persistPending(reservation, rule ?? {}) ?? Promise.resolve(),
         );
       }
 

@@ -596,6 +596,13 @@
       "when": 1790785208277,
       "tag": "0084_green_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1790880000000,
+      "tag": "0085_mvp_notifications",
+      "breakpoints": true
     }
   ]
 }

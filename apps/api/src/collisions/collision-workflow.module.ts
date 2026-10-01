@@ -5,6 +5,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { AuthorizationModule } from '../authorization/authorization.module.js';
 import { PermissionModule } from '../permissions/permission.module.js';
 import { ReservationModule } from '../reservations/reservation.module.js';
+import { NotificationModule } from '../notifications/notification.module.js';
 import { CollisionModule } from './collision.module.js';
 import { CollisionWorkflowService } from './collision-workflow.service.js';
 import {
@@ -20,6 +21,7 @@ import {
     PermissionModule,
     ReservationModule,
     CollisionModule,
+    NotificationModule,
   ],
   controllers: [CollisionWorkflowController],
   providers: [CollisionWorkflowService, CollisionWorkflowGuard],

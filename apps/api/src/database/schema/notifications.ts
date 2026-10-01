@@ -3,9 +3,11 @@ import {
   check,
   foreignKey,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -15,7 +17,15 @@ import { prospectFollowUps } from './prospect-follow-ups.js';
 import { tenants } from './tenants.js';
 import { tenantMemberships } from './tenant-memberships.js';
 
-export const notificationTypeEnum = pgEnum('notification_type', ['follow_up_reminder']);
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'follow_up_reminder',
+  'follow_up_due',
+  'reservation_expired_without_summary',
+  'collision_or_recent_contact',
+  'override_requested',
+  'no_activity_for_x_days',
+  'import_completed_with_anomalies',
+]);
 
 export const notifications = pgTable(
   'notifications',
@@ -49,7 +59,7 @@ export const notifications = pgTable(
      * TR-021 currently persists notifications only
      * for follow-up reminders.
      */
-    followUpId: uuid('follow_up_id').notNull(),
+    followUpId: uuid('follow_up_id'),
 
     /*
      * Exact follow-up dueAt that generated this
@@ -62,7 +72,11 @@ export const notifications = pgTable(
     scheduledFor: timestamp('scheduled_for', {
       withTimezone: true,
       mode: 'date',
-    }).notNull(),
+    }),
+
+    eventKey: varchar('event_key', { length: 512 }).notNull().default('legacy'),
+
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
 
     title: varchar('title', {
       length: 200,
@@ -86,6 +100,7 @@ export const notifications = pgTable(
   },
 
   (table) => [
+    unique('notifications_tenant_id_unique').on(table.tenantId, table.id),
     check(
       'notifications_severity_check',
       sql`${table.severity} IN ('info','warning','error','critical')`,
@@ -123,12 +138,11 @@ export const notifications = pgTable(
      * Retrying the same reminder for the same user
      * and schedule must never create duplicates.
      */
-    uniqueIndex('notifications_follow_up_reminder_unique').on(
+    uniqueIndex('notifications_event_dedup_unique').on(
       table.tenantId,
       table.recipientUserId,
       table.type,
-      table.followUpId,
-      table.scheduledFor,
+      table.eventKey,
     ),
 
     /*
@@ -153,6 +167,8 @@ export const notifications = pgTable(
      * Useful for retry/debug/source lookups.
      */
     index('notifications_tenant_follow_up_idx').on(table.tenantId, table.followUpId),
+
+    index('notifications_tenant_event_key_idx').on(table.tenantId, table.eventKey),
   ],
 );
 

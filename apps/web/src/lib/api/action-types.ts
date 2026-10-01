@@ -67,7 +67,12 @@ export interface ActionRecord {
    */
   actor: { membershipId: string; displayName: string | null };
 
-  establishment: { id: string; name: string | null };
+  establishment: {
+    id: string;
+    name: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  };
 
   campaign: { id: string; name: string | null };
 

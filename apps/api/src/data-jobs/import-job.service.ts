@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
@@ -27,6 +28,7 @@ import { EstablishmentContactService } from '../establishment-contacts/establish
 import { EstablishmentContactRepository } from '../establishment-contacts/establishment-contact.repository.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { sanitizeSpreadsheetValue } from '../exports/spreadsheet-value.utils.js';
+import { NotificationEventService } from '../notifications/notification-event.service.js';
 import type {
   ImportIssueResolutionDto,
   ImportMappingDto,
@@ -43,6 +45,7 @@ export class ImportJobService {
     private readonly establishments: EstablishmentService,
     private readonly contacts: EstablishmentContactService,
     private readonly contactRepository: EstablishmentContactRepository,
+    @Optional() private readonly notificationEvents?: NotificationEventService,
   ) {}
   async authorize(a: AuthenticatedPrincipal, tx: DatabaseExecutor = this.db) {
     const r = await tx.execute(
@@ -443,7 +446,7 @@ export class ImportJobService {
     });
   }
   async commit(a: AuthenticatedPrincipal, id: string, version?: string) {
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       await this.lock(a, tx);
       const j = await this.row(a, id, tx);
       assertResourceMatches(version, j);
@@ -528,6 +531,16 @@ export class ImportJobService {
       await this.audit(a, id, 'committed', summary, tx);
       return this.public(next!);
     });
+    const summary = result.summary as Record<string, unknown> | null;
+    const anomalyCount = Number(summary?.skippedRows ?? 0) + Number(summary?.failedRows ?? 0);
+    if (anomalyCount > 0 && this.notificationEvents) {
+      await this.notificationEvents.importAnomalies({
+        tenantId: a.tenantId,
+        importId: id,
+        anomalyCount,
+      });
+    }
+    return result;
   }
   async cancel(a: AuthenticatedPrincipal, id: string, version?: string) {
     return this.db.transaction(async (tx) => {

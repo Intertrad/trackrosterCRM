@@ -28,6 +28,9 @@ export function ContactActionButton({
   prospectName,
   onLogOutcome,
   className,
+  actionLabel,
+  fallbackLabel,
+  fallbackVariant = 'secondary',
 }: {
   channel: ProspectorTodayChannel | null;
   phone: string | null;
@@ -36,6 +39,12 @@ export function ContactActionButton({
   prospectName: string;
   onLogOutcome: () => void;
   className?: string;
+  /** Optional copy for dense queue rows (for example, "Start call"). */
+  actionLabel?: string;
+  /** Optional copy when the channel cannot be launched from the device. */
+  fallbackLabel?: string;
+  /** Optional emphasis for the fallback navigation action. */
+  fallbackVariant?: 'primary' | 'secondary';
 }) {
   const { t } = useTranslation();
 
@@ -45,8 +54,8 @@ export function ContactActionButton({
 
   if (!href) {
     return (
-      <LinkButton href={prospectHref} className={className}>
-        {t('today.viewProspect')}
+      <LinkButton href={prospectHref} variant={fallbackVariant} className={className}>
+        {fallbackLabel ?? t('today.viewProspect')}
       </LinkButton>
     );
   }
@@ -83,7 +92,7 @@ export function ContactActionButton({
     >
       <Icon aria-hidden="true" className="size-4" />
 
-      {channel === 'call' ? t('channel.call') : t('channel.email')}
+      {actionLabel ?? (channel === 'call' ? t('channel.call') : t('channel.email'))}
 
       <span className="sr-only"> {prospectName}</span>
     </a>

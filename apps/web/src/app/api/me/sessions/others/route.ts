@@ -1,6 +1,6 @@
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
-import { forwardedWriteHeaders } from '../../route';
+import { forwardedWriteHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 

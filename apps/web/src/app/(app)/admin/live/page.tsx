@@ -1,24 +1,25 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Radio, RefreshCw } from 'lucide-react';
+import { RefreshCw, Unlock } from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { ActionChannelIcon } from '@/components/prospector/action-channel-icon';
+import { ProspectMap, toMapPoint } from '@/components/prospector/prospect-map';
 import { ApiError } from '@/lib/api/api-error';
-import { toActionChannel } from '@/lib/api/action-types';
 import { listActions } from '@/lib/api/action-client';
-import type { ActionPage } from '@/lib/api/action-types';
-import { listReservations } from '@/lib/api/reservation-client';
+import type { ActionPage, ActionRecord } from '@/lib/api/action-types';
+import { listReservations, releaseReservation } from '@/lib/api/reservation-client';
+import type { Reservation, ReservationPage } from '@/lib/api/reservation-types';
 import { listRoutes } from '@/lib/api/route-client';
 import type { RoutePage } from '@/lib/api/route-types';
-import type { ReservationPage } from '@/lib/api/reservation-types';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { text } from '@/lib/workspace/copy';
+
 export default function Page() {
   return (
     <AdminGuard title="En direct">
@@ -26,29 +27,35 @@ export default function Page() {
     </AdminGuard>
   );
 }
+
+type Session = { key: string; actor: string; company: string; actions: ActionRecord[] };
+
 function Live() {
-  const { language, locale } = useTranslation();
-  const l = (en: string, fr: string) => text(en, fr, language);
-  const [actions, setActions] = useState<ActionPage | null>(null),
-    [reservations, setReservations] = useState<ReservationPage | null>(null),
-    [recent, setRecent] = useState<ActionPage | null>(null),
-    [routes, setRoutes] = useState<RoutePage | null>(null),
-    [error, setError] = useState(false);
+  const { language, locale: rawLocale } = useTranslation();
+  const locale = rawLocale ?? 'en-US';
+  const l = (en: string, fr: string): string => text(en, fr, language) ?? en;
+  const [actions, setActions] = useState<ActionPage | null>(null);
+  const [reservations, setReservations] = useState<ReservationPage | null>(null);
+  const [recent, setRecent] = useState<ActionPage | null>(null);
+  const [routes, setRoutes] = useState<RoutePage | null>(null);
+  const [error, setError] = useState(false);
+  const [releasing, setReleasing] = useState<string | null>(null);
   const request = useRef(0);
+
   const load = useCallback(async (signal?: AbortSignal) => {
     const version = ++request.current;
     try {
-      const [a, r, h, f] = await Promise.all([
-        listActions({ status: 'started', limit: 50 }, signal),
-        listReservations({ status: 'active', limit: 50 }, signal),
+      const [started, active, completed, fieldRoutes] = await Promise.all([
+        listActions({ status: 'started', limit: 100 }, signal),
+        listReservations({ status: 'active', limit: 100 }, signal),
         listActions({ status: 'completed', limit: 10 }, signal),
         listRoutes({ status: 'active', limit: 50 }, signal),
       ]);
       if (signal?.aborted || version !== request.current) return;
-      setActions(a);
-      setReservations(r);
-      setRecent(h);
-      setRoutes(f);
+      setActions(started);
+      setReservations(active);
+      setRecent(completed);
+      setRoutes(fieldRoutes);
       setError(false);
     } catch (caught) {
       if (!signal?.aborted && version === request.current) {
@@ -62,6 +69,7 @@ function Live() {
       }
     }
   }, []);
+
   useEffect(() => {
     const c = new AbortController();
     void load(c.signal);
@@ -70,15 +78,50 @@ function Live() {
       request.current += 1;
     };
   }, [load]);
-  useLiveRefresh(load);
+  useLiveRefresh(load, { interval: 30_000 });
+
+  const sessions = useMemo(() => groupSessions(actions?.items ?? []), [actions]);
+  const mapPoints = useMemo(
+    () =>
+      (actions?.items ?? []).flatMap((a) =>
+        toMapPoint(
+          a.establishment.id,
+          a.establishment.name ?? a.subject,
+          a.establishment.latitude,
+          a.establishment.longitude,
+          'in_progress',
+          `/admin/prospects/${a.establishmentId}`,
+        ),
+      ),
+    [actions],
+  );
+  const release = async (reservation: Reservation) => {
+    setReleasing(reservation.id);
+    try {
+      await releaseReservation(
+        reservation.id,
+        crypto.randomUUID(),
+        'Released by administrator from live activity',
+      );
+      await load();
+    } catch {
+      setError(true);
+    } finally {
+      setReleasing(null);
+    }
+  };
+  const dayLabel = new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date());
+  const reservationCount = reservations?.items.length ?? 0;
+
   return (
     <div className="space-y-5">
       <PageHeader
         title={l('Live activity', 'En direct')}
-        subtitle={l(
-          'Contact actions and reservations in progress across your teams.',
-          'Les contacts et réservations en cours dans vos équipes.',
-        )}
+        subtitle={`${dayLabel} — ${sessions.length} ${l('sessions in progress', 'sessions en cours')}, ${reservationCount} ${l('establishments reserved', 'établissements réservés')}. ${l('Automatic refresh every 30 seconds.', 'Actualisation automatique toutes les 30 secondes.')}`}
         action={
           <Button variant="secondary" onClick={() => void load()}>
             <RefreshCw className="size-4" />
@@ -86,16 +129,9 @@ function Live() {
           </Button>
         }
       />
-      <p className="-mt-3 flex items-center gap-2 text-xs text-ink-muted">
-        <Radio className="size-3.5 text-success" />
-        {l(
-          'Automatic refresh every 10 seconds',
-          'Actualisation automatique toutes les 10 secondes',
-        )}
-      </p>
       {error && (
         <Alert tone="danger">
-          {l('Unable to refresh activity.', 'Impossible d’actualiser l’activité.')}{' '}
+          {l('Unable to refresh live activity.', 'Impossible d’actualiser l’activité en direct.')}{' '}
           <Button variant="ghost" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
           </Button>
@@ -105,98 +141,83 @@ function Live() {
         <div className="space-y-4">
           <Card padding="none">
             <div className="px-[18px] pt-[18px]">
-              <CardHeader title={l('Contacts in progress', 'Contacts en cours')} />
+              <CardHeader title={l('Sessions today', 'Sessions du jour')} />
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-surface-muted text-xs uppercase tracking-wide text-ink-muted">
                   <tr>
                     {[
                       l('Prospector', 'Prospecteur'),
-                      l('Channel', 'Canal'),
-                      l('Establishment', 'Établissement'),
-                      l('Company', 'Entreprise'),
+                      l('Mode', 'Mode'),
+                      l('Progress', 'Avancement'),
+                      l('Last action', 'Dernière action'),
+                      l('Gaps', 'Écarts'),
+                      '',
                     ].map((label) => (
-                      <th key={label}>{label}</th>
+                      <th key={label} className="px-4 py-3 font-bold">
+                        {label}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {actions?.items.map((a) => (
-                    <tr key={a.id} className="border-t border-line-soft">
-                      <td className="font-bold">
-                        {a.actor.displayName ?? l('Team member', 'Membre de l’équipe')}
-                      </td>
-                      <td>
-                        <ActionChannelIcon channel={toActionChannel(a.type)} />
-                      </td>
-                      <td>
-                        <Link
-                          href={`/admin/prospects/${a.establishmentId}`}
-                          className="font-semibold hover:text-brand"
-                        >
-                          {a.establishment.name ?? a.subject}
-                        </Link>
-                      </td>
-                      <td>{a.organization?.name ?? '—'}</td>
-                    </tr>
+                  {sessions.map((session) => (
+                    <SessionRow key={session.key} session={session} locale={locale} l={l} />
                   ))}
                 </tbody>
               </table>
             </div>
-            {actions && !actions.items.length && (
-              <p className="px-[18px] py-5 text-sm text-ink-muted">
-                {l(
-                  'No contact in progress at the moment.',
-                  'Personne n’est en contact en ce moment.',
-                )}
-              </p>
-            )}
-            {!actions && !error && (
-              <div className="m-4 h-20 animate-pulse rounded bg-line-soft" aria-busy="true" />
+            {!sessions.length && (
+              <Empty message={l('No sessions in progress.', 'Aucune session en cours.')} />
             )}
           </Card>
-          <Card>
-            <CardHeader title={l('Field routes', 'Tournées terrain')} />
-            {routes?.items.map((r) => (
-              <Link
-                key={r.id}
-                href={`/routes/${r.id}`}
-                className="flex justify-between gap-3 border-t border-line-soft py-3 text-sm"
-              >
-                <strong>{r.name}</strong>
-                <span className="text-ink-muted">
-                  {new Date(r.scheduledAt).toLocaleDateString(locale)}
-                </span>
-              </Link>
-            ))}
-            {routes && !routes.items.length && (
-              <p className="text-sm text-ink-muted">
-                {l('No active field route.', 'Aucune tournée terrain en cours.')}
-              </p>
-            )}
+          <Card padding="none">
+            <div className="px-[18px] pt-[18px]">
+              <CardHeader title={l('Field routes', 'Tournées terrain')} />
+            </div>
+            <div className="p-3">
+              <ProspectMap points={mapPoints} className="min-h-[360px] rounded-xl" />
+              {!mapPoints.length && (
+                <p className="px-2 py-3 text-sm text-ink-muted">
+                  {l(
+                    'No active locations have coordinates.',
+                    'Aucun emplacement actif ne possède de coordonnées.',
+                  )}
+                </p>
+              )}
+            </div>
+            {routes?.items.length ? (
+              <div className="border-t border-line-soft px-[18px] py-3 text-sm text-ink-muted">
+                {routes.items.length} {l('active route(s)', 'tournée(s) active(s)')}
+              </div>
+            ) : null}
           </Card>
         </div>
         <div className="space-y-4">
           <Card>
-            <CardHeader title={l('Contact reservations', 'Réservations de contact')} />
-            <p className="text-sm text-ink-muted">
-              {reservations
-                ? `${reservations.items.length}${reservations.nextCursor ? '+' : ''}`
-                : '—'}{' '}
-              {l('active reservations', 'réservations actives')}
-            </p>
-            <Link
-              href="/workspace/reservations"
-              className="mt-3 inline-block text-sm font-semibold text-brand"
-            >
-              {l('Manage reservations', 'Gérer les réservations')}
-            </Link>
+            <CardHeader title={l('Contacts in progress', 'Contacts en cours')} />
+            <div className="divide-y divide-line-soft">
+              {(reservations?.items ?? []).map((r) => (
+                <ReservationRow
+                  key={r.id}
+                  reservation={r}
+                  action={actions?.items.find((a) => a.campaignProspectId === r.campaignProspectId)}
+                  releasing={releasing === r.id}
+                  onRelease={release}
+                  locale={locale}
+                  l={l}
+                />
+              ))}
+            </div>
+            {!reservationCount && (
+              <Empty message={l('No active contact reservations.', 'Aucune réservation active.')} />
+            )}
           </Card>
           <Card>
             <CardHeader title={l('Latest actions', 'Dernières actions')} />
             <ul className="divide-y divide-line-soft">
-              {recent?.items.map((a) => (
+              {(recent?.items ?? []).map((a) => (
                 <li key={a.id} className="py-3 first:pt-0">
                   <div className="flex items-start justify-between gap-3">
                     <Link
@@ -215,17 +236,16 @@ function Live() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-ink-muted">
-                    {a.actor.displayName ?? '—'}
+                    {a.subject} — {a.actor.displayName ?? '—'}
                     {a.organization?.name ? ` · ${a.organization.name}` : ''}
                   </p>
-                  <p className="mt-2 text-sm">{a.subject}</p>
                 </li>
               ))}
             </ul>
-            {recent && !recent.items.length && (
-              <p className="text-sm text-ink-muted">
-                {l('No completed action yet.', 'Aucune action terminée pour le moment.')}
-              </p>
+            {!recent?.items.length && (
+              <Empty
+                message={l('No completed action yet.', 'Aucune action terminée pour le moment.')}
+              />
             )}
             <Link href="/actions" className="mt-4 inline-block text-sm font-semibold text-brand">
               {l('View all activity', 'Voir toute l’activité')}
@@ -235,4 +255,136 @@ function Live() {
       </div>
     </div>
   );
+}
+
+function groupSessions(items: ActionRecord[]): Session[] {
+  const map = new Map<string, Session>();
+  for (const action of items) {
+    const key = action.actor.membershipId;
+    const current = map.get(key) ?? {
+      key,
+      actor: action.actor.displayName ?? '—',
+      company: action.organization?.name ?? '—',
+      actions: [],
+    };
+    current.actions.push(action);
+    map.set(key, current);
+  }
+  return [...map.values()];
+}
+
+function SessionRow({
+  session,
+  locale,
+  l,
+}: {
+  session: Session;
+  locale: string;
+  l: (en: string, fr: string) => string;
+}) {
+  const completed = session.actions.filter((a) => a.status === 'completed').length;
+  const total = Math.max(session.actions.length, 1);
+  const latest = session.actions.reduce(
+    (value, a) => Math.max(value, new Date(a.completedAt ?? a.dueAt ?? 0).getTime()),
+    0,
+  );
+  const mode = session.actions.some((a) => a.type === 'visit')
+    ? l('Field', 'Terrain')
+    : l('Phone', 'Téléphone');
+  return (
+    <tr className="border-t border-line-soft align-middle">
+      <td className="px-4 py-4 font-bold">
+        <div>{session.actor}</div>
+        <div className="mt-1 flex items-center gap-2 text-xs font-semibold text-ink-muted">
+          <span className="size-2 rounded-full bg-brand" />
+          {session.company}
+        </div>
+      </td>
+      <td className="px-4 py-4 text-ink-muted">{mode}</td>
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-28 overflow-hidden rounded-full bg-line-soft">
+            <span
+              className="block h-full rounded-full bg-brand"
+              style={{ width: `${Math.round((completed / total) * 100)}%` }}
+            />
+          </span>
+          <span>
+            {completed}/{total}
+          </span>
+        </div>
+      </td>
+      <td className="px-4 py-4 text-ink-muted">
+        {latest
+          ? new Date(latest).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+          : '—'}
+      </td>
+      <td className="px-4 py-4 font-semibold">{Math.max(0, total - completed)}</td>
+      <td className="px-4 py-4">
+        <Button variant="secondary" size="md" disabled>
+          {l('Complete', 'Terminer')}
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function ReservationRow({
+  reservation,
+  action,
+  releasing,
+  onRelease,
+  locale,
+  l,
+}: {
+  reservation: Reservation;
+  action?: ActionRecord;
+  releasing: boolean;
+  onRelease: (reservation: Reservation) => void;
+  locale: string;
+  l: (en: string, fr: string) => string;
+}) {
+  return (
+    <div className="py-3 first:pt-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Link
+            href={action ? `/admin/prospects/${action.establishmentId}` : '#'}
+            className="font-bold hover:text-brand"
+          >
+            {action?.establishment.name ?? l('Reserved establishment', 'Établissement réservé')}
+          </Link>
+          <p className="mt-1 text-sm text-ink-muted">
+            {action?.actor.displayName ?? '—'}
+            {action?.organization?.name ? ` · ${action.organization.name}` : ''}
+          </p>
+          <p className="mt-1 text-xs text-ink-muted">
+            {l('contact since', 'contact depuis')}{' '}
+            {new Date(reservation.acquiredAt).toLocaleTimeString(locale, {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+            , {l('lock until tomorrow', 'verrou jusqu’à demain')}
+          </p>
+        </div>
+        <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-brand">
+          {l('Active', 'Actif')}
+        </span>
+      </div>
+      <Button
+        variant="secondary"
+        size="md"
+        className="mt-2"
+        disabled={releasing}
+        onClick={() => onRelease(reservation)}
+      >
+        <Unlock className="size-3.5" />
+        {releasing ? l('Releasing…', 'Libération…') : l('Release', 'Libérer')}
+      </Button>
+    </div>
+  );
+}
+
+function Empty({ message }: { message: string }) {
+  return <p className="px-[18px] py-5 text-sm text-ink-muted">{message}</p>;
 }

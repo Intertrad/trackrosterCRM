@@ -46,7 +46,7 @@ export async function listFollowUpQueue(
 ): Promise<FollowUpQueueResponse> {
   const query = new URLSearchParams();
 
-  query.set('teamId', input.teamId);
+  if (input.teamId) query.set('teamId', input.teamId);
 
   if (input.overdue !== undefined) {
     query.set('overdue', String(input.overdue));
@@ -115,6 +115,16 @@ export async function createProspectFollowUp(
 export async function rescheduleProspectFollowUp(
   input: RescheduleProspectFollowUpInput,
 ): Promise<ProspectFollowUp> {
+  if (!input.teamId) {
+    return browserJson<ProspectFollowUp>(
+      `/api/follow-ups/${encodeURIComponent(input.followUpId)}/reschedule`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey },
+        body: JSON.stringify({ dueAt: input.dueAt }),
+      },
+    );
+  }
   const query = buildTeamQuery(input.teamId);
 
   return browserJson<ProspectFollowUp>(
@@ -139,6 +149,12 @@ export async function rescheduleProspectFollowUp(
 export async function completeProspectFollowUp(
   input: CompleteProspectFollowUpInput,
 ): Promise<ProspectFollowUp> {
+  if (!input.teamId) {
+    return browserJson<ProspectFollowUp>(
+      `/api/follow-ups/${encodeURIComponent(input.followUpId)}/complete`,
+      { method: 'POST', headers: { 'idempotency-key': input.idempotencyKey } },
+    );
+  }
   const query = buildTeamQuery(input.teamId);
 
   return browserJson<ProspectFollowUp>(
@@ -157,6 +173,16 @@ export async function completeProspectFollowUp(
 export async function cancelProspectFollowUp(
   input: CancelProspectFollowUpInput,
 ): Promise<ProspectFollowUp> {
+  if (!input.teamId) {
+    return browserJson<ProspectFollowUp>(
+      `/api/follow-ups/${encodeURIComponent(input.followUpId)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': input.idempotencyKey },
+        body: JSON.stringify({ reason: 'Cancelled by administrator' }),
+      },
+    );
+  }
   const query = buildTeamQuery(input.teamId);
 
   return browserJson<ProspectFollowUp>(

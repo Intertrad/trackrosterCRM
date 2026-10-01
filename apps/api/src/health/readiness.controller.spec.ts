@@ -7,12 +7,26 @@ describe('Dependency readiness', () => {
     query = vi.fn().mockResolvedValue({ rows: [{ value: 1 }] }),
     ping = vi.fn().mockResolvedValue('PONG'),
   ) {
-    return new ReadinessController({ query } as never, { ping } as never);
+    return new ReadinessController(
+      { query } as never,
+      { ping } as never,
+      { get: vi.fn().mockReturnValue(undefined) } as never,
+      { configured: vi.fn().mockReturnValue(false) } as never,
+    );
   }
   it('reports readiness only when both dependencies respond', async () => {
     await expect(controller().ready()).resolves.toEqual({
       status: 'ready',
-      dependencies: { postgres: 'up', redis: 'up' },
+      dependencies: {
+        postgres: 'up',
+        redis: 'up',
+        optional: {
+          objectStorage: 'unconfigured',
+          email: 'unconfigured',
+          maps: 'unconfigured',
+          sso: 'unconfigured',
+        },
+      },
     });
   });
   it('returns service unavailable without leaking database errors', async () => {

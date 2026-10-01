@@ -24,13 +24,12 @@ describe('workspace navigation', () => {
   it('gives the prospector the operational order from the design handoff', () => {
     expect(labelKeys(getNavigationForWorkspace('prospector'))).toEqual([
       'nav.today',
-      'nav.followUps',
-      'nav.history',
-      'nav.messages',
-      'nav.workQueue',
-      'nav.routes',
+      'nav.prospects',
       'nav.map',
-      'nav.workspaceTools',
+      'nav.followUps',
+      'nav.actionsHistory',
+      'nav.performance',
+      'nav.messages',
     ]);
   });
 
@@ -71,15 +70,16 @@ describe('workspace navigation', () => {
     expect(labelKeys(getNavigationForWorkspace('manager'))).toEqual([
       'nav.overview',
       'nav.objectives',
-      'nav.territories',
+      'nav.prospects',
       'nav.team',
       'nav.campaigns',
       'nav.assignments',
-      'nav.collisions',
+      'nav.territories',
       'nav.approvals',
       'nav.reports',
-      'nav.exports',
       'nav.messages',
+      'nav.collisions',
+      'nav.exports',
       'nav.search',
       'nav.workspaceTools',
     ]);
@@ -159,21 +159,46 @@ describe('workspace navigation', () => {
     expect(items.map((item) => item.href)).toEqual([
       '/manager/overview',
       '/manager/objectives',
-      '/manager/territories',
+      '/work-queue',
       '/manager/team',
       '/manager/campaigns',
       '/manager/assignments',
-      '/manager/collisions',
+      '/manager/territories',
       '/manager/approvals',
       '/manager/reports',
-      '/manager/exports',
       '/messages',
+      '/manager/collisions',
+      '/manager/exports',
       '/search',
       '/workspace',
     ]);
   });
 
+  it('gives the director the executive reporting workspace', () => {
+    const items = getNavigationForWorkspace('director');
+
+    expect(items.map((item) => item.href)).toEqual([
+      '/director/overview',
+      '/director/reports',
+      '/director/campaigns',
+      '/director/territories',
+      '/director/performance',
+      '/director/exports',
+      '/workspace',
+    ]);
+  });
+
   it('exposes every prospector screen now that each one exists', () => {
+    expect(getNavigationForWorkspace('prospector').map((item) => item.href)).toEqual([
+      '/',
+      '/work-queue',
+      '/map',
+      '/follow-ups',
+      '/actions',
+      '/performance',
+      '/messages',
+    ]);
+
     const planned = getNavigationForWorkspace('prospector').filter(
       (item) => item.availability === 'planned',
     );

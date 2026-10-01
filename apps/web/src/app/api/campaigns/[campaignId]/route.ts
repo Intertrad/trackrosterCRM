@@ -3,6 +3,7 @@ import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-erro
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
 import { authenticatedBackendResource } from '@/lib/server/authenticated-backend-resource';
 import { writeHeaders } from '@/lib/server/write-headers';
+import { campaignHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,14 +67,4 @@ export async function DELETE(
   } catch (error) {
     return apiErrorResponse(error);
   }
-}
-
-export function campaignHeaders(etag: string | null): Record<string, string> {
-  const headers: Record<string, string> = { 'cache-control': 'no-store' };
-
-  if (etag) {
-    headers.etag = etag;
-  }
-
-  return headers;
 }

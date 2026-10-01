@@ -1,6 +1,7 @@
 import type { ActionRecord } from '@/lib/api/action-types';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
+import { forwardedHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,18 +60,4 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     return apiErrorResponse(error);
   }
-}
-
-export function forwardedHeaders(request: Request): Record<string, string> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-
-  for (const header of ['idempotency-key', 'if-match']) {
-    const value = request.headers.get(header);
-
-    if (value) {
-      headers[header] = value;
-    }
-  }
-
-  return headers;
 }

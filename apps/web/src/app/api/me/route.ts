@@ -1,6 +1,7 @@
 import type { AccountProfile } from '@/lib/api/account-types';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendResource } from '@/lib/server/authenticated-backend-resource';
+import { forwardedWriteHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,22 +44,4 @@ async function proxy(path: string, options?: RequestInit): Promise<Response> {
   } catch (error) {
     return apiErrorResponse(error);
   }
-}
-
-export function forwardedWriteHeaders(request: Request): HeadersInit {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-
-  const ifMatch = request.headers.get('if-match');
-
-  if (ifMatch) {
-    headers['if-match'] = ifMatch;
-  }
-
-  const idempotencyKey = request.headers.get('idempotency-key');
-
-  if (idempotencyKey) {
-    headers['idempotency-key'] = idempotencyKey;
-  }
-
-  return headers;
 }

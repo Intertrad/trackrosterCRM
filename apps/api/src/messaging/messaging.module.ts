@@ -462,24 +462,40 @@ export class MessagingService {
       .where(eq(conversations.id, id));
     return m;
   }
+
+  /**
+   * A message is mutable only while every other participant still has an
+   * unread cursor before it. Keeping this predicate in the write query makes
+   * the rule atomic: a read racing with an edit/delete wins and the mutation
+   * is rejected.
+   */
+  private unreadForOthers() {
+    return sql`NOT EXISTS (
+      SELECT 1
+      FROM ${conversationParticipants}
+      WHERE ${conversationParticipants.tenantId} = ${messages.tenantId}
+        AND ${conversationParticipants.conversationId} = ${messages.conversationId}
+        AND ${conversationParticipants.membershipId} <> ${messages.senderId}
+        AND ${conversationParticipants.lastReadAt} IS NOT NULL
+        AND ${conversationParticipants.lastReadAt} >= ${messages.createdAt}
+    )`;
+  }
+
   async edit(a: Auth, id: string, body: string) {
-    const [m] = await this.db
-      .select()
-      .from(messages)
+    const [r] = await this.db
+      .update(messages)
+      .set({ body: body.trim(), status: 'edited', updatedAt: sql`clock_timestamp()` })
       .where(
         and(
           eq(messages.tenantId, a.tenantId),
           eq(messages.id, id),
           eq(messages.senderId, a.membershipId),
           eq(messages.status, 'sent'),
+          this.unreadForOthers(),
         ),
-      );
-    if (!m) throw new ForbiddenException('Only the sender can edit a sent message');
-    const [r] = await this.db
-      .update(messages)
-      .set({ body: body.trim(), status: 'edited', updatedAt: sql`clock_timestamp()` })
-      .where(eq(messages.id, id))
+      )
       .returning();
+    if (!r) throw new ForbiddenException('Only unread messages can be edited');
     return r;
   }
   async remove(a: Auth, id: string) {
@@ -491,10 +507,12 @@ export class MessagingService {
           eq(messages.tenantId, a.tenantId),
           eq(messages.id, id),
           eq(messages.senderId, a.membershipId),
+          eq(messages.status, 'sent'),
+          this.unreadForOthers(),
         ),
       )
       .returning({ id: messages.id });
-    if (!m) throw new NotFoundException('Message not found');
+    if (!m) throw new ForbiddenException('Only unread messages can be deleted');
   }
   async read(a: Auth, id: string) {
     await this.member(a, id);

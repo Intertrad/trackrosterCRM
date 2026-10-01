@@ -38,6 +38,7 @@ export interface OverrideCollision {
   campaignProspectId: string;
   assignmentId: string | null;
   detectedBy: string;
+  establishmentId?: string;
   createdAt: string;
   expiresAt: string | null;
   decision?: string;
@@ -53,6 +54,14 @@ export interface OverrideCollision {
 export interface OverrideRequestDetail extends OverrideRequestSummary {
   collision: OverrideCollision;
   approval: { id: string; expiresAt: string | null } | null;
+  /** Human-readable context resolved inside the same authorization scope. */
+  context?: {
+    prospect: { id: string; name: string } | null;
+    campaign: { id: string; name: string } | null;
+    requester: { id: string; displayName: string | null } | null;
+    detector: { id: string; displayName: string | null } | null;
+    decider: { id: string; displayName: string | null } | null;
+  };
 }
 
 export type OverrideDecision = 'approve' | 'reject' | 'cancel';

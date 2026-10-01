@@ -1,10 +1,18 @@
 'use client';
 import { LiveStatus } from './live-status';
 
-import { type ReactNode, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, MoreHorizontal, Settings, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  MoreHorizontal,
+  Search,
+  Settings,
+  X,
+} from 'lucide-react';
 
 import { NavIcon } from '@/components/layout/nav-icon';
 import { NotificationBell } from '@/components/layout/notification-bell';
@@ -136,6 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       group: 'tools',
     });
   const roleLabel = platformView ? t('role.platform') : t(getWorkspaceModeLabelKey(mode));
+  const isProspector = mode === 'prospector' && !platformView;
   const sidebarItems = items.filter((item) => item.group !== 'tools');
   const toolItems = items.filter((item) => item.group === 'tools');
   const toolActive = toolItems.some((item) => isNavigationItemActive(pathname, item));
@@ -175,16 +184,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
+        {!collapsed ? (
+          <WorkspaceScopeCard activeWorkspace={activeWorkspace} isProspector={isProspector} />
+        ) : null}
+
         <nav
           aria-label={t('nav.workspace')}
-          className="reference-sidebar-nav flex min-h-0 flex-1 flex-col overflow-y-auto px-[14px] py-1"
+          className={cn(
+            'reference-sidebar-nav flex min-h-0 flex-1 flex-col overflow-y-auto px-[14px] py-1',
+            isProspector && 'pt-2',
+          )}
         >
-          <ul className="my-auto flex flex-col gap-0.5">
+          <ul className="flex flex-col gap-0.5">
             {sidebarItems.map((item, index) => (
               <li key={item.id}>
                 {!collapsed && item.group && item.group !== sidebarItems[index - 1]?.group && (
                   <p className="px-3 pt-2 pb-0.5 text-[11px] font-semibold text-ink-onDark-soft">
-                    {t(item.group === 'configuration' ? 'nav.configuration' : 'nav.tools')}
+                    {t(
+                      item.group === 'configuration'
+                        ? 'nav.configuration'
+                        : item.group === 'operate'
+                          ? 'nav.operate'
+                          : item.group === 'control'
+                            ? 'nav.control'
+                            : 'nav.tools',
+                    )}
                   </p>
                 )}
                 <SidebarItem
@@ -221,21 +245,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             </nav>
           </details>
         )}
-        <div className={cn('border-t border-white/10 p-3', collapsed && 'px-2')}>
-          {!collapsed ? (
-            <div className="mb-1 flex justify-end">
-              <NotificationBell />
-            </div>
-          ) : null}
-
-          <ProfileMenu
-            displayName={user.displayName}
-            email={user.email}
-            roleLabel={roleLabel}
-            collapsed={collapsed}
-          />
-        </div>
-
         <button
           type="button"
           onClick={toggleCollapsed}
@@ -255,9 +264,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <main className="reference-main min-w-0 flex-1">
-        <LiveStatus />
-        {children}
+      <main className="min-w-0 flex-1 bg-canvas">
+        <WorkspaceTopbar
+          isProspector={isProspector}
+          roleLabel={roleLabel}
+          displayName={user.displayName}
+          email={user.email}
+        />
+
+        <div className="reference-main min-w-0">
+          <LiveStatus />
+          {children}
+        </div>
       </main>
 
       <MobileNav
@@ -268,6 +286,89 @@ export function AppShell({ children }: { children: ReactNode }) {
         onToggleMore={() => setMoreOpen((open) => !open)}
       />
     </div>
+  );
+}
+
+function WorkspaceScopeCard({
+  activeWorkspace,
+  isProspector,
+}: {
+  activeWorkspace: { organizationId: string | null; teamId: string | null } | null;
+  isProspector: boolean;
+}) {
+  return (
+    <div className="px-3 pb-4">
+      <div className="rounded-xl border border-white/12 bg-white/6 px-3 py-3">
+        <p className="truncate text-[12px] font-bold text-white">
+          {isProspector ? 'Assigned workspace' : 'Current workspace'}
+        </p>
+        <p className="mt-0.5 truncate text-[11px] text-ink-onDark-soft">
+          {activeWorkspace?.organizationId ? 'Organization scope' : 'Workspace scope'}
+          {activeWorkspace?.teamId ? ' · Team' : ''}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceTopbar({
+  isProspector,
+  roleLabel,
+  displayName,
+  email,
+}: {
+  isProspector: boolean;
+  roleLabel: string;
+  displayName: string | null;
+  email: string;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+
+  function submit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const value = query.trim();
+    if (!value) return;
+    router.push(`/search?q=${encodeURIComponent(value)}`);
+  }
+
+  return (
+    <header className="hidden h-[58px] items-center gap-4 border-b border-line-soft bg-surface px-6 lg:flex">
+      <form onSubmit={submit} role="search" className="relative w-full max-w-[320px]">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+        />
+        <input
+          aria-label={isProspector ? 'Search my assigned prospects' : 'Search workspace'}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={isProspector ? 'Search my assigned prospects…' : 'Search workspace…'}
+          className="h-9 w-full rounded-lg border border-line-soft bg-canvas px-9 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-brand focus:bg-surface"
+        />
+      </form>
+
+      <div className="ml-auto flex items-center gap-1.5">
+        <span className="rounded-full border border-brand-tint bg-brand-wash px-3 py-1 text-[10px] font-extrabold tracking-[0.12em] text-brand">
+          {roleLabel.toUpperCase()}
+        </span>
+        <NotificationBell tone="dark" />
+        <Link
+          href="/workspace"
+          aria-label="Help and workspace tools"
+          className="flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-muted hover:text-navy"
+        >
+          <CircleHelp aria-hidden="true" className="size-[17px]" />
+        </Link>
+        <ProfileMenu
+          displayName={displayName}
+          email={email}
+          roleLabel={roleLabel}
+          collapsed
+          placement="down"
+        />
+      </div>
+    </header>
   );
 }
 

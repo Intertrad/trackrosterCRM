@@ -7,7 +7,7 @@ import { withTenantContext } from '../src/database/tenant-context.js';
 import { randomUUID } from 'node:crypto';
 import { organizations } from '../src/database/schema/organizations.js';
 import { tenants } from '../src/database/schema/tenants.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
 
@@ -78,6 +78,39 @@ describe.skipIf(!process.env.DATABASE_URL)('Tenant transaction integration', () 
           .where(eq(organizations.tenantId, tenantA));
         expect(visible).toHaveLength(0);
       });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('keeps every tenant table covered by a forced isolation policy', async () => {
+    const app = await NestFactory.createApplicationContext(AppModule, {
+      logger: false,
+      abortOnError: false,
+    });
+    try {
+      const db = app.get<Database>(DATABASE);
+      const uncovered = await db.execute<{ tableName: string; forced: boolean; policies: number }>(
+        sql`
+          SELECT
+            c.table_name AS "tableName",
+            cls.relforcerowsecurity AS forced,
+            COUNT(p.policyname)::integer AS policies
+          FROM information_schema.columns c
+          JOIN pg_class cls
+            ON cls.relname = c.table_name
+           AND cls.relnamespace = 'public'::regnamespace
+          LEFT JOIN pg_policies p
+            ON p.schemaname = 'public'
+           AND p.tablename = c.table_name
+          WHERE c.table_schema = 'public'
+            AND c.column_name = 'tenant_id'
+          GROUP BY c.table_name, cls.relforcerowsecurity
+          HAVING NOT cls.relforcerowsecurity OR COUNT(p.policyname) = 0
+          ORDER BY c.table_name
+        `,
+      );
+      expect(uncovered.rows).toEqual([]);
     } finally {
       await app.close();
     }

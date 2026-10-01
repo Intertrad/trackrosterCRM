@@ -3,6 +3,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { discoverSweepWork, sweepByTenant } from '../database/tenant-sweep.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import { setTenantContext } from '../database/tenant-context.js';
 import { reservationRecords, reservationEvents } from '../database/schema/index.js';
 import { RedisService } from '../redis/redis.service.js';
 import type { ProspectReservation } from './reservation.types.js';
@@ -45,7 +47,7 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
     rule: Record<string, unknown>,
     blockingOrganizationIds: string[] = [lease.organizationId],
   ) {
-    await this.db.transaction(async (tx) => {
+    const prepareWith = async (tx: DatabaseExecutor) => {
       /*
        * Redis remains the fast lease/co-ordination layer, but it is not the
        * authority for durable ownership. Serialize claims for the same
@@ -57,8 +59,12 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${lease.tenantId}:${lease.establishmentId}`}, 0))`,
       );
 
-      const openRows = await tx.execute<{ lease: ProspectReservation }>(sql`
-        SELECT lease
+      const openRows = await tx.execute<{
+        id: string;
+        status: string;
+        lease: ProspectReservation;
+      }>(sql`
+        SELECT id, status, lease
         FROM reservation_records
         WHERE tenant_id = ${lease.tenantId}::uuid
           AND establishment_id = ${lease.establishmentId}::uuid
@@ -68,14 +74,68 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
       `);
 
       const blocking = new Set(blockingOrganizationIds);
-      if (
-        openRows.rows.some((row) => {
-          const existing = row.lease;
-          return (
-            existing.reservationId !== lease.reservationId && blocking.has(existing.organizationId)
+      const liveRows: ProspectReservation[] = [];
+      for (const row of openRows.rows) {
+        const existing = row.lease;
+        if (
+          existing.reservationId === lease.reservationId ||
+          !blocking.has(existing.organizationId)
+        ) {
+          continue;
+        }
+
+        const [reservationValue, organizationCollisionValue] = await this.redis
+          .getClient()
+          .mGet([
+            [
+              'trackroster',
+              'reservation',
+              existing.tenantId,
+              existing.campaignId,
+              existing.campaignProspectId,
+            ].join(':'),
+            [
+              'trackroster',
+              'collision',
+              existing.tenantId,
+              existing.organizationId,
+              existing.establishmentId,
+            ].join(':'),
+          ]);
+        const reservationLease = reservationValue
+          ? (JSON.parse(reservationValue) as ProspectReservation)
+          : null;
+        const organizationLease = organizationCollisionValue
+          ? (JSON.parse(organizationCollisionValue) as ProspectReservation)
+          : null;
+        const lockIsLive =
+          reservationLease?.reservationId === existing.reservationId &&
+          organizationLease?.reservationId === existing.reservationId &&
+          reservationLease?.expiresAt === existing.expiresAt &&
+          organizationLease?.expiresAt === existing.expiresAt;
+
+        if (lockIsLive) {
+          liveRows.push(existing);
+          continue;
+        }
+
+        // Redis is the lease authority. A durable row whose paired lease has
+        // disappeared is stale and must stop blocking the next claim.
+        await tx
+          .update(reservationRecords)
+          .set({
+            status: existing.expiresAt <= new Date().toISOString() ? 'expired' : 'lost',
+            updatedAt: sql`clock_timestamp()`,
+          })
+          .where(
+            and(
+              eq(reservationRecords.id, row.id),
+              eq(reservationRecords.status, row.status as 'pending' | 'active'),
+            ),
           );
-        })
-      ) {
+      }
+
+      if (liveRows.length > 0) {
         throw new ReservationClaimConflictError('A conflicting reservation already exists');
       }
 
@@ -91,7 +151,10 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
         expiresAt: new Date(lease.expiresAt),
       });
       await this.event(tx, lease.tenantId, lease.reservationId, 'claim_requested');
-    });
+    };
+    const active = currentTenantExecutor();
+    if (active) await prepareWith(active);
+    else await this.db.transaction(prepareWith);
   }
   async observeLegacy(lease: ProspectReservation, rule: Record<string, unknown>) {
     await this.db.transaction(async (tx) => {
@@ -115,6 +178,27 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
         await this.event(tx, lease.tenantId, lease.reservationId, 'legacy_lease_observed', {
           expiresAt: lease.expiresAt,
         });
+    });
+  }
+  async persistPending(lease: ProspectReservation, rule: Record<string, unknown>) {
+    await this.db.transaction(async (tx) => {
+      await setTenantContext(tx, lease.tenantId);
+      const [added] = await tx
+        .insert(reservationRecords)
+        .values({
+          id: lease.reservationId,
+          tenantId: lease.tenantId,
+          campaignId: lease.campaignId,
+          campaignProspectId: lease.campaignProspectId,
+          establishmentId: lease.establishmentId,
+          ownerMembershipId: lease.userId,
+          lease,
+          ruleSnapshot: rule,
+          expiresAt: new Date(lease.expiresAt),
+        })
+        .onConflictDoNothing()
+        .returning({ id: reservationRecords.id });
+      if (added) await this.event(tx, lease.tenantId, lease.reservationId, 'claim_requested');
     });
   }
   async confirm(lease: ProspectReservation, type = 'claimed') {

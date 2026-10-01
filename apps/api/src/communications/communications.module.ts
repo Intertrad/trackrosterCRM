@@ -35,6 +35,7 @@ import {
   NotificationPreferencesDto,
   PresignUploadDto,
   RegisterDeviceDto,
+  normalizeNotificationPreferences,
 } from './communications.dto.js';
 import { ObjectStorageService } from '../providers/object-storage.service.js';
 import { ProvidersModule } from '../providers/providers.module.js';
@@ -132,7 +133,10 @@ export class CommunicationsService {
   async setPrefs(a: Auth, p: NotificationPreferencesDto) {
     /* Validation has already rejected any key outside the catalogue, so this
      * is a narrowing to the column's stored shape, not a trust decision. */
-    const preferences = p as Record<string, { email?: boolean; push?: boolean; inApp?: boolean }>;
+    const preferences = normalizeNotificationPreferences(p) as Record<
+      string,
+      { email?: boolean; push?: boolean; inApp?: boolean }
+    >;
     const [r] = await this.db
       .insert(notificationPreferences)
       .values({ tenantId: a.tenantId, membershipId: a.membershipId, preferences })

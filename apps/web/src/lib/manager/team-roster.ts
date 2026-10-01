@@ -12,6 +12,7 @@ export interface TeamRosterRow {
 
   activeProspects: number;
   actionsThisPeriod: number;
+  pendingFollowUps: number;
   overdue: number;
 
   /** null when the member has no capacity target set. */
@@ -47,6 +48,7 @@ export function buildTeamRoster(
         status: membership.status,
         activeProspects,
         actionsThisPeriod: row?.activities ?? 0,
+        pendingFollowUps: row?.pendingFollowUps ?? 0,
         overdue: row?.overdueFollowUps ?? 0,
 
         /*

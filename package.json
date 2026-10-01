@@ -12,6 +12,8 @@
     "maps:serve": "http-server infrastructure/maps -p 8787 --cors -c-1",
     "maps:check": "node scripts/check-pmtiles.mjs",
     "geocode:prospects": "node scripts/geocode-missing-prospects.mjs",
+    "backup:postgres": "node scripts/backup-postgres.mjs",
+    "verify:backup": "node scripts/verify-postgres-backup.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "build": "turbo run build",

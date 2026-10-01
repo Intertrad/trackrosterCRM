@@ -111,6 +111,8 @@ export interface ProspectCampaignMembershipPage {
 export interface ProspectPage {
   items: Prospect[];
   nextCursor: string | null;
+  /** Total rows matching the filters, independent of the current cursor page. */
+  total: number;
 }
 
 /*

@@ -10439,6 +10439,8 @@ type ResponseBody = {
     updatedAt: string /* ISO 8601 date-time */;
   }>;
   nextCursor: null | string;
+  /** Number of records matching the supplied filters, independent of the cursor page. */
+  total: number;
 };
 ```
 

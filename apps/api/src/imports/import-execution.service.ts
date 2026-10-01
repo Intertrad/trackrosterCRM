@@ -14,6 +14,7 @@ import { ImportDeduplicationService } from './import-deduplication.service.js';
 import type { ImportExecutionResult, ImportExecutionRowResult } from './import-execution.types.js';
 import { ImportPreviewService } from './import-preview.service.js';
 import type { ImportPreviewRow } from './import-preview.types.js';
+import { NotificationEventService } from '../notifications/notification-event.service.js';
 
 interface ImportRowTransactionResult {
   row: ImportExecutionRowResult;
@@ -39,12 +40,17 @@ export class ImportExecutionService {
 
     private readonly contactRepository: EstablishmentContactRepository,
     @Optional() private readonly jobs?: JobProducerService,
+    @Optional() private readonly notificationEvents?: NotificationEventService,
   ) {}
 
-  async executeCsv(tenantId: string, csvContent: string): Promise<ImportExecutionResult> {
+  async executeCsv(
+    tenantId: string,
+    csvContent: string,
+    importId = randomUUID(),
+  ): Promise<ImportExecutionResult> {
     if (!currentTenantExecutor())
       return withTenantContext(this.database, tenantId, () =>
-        this.executeCsv(tenantId, csvContent),
+        this.executeCsv(tenantId, csvContent, importId),
       );
     /*
      * Never trust preview data returned
@@ -75,6 +81,11 @@ export class ImportExecutionService {
       const rowResult = await this.executeRow(tenantId, row, result);
 
       result.rows.push(rowResult);
+    }
+
+    const anomalyCount = result.summary.skippedRows + result.summary.failedRows;
+    if (anomalyCount > 0 && this.notificationEvents) {
+      await this.notificationEvents.importAnomalies({ tenantId, importId, anomalyCount });
     }
 
     return result;

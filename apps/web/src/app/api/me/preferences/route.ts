@@ -1,7 +1,7 @@
 import type { AccountPreferences } from '@/lib/api/account-types';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendResource } from '@/lib/server/authenticated-backend-resource';
-import { forwardedWriteHeaders } from '../route';
+import { forwardedWriteHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 

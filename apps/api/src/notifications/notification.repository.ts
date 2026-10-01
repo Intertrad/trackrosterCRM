@@ -3,7 +3,24 @@ import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
-import { notifications, type Notification } from '../database/schema/notifications.js';
+import {
+  notificationDeliveries,
+  notifications,
+  type Notification,
+} from '../database/schema/index.js';
+
+export interface CreateNotificationInput {
+  tenantId: string;
+  recipientUserId: string;
+  type: Exclude<Notification['type'], 'follow_up_reminder'> | 'follow_up_reminder';
+  severity: Notification['severity'];
+  eventKey: string;
+  title: string;
+  message: string;
+  followUpId?: string;
+  scheduledFor?: Date;
+  payload?: Record<string, unknown>;
+}
 
 export interface CreateFollowUpReminderNotificationInput {
   tenantId: string;
@@ -63,6 +80,59 @@ export class NotificationRepository {
       .limit(options.limit + 1);
   }
 
+  async createIfAbsent(
+    input: CreateNotificationInput,
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Notification | null> {
+    const [notification] = await executor
+      .insert(notifications)
+      .values({
+        tenantId: input.tenantId,
+        recipientUserId: input.recipientUserId,
+        type: input.type,
+        severity: input.severity,
+        eventKey: input.eventKey,
+        title: input.title,
+        message: input.message,
+        followUpId: input.followUpId,
+        scheduledFor: input.scheduledFor,
+        payload: input.payload ?? {},
+      })
+      .onConflictDoNothing({
+        target: [
+          notifications.tenantId,
+          notifications.recipientUserId,
+          notifications.type,
+          notifications.eventKey,
+        ],
+      })
+      .returning();
+
+    return notification ?? null;
+  }
+
+  async queueDelivery(
+    input: {
+      tenantId: string;
+      notificationId: string;
+      channel: 'email' | 'push';
+    },
+    executor: DatabaseExecutor = this.database,
+  ) {
+    const [delivery] = await executor
+      .insert(notificationDeliveries)
+      .values(input)
+      .onConflictDoNothing({
+        target: [
+          notificationDeliveries.tenantId,
+          notificationDeliveries.notificationId,
+          notificationDeliveries.channel,
+        ],
+      })
+      .returning();
+    return delivery ?? null;
+  }
+
   async countUnread(tenantId: string, recipientUserId: string): Promise<number> {
     const [row] = await this.database
       .select({ count: count() })
@@ -116,6 +186,8 @@ export class NotificationRepository {
 
         type: 'follow_up_reminder',
 
+        eventKey: `follow_up_due:${input.followUpId}:${input.scheduledFor.toISOString()}`,
+
         followUpId: input.followUpId,
 
         scheduledFor: input.scheduledFor,
@@ -132,9 +204,7 @@ export class NotificationRepository {
 
           notifications.type,
 
-          notifications.followUpId,
-
-          notifications.scheduledFor,
+          notifications.eventKey,
         ],
       })
       .returning();
@@ -167,6 +237,8 @@ export class NotificationRepository {
 
           type: 'follow_up_reminder' as const,
 
+          eventKey: `follow_up_due:${input.followUpId}:${input.scheduledFor.toISOString()}`,
+
           followUpId: input.followUpId,
 
           scheduledFor: input.scheduledFor,
@@ -184,9 +256,7 @@ export class NotificationRepository {
 
           notifications.type,
 
-          notifications.followUpId,
-
-          notifications.scheduledFor,
+          notifications.eventKey,
         ],
       })
       .returning();

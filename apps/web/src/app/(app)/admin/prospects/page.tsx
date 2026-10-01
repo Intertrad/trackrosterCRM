@@ -89,6 +89,7 @@ function Referential() {
   const [departmentError, setDepartmentError] = useState(false);
   const [items, setItems] = useState<Prospect[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [previous, setPrevious] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<Map<string, Prospect>>(new Map());
@@ -107,6 +108,7 @@ function Referential() {
     setSelected(new Map());
     setDetail(null);
     setPrevious([]);
+    setTotal(null);
   }, [scopeKey]);
   useEffect(() => setSearch(query.search ?? ''), [query.search]);
   const update = useCallback(
@@ -134,12 +136,14 @@ function Referential() {
         if (signal?.aborted || current !== requestNumber.current) return;
         setItems(page.items);
         setNextCursor(page.nextCursor);
+        setTotal(page.total ?? page.items.length);
         setError(null);
       } catch (caught) {
         if (signal?.aborted || current !== requestNumber.current) return;
         if (caught instanceof ApiError && [401, 403].includes(caught.statusCode)) {
           setItems(null);
           setNextCursor(null);
+          setTotal(null);
           setSelected(new Map());
         }
         setError(
@@ -164,6 +168,7 @@ function Referential() {
   useEffect(() => {
     const controller = new AbortController();
     setItems(null);
+    setTotal(null);
     setError(null);
     void load(controller.signal);
     return () => controller.abort();
@@ -575,10 +580,15 @@ function Referential() {
         {items && items.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-5 py-4">
             <span className="text-sm text-ink-muted">
-              {l(
-                `${items.length.toLocaleString(locale)} shown`,
-                `${items.length.toLocaleString(locale)} affichés`,
-              )}
+              {(() => {
+                const start = previous.length * PROSPECT_PAGE_SIZE + 1;
+                const end = start + items.length - 1;
+                const count = total ?? end;
+                return l(
+                  `${start.toLocaleString(locale)}–${end.toLocaleString(locale)} of ${count.toLocaleString(locale)}`,
+                  `${start.toLocaleString(locale)}–${end.toLocaleString(locale)} sur ${count.toLocaleString(locale)}`,
+                );
+              })()}
             </span>
             <div className="flex gap-2">
               <Button

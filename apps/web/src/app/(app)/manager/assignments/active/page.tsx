@@ -4,7 +4,7 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CircleCheck, CirclePause, CirclePlay, Repeat } from 'lucide-react';
+import { CircleCheck, CirclePause, CirclePlay, List, Repeat } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +46,7 @@ export default function ActiveAssignmentsPage() {
   const teamId = activeWorkspace?.teamId ?? undefined;
 
   const [assignments, setAssignments] = useState<Assignment[] | null>(null);
+  const [summaryAssignments, setSummaryAssignments] = useState<Assignment[] | null>(null);
   const [status, setStatus] = useState<AssignmentStatus | 'all'>('active');
   const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
 
@@ -56,20 +57,36 @@ export default function ActiveAssignmentsPage() {
   const [selected, setSelected] = useState<{ assignment: Assignment; action: Action } | null>(null);
 
   const load = useCallback(
-    (signal?: AbortSignal): Promise<void> =>
-      listAssignments({ teamId, limit: 100, ...(status === 'all' ? {} : { status }) }, signal)
-        .then((page) => {
+    (signal?: AbortSignal): Promise<void> => {
+      const pageRequest = listAssignments(
+        { teamId, limit: 100, ...(status === 'all' ? {} : { status }) },
+        signal,
+      );
+      const summaryRequest =
+        status === 'all' ? pageRequest : listAssignments({ teamId, limit: 100 }, signal);
+
+      return Promise.all([pageRequest, summaryRequest])
+        .then(([page, summary]) => {
           if (!signal?.aborted) {
             setAssignments(page.items);
+            setSummaryAssignments(summary.items);
             setReadError(null);
           }
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
-            setAssignments([]);
-            setReadError(describeAssignmentError(caught));
+            /* Keep the last good page visible during a transient refresh failure. */
+            setAssignments((current) => current ?? []);
+            setSummaryAssignments((current) => current ?? []);
+            setReadError(
+              describeAssignmentError(
+                caught,
+                'We could not refresh assignments. Check the API connection and try again.',
+              ),
+            );
           }
-        }),
+        });
+    },
     [status, teamId],
   );
 
@@ -95,15 +112,17 @@ export default function ActiveAssignmentsPage() {
   }, [teamId]);
 
   const counts = useMemo(() => {
-    const all = assignments ?? [];
+    const all = summaryAssignments ?? assignments ?? [];
+    const shown = assignments ?? [];
 
     return {
-      total: all.length,
+      total: shown.length,
       active: all.filter((item) => item.status === 'active').length,
       paused: all.filter((item) => item.status === 'paused').length,
+      completed: all.filter((item) => item.status === 'completed').length,
       unowned: all.filter((item) => item.assignedUserId === null && isAssignmentOpen(item)).length,
     };
-  }, [assignments]);
+  }, [assignments, summaryAssignments]);
 
   async function run(key: string, operation: () => Promise<unknown>, success: string) {
     setBusy(key);
@@ -116,7 +135,9 @@ export default function ActiveAssignmentsPage() {
       setNotice(success);
       setSelected(null);
     } catch (caught) {
-      setActionError(describeAssignmentError(caught));
+      setActionError(
+        describeAssignmentError(caught, 'The assignment action could not be completed. Try again.'),
+      );
     } finally {
       setBusy(null);
     }
@@ -150,13 +171,22 @@ export default function ActiveAssignmentsPage() {
         />
       </div>
 
-      {readError ? <Alert tone="danger">{readError}</Alert> : null}
+      {readError ? (
+        <Alert tone="danger">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>{readError}</span>
+            <Button variant="secondary" onClick={() => void load()} disabled={busy !== null}>
+              Try again
+            </Button>
+          </div>
+        </Alert>
+      ) : null}
 
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
       {actionError ? <Alert tone="danger">{actionError}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatTile
           icon={<CirclePlay aria-hidden="true" className="size-5" />}
           tone="success"
@@ -181,6 +211,13 @@ export default function ActiveAssignmentsPage() {
 
         <StatTile
           icon={<CircleCheck aria-hidden="true" className="size-5" />}
+          tone="neutral"
+          value={summaryAssignments === null ? null : counts.completed}
+          label="Completed"
+        />
+
+        <StatTile
+          icon={<List aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={assignments === null ? null : counts.total}
           label="Shown"
@@ -396,6 +433,8 @@ function ActionDrawer({
   }
 
   const { assignment, action } = selection;
+  const selectedUserId = assignedUserId === '' ? null : assignedUserId;
+  const unchangedTarget = action === 'reassign' && assignment.assignedUserId === selectedUserId;
 
   const title =
     action === 'reassign'
@@ -430,8 +469,9 @@ function ActionDrawer({
             />
 
             <p className="-mt-2 text-[13px] text-ink-muted">
-              Leaving nobody assigned keeps the prospect owned by the team so anyone on it can pick
-              the work up.
+              {unchangedTarget
+                ? 'Choose a different owner or leave it with the team before submitting.'
+                : 'Leaving nobody assigned keeps the prospect owned by the team so anyone on it can pick the work up.'}
             </p>
           </>
         ) : null}
@@ -464,7 +504,7 @@ function ActionDrawer({
           fullWidth
           loading={busy}
           variant={action === 'revoke' ? 'danger' : 'primary'}
-          disabled={reason.trim().length < MIN_ASSIGNMENT_REASON}
+          disabled={reason.trim().length < MIN_ASSIGNMENT_REASON || unchangedTarget}
           onClick={() =>
             onSubmit(assignment, action, reason.trim(), {
               teamId,
@@ -491,9 +531,9 @@ function formatDate(value: string | null): string {
     : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
-function describeAssignmentError(error: unknown): string {
+function describeAssignmentError(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return fallback;
   }
 
   if (error.statusCode === 409 || error.statusCode === 412) {
@@ -508,5 +548,13 @@ function describeAssignmentError(error: unknown): string {
     return error.messages.join(' ');
   }
 
-  return 'We could not load assignments. Please try again.';
+  if (error.statusCode === 401) {
+    return 'Your session expired. Sign in again and retry.';
+  }
+
+  if (error.statusCode === 404) {
+    return 'This assignment is no longer available. Refresh the list and try again.';
+  }
+
+  return fallback;
 }

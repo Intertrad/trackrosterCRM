@@ -19,6 +19,7 @@ export type NavigationItemId =
   | 'map'
   | 'follow_ups'
   | 'logged_actions'
+  | 'performance'
   | 'routes'
   | 'messages'
   | 'dashboard'
@@ -44,6 +45,7 @@ export type NavigationIconId =
   | 'prospects'
   | 'map'
   | 'actions'
+  | 'performance'
   | 'routes'
   | 'messages'
   | 'dashboard'
@@ -73,7 +75,7 @@ interface WorkspaceNavigationItemBase {
 
   /** Shown in the mobile bottom bar (max five, "More" occupies the fifth). */
   primary?: boolean;
-  group?: 'configuration' | 'tools';
+  group?: 'configuration' | 'tools' | 'operate' | 'control';
 }
 
 export type WorkspaceNavigationItem = WorkspaceNavigationItemBase &
@@ -144,8 +146,15 @@ function isOfferable(item: WorkspaceNavigationItem): boolean {
 }
 
 export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigationItem[] {
+  const items = navigationFor(mode).filter(isOfferable);
+
+  /* Keep the prospector shell focused on the daily operating flow. Workspace
+   * tools remain reachable from the account menu instead of competing with
+   * Prospects, Map, Follow-ups, History, Performance and Messages. */
+  if (mode === 'prospector') return items;
+
   return [
-    ...navigationFor(mode).filter(isOfferable),
+    ...items,
     {
       id: 'workspace_tools',
       label: 'nav.workspaceTools',
@@ -274,33 +283,23 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
       ];
 
     case 'director':
-      /*
-       * A director's scope is organization-wide, and the reporting, approval
-       * and export endpoints already resolve that scope server-side — so the
-       * manager screens are correct for this role rather than needing
-       * duplicates. Only the rollup is director-specific.
-       */
+      /* The director shell mirrors the executive reporting workspace. Each
+       * route below has a director-specific page so the role never lands on a
+       * manager-only navigation surface. */
       return [
         {
           id: 'overview',
-          label: 'nav.overview',
+          label: 'nav.executiveDashboard',
           icon: 'dashboard',
           href: '/director/overview',
           availability: 'ready',
           primary: true,
         },
         {
-          id: 'objectives',
-          label: 'nav.objectives',
-          icon: 'assignments',
-          href: '/director/objectives',
-          availability: 'ready',
-        },
-        {
-          id: 'team',
-          label: 'nav.team',
-          icon: 'team',
-          href: '/director/teams',
+          id: 'reports',
+          label: 'nav.reports',
+          icon: 'reports',
+          href: '/director/reports',
           availability: 'ready',
         },
         {
@@ -318,48 +317,17 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           availability: 'ready',
         },
         {
-          id: 'dashboard',
-          label: 'nav.dashboard',
-          icon: 'team',
-          href: '/manager/overview',
+          id: 'performance',
+          label: 'nav.teamPerformance',
+          icon: 'performance',
+          href: '/director/performance',
           availability: 'ready',
-          primary: true,
-        },
-        {
-          id: 'reports',
-          label: 'nav.reports',
-          icon: 'reports',
-          href: '/manager/reports',
-          availability: 'ready',
-          primary: true,
-        },
-        {
-          id: 'overrides',
-          label: 'nav.approvals',
-          icon: 'overrides',
-          href: '/manager/approvals',
-          availability: 'ready',
-          primary: true,
         },
         {
           id: 'exports',
           label: 'nav.exports',
           icon: 'imports',
-          href: '/manager/exports',
-          availability: 'ready',
-        },
-        {
-          id: 'collisions',
-          label: 'nav.collisions',
-          icon: 'collisions',
-          href: '/manager/collisions',
-          availability: 'ready',
-        },
-        {
-          id: 'search',
-          label: 'nav.search',
-          icon: 'prospects',
-          href: '/search',
+          href: '/director/exports',
           availability: 'ready',
         },
       ];
@@ -373,6 +341,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/overview',
           availability: 'ready',
           primary: true,
+          group: 'operate',
         },
         {
           id: 'objectives',
@@ -380,14 +349,15 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'assignments',
           href: '/manager/objectives',
           availability: 'ready',
+          group: 'tools',
         },
         {
-          id: 'territories',
-          label: 'nav.territories',
-          icon: 'map',
-          href: '/manager/territories',
+          id: 'referential',
+          label: 'nav.prospects',
+          icon: 'prospects',
+          href: '/work-queue',
           availability: 'ready',
-          group: 'tools',
+          group: 'operate',
         },
         {
           id: 'team',
@@ -395,6 +365,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'team',
           href: '/manager/team',
           availability: 'ready',
+          group: 'operate',
         },
         {
           id: 'campaigns',
@@ -402,6 +373,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'campaigns',
           href: '/manager/campaigns',
           availability: 'ready',
+          group: 'operate',
         },
         {
           id: 'assignments',
@@ -410,13 +382,15 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/assignments',
           availability: 'ready',
           primary: true,
+          group: 'operate',
         },
         {
-          id: 'collisions',
-          label: 'nav.collisions',
-          icon: 'collisions',
-          href: '/manager/collisions',
+          id: 'territories',
+          label: 'nav.territories',
+          icon: 'map',
+          href: '/manager/territories',
           availability: 'ready',
+          group: 'operate',
         },
         {
           id: 'overrides',
@@ -425,6 +399,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/approvals',
           availability: 'ready',
           primary: true,
+          group: 'control',
         },
         {
           id: 'reports',
@@ -433,13 +408,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/reports',
           availability: 'ready',
           primary: true,
-        },
-        {
-          id: 'exports',
-          label: 'nav.exports',
-          icon: 'imports',
-          href: '/manager/exports',
-          availability: 'ready',
+          group: 'control',
         },
         {
           id: 'messages',
@@ -447,6 +416,23 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
+          group: 'control',
+        },
+        {
+          id: 'collisions',
+          label: 'nav.collisions',
+          icon: 'collisions',
+          href: '/manager/collisions',
+          availability: 'ready',
+          group: 'tools',
+        },
+        {
+          id: 'exports',
+          label: 'nav.exports',
+          icon: 'imports',
+          href: '/manager/exports',
+          availability: 'ready',
+          group: 'tools',
         },
         {
           id: 'search',
@@ -454,6 +440,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'prospects',
           href: '/search',
           availability: 'ready',
+          group: 'tools',
         },
       ];
 
@@ -468,6 +455,22 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           primary: true,
         },
         {
+          id: 'work_queue',
+          label: 'nav.prospects',
+          icon: 'prospects',
+          href: '/work-queue',
+          availability: 'ready',
+          primary: true,
+        },
+        {
+          id: 'map',
+          label: 'nav.map',
+          icon: 'map',
+          href: '/map',
+          availability: 'ready',
+          primary: true,
+        },
+        {
           id: 'follow_ups',
           label: 'nav.followUps',
           icon: 'today',
@@ -477,11 +480,17 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'logged_actions',
-          label: 'nav.history',
+          label: 'nav.actionsHistory',
           icon: 'actions',
           href: '/actions',
           availability: 'ready',
-          primary: true,
+        },
+        {
+          id: 'performance',
+          label: 'nav.performance',
+          icon: 'performance',
+          href: '/performance',
+          availability: 'ready',
         },
         {
           id: 'messages',
@@ -489,31 +498,6 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           icon: 'messages',
           href: '/messages',
           availability: 'ready',
-          primary: true,
-        },
-        {
-          id: 'work_queue',
-          label: 'nav.workQueue',
-          icon: 'prospects',
-          href: '/work-queue',
-          availability: 'ready',
-          group: 'tools',
-        },
-        {
-          id: 'routes',
-          label: 'nav.routes',
-          icon: 'routes',
-          href: '/routes',
-          availability: 'ready',
-          group: 'tools',
-        },
-        {
-          id: 'map',
-          label: 'nav.map',
-          icon: 'map',
-          href: '/map',
-          availability: 'ready',
-          group: 'tools',
         },
       ];
 

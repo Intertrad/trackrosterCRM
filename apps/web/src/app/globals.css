@@ -85,6 +85,9 @@
 html {
   width: 100%;
   min-height: 100%;
+  /* Keep native controls aligned with the light product surface unless the
+     account explicitly opts into dark mode below. */
+  color-scheme: light;
 }
 
 body {

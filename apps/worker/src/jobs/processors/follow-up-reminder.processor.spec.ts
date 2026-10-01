@@ -18,6 +18,7 @@ describe('FollowUpReminderProcessor', () => {
     findEligibleRecipientUserIds: ReturnType<typeof vi.fn>;
 
     createNotificationsIfAbsent: ReturnType<typeof vi.fn>;
+    queueEmailDeliveries?: ReturnType<typeof vi.fn>;
   };
 
   let processor: FollowUpReminderProcessor;
@@ -134,6 +135,26 @@ describe('FollowUpReminderProcessor', () => {
     expect(result).toEqual({
       status: 'processed',
     });
+  });
+
+  it('queues durable email delivery after the in-app event', async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    repository.queueEmailDeliveries = vi.fn().mockResolvedValue(['delivery-id']);
+    processor = new FollowUpReminderProcessor(
+      repository as unknown as FollowUpReminderRepository,
+      {
+        getQueue: () => ({ add }),
+      } as never,
+    );
+
+    await expect(processor.process(validData, context)).resolves.toEqual({ status: 'processed' });
+
+    expect(repository.queueEmailDeliveries).toHaveBeenCalledWith(followUp, new Date(scheduledFor));
+    expect(add).toHaveBeenCalledWith(
+      'notification.delivery',
+      expect.objectContaining({ deliveryId: 'delivery-id', tenantId }),
+      expect.objectContaining({ jobId: 'notification-delivery:delivery-id' }),
+    );
   });
 
   it('returns noop when the follow-up no longer exists', async () => {

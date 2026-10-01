@@ -94,6 +94,17 @@ export class NotificationPreferencesDto {
   @ValidateNested()
   @Type(() => NotificationChannelDto)
   imports?: NotificationChannelDto;
+
+  /** Safety categories are always visible in-app. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NotificationChannelDto)
+  opposition?: NotificationChannelDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NotificationChannelDto)
+  security?: NotificationChannelDto;
 }
 
 /*
@@ -109,4 +120,22 @@ export const NOTIFICATION_CATEGORIES = [
   'overrides',
   'messages',
   'imports',
+  'opposition',
+  'security',
 ] as const;
+
+/**
+ * Collision alerts are a safety boundary, rather than an optional feed.
+ * Keep their in-app channel enabled even when an older client submits a
+ * preference document with that flag set to false (CR-033).
+ */
+export function normalizeNotificationPreferences(
+  preferences: NotificationPreferencesDto,
+): NotificationPreferencesDto {
+  return {
+    ...preferences,
+    ...(preferences.collisions ? { collisions: { ...preferences.collisions, inApp: true } } : {}),
+    ...(preferences.opposition ? { opposition: { ...preferences.opposition, inApp: true } } : {}),
+    ...(preferences.security ? { security: { ...preferences.security, inApp: true } } : {}),
+  };
+}

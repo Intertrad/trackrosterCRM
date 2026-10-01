@@ -10,6 +10,15 @@ export interface OrganizationSummary {
   name: string;
   slug: string;
   status: string;
+  shortName: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  color: string | null;
+  currency: string | null;
+  argumentaire: string | null;
+  prospectedSectors: string[];
 }
 
 export interface OrganizationPage {

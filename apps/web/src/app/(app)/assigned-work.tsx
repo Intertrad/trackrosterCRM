@@ -37,7 +37,7 @@ export function AssignedWork({
   const [detailDirty, setDetailDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  const [view, setView] = useState<'all' | 'to_contact'>('all');
+  const [view, setView] = useState<'all' | 'to_contact' | 'done'>('all');
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
@@ -83,6 +83,8 @@ export function AssignedWork({
     return () => c.abort();
   }, [load, attempt]);
   useLiveRefresh(load, { scope: teamId + view });
+  const visibleItems =
+    view === 'done' ? (items ?? []).filter((item) => item.lifecycleStage !== 'to_contact') : items;
   return (
     <section className="space-y-2.5">
       <header className="flex flex-wrap items-center gap-3 py-3">
@@ -98,16 +100,21 @@ export function AssignedWork({
           )}
         </div>
         <div className="flex gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
-          {(['all', 'to_contact'] as const).map((option) => (
+          {(['to_contact', 'done', 'all'] as const).map((option) => (
             <Button
               key={option}
               size="md"
               variant="ghost"
               className={view === option ? 'bg-surface text-navy shadow-sm' : 'text-ink-muted'}
               aria-pressed={view === option}
+              aria-label={option === 'to_contact' ? l('To contact', 'À contacter') : undefined}
               onClick={() => setView(option)}
             >
-              {option === 'all' ? l('All', 'Tous') : l('To contact', 'À contacter')}
+              {option === 'all'
+                ? l('All', 'Tous')
+                : option === 'done'
+                  ? l('Done', 'Traités')
+                  : l('To do', 'À traiter')}
             </Button>
           ))}
         </div>
@@ -145,7 +152,7 @@ export function AssignedWork({
             ))}
           </div>
         )
-      ) : !items.length ? (
+      ) : !visibleItems?.length ? (
         <div className="border-t border-line-soft px-6 py-10 text-center">
           <Building2 className="mx-auto mb-3 size-8 text-ink-muted" aria-hidden="true" />
           <p className="font-semibold text-navy">
@@ -167,7 +174,7 @@ export function AssignedWork({
         </div>
       ) : (
         <ul className="space-y-2.5">
-          {items.map((item, index) => (
+          {visibleItems?.map((item, index) => (
             <li key={item.campaignProspectId}>
               <Link
                 href={`/work-queue/${item.campaign.id}/${item.campaignProspectId}`}
@@ -246,7 +253,7 @@ export function AssignedWork({
       {selected && (
         <Drawer
           open
-          title={l('Establishment', 'Fiche établissement')}
+          title={selected.establishment.name}
           width="prospect"
           onClose={() => (detailDirty ? setDiscard(true) : setSelected(null))}
         >

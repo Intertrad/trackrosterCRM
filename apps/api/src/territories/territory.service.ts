@@ -116,6 +116,14 @@ export class TerritoryService {
       const code = (error as { cause?: { code?: string } }).cause?.code;
       if (code === '23505')
         throw new ConflictException('Territory code or campaign link already exists');
+      /*
+       * Concurrent hierarchy edits may be rejected by PostgreSQL before the
+       * second transaction reaches the recursive cycle check.  Surface those
+       * expected retryable races as the same conflict contract as a detected
+       * cycle instead of leaking a 500 to the UI.
+       */
+      if (code === '40P01' || code === '40001')
+        throw new ConflictException('Territory hierarchy changed concurrently; retry the update');
       if (['XX000', '22023', '22P02', '23514'].includes(code ?? ''))
         throw new BadRequestException('Invalid territory geometry or metadata');
       throw error;

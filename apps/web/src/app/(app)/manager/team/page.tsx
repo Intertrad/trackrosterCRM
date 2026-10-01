@@ -3,7 +3,7 @@
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Map as MapIcon, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Activity, Map as MapIcon, UserMinus, UserPlus, Users } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,14 @@ import { PageHeader } from '@/components/ui/page-header';
 import { SelectField } from '@/components/ui/select-field';
 import { StatTile } from '@/components/ui/stat-tile';
 import { ApiError } from '@/lib/api/api-error';
+import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
+import type { ManagerDashboardResponse } from '@/lib/api/manager-dashboard-types';
+import {
+  PeriodFilter,
+  type ManagerPeriod,
+  resolvePeriod,
+} from '@/components/manager/manager-filters';
+import { buildTeamRoster, rosterStatus } from '@/lib/manager/team-roster';
 import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import { listTerritoryAssignments } from '@/lib/api/territory-client';
 import type { TerritoryAssignment } from '@/lib/api/territory-types';
@@ -48,6 +56,8 @@ export default function TeamPage() {
 
   const [capacity, setCapacity] = useState<TeamCapacity | null>(null);
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
+  const [dashboard, setDashboard] = useState<ManagerDashboardResponse | null>(null);
+  const [period, setPeriod] = useState<ManagerPeriod>('this_week');
   const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
   const [state, setState] = useState<RosterState | 'all'>('active');
 
@@ -70,14 +80,16 @@ export default function TeamPage() {
       return Promise.all([
         getTeamCapacity(teamId, signal).catch(() => null),
         listRoster(teamId, { state, limit: 100 }, signal),
+        getManagerDashboard({ ...resolvePeriod(period), teamId }, signal).catch(() => null),
       ])
-        .then(([loadedCapacity, loadedRoster]) => {
+        .then(([loadedCapacity, loadedRoster, loadedDashboard]) => {
           if (signal?.aborted) {
             return;
           }
 
           setCapacity(loadedCapacity);
           setRoster(loadedRoster.items);
+          setDashboard(loadedDashboard);
           setReadError(null);
         })
         .catch((caught: unknown) => {
@@ -87,7 +99,7 @@ export default function TeamPage() {
           }
         });
     },
-    [state, teamId],
+    [period, state, teamId],
   );
 
   useLiveRefresh(load);
@@ -155,6 +167,11 @@ export default function TeamPage() {
     };
   }, [capacity, roster]);
 
+  const activityRoster = useMemo(
+    () => buildTeamRoster(people.size ? [...people.values()] : [], dashboard),
+    [dashboard, people],
+  );
+
   async function run(action: string, operation: () => Promise<unknown>, success: string) {
     setBusy(action);
     setActionError(null);
@@ -186,13 +203,16 @@ export default function TeamPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Team"
-        subtitle="Roster, roles and workload for your team"
+        title="Team Activity"
+        subtitle="Workload and execution per prospector"
         action={
-          <Button onClick={() => setAdding(true)}>
-            <UserPlus aria-hidden="true" className="mr-2 size-4" />
-            Add member
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodFilter value={period} onChange={setPeriod} />
+            <Button onClick={() => setAdding(true)}>
+              <UserPlus aria-hidden="true" className="mr-2 size-4" />
+              Add member
+            </Button>
+          </div>
         }
       />
 
@@ -201,6 +221,164 @@ export default function TeamPage() {
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
       {actionError ? <Alert tone="danger">{actionError}</Alert> : null}
+
+      <Card padding="none" className="overflow-hidden">
+        <CardHeader
+          title="Team activity"
+          action={<Activity aria-hidden="true" className="size-5 text-brand" />}
+        />
+        <p className="-mt-3 px-5 pb-3 text-[12px] text-ink-muted">
+          Live actions, assignments and follow-ups from the manager dashboard
+        </p>
+        {dashboard === null ? (
+          <div className="space-y-2 p-5" aria-busy="true">
+            {[0, 1, 2, 3].map((row) => (
+              <div key={row} className="h-14 animate-pulse rounded-lg bg-line-soft" />
+            ))}
+          </div>
+        ) : activityRoster.length === 0 ? (
+          <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
+            No team activity returned for this period.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse">
+              <thead>
+                <tr className="border-b border-line-soft text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
+                  <th className="px-5 py-3">Prospector</th>
+                  <th className="px-3 py-3 text-right">Assigned prospects</th>
+                  <th className="px-3 py-3 text-right">Actions ({period.replace('_', ' ')})</th>
+                  <th className="px-3 py-3 text-right">Open follow-ups</th>
+                  <th className="px-3 py-3 text-right">On track</th>
+                  <th className="px-5 py-3 text-right">Activity trend</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line-soft">
+                {activityRoster.map((member) => {
+                  const status = rosterStatus(member);
+                  return (
+                    <tr key={member.id}>
+                      <td className="px-5 py-3">
+                        <span className="flex items-center gap-3">
+                          <span className="flex size-8 items-center justify-center rounded-full bg-brand-tint text-[11px] font-extrabold text-brand">
+                            {member.initials}
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-navy">{member.name}</span>
+                            <span className="block text-[12px] text-ink-muted">{member.role}</span>
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-right text-[13px] font-semibold tabular-nums text-navy">
+                        {member.activeProspects}
+                      </td>
+                      <td className="px-3 py-3 text-right text-[13px] font-semibold tabular-nums text-navy">
+                        {member.actionsThisPeriod}
+                      </td>
+                      <td className="px-3 py-3 text-right text-[13px] tabular-nums text-ink">
+                        {member.pendingFollowUps}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <Badge
+                          tone={
+                            status === 'at_risk'
+                              ? 'warning'
+                              : status === 'inactive'
+                                ? 'neutral'
+                                : 'success'
+                          }
+                          dot
+                        >
+                          {status === 'at_risk'
+                            ? 'At risk'
+                            : status === 'inactive'
+                              ? 'No activity'
+                              : 'On track'}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <span
+                          className="inline-flex h-7 items-end gap-1"
+                          aria-label={`${member.actionsThisPeriod} actions`}
+                        >
+                          {[0.45, 0.62, 0.54, 0.76, 0.66, 0.9].map((scale, index) => (
+                            <span
+                              key={index}
+                              className="w-1.5 rounded-t bg-brand/60"
+                              style={{
+                                height: `${Math.max(4, (member.actionsThisPeriod * scale) / 2)}px`,
+                              }}
+                            />
+                          ))}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card>
+          <CardHeader title="Actions by channel" />
+          <p className="-mt-3 text-[12px] text-ink-muted">Team total · selected period</p>
+          {dashboard ? (
+            <ul className="mt-4 flex flex-col divide-y divide-line-soft">
+              {Object.entries(dashboard.activities.byType)
+                .sort(([, left], [, right]) => right - left)
+                .slice(0, 6)
+                .map(([channel, count]) => (
+                  <li
+                    key={channel}
+                    className="flex items-center justify-between py-2.5 text-[13px]"
+                  >
+                    <span className="capitalize text-ink">{channel.replace(/_/g, ' ')}</span>
+                    <span className="font-bold tabular-nums text-navy">{count}</span>
+                  </li>
+                ))}
+              {Object.keys(dashboard.activities.byType).length === 0 ? (
+                <li className="py-3 text-[13px] text-ink-muted">No channel activity returned.</li>
+              ) : null}
+            </ul>
+          ) : (
+            <div className="mt-4 h-24 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader title="Coverage and follow-ups" />
+          <p className="-mt-3 text-[12px] text-ink-muted">Current server aggregates</p>
+          <dl className="mt-4 divide-y divide-line-soft text-[13px]">
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-ink-muted">Active prospectors</dt>
+              <dd className="font-bold tabular-nums text-navy">
+                {dashboard?.activities.activeProspectors ?? '—'}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-ink-muted">Pending follow-ups</dt>
+              <dd className="font-bold tabular-nums text-navy">
+                {dashboard?.followUps.pending ?? '—'}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="text-ink-muted">Overdue</dt>
+              <dd
+                className={
+                  (dashboard?.followUps.overdue ?? 0) > 0
+                    ? 'font-bold tabular-nums text-danger'
+                    : 'font-bold tabular-nums text-success'
+                }
+              >
+                {dashboard?.followUps.overdue ?? '—'}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

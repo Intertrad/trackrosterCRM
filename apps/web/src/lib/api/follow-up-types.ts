@@ -81,7 +81,7 @@ export interface ListFollowUpQueueOptions {
    * authorization state. Nest validates that the
    * authenticated caller has access to the team.
    */
-  teamId: string;
+  teamId?: string | null;
 
   overdue?: boolean;
 
@@ -130,7 +130,7 @@ export interface RescheduleProspectFollowUpInput {
 
   followUpId: string;
 
-  teamId: string;
+  teamId?: string | null;
 
   dueAt: string;
 
@@ -144,7 +144,7 @@ export interface CompleteProspectFollowUpInput {
 
   followUpId: string;
 
-  teamId: string;
+  teamId?: string | null;
 
   idempotencyKey: string;
 }
@@ -156,7 +156,7 @@ export interface CancelProspectFollowUpInput {
 
   followUpId: string;
 
-  teamId: string;
+  teamId?: string | null;
 
   idempotencyKey: string;
 }

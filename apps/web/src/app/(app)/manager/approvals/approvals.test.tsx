@@ -55,7 +55,8 @@ const detail: OverrideRequestDetail = {
     assignmentId: null,
     detectedBy: summary.requestedBy,
     createdAt: '2026-09-22T13:20:00.000Z',
-    expiresAt: '2026-09-22T18:00:00.000Z',
+    // Keep the fixture actionable regardless of the current calendar date.
+    expiresAt: '2030-09-22T18:00:00.000Z',
     decision: 'require_override',
     reasonCode: 'ACTIVE_RESERVATION',
     policy: { evaluatorVersion: 'v3', defaultCoolingOffMinutes: 1440 },
@@ -193,6 +194,70 @@ describe('Override request decision', () => {
     await waitFor(() => {
       expect(getMock.mock.calls.length).toBeGreaterThan(1);
     });
+  });
+
+  it('hides decision controls after a duplicate decision response refreshes a decided request', async () => {
+    decideMock.mockRejectedValue(
+      new ApiError({
+        statusCode: 409,
+        code: 'CONFLICT',
+        message: 'already decided',
+        error: 'Conflict',
+      }),
+    );
+    getMock.mockResolvedValueOnce(detail).mockResolvedValueOnce({
+      ...detail,
+      status: 'approved',
+      decidedAt: '2026-09-22T13:40:00.000Z',
+      decisionReason: 'Another manager approved it first.',
+    });
+
+    render(<OverrideRequestView requestId={requestId} />);
+
+    fireEvent.change(await screen.findByLabelText('Decision reason'), {
+      target: { value: 'Approving after reviewing the conflict.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Approve override' }));
+
+    expect(await screen.findByText('This request has already been decided.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Approve override' })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Decision reason')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps rejection available but blocks approval after collision evidence expires', async () => {
+    getMock.mockResolvedValue({
+      ...detail,
+      collision: {
+        ...detail.collision,
+        expiresAt: new Date(Date.now() - 60_000).toISOString(),
+      },
+    });
+
+    render(<OverrideRequestView requestId={requestId} />);
+
+    expect(
+      await screen.findByText((content) =>
+        content.includes(
+          'The server will not approve this collision evidence after its expiry time',
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve override' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled();
+  });
+
+  it('prevents approval when the server marks a collision as not overrideable', async () => {
+    getMock.mockResolvedValue({
+      ...detail,
+      collision: { ...detail.collision, overrideable: false },
+    });
+
+    render(<OverrideRequestView requestId={requestId} />);
+
+    const approve = await screen.findByRole('button', { name: 'Approve override' });
+    expect(approve).toBeDisabled();
   });
 
   it('hides the decision controls once a request is decided', async () => {

@@ -132,7 +132,7 @@ describe('assigned work on Ma journée', () => {
     const row = await screen.findByRole('link', { name: /Brigade de Bastia/ });
     row.focus();
     fireEvent.click(row);
-    expect(screen.getByRole('dialog', { name: 'Establishment' })).toHaveTextContent(
+    expect(screen.getByRole('dialog', { name: 'Brigade de Bastia' })).toHaveTextContent(
       'Detail 33333333-3333-4333-8333-333333333333 22222222-2222-4222-8222-222222222222',
     );
     fireEvent.keyDown(document, { key: 'Escape' });

@@ -15,6 +15,7 @@ import {
   Navigation,
   Settings,
   ShieldAlert,
+  TrendingUp,
   Upload,
   Users,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ const ICONS = {
   prospects: Building2,
   map: MapIcon,
   actions: ListChecks,
+  performance: TrendingUp,
   routes: Navigation,
   messages: MessageCircle,
   dashboard: LayoutDashboard,

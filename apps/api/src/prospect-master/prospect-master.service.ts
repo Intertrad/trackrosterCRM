@@ -123,6 +123,10 @@ export class ProspectMasterService {
         .where(and(scope, eq(establishments.id, q.cursor)));
       if (!cursor) throw new BadRequestException('Cursor is outside this result');
     }
+    const [countRow] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(establishments)
+      .where(scope);
     const value = cursor
       ? q.sort === 'createdAt'
         ? cursor.createdAt.toISOString()
@@ -150,6 +154,7 @@ export class ProspectMasterService {
         return r;
       }),
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
+      total: Number(countRow?.count ?? 0),
     };
   }
   async get(a: AuthenticatedPrincipal, id: string, tx: DatabaseExecutor = this.db) {

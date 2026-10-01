@@ -10,6 +10,8 @@ import {
   PROSPECT_GEOCODE_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
+  NOTIFICATION_DELIVERY_JOB,
+  NOTIFICATION_DIGEST_JOB,
   type FollowUpReminderJobData,
   type ReservationExpiryJobData,
   type WebhookDeliveryJobData,
@@ -18,6 +20,8 @@ import {
   type ProspectGeocodeJobData,
   type SystemHealthCheckJobData,
   type SystemRetryProbeJobData,
+  type NotificationDeliveryJobData,
+  type NotificationDigestJobData,
   type TrackRosterJobData,
   type TrackRosterJobName,
 } from '@trackroster/jobs';
@@ -31,6 +35,8 @@ import { WebhookDeliveryProcessor } from './processors/webhook-delivery.processo
 import { ScheduledReportProcessor } from './processors/scheduled-report.processor.js';
 import { ComplianceArtifactProcessor } from './processors/compliance-artifact.processor.js';
 import { ProspectGeocodeProcessor } from './processors/prospect-geocode.processor.js';
+import { NotificationDeliveryProcessor } from './processors/notification-delivery.processor.js';
+import { NotificationDigestProcessor } from './processors/notification-digest.processor.js';
 
 type AnyTrackRosterJobData = TrackRosterJobData<TrackRosterJobName>;
 
@@ -50,6 +56,8 @@ export class JobDispatcherService {
     private readonly scheduledReportProcessor?: ScheduledReportProcessor,
     private readonly complianceArtifactProcessor?: ComplianceArtifactProcessor,
     private readonly prospectGeocodeProcessor?: ProspectGeocodeProcessor,
+    private readonly notificationDeliveryProcessor?: NotificationDeliveryProcessor,
+    private readonly notificationDigestProcessor?: NotificationDigestProcessor,
   ) {}
 
   async dispatch(job: TrackRosterJob): Promise<JobProcessorResult> {
@@ -91,6 +99,20 @@ export class JobDispatcherService {
         if (!this.prospectGeocodeProcessor)
           throw new Error('Prospect geocode processor unavailable');
         return this.prospectGeocodeProcessor.process(job.data as ProspectGeocodeJobData);
+      case NOTIFICATION_DELIVERY_JOB:
+        if (!this.notificationDeliveryProcessor)
+          throw new Error('Notification delivery processor unavailable');
+        return this.notificationDeliveryProcessor.process(
+          job.data as NotificationDeliveryJobData,
+          context,
+        );
+      case NOTIFICATION_DIGEST_JOB:
+        if (!this.notificationDigestProcessor)
+          throw new Error('Notification digest processor unavailable');
+        return this.notificationDigestProcessor.process(
+          job.data as NotificationDigestJobData,
+          context,
+        );
 
       case SYSTEM_RETRY_PROBE_JOB:
         return this.systemRetryProbeProcessor.process(

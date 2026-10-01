@@ -249,7 +249,7 @@ export default function ScriptsPage() {
                 value={draft.name}
                 onChange={(e) => update('name', e.target.value)}
                 placeholder={isFrench ? 'Nom du modèle' : 'Template name'}
-                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               />
             </label>
             <label className="text-sm font-bold text-navy">
@@ -257,7 +257,7 @@ export default function ScriptsPage() {
               <select
                 value={draft.channel}
                 onChange={(e) => update('channel', e.target.value as Script['channel'])}
-                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               >
                 <option value="email">Email</option>
                 <option value="call">Call</option>
@@ -272,7 +272,7 @@ export default function ScriptsPage() {
                 value={draft.subject ?? ''}
                 onChange={(e) => update('subject', e.target.value)}
                 placeholder={isFrench ? 'Objet de l’e-mail' : 'Email subject'}
-                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+                className="mt-2 h-12 w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               />
             </label>
           ) : null}
@@ -281,7 +281,7 @@ export default function ScriptsPage() {
             <input
               value={draft.sector ?? ''}
               onChange={(e) => update('sector', e.target.value)}
-              className="mt-2 h-12 w-full rounded-[10px] border border-line bg-white px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+              className="mt-2 h-12 w-full rounded-[10px] border border-line bg-surface px-3.5 text-[15px] font-normal text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               placeholder="sante"
             />
           </label>
@@ -291,7 +291,7 @@ export default function ScriptsPage() {
               value={draft.body}
               onChange={(e) => update('body', e.target.value)}
               rows={9}
-              className="mt-2 min-h-[220px] w-full resize-y rounded-[10px] border border-line bg-white px-3.5 py-3 text-[15px] font-normal leading-6 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+              className="mt-2 min-h-[220px] w-full resize-y rounded-[10px] border border-line bg-surface px-3.5 py-3 text-[15px] font-normal leading-6 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
               placeholder="Bonjour {{first_name}}, ..."
             />
           </label>
@@ -357,7 +357,7 @@ export default function ScriptsPage() {
                   onChange={(e) => setTestTo(e.target.value)}
                   type="email"
                   placeholder="you@example.com"
-                  className="min-w-0 flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
                 />
                 <Button size="md" variant="secondary" onClick={sendTest} disabled={!testTo || busy}>
                   Send

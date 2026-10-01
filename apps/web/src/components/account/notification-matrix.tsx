@@ -18,6 +18,7 @@ import {
   categoryLabel,
   channelLabel,
   isChannelEnabled,
+  isChannelRequired,
   setChannel,
   type NotificationPreferences,
 } from '@/lib/api/notification-preference-types';
@@ -166,7 +167,7 @@ export function NotificationMatrix() {
                           label={`${channelLabel(channel)} for ${categoryLabel(category)}`}
                           className="sr-only-label"
                           checked={isChannelEnabled(draft, category, channel)}
-                          disabled={busy}
+                          disabled={busy || isChannelRequired(category, channel)}
                           onChange={(event) =>
                             setDraft(setChannel(draft, category, channel, event.target.checked))
                           }
@@ -192,7 +193,7 @@ export function NotificationMatrix() {
                       key={channel}
                       label={channelLabel(channel)}
                       checked={isChannelEnabled(draft, category, channel)}
-                      disabled={busy}
+                      disabled={busy || isChannelRequired(category, channel)}
                       onChange={(event) =>
                         setDraft(setChannel(draft, category, channel, event.target.checked))
                       }
@@ -214,7 +215,8 @@ export function NotificationMatrix() {
           </div>
 
           <p className="mt-4 text-[13px] text-ink-muted">
-            A channel you have never set stays on. Push also needs a registered device.
+            A channel you have never set stays on. Critical collision alerts always stay in the
+            in-app inbox. Push also needs a registered device.
           </p>
         </>
       )}

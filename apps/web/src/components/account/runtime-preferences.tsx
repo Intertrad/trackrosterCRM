@@ -32,19 +32,17 @@ export function RuntimePreferences() {
   useLiveRefresh(load, { enabled, interval: 60_000 });
   useEffect(() => {
     const root = document.documentElement;
-    const system = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
-      root.dataset.theme =
-        preferences?.theme === 'dark' || (preferences?.theme === 'system' && system.matches)
-          ? 'dark'
-          : 'light';
+      // Keep the product surface light unless the account explicitly opts into
+      // dark mode. Following the operating-system preference made a dark OS
+      // setting unexpectedly restyle the entire workspace.
+      root.dataset.theme = preferences?.theme === 'dark' ? 'dark' : 'light';
       root.dataset.density = preferences?.density ?? 'comfortable';
       root.dataset.reducedMotion = String(preferences?.reducedMotion ?? false);
       root.dataset.highContrast = String(preferences?.highContrast ?? false);
     };
     apply();
-    system.addEventListener('change', apply);
-    return () => system.removeEventListener('change', apply);
+    return undefined;
   }, [preferences]);
   return null;
 }

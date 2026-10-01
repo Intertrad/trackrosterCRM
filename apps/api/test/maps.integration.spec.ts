@@ -373,6 +373,16 @@ describe('Scoped prospect maps', () => {
       name: tag,
       status: 'active',
     });
+    /*
+     * This fixture deliberately creates more than the map guard's 20,000-row
+     * limit.  Duplicate detection is an OLTP trigger that performs a
+     * same-name lookup for every insert; running it for 20,001 unique rows
+     * turns a bounded scope test into an O(n²) setup.  Disable only that
+     * unrelated trigger for the fixture and always restore it below.
+     */
+    await db.execute(
+      sql`ALTER TABLE establishments DISABLE TRIGGER establishments_duplicate_detection`,
+    );
     try {
       await db.execute(sql`WITH added AS (INSERT INTO establishments(tenant_id,name,normalized_name,country_code,longitude,latitude) SELECT ${tenant}::uuid,${tag}||n,${tag}||n,'FR',2.35,48.85 FROM generate_series(1,20001) n RETURNING id)
         INSERT INTO campaign_prospects(tenant_id,campaign_id,establishment_id) SELECT ${tenant}::uuid,${largeCampaign}::uuid,id FROM added`);
@@ -383,6 +393,9 @@ describe('Scoped prospect maps', () => {
       expect(own.statusCode, own.body).toBe(200);
       expect(own.json().summary.prospects).toBe(1);
     } finally {
+      await db.execute(
+        sql`ALTER TABLE establishments ENABLE TRIGGER establishments_duplicate_detection`,
+      );
       await db.delete(campaignProspects).where(eq(campaignProspects.campaignId, largeCampaign));
       await db.execute(
         sql`DELETE FROM establishments WHERE tenant_id=${tenant} AND name LIKE ${tag + '%'}`,

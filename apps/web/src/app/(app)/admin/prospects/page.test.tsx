@@ -210,6 +210,30 @@ describe('admin référentiel', () => {
     expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled();
   });
 
+  it('shows the current page range against the filtered total', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) =>
+      prospect({
+        id: `44444444-4444-4444-8444-${String(index + 1).padStart(12, '0')}`,
+        name: `Prospect ${index + 1}`,
+      }),
+    );
+    const secondPage = Array.from({ length: 50 }, (_, index) =>
+      prospect({
+        id: `55555555-5555-4555-8555-${String(index + 1).padStart(12, '0')}`,
+        name: `Prospect ${index + 51}`,
+      }),
+    );
+    listProspectsMock
+      .mockResolvedValueOnce({ items: firstPage, nextCursor: 'cursor-2', total: 101 })
+      .mockResolvedValueOnce({ items: secondPage, nextCursor: null, total: 101 });
+
+    render(<ReferentialPage />);
+
+    await waitFor(() => expect(screen.getByText('1–50 of 101')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(screen.getByText('51–100 of 101')).toBeInTheDocument());
+  });
+
   it('keeps the explicit selection on pagination and clears it when filters change', async () => {
     listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: 'cursor-2' });
     render(<ReferentialPage />);

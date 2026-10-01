@@ -3,19 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Building2, ChevronDown, LogOut, Settings } from 'lucide-react';
+import { Building2, ChevronDown, Loader2, LogOut, Settings } from 'lucide-react';
 
+import { getAccountMemberships, switchActiveMembership } from '@/lib/api/account-client';
+import type { AccountMembership } from '@/lib/api/account-types';
+import { ApiError } from '@/lib/api/api-error';
 import { browserJson } from '@/lib/api/browser-json';
-import { clearChallenges } from '@/lib/auth/auth-challenge';
+import { challengeRoute, clearChallenges, storeChallenge } from '@/lib/auth/auth-challenge';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 import { getInitials } from '@/lib/ui/initials';
 
 /*
- * The account menu on the sidebar avatar. Sign out lives here because the
- * chip is the only persistent account affordance on desktop — it previously
- * navigated straight to /profile, leaving no way out of the app.
+ * The persistent account avatar. Sign out lives here so every workspace has a
+ * consistent account affordance without adding another sidebar icon.
  */
 export function ProfileMenu({
   displayName,
@@ -29,7 +31,7 @@ export function ProfileMenu({
   roleLabel: string;
   collapsed: boolean;
 
-  /* The sidebar chip sits at the bottom, the mobile bar at the top. */
+  /* Desktop and mobile headers place the menu below the avatar. */
   placement?: 'up' | 'down';
 }) {
   const router = useRouter();
@@ -38,6 +40,11 @@ export function ProfileMenu({
 
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [memberships, setMemberships] = useState<AccountMembership[] | null>(null);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +75,44 @@ export function ProfileMenu({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open || !workspacePickerOpen) {
+      return;
+    }
+
+    setWorkspacePickerOpen(false);
+    setWorkspaceError(null);
+  }, [open, workspacePickerOpen]);
+
+  useEffect(() => {
+    if (!open || !workspacePickerOpen || memberships) {
+      return;
+    }
+
+    const controller = new AbortController();
+    setWorkspaceLoading(true);
+    setWorkspaceError(null);
+
+    getAccountMemberships(controller.signal)
+      .then(setMemberships)
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setWorkspaceError(
+            error instanceof ApiError && error.statusCode === 401
+              ? 'Your session has expired. Please sign in again.'
+              : 'We could not load your workspaces. Please try again.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setWorkspaceLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [memberships, open, workspacePickerOpen]);
+
   async function signOut(): Promise<void> {
     setSigningOut(true);
 
@@ -87,6 +132,39 @@ export function ProfileMenu({
 
     router.replace('/login');
     router.refresh();
+  }
+
+  async function switchWorkspace(membership: AccountMembership): Promise<void> {
+    if (membership.current || switchingId) {
+      return;
+    }
+
+    setSwitchingId(membership.membershipId);
+    setWorkspaceError(null);
+
+    try {
+      const outcome = await switchActiveMembership(membership.membershipId);
+
+      if (outcome.next !== 'authenticated') {
+        storeChallenge(outcome);
+        router.replace(challengeRoute(outcome));
+
+        return;
+      }
+
+      await refreshSession();
+      setOpen(false);
+      setWorkspacePickerOpen(false);
+      router.refresh();
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof ApiError && error.statusCode === 401
+          ? 'Your session has expired. Please sign in again.'
+          : 'We could not switch workspace. Please try again.',
+      );
+    } finally {
+      setSwitchingId(null);
+    }
   }
 
   return (
@@ -159,15 +237,95 @@ export function ProfileMenu({
             {t('account.settings')}
           </Link>
 
-          <Link
-            role="menuitem"
-            href="/profile"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-4 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
-          >
-            <Building2 aria-hidden="true" className="size-[18px] text-ink-muted" />
-            {t('account.switchWorkspace')}
-          </Link>
+          {workspacePickerOpen ? (
+            <div className="border-b border-line-soft">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => setWorkspacePickerOpen(false)}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+              >
+                <Building2 aria-hidden="true" className="size-[18px] text-ink-muted" />
+                {t('account.switchWorkspace')}
+              </button>
+
+              {workspaceError ? (
+                <p role="alert" className="px-4 pb-2 text-[12px] text-danger">
+                  {workspaceError}
+                </p>
+              ) : null}
+
+              {workspaceLoading ? (
+                <div className="flex items-center gap-2 px-4 pb-3 text-[13px] text-ink-muted">
+                  <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                  Loading workspaces…
+                </div>
+              ) : memberships && memberships.length > 0 ? (
+                <ul
+                  className="max-h-56 overflow-y-auto px-2 pb-2"
+                  aria-label="Available workspaces"
+                >
+                  {memberships.map((membership) => (
+                    <li key={membership.membershipId}>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => void switchWorkspace(membership)}
+                        disabled={membership.current || switchingId !== null}
+                        className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-surface-muted disabled:cursor-default disabled:opacity-60"
+                      >
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-brand-tint">
+                          {switchingId === membership.membershipId ? (
+                            <Loader2
+                              aria-hidden="true"
+                              className="size-4 animate-spin text-brand"
+                            />
+                          ) : (
+                            <Building2 aria-hidden="true" className="size-4 text-brand" />
+                          )}
+                        </span>
+
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold text-navy">
+                            {membership.tenantName}
+                          </span>
+                          {membership.roles.length > 0 ? (
+                            <span className="block truncate text-[11px] text-ink-muted">
+                              {membership.roles.join(', ')}
+                            </span>
+                          ) : null}
+                        </span>
+
+                        {membership.current ? (
+                          <span className="shrink-0 text-[11px] font-semibold text-success">
+                            Current
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[11px] font-semibold text-brand">
+                            Open
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : memberships ? (
+                <p className="px-4 pb-3 text-[12px] text-ink-muted">
+                  No active workspaces are available.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setWorkspacePickerOpen(true)}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[14px] font-semibold text-ink transition-colors hover:bg-surface-muted"
+            >
+              <Building2 aria-hidden="true" className="size-[18px] text-ink-muted" />
+              {t('account.switchWorkspace')}
+            </button>
+          )}
 
           <Link
             role="menuitem"

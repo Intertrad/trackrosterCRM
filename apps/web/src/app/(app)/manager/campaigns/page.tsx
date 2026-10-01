@@ -17,7 +17,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { SelectField } from '@/components/ui/select-field';
 import { StatTile } from '@/components/ui/stat-tile';
 import { TextField } from '@/components/ui/text-field';
-import { ApiError } from '@/lib/api/api-error';
+import { describeCampaignError } from '@/lib/api/campaign-error';
 import { createCampaign, listCampaigns } from '@/lib/api/campaign-client';
 import {
   campaignStatusLabel,
@@ -380,24 +380,4 @@ function formatWindow(startsAt: string | null, endsAt: string | null): string {
   }
 
   return from ? `From ${from}` : `Until ${to}`;
-}
-
-export function describeCampaignError(error: unknown): string {
-  if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
-  }
-
-  if (error.statusCode === 403) {
-    return 'You are not authorized to manage campaigns.';
-  }
-
-  if (error.statusCode === 409 || error.statusCode === 412) {
-    return 'This campaign changed elsewhere. Reload before trying again.';
-  }
-
-  if (error.statusCode === 400) {
-    return error.messages.join(' ');
-  }
-
-  return 'We could not load campaigns. Please try again.';
 }

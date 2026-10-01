@@ -4,7 +4,18 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronRight, Database, Globe, MapPin, Phone, Send, UserRound } from 'lucide-react';
+import {
+  CalendarClock,
+  ChevronRight,
+  Database,
+  Globe,
+  MapPin,
+  Phone,
+  PhoneCall,
+  Send,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react';
 
 import { CollisionBanner } from '@/components/prospector/collision-banner';
 import { OverrideRequest } from '@/components/prospector/override-request';
@@ -175,9 +186,11 @@ export function ProspectDetail({
     .join(', ');
 
   const blocked = collision?.decision === 'block';
+  const contactAllowed = collision?.decision === 'allow' || collision?.decision === 'warn';
+  const hasScheduledFollowUp = pendingFollowUps.length > 0;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={cn('flex flex-col gap-5', embedded && 'gap-0')}>
       {!embedded && (
         <nav
           aria-label={l('Breadcrumb', 'Fil d’Ariane')}
@@ -193,7 +206,12 @@ export function ProspectDetail({
         </nav>
       )}
 
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header
+        className={cn(
+          'flex flex-wrap items-start justify-between gap-4',
+          embedded && 'border-b border-line-soft pb-4',
+        )}
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h1
@@ -205,9 +223,36 @@ export function ProspectDetail({
               {establishment.name}
             </h1>
 
-            <Badge tone={establishment.status === 'active' ? 'success' : 'neutral'} dot>
-              {establishment.status === 'active' ? l('Active', 'Actif') : l('Inactive', 'Inactif')}
-            </Badge>
+            {embedded ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="brand">{detail.campaign.name}</Badge>
+                <Badge tone={establishment.status === 'active' ? 'success' : 'neutral'} dot>
+                  {establishment.status === 'active'
+                    ? l('Active', 'Actif')
+                    : l('Inactive', 'Inactif')}
+                </Badge>
+                {hasScheduledFollowUp ? (
+                  <Badge tone="warning">
+                    <CalendarClock aria-hidden="true" className="mr-1 inline size-3.5" />
+                    {l('Scheduled follow-up', 'Relance programmée')}
+                  </Badge>
+                ) : null}
+                {reservation?.state === 'owned' ? (
+                  <Badge tone="brand">
+                    <CalendarClock aria-hidden="true" className="mr-1 inline size-3.5" />
+                    {l('Reserved by you', 'Réservé par vous')}
+                  </Badge>
+                ) : reservation?.state === 'reserved' ? (
+                  <Badge tone="warning">{l('Reserved', 'Réservé')}</Badge>
+                ) : null}
+              </div>
+            ) : (
+              <Badge tone={establishment.status === 'active' ? 'success' : 'neutral'} dot>
+                {establishment.status === 'active'
+                  ? l('Active', 'Actif')
+                  : l('Inactive', 'Inactif')}
+              </Badge>
+            )}
           </div>
 
           <p className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[15px] text-ink-soft">
@@ -226,7 +271,17 @@ export function ProspectDetail({
         </div>
 
         <div className="flex shrink-0 gap-3">
+          {embedded && establishment.phone ? (
+            <Button
+              disabled={blocked}
+              leadingIcon={<PhoneCall aria-hidden="true" className="size-[18px]" />}
+              onClick={() => window.location.assign(`tel:${establishment.phone}`)}
+            >
+              {l(`Call ${establishment.phone}`, `Appeler le ${establishment.phone}`)}
+            </Button>
+          ) : null}
           <Button
+            variant={embedded ? 'secondary' : 'primary'}
             disabled={blocked}
             title={
               blocked
@@ -245,8 +300,25 @@ export function ProspectDetail({
       </header>
 
       {collision ? (
-        <div className="flex flex-col gap-3">
-          <CollisionBanner decision={collision} />
+        <div className={cn('flex flex-col gap-3', embedded && 'py-4')}>
+          {embedded && contactAllowed ? (
+            <div className="flex items-start gap-3 rounded-xl border border-success-border bg-success-bg px-4 py-3">
+              <ShieldCheck aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-success" />
+              <div>
+                <p className="font-semibold text-navy">
+                  {l('Contact allowed', 'Contact autorisé')}
+                </p>
+                <p className="text-[14px] text-ink-soft">
+                  {l(
+                    'No active collision was found for this establishment.',
+                    'Aucun conflit actif n’a été détecté pour cet établissement.',
+                  )}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <CollisionBanner decision={collision} />
+          )}
 
           {/* A blocked prospector must have a way forward. The banner states
               the refusal; this raises the request that can lift it. */}
@@ -262,9 +334,14 @@ export function ProspectDetail({
 
       <nav
         aria-label={l('Prospect sections', 'Rubriques de l’établissement')}
-        className="max-w-full"
+        className={cn('max-w-full', embedded && 'border-b border-line-soft pb-1')}
       >
-        <ul className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-surface-muted p-1">
+        <ul
+          className={cn(
+            'inline-flex max-w-full gap-1 overflow-x-auto rounded-xl bg-surface-muted p-1',
+            embedded && 'w-full rounded-none bg-transparent p-0',
+          )}
+        >
           {TABS.map((item) => (
             <li key={item.id} className="shrink-0">
               <button
@@ -274,7 +351,9 @@ export function ProspectDetail({
                 className={cn(
                   'inline-block rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
                   tab === item.id
-                    ? 'bg-surface text-navy shadow-sm'
+                    ? embedded
+                      ? 'rounded-none border-b-2 border-brand bg-transparent text-navy shadow-none'
+                      : 'bg-surface text-navy shadow-sm'
                     : 'text-ink-muted hover:bg-surface/60 hover:text-ink',
                 )}
               >
@@ -295,6 +374,7 @@ export function ProspectDetail({
         className={cn(
           'grid gap-5',
           !embedded && 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start',
+          embedded && 'pt-4',
         )}
       >
         <div className="flex flex-col gap-5">

@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { RouteStatusBadge, describeRouteError, formatScheduled } from '../page';
+import { RouteStatusBadge, describeRouteError, formatScheduled } from '@/lib/api/route-ui';
 import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -83,15 +83,19 @@ function RouteDetail({ routeId }: { routeId: string }) {
     [routeId],
   );
 
-  useLiveRefresh(load);
+  useLiveRefresh(load, { enabled: Boolean(teamId) });
 
   useEffect(() => {
+    if (!teamId) {
+      return;
+    }
+
     const controller = new AbortController();
 
     void load(controller.signal);
 
     return () => controller.abort();
-  }, [load]);
+  }, [load, teamId]);
 
   useEffect(() => {
     if (!teamId) {
@@ -177,6 +181,24 @@ function RouteDetail({ routeId }: { routeId: string }) {
 
         <Alert tone="danger" title="We could not load this round.">
           {readError}
+        </Alert>
+
+        <div>
+          <Link href="/routes" className="text-[14px] font-semibold text-brand">
+            Back to routes
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!teamId) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title="Round" />
+
+        <Alert tone="info" title="Rounds are a team view.">
+          Switch to a team workspace to view this round.
         </Alert>
 
         <div>

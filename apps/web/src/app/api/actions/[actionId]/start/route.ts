@@ -1,7 +1,7 @@
 import type { ActionRecord } from '@/lib/api/action-types';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
-import { forwardedHeaders } from '../../route';
+import { forwardedHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 

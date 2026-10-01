@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type { Pool } from 'pg';
 
 import { ReservationRedisService } from '../../reservations/reservation-redis.service.js';
+import { WORKER_DATABASE_POOL } from '../../database/worker-database.constants.js';
+import { workerTenantQuery } from '../../database/worker-tenant-transaction.js';
 
 export interface StoredReservation {
   reservationId: string;
@@ -44,7 +47,61 @@ export interface ReleaseExpiredReservationInput {
 
 @Injectable()
 export class ReservationExpiryRepository {
-  constructor(private readonly redisService: ReservationRedisService) {}
+  constructor(
+    private readonly redisService: ReservationRedisService,
+    @Optional() @Inject(WORKER_DATABASE_POOL) private readonly pool?: Pool,
+  ) {}
+
+  async notifyExpiredWithoutSummary(reservation: StoredReservation): Promise<number> {
+    if (!this.pool) return 0;
+    const result = await workerTenantQuery(
+      this.pool,
+      reservation.tenantId,
+      `
+        WITH recipients AS (
+          SELECT m.id AS user_id
+          FROM tenant_memberships m
+          JOIN identities i ON i.id=m.identity_id AND i.status='active'
+          JOIN user_access_grants pg
+            ON pg.tenant_id=m.tenant_id AND pg.user_id=m.id
+           AND pg.role='prospector' AND pg.scope_type='team' AND pg.team_id=$2
+          WHERE m.tenant_id=$1 AND m.id=$5 AND m.status='active'
+          UNION
+          SELECT g.user_id
+          FROM user_access_grants g
+          JOIN tenant_memberships m ON m.tenant_id=g.tenant_id AND m.id=g.user_id AND m.status='active'
+          JOIN identities i ON i.id=m.identity_id AND i.status='active'
+          WHERE g.tenant_id=$1 AND g.role='manager' AND g.scope_type='team' AND g.team_id=$2
+        ),
+        eligible AS (
+          SELECT r.user_id FROM recipients r
+          WHERE NOT EXISTS (
+            SELECT 1 FROM actions a
+            WHERE a.tenant_id=$1 AND a.reservation_id=$3 AND a.status='completed'
+              AND NULLIF(BTRIM(COALESCE(a.notes,'')), '') IS NOT NULL
+          )
+        )
+        INSERT INTO notifications
+          (tenant_id, recipient_user_id, type, severity, event_key, title, message, payload)
+        SELECT $1, e.user_id, 'reservation_expired_without_summary', 'warning',
+               'reservation-expired:' || $3::text,
+               'Reservation expired without summary',
+               'The reservation expired without a completed action summary.',
+               jsonb_build_object('reservationId', $3::text, 'campaignProspectId', $4::text)
+        FROM eligible e
+        ON CONFLICT (tenant_id, recipient_user_id, type, event_key) DO NOTHING
+        RETURNING id
+      `,
+      [
+        reservation.tenantId,
+        reservation.teamId,
+        reservation.reservationId,
+        reservation.campaignProspectId,
+        reservation.userId,
+      ],
+    );
+    return result.rowCount;
+  }
 
   async findCurrent(
     tenantId: string,

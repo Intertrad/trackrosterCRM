@@ -81,10 +81,6 @@ export class MapService {
       ${q.search ? sql`AND e.name ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}` : sql``}
       ${q.territoryId ? sql`AND EXISTS(SELECT 1 FROM territories WHERE territories.id=${q.territoryId} AND ${resourceScopePredicate(a, 'territory')} AND territories.status='active' AND ST_Covers(territories.boundary,e.location))` : sql``}
     LIMIT ${MAX_MEMBERSHIPS + 1}
-  ), points AS MATERIALIZED (
-    SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
-      bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
-    FROM eligible GROUP BY id,name,longitude,latitude,location
   )`;
   }
   private check(row: Record<string, unknown>) {
@@ -98,8 +94,18 @@ export class MapService {
   async markers(a: AuthenticatedPrincipal, q: MapViewportDto) {
     const bbox = viewport(q.bbox),
       size = 360 / 2 ** q.zoom;
+    /* Count the bounded authorized scope before the expensive cell grouping. */
+    const membershipCount = await this.db.execute(
+      sql`WITH ${this.eligible(a, q, this.spatial(bbox))}
+        SELECT count(*)::int AS memberships FROM eligible`,
+    );
+    this.check(membershipCount.rows[0]!);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, cells AS (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+    SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
+      bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
+    FROM eligible GROUP BY id,name,longitude,latitude,location
+  ), cells AS (
     SELECT floor((longitude+180)/${size})::int AS x,floor((latitude+90)/${size})::int AS y,
       count(*)::int AS count,avg(longitude) AS longitude,avg(latitude) AS latitude,
       min(id::text) AS id,min(name) AS name
@@ -130,7 +136,11 @@ export class MapService {
   async nearby(a: AuthenticatedPrincipal, q: NearbyProspectsDto) {
     const origin = sql`ST_SetSRID(ST_MakePoint(${q.longitude},${q.latitude}),4326)::geography`;
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, sql`ST_DWithin(e.location::geography,${origin},${q.radiusMeters})`)}, distances AS (
+      .execute(sql`WITH ${this.eligible(a, q, sql`ST_DWithin(e.location::geography,${origin},${q.radiusMeters})`)}, points AS MATERIALIZED (
+    SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
+      bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
+    FROM eligible GROUP BY id,name,longitude,latitude,location
+  ), distances AS (
     SELECT id,name,longitude,latitude,stages,ST_Distance(location::geography,${origin}) AS distance FROM points
   ) SELECT (SELECT count(*) FROM eligible)::int AS memberships,
     ${q.cursor ? sql`EXISTS(SELECT 1 FROM distances WHERE id=${q.cursor})` : sql`true`} AS valid_cursor,
@@ -165,7 +175,11 @@ export class MapService {
       size = 360 / 2 ** q.zoom,
       { window, cte } = this.measures(a, q);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))},${cte}, cells AS (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+    SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
+      bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
+    FROM eligible GROUP BY id,name,longitude,latitude,location
+  ),${cte}, cells AS (
     SELECT floor((longitude+180)/${size})::int AS x,floor((latitude+90)/${size})::int AS y,avg(longitude) longitude,avg(latitude) latitude,
       count(*)::int prospects,sum(activities)::int activities,count(*) FILTER(WHERE converted)::int converted FROM measures GROUP BY x,y
   ) SELECT (SELECT count(*) FROM eligible)::int memberships,(SELECT count(*) FROM cells)::int cells,
@@ -189,7 +203,11 @@ export class MapService {
     const bbox = viewport(q.bbox),
       { window, cte } = this.measures(a, q);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))},${cte}, areas AS MATERIALIZED (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+    SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
+      bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
+    FROM eligible GROUP BY id,name,longitude,latitude,location
+  ),${cte}, areas AS MATERIALIZED (
     SELECT territories.id,territories.name,territories.boundary FROM territories WHERE ${resourceScopePredicate(a, 'territory')}
       AND territories.status='active' AND territories.boundary IS NOT NULL AND ${this.spatial(bbox, sql`territories.boundary`)}
       ${q.territoryId ? sql`AND territories.id=${q.territoryId}` : sql``}

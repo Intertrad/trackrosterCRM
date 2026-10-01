@@ -13,6 +13,7 @@ describe('ReservationExpiryProcessor', () => {
   let repository: {
     findCurrent: ReturnType<typeof vi.fn>;
     releaseIfMatch: ReturnType<typeof vi.fn>;
+    notifyExpiredWithoutSummary?: ReturnType<typeof vi.fn>;
   };
 
   let processor: ReservationExpiryProcessor;
@@ -181,6 +182,16 @@ describe('ReservationExpiryProcessor', () => {
       establishmentId,
       expiresAt,
     });
+  });
+
+  it('notifies the prospector and team managers after the exact lease is released', async () => {
+    repository.notifyExpiredWithoutSummary = vi.fn().mockResolvedValue(2);
+
+    await expect(processor.process(data, processingContext)).resolves.toEqual({
+      status: 'processed',
+    });
+
+    expect(repository.notifyExpiredWithoutSummary).toHaveBeenCalledWith(current);
   });
 
   it('rejects a missing tenantId as a permanent payload error', async () => {

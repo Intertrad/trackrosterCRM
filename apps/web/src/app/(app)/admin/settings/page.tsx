@@ -91,7 +91,10 @@ function ReservationSettings({ language }: { language: string }) {
   const [matrix, setMatrix] = useState<Record<string, number>>({});
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const load = async () => {
+    setLoading(true);
     try {
       const [orgPage, policyRows, rulePage] = await Promise.all([
         browserJson<{ items: Organization[] }>('/api/organizations?limit=100', {
@@ -121,6 +124,8 @@ function ReservationSettings({ language }: { language: string }) {
       setError(false);
     } catch {
       setError(true);
+    } finally {
+      setLoading(false);
     }
   };
   useEffect(() => {
@@ -128,7 +133,17 @@ function ReservationSettings({ language }: { language: string }) {
   }, []);
   const setCell = (a: string, b: string, value: number) =>
     setMatrix((current) => ({ ...current, [`${a}:${b}`]: value }));
+  const applyPreset = (sameCompany: number, otherCompany: number) => {
+    const next: Record<string, number> = {};
+    for (const a of organizations)
+      for (const b of organizations)
+        next[`${a.id}:${b.id}`] = a.id === b.id ? sameCompany : otherCompany;
+    setMatrix(next);
+    setSaved(false);
+  };
   const save = async () => {
+    if (!rule || saving) return;
+    setSaving(true);
     try {
       const existing = new Map(
         policies.map((p) => [`${p.organizationAId}:${p.organizationBId}`, p]),
@@ -162,89 +177,156 @@ function ReservationSettings({ language }: { language: string }) {
       await load();
     } catch {
       setError(true);
+    } finally {
+      setSaving(false);
     }
   };
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-[35px] font-extrabold text-navy">
-          {l('Rules and settings', 'Règles et réglages')}
-        </h1>
-        <p className="mt-1.5 text-[15px] text-ink-muted">
-          {l(
-            'Anti-collision rules, session objectives and prospector permissions.',
-            'Toutes les règles anti-collision, les objectifs de session et les droits des prospecteurs.',
-          )}
-        </p>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-brand">
+            {l('Administration', 'Administration')}
+          </p>
+          <h1 className="text-[35px] font-extrabold tracking-tight text-navy">
+            {l('Rules and settings', 'Règles et réglages')}
+          </h1>
+          <p className="mt-2 max-w-2xl text-[15px] leading-6 text-ink-muted">
+            {l(
+              'Anti-collision rules, session objectives and prospector permissions.',
+              'Toutes les règles anti-collision, les objectifs de session et les droits des prospecteurs.',
+            )}
+          </p>
+        </div>
+        <Tabs
+          label={text('Settings sections', 'Sections des réglages', language)}
+          activeId="reservation-rules"
+          items={sections.map(([key, en, fr]) => ({
+            id: key!,
+            label: text(en!, fr!, language),
+            href: `/admin/settings?section=${key}`,
+          }))}
+        />
       </header>
       {error && (
-        <Alert tone="danger">
+        <Alert tone="danger" className="flex items-center justify-between gap-3">
           {l('Unable to load settings.', 'Impossible de charger les réglages.')}{' '}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
           </button>
         </Alert>
       )}
-      <Card>
+      <Card className="overflow-hidden border-line/80 shadow-[0_18px_50px_rgba(9,31,105,0.07)]">
         <CardHeader
           title={l(
             'Delay between contacts at the same establishment',
             'Délais entre deux contacts d’un même établissement',
           )}
         />
-        <p className="mb-4 text-sm text-ink-muted">
+        <p className="mb-5 max-w-3xl text-sm leading-6 text-ink-muted">
           {l(
             'Rows show the company that contacted last; columns show the next company. Values are days.',
             'Ligne = entreprise qui a contacté en dernier ; colonne = entreprise qui veut contacter. Valeurs en jours.',
           )}
         </p>
-        <div className="overflow-x-auto">
-          <table className="min-w-[640px] border-separate border-spacing-1 text-center text-sm">
-            <thead>
-              <tr>
-                <th className="p-2 text-left">
-                  {l('Contacted by ↓ / then by →', 'Contacté par ↓ / puis par →')}
-                </th>
-                {organizations.map((org) => (
-                  <th
-                    key={org.id}
-                    className="rounded-lg px-3 py-2 text-white"
-                    style={{ backgroundColor: org.color ?? '#155eef' }}
-                  >
-                    {org.shortName ?? org.name}
+        {loading ? (
+          <div
+            className="grid gap-3 py-6"
+            aria-label={l('Loading settings', 'Chargement des réglages')}
+          >
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="h-12 animate-pulse rounded-xl bg-surface-muted" />
+            ))}
+          </div>
+        ) : organizations.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-line bg-surface-muted px-5 py-10 text-center text-sm text-ink-muted">
+            {l(
+              'Add an organization to configure contact delays.',
+              'Ajoutez une entreprise pour configurer les délais de contact.',
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface-muted/50 p-2">
+            <table className="min-w-[760px] border-separate border-spacing-1.5 text-center text-sm">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 min-w-48 bg-surface-muted p-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted">
+                    {l('Contacted by ↓ / then by →', 'Contacté par ↓ / puis par →')}
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {organizations.map((row) => (
-                <tr key={row.id}>
-                  <th
-                    className="rounded-lg px-3 py-2 text-left text-white"
-                    style={{ backgroundColor: row.color ?? '#155eef' }}
-                  >
-                    {row.shortName ?? row.name}
-                  </th>
-                  {organizations.map((col) => (
-                    <td key={col.id}>
-                      <input
-                        aria-label={`${row.name} to ${col.name}`}
-                        type="number"
-                        min="0"
-                        max="365"
-                        value={matrix[`${row.id}:${col.id}`] ?? 7}
-                        onChange={(event) => setCell(row.id, col.id, Number(event.target.value))}
-                        className="w-20 rounded-lg border border-line px-3 py-2 text-center"
-                      />
-                    </td>
+                  {organizations.map((org) => (
+                    <th
+                      key={org.id}
+                      className="min-w-28 rounded-xl px-3 py-3 text-xs font-bold text-white shadow-sm"
+                      style={{ backgroundColor: org.color ?? '#155eef' }}
+                    >
+                      {org.shortName ?? org.name}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {organizations.map((row) => (
+                  <tr key={row.id}>
+                    <th
+                      className="sticky left-0 z-[1] min-w-48 rounded-xl px-4 py-3 text-left text-xs font-bold text-white shadow-sm"
+                      style={{ backgroundColor: row.color ?? '#155eef' }}
+                    >
+                      {row.shortName ?? row.name}
+                    </th>
+                    {organizations.map((col) => (
+                      <td key={col.id}>
+                        <input
+                          aria-label={`${row.name} to ${col.name}`}
+                          type="number"
+                          min="0"
+                          max="365"
+                          value={matrix[`${row.id}:${col.id}`] ?? 7}
+                          onChange={(event) => {
+                            setCell(
+                              row.id,
+                              col.id,
+                              Math.max(0, Math.min(365, Number(event.target.value) || 0)),
+                            );
+                            setSaved(false);
+                          }}
+                          className={`w-20 rounded-xl border px-3 py-2.5 text-center font-semibold text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 ${row.id === col.id ? 'border-brand/30 bg-brand-tint/40' : 'border-line bg-surface'}`}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-xs font-bold uppercase tracking-wide text-ink-muted">
+            {l('Presets', 'Préréglages')}
+          </span>
+          <button
+            type="button"
+            onClick={() => applyPreset(30, 7)}
+            className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
+          >
+            30 / 7 {l('days', 'jours')}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset(30, 14)}
+            className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
+          >
+            30 / 14 {l('days', 'jours')}
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset(45, 30)}
+            className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
+          >
+            45 / 30 {l('days', 'jours')}
+          </button>
         </div>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="flex items-center gap-3 text-sm font-semibold">
+          <label className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink">
             <input
               type="checkbox"
               checked={rule?.allowManagerOverride ?? true}
@@ -256,7 +338,7 @@ function ReservationSettings({ language }: { language: string }) {
             />
             {l('Allow manager overrides', 'Autoriser les dérogations manager')}
           </label>
-          <label className="flex items-center gap-3 text-sm font-semibold">
+          <label className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink">
             <input
               type="checkbox"
               checked={rule?.allowExtension ?? true}
@@ -270,12 +352,22 @@ function ReservationSettings({ language }: { language: string }) {
           </label>
         </div>
       </Card>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-ink-muted">
-          {saved ? l('Everything is saved.', 'Tout est enregistré.') : ''}
+      <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <span
+          className={`text-sm ${saved ? 'font-semibold text-emerald-700' : 'text-ink-muted'}`}
+          role="status"
+        >
+          {saved
+            ? l('Everything is saved.', 'Tout est enregistré.')
+            : l(
+                'Changes apply to future contact lists.',
+                'Les changements s’appliquent aux prochaines listes.',
+              )}
         </span>
-        <Button onClick={() => void save()}>
-          {l('Save settings', 'Enregistrer les réglages')}
+        <Button disabled={loading || saving || !rule} onClick={() => void save()}>
+          {saving
+            ? l('Saving…', 'Enregistrement…')
+            : l('Save settings', 'Enregistrer les réglages')}
         </Button>
       </div>
     </div>

@@ -340,6 +340,7 @@ export class FollowUpReminderRepository {
             tenant_id,
             recipient_user_id,
             type,
+            event_key,
             follow_up_id,
             scheduled_for,
             title,
@@ -350,6 +351,7 @@ export class FollowUpReminderRepository {
             $1,
             recipient.user_id,
             'follow_up_reminder',
+            'follow_up_due:' || $2::text || ':' || $3::text,
             $2,
             $3,
             $4,
@@ -366,8 +368,7 @@ export class FollowUpReminderRepository {
             tenant_id,
             recipient_user_id,
             type,
-            follow_up_id,
-            scheduled_for
+            event_key
           )
           DO NOTHING
 
@@ -389,5 +390,28 @@ export class FollowUpReminderRepository {
     );
 
     return result.rowCount ?? 0;
+  }
+
+  async queueEmailDeliveries(
+    context: FollowUpReminderContext,
+    scheduledFor: Date,
+  ): Promise<string[]> {
+    const result = await workerTenantQuery<{ id: string }>(
+      this.pool,
+      context.tenantId,
+      `
+        INSERT INTO notification_deliveries (tenant_id, notification_id, channel)
+        SELECT n.tenant_id, n.id, 'email'
+        FROM notifications n
+        WHERE n.tenant_id=$1
+          AND n.type='follow_up_reminder'
+          AND n.follow_up_id=$2
+          AND n.scheduled_for=$3
+        ON CONFLICT (tenant_id, notification_id, channel) DO NOTHING
+        RETURNING id
+      `,
+      [context.tenantId, context.id, scheduledFor],
+    );
+    return result.rows.map((row) => row.id);
   }
 }

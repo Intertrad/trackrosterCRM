@@ -9,6 +9,7 @@ import { ExportModule } from '../exports/export.module.js';
 import { ExportRepositoryModule } from '../exports/export-repository.module.js';
 import { ExportSerializationModule } from '../exports/export-serialization.module.js';
 import { ReportingModule } from '../reporting/reporting.module.js';
+import { NotificationModule } from '../notifications/notification.module.js';
 import {
   ImportIssueController,
   ImportJobController,
@@ -29,6 +30,7 @@ import { ExportJobService } from './export-job.service.js';
     ExportRepositoryModule,
     ExportSerializationModule,
     ReportingModule,
+    NotificationModule,
   ],
   controllers: [ImportJobController, ImportIssueController, ExportJobController],
   providers: [ImportJobService, ImportJobGuard, ExportJobService, ExportJobGuard],

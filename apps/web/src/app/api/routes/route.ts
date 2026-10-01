@@ -1,6 +1,7 @@
 import type { FieldRoute, RoutePage } from '@/lib/api/route-types';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
+import { routeWriteHeaders } from '@/lib/server/route-headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,16 +56,3 @@ export async function POST(request: Request): Promise<Response> {
 
 /* Idempotency-Key and If-Match are forwarded unchanged; every route write is
  * idempotent upstream. */
-export function routeWriteHeaders(request: Request): Record<string, string> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-
-  for (const header of ['idempotency-key', 'if-match']) {
-    const value = request.headers.get(header);
-
-    if (value) {
-      headers[header] = value;
-    }
-  }
-
-  return headers;
-}

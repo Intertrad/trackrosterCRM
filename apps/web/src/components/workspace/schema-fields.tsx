@@ -260,6 +260,16 @@ function FieldInput({
         error={error}
       />
     );
+  if (field.name === 'color' && field.maxLength === 7)
+    return (
+      <ColorField
+        label={fullLabel}
+        value={String(value ?? '')}
+        onChange={onChange}
+        error={error}
+        name={path}
+      />
+    );
   const secret = /secret|password|token/i.test(field.name);
   return (
     <TextField
@@ -297,6 +307,75 @@ function FieldInput({
       }
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+const COMPANY_COLORS = [
+  '#05124A',
+  '#2F61E6',
+  '#4CAF81',
+  '#6B3FE5',
+  '#E28C24',
+  '#B43B3C',
+  '#B52D62',
+  '#3A7F99',
+  '#3A7F77',
+  '#4E45D4',
+  '#9B5D16',
+  '#475569',
+];
+
+function ColorField({
+  label,
+  value,
+  onChange,
+  error,
+  name,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: unknown) => void;
+  error?: string;
+  name: string;
+}) {
+  const selected = value.toUpperCase();
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-[13.12px] font-bold text-ink">{label}</p>
+        <div className="mt-3 flex flex-wrap gap-4" role="radiogroup" aria-label={label}>
+          {COMPANY_COLORS.map((color) => {
+            const active = color === selected;
+
+            return (
+              <button
+                key={color}
+                type="button"
+                role="radio"
+                aria-label={color}
+                aria-checked={active}
+                onClick={() => onChange(color)}
+                className="size-9 rounded-full transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                style={{
+                  backgroundColor: color,
+                  boxShadow: active ? `0 0 0 3px white, 0 0 0 6px ${color}` : undefined,
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <TextField
+        name={name}
+        label="Hex code"
+        value={value}
+        error={error}
+        maxLength={7}
+        placeholder="#05124A"
+        onChange={(event) => onChange(event.target.value.toUpperCase())}
+      />
+    </div>
   );
 }
 

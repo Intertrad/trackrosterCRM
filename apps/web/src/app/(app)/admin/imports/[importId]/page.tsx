@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { CircleAlert, CircleCheck, Copy, FileText, TriangleAlert, Users } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
-import { ImportStatusBadge, describeImportError } from '../page';
+import { ImportStatusBadge, describeImportError } from '@/lib/api/import-ui';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

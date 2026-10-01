@@ -10,9 +10,9 @@ import type {
 /**
  * One page of the shared référentiel.
  *
- * Every filter goes to the server. The base is 14,649 establishments and a page
- * is at most 100, so narrowing a loaded page would search the page and report
- * nothing for the rest.
+ * Every filter goes to the server. A page is at most 100 rows, so narrowing a
+ * loaded page would search the page and report nothing for the rest. The API
+ * also returns the filtered total so list and map views can show page ranges.
  */
 export function listProspects(
   query: ProspectQuery = {},

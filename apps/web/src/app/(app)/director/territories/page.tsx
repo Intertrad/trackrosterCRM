@@ -1,4 +1,3 @@
-import { RoleModulePage } from '@/components/workspace/role-module-page';
-export default function Page() {
-  return <RoleModulePage moduleId="territories" />;
-}
+/* Territory reads, map boundaries and assignment ownership are already
+ * director-scoped by the shared territory/report APIs. */
+export { default } from '@/app/(app)/manager/territories/page';

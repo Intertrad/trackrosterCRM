@@ -6,7 +6,7 @@ import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, MapPinned, UserPlus, Users } from 'lucide-react';
 
-import { describeCampaignError } from '../page';
+import { describeCampaignError } from '@/lib/api/campaign-error';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

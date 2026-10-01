@@ -11,6 +11,8 @@ import { FollowUpReminderRepository } from '../src/jobs/repositories/follow-up-r
 describe('Follow-up reminder PostgreSQL integration', () => {
   let pool: Pool;
 
+  let runtimePool: Pool;
+
   let repository: FollowUpReminderRepository;
 
   let processor: FollowUpReminderProcessor;
@@ -39,15 +41,23 @@ describe('Follow-up reminder PostgreSQL integration', () => {
 
   beforeAll(async () => {
     const databaseUrl =
-      process.env.DATABASE_URL ?? 'postgresql://trackroster:trackroster@127.0.0.1:5433/trackroster';
+      process.env.DATABASE_SEED_URL ??
+      process.env.DATABASE_URL ??
+      'postgresql://trackroster:trackroster@127.0.0.1:5433/trackroster';
+    const runtimeDatabaseUrl = process.env.DATABASE_URL ?? databaseUrl;
 
     pool = new Pool({
       connectionString: databaseUrl,
     });
 
-    await pool.query('SELECT 1');
+    runtimePool = new Pool({
+      connectionString: runtimeDatabaseUrl,
+    });
 
-    repository = new FollowUpReminderRepository(pool);
+    await pool.query('SELECT 1');
+    await runtimePool.query('SELECT 1');
+
+    repository = new FollowUpReminderRepository(runtimePool);
 
     processor = new FollowUpReminderProcessor(repository);
 
@@ -428,6 +438,7 @@ describe('Follow-up reminder PostgreSQL integration', () => {
       );
     } finally {
       await pool.end();
+      await runtimePool.end();
     }
   }, 15_000);
 

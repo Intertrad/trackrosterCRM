@@ -57,9 +57,15 @@ describe('AppShell', () => {
       within(sidebar)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['My day', 'Follow-ups', 'History', 'Messages']);
-    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
-    expect(screen.getAllByRole('link', { name: 'My prospects' }).length).toBeGreaterThan(0);
+    ).toEqual([
+      'My day',
+      'Prospects',
+      'Map',
+      'Follow-ups',
+      'Actions / History',
+      'My Performance',
+      'Messages',
+    ]);
   });
 
   it('shows the unread message count on the sidebar', async () => {
@@ -99,7 +105,6 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
     expect(screen.getByRole('link', { name: 'Overrides' })).toHaveAttribute(
       'href',
       '/manager/approvals',
@@ -130,8 +135,7 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    fireEvent.click(screen.getByLabelText('Other tools', { selector: 'summary' }));
-    for (const label of ['My day', 'My prospects', 'Map', 'Follow-ups', 'Messages']) {
+    for (const label of ['My day', 'Prospects', 'Map', 'Follow-ups', 'Messages']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     }
   });
@@ -143,7 +147,7 @@ describe('AppShell', () => {
     render(<AppShell>content</AppShell>);
 
     const current = screen
-      .getAllByRole('link', { name: 'My prospects' })
+      .getAllByRole('link', { name: 'Prospects' })
       .find((link) => link.getAttribute('aria-current') === 'page');
 
     expect(current).toBeDefined();
@@ -211,13 +215,14 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
-  it('exposes sign out from the sidebar account menu', () => {
+  it('exposes sign out from the top-right account menu', () => {
     authenticated();
 
     render(<AppShell>content</AppShell>);
 
-    /* Sign out used to exist only in the mobile More sheet. */
-    fireEvent.click(screen.getAllByRole('button', { name: 'Account menu' })[0]!);
+    /* Mobile and desktop render their responsive account controls together in jsdom. */
+    expect(screen.getAllByRole('button', { name: 'Account menu' })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Account menu' })[1]!);
 
     expect(screen.getAllByRole('menuitem', { name: /Sign out/ }).length).toBeGreaterThan(0);
   });

@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -17,9 +18,11 @@ import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   auditEvents,
+  campaigns,
   campaignProspectAssignments,
   collisionEvents,
   collisionOverrides,
+  establishments,
   organizationCoordinationPolicies,
   overrideRequests,
   tenantMemberships,
@@ -35,6 +38,7 @@ import {
 } from './collision-override-key.js';
 import type { CheckCollisionDto, CollisionListDto } from './collision-workflow.dto.js';
 import type { CollisionDecisionResult } from './collision.types.js';
+import { NotificationEventService } from '../notifications/notification-event.service.js';
 
 type Event = typeof collisionEvents.$inferSelect;
 type Operation = 'approve' | 'reject' | 'cancel';
@@ -48,6 +52,7 @@ export class CollisionWorkflowService {
     private readonly permissions: PermissionService,
     private readonly config: ConfigService,
     private readonly reservationPolicy: ReservationPolicyService,
+    @Optional() private readonly notificationEvents?: NotificationEventService,
   ) {}
   // Keep the same tenant -> membership -> assignment order as action mutations.
   private async lock(auth: AuthenticatedPrincipal, tx: DatabaseExecutor, members: string[] = []) {
@@ -247,6 +252,19 @@ export class CollisionWorkflowService {
         decision: result.decision,
         reasonCode: result.reasonCode,
       });
+      if (this.notificationEvents) {
+        await this.notificationEvents.collision(
+          {
+            tenantId: auth.tenantId,
+            prospectorUserId: auth.membershipId,
+            campaignProspectId: input.campaignProspectId,
+            reasonCode: result.reasonCode,
+            establishmentId: result.establishmentId,
+            collisionId: event!.id,
+          },
+          tx,
+        );
+      }
       return { ...this.publicEvent(event!), collisionId: event!.id };
     });
   }
@@ -353,7 +371,7 @@ export class CollisionWorkflowService {
     return this.db.transaction(async (tx) => {
       await this.lock(auth, tx);
       const event = await this.authorizeRequest(auth, id, tx);
-      await this.currentAssignment(auth, event, tx);
+      const assignment = await this.currentAssignment(auth, event, tx);
       await this.recheck(auth, event, auth.membershipId);
       const [pending] = await tx
         .select()
@@ -383,6 +401,17 @@ export class CollisionWorkflowService {
         collisionId: id,
         reason: row!.reason,
       });
+      if (this.notificationEvents) {
+        await this.notificationEvents.overrideRequested(
+          {
+            tenantId: auth.tenantId,
+            teamId: assignment.teamId,
+            campaignProspectId: event.campaignProspectId,
+            requestId: row!.id,
+          },
+          tx,
+        );
+      }
       return { ...row!, etag: resourceETag(row!) };
     });
   }
@@ -403,22 +432,74 @@ export class CollisionWorkflowService {
   async requestDetail(auth: AuthenticatedPrincipal, id: string) {
     const row = await this.requestRow(auth, id);
     const event = await this.event(auth, row.collisionId);
-    const [approval] = row.overrideId
-      ? await this.db
-          .select({ id: collisionOverrides.id, expiresAt: collisionOverrides.expiresAt })
-          .from(collisionOverrides)
+    const [[approval], [prospect], [campaign], [requester], [detector], [decider]] =
+      await Promise.all([
+        row.overrideId
+          ? this.db
+              .select({ id: collisionOverrides.id, expiresAt: collisionOverrides.expiresAt })
+              .from(collisionOverrides)
+              .where(
+                and(
+                  eq(collisionOverrides.tenantId, auth.tenantId),
+                  eq(collisionOverrides.id, row.overrideId),
+                ),
+              )
+          : Promise.resolve([]),
+        this.db
+          .select({ id: establishments.id, name: establishments.name })
+          .from(establishments)
           .where(
             and(
-              eq(collisionOverrides.tenantId, auth.tenantId),
-              eq(collisionOverrides.id, row.overrideId),
+              eq(establishments.tenantId, auth.tenantId),
+              eq(establishments.id, event.establishmentId),
             ),
-          )
-      : [];
+          ),
+        this.db
+          .select({ id: campaigns.id, name: campaigns.name })
+          .from(campaigns)
+          .where(and(eq(campaigns.tenantId, auth.tenantId), eq(campaigns.id, event.campaignId))),
+        this.db
+          .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
+          .from(tenantMemberships)
+          .where(
+            and(
+              eq(tenantMemberships.tenantId, auth.tenantId),
+              eq(tenantMemberships.id, row.requestedBy),
+            ),
+          ),
+        this.db
+          .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
+          .from(tenantMemberships)
+          .where(
+            and(
+              eq(tenantMemberships.tenantId, auth.tenantId),
+              eq(tenantMemberships.id, event.detectedBy),
+            ),
+          ),
+        row.decidedBy
+          ? this.db
+              .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
+              .from(tenantMemberships)
+              .where(
+                and(
+                  eq(tenantMemberships.tenantId, auth.tenantId),
+                  eq(tenantMemberships.id, row.decidedBy),
+                ),
+              )
+          : Promise.resolve([]),
+      ]);
     return {
       ...row,
       etag: resourceETag(row),
       collision: this.publicEvent(event),
       approval: approval ?? null,
+      context: {
+        prospect: prospect ?? null,
+        campaign: campaign ?? null,
+        requester: requester ?? null,
+        detector: detector ?? null,
+        decider: decider ?? null,
+      },
     };
   }
   async listRequests(auth: AuthenticatedPrincipal, q: CollisionListDto) {
@@ -522,7 +603,7 @@ export class CollisionWorkflowService {
   ) {
     this.reason(reason);
     const initial = await this.authorizeDecision(auth, id, op);
-    return this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       await this.lock(auth, tx, [initial.requestedBy]);
       const row = await this.authorizeDecision(auth, id, op, tx);
       assertResourceMatches(etag, row);
@@ -592,11 +673,30 @@ export class CollisionWorkflowService {
         overrideId,
         reason: reason.trim(),
       });
-      return {
-        ...updated!,
-        etag: resourceETag(updated!),
-        approval: overrideId ? { id: overrideId, expiresAt } : null,
-      };
     });
+
+    // The mutation response uses the same complete, scoped shape as GET detail.
+    // Reading after commit also ensures the response includes the new decision,
+    // collision evidence, policy context, and human-readable names.
+    if (op === 'cancel') {
+      const [cancelled] = await this.db
+        .select()
+        .from(overrideRequests)
+        .where(
+          and(
+            eq(overrideRequests.tenantId, auth.tenantId),
+            eq(overrideRequests.id, id),
+            eq(overrideRequests.requestedBy, auth.membershipId),
+          ),
+        );
+
+      if (!cancelled) {
+        throw new NotFoundException('Override request not found');
+      }
+
+      return { ...cancelled, etag: resourceETag(cancelled) };
+    }
+
+    return this.requestDetail(auth, id);
   }
 }

@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isChannelEnabled,
+  isChannelRequired,
   setChannel,
   type NotificationPreferences,
 } from './notification-preference-types';
 
 describe('isChannelEnabled', () => {
+  it('requires collision alerts in the in-app inbox', () => {
+    expect(isChannelRequired('collisions', 'inApp')).toBe(true);
+    expect(isChannelEnabled({ collisions: { inApp: false } }, 'collisions', 'inApp')).toBe(true);
+  });
   /*
    * The backend treats a missing entry as "not opted out". Rendering an unset
    * channel as off would tell the user they had declined notifications they
@@ -30,6 +35,11 @@ describe('isChannelEnabled', () => {
 });
 
 describe('setChannel', () => {
+  it('does not allow the required collision inbox channel to be disabled', () => {
+    const before: NotificationPreferences = { collisions: { inApp: true } };
+
+    expect(setChannel(before, 'collisions', 'inApp', false)).toBe(before);
+  });
   it('sets one channel without disturbing the others in that category', () => {
     const before: NotificationPreferences = {
       assignments: { email: true, push: false, inApp: true },

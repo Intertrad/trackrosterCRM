@@ -43,6 +43,11 @@ GRANT USAGE ON SCHEMA public TO trackroster_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trackroster_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trackroster_app;
 
+-- Evidence tables are append-only. Keep this invariant when the runtime role
+-- is created after the migrations (as happens in local integration databases).
+REVOKE UPDATE, DELETE ON TABLE collision_events FROM trackroster_app;
+REVOKE UPDATE, DELETE ON TABLE audit_events FROM trackroster_app;
+
 -- Tables created by later migrations must be reachable too, otherwise the
 -- next migration silently locks the application out of its own data.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public

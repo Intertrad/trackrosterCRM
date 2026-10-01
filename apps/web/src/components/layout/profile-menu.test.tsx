@@ -4,10 +4,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-const { replaceMock, refreshSessionMock, browserJsonMock } = vi.hoisted(() => ({
+const {
+  replaceMock,
+  refreshSessionMock,
+  browserJsonMock,
+  getAccountMembershipsMock,
+  switchActiveMembershipMock,
+} = vi.hoisted(() => ({
   replaceMock: vi.fn(),
   refreshSessionMock: vi.fn(),
   browserJsonMock: vi.fn(),
+  getAccountMembershipsMock: vi.fn(),
+  switchActiveMembershipMock: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -19,6 +27,11 @@ vi.mock('@/lib/auth/auth-context', () => ({
 }));
 
 vi.mock('@/lib/api/browser-json', () => ({ browserJson: browserJsonMock }));
+
+vi.mock('@/lib/api/account-client', () => ({
+  getAccountMemberships: getAccountMembershipsMock,
+  switchActiveMembership: switchActiveMembershipMock,
+}));
 
 import { ProfileMenu } from './profile-menu';
 
@@ -38,6 +51,25 @@ describe('ProfileMenu', () => {
     vi.resetAllMocks();
     browserJsonMock.mockResolvedValue(undefined);
     refreshSessionMock.mockResolvedValue(null);
+    getAccountMembershipsMock.mockResolvedValue([
+      {
+        membershipId: 'membership-current',
+        tenantId: 'tenant-current',
+        tenantName: 'Current workspace',
+        displayName: null,
+        current: true,
+        roles: ['prospector'],
+      },
+      {
+        membershipId: 'membership-next',
+        tenantId: 'tenant-next',
+        tenantName: 'Next workspace',
+        displayName: null,
+        current: false,
+        roles: ['manager'],
+      },
+    ]);
+    switchActiveMembershipMock.mockResolvedValue({ next: 'authenticated' });
   });
 
   afterEach(cleanup);
@@ -110,6 +142,27 @@ describe('ProfileMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
     fireEvent.mouseDown(document.body);
 
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('loads memberships from the backend and switches workspace from the menu', async () => {
+    renderMenu();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Switch workspace/ }));
+
+    await waitFor(() => {
+      expect(getAccountMembershipsMock).toHaveBeenCalledWith(expect.any(AbortSignal));
+    });
+    expect(screen.getByText('Current workspace')).toBeInTheDocument();
+    expect(screen.getByText('Next workspace')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Next workspace/ }));
+
+    await waitFor(() => {
+      expect(switchActiveMembershipMock).toHaveBeenCalledWith('membership-next');
+    });
+    expect(refreshSessionMock).toHaveBeenCalled();
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });

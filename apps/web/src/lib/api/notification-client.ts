@@ -1,5 +1,9 @@
 import { browserJson } from './browser-json';
-import type { ListNotificationsQuery, NotificationPage } from './notification-types';
+import type {
+  ListNotificationsQuery,
+  NotificationItem,
+  NotificationPage,
+} from './notification-types';
 
 export function listNotifications(
   query: ListNotificationsQuery = {},
@@ -15,9 +19,16 @@ export function listNotifications(
 
   const search = params.toString();
 
-  return browserJson<NotificationPage>(
+  return browserJson<NotificationPage | NotificationItem[]>(
     search ? `/api/notifications?${search}` : '/api/notifications',
     { cache: 'no-store', signal },
+  ).then((result) =>
+    Array.isArray(result)
+      ? { items: result, nextCursor: null }
+      : {
+          items: Array.isArray(result.items) ? result.items : [],
+          nextCursor: result.nextCursor ?? null,
+        },
   );
 }
 

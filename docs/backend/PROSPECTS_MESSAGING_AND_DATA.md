@@ -4,7 +4,7 @@ Base URL `/api/v1`. Bearer authentication is required. Prospect IDs are existing
 
 ## Prospect master data
 
-- `GET /prospects`: scoped cursor pagination (`limit` 1–100, `cursor`), literal `search`, `campaignId`, `regionId`, `status` active/inactive/archived/all, `sort` name/createdAt, and `direction` asc/desc. Default active, name ascending. Retain query parameters when following `nextCursor`.
+- `GET /prospects`: scoped cursor pagination (`limit` 1–100, `cursor`), literal `search`, `campaignId`, `regionId`, `status` active/inactive/archived/all, `sort` name/createdAt, and `direction` asc/desc. Default active, name ascending. The response includes `total`, the number of records matching all filters, so clients can render an exact range for the current page. Retain query parameters when following `nextCursor`.
 - `POST /prospects`: tenant administrator; required `name`, two-letter `countryCode`. Optional addressLine1, postalCode, city, phone, website, regionId, externalReference, latitude and longitude. Coordinates must be paired. Requires `Idempotency-Key`.
 - `GET/PATCH /prospects/{prospectId}`: detail and partial master-data update. GET returns an ETag; PATCH accepts `If-Match`, returning 412 for stale data. Unknown fields are rejected. Status changes use dedicated archive/restore operations.
 - `DELETE /prospects/{prospectId}`: archive, 204. Open assignments, actions, follow-ups, reservations, or override requests prevent archival (409). No history is erased. Database guards reject new open work for archived prospects.

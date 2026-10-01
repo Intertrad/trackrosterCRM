@@ -52,21 +52,24 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
   const [pending, setPending] = useState<OverrideDecision | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [decisionUnavailable, setDecisionUnavailable] = useState(false);
 
   const load = useCallback(
-    async (signal?: AbortSignal): Promise<void> => {
+    async (signal?: AbortSignal): Promise<OverrideRequestDetail | null> => {
       try {
         const result = await getOverrideRequest(requestId, signal);
 
         if (signal?.aborted) {
-          return;
+          return null;
         }
 
         setDetail(result);
         setLoadError(null);
+        if (result.status === 'pending') setDecisionUnavailable(false);
+        return result;
       } catch (caught) {
         if (signal?.aborted) {
-          return;
+          return null;
         }
 
         setLoadError(
@@ -74,6 +77,7 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
             ? 'This override request is not in your scope.'
             : 'We could not load this request. Please try again.',
         );
+        return null;
       }
     },
     [requestId],
@@ -88,6 +92,15 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
   }, [load]);
 
   async function decide(decision: OverrideDecision): Promise<void> {
+    if (
+      decision === 'approve' &&
+      detail?.collision.expiresAt &&
+      new Date(detail.collision.expiresAt).getTime() <= Date.now()
+    ) {
+      setActionError('This collision window has expired. Refresh the request before approving it.');
+      return;
+    }
+
     const trimmed = reason.trim();
 
     if (trimmed.length < MIN_OVERRIDE_REASON) {
@@ -110,15 +123,22 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
 
       setDetail(updated);
       setReason('');
+      setDecisionUnavailable(false);
       setNotice(`Override ${updated.status}. The decision is now in the audit log.`);
     } catch (caught) {
       if (caught instanceof ApiError && caught.statusCode === 412) {
         /* Someone else decided it first; show them the current state. */
+        setDecisionUnavailable(true);
         setActionError('This request changed since you opened it. Reloading the latest state.');
         await load();
       } else if (caught instanceof ApiError && caught.statusCode === 409) {
+        setDecisionUnavailable(true);
         setActionError('This request has already been decided.');
-        await load();
+        const latest = await load();
+        if (latest?.status === 'pending') {
+          setDecisionUnavailable(false);
+          setActionError('The request is still pending. Please review it again before deciding.');
+        }
       } else if (caught instanceof ApiError && caught.statusCode === 403) {
         setActionError('You are not authorized to decide this request.');
       } else {
@@ -146,7 +166,11 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
   }
 
   const collision = detail.collision;
-  const decided = detail.status !== 'pending';
+  const decided = detail.status !== 'pending' || decisionUnavailable;
+  const expired = Boolean(
+    collision.expiresAt && new Date(collision.expiresAt).getTime() <= Date.now(),
+  );
+  const context = detail.context;
 
   return (
     <div className="flex flex-col gap-5">
@@ -171,7 +195,8 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
           </div>
 
           <p className="mt-1.5 text-[15px] text-ink-soft">
-            Requested by {shortenId(detail.requestedBy)} · {formatDateTime(detail.createdAt)}
+            Requested by {context?.requester?.displayName || shortenId(detail.requestedBy)} ·{' '}
+            {formatDateTime(detail.createdAt)}
           </p>
         </div>
 
@@ -189,9 +214,16 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
 
             <Button
               loading={pending === 'approve'}
-              disabled={pending !== null}
               leadingIcon={<Check aria-hidden="true" className="size-[18px]" />}
               onClick={() => void decide('approve')}
+              disabled={pending !== null || !collision.overrideable || expired}
+              title={
+                expired
+                  ? 'This collision window has expired'
+                  : !collision.overrideable
+                    ? 'This collision cannot be overridden'
+                    : undefined
+              }
             >
               Approve override
             </Button>
@@ -201,6 +233,12 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
 
       {notice ? <Alert tone="success">{notice}</Alert> : null}
       {actionError ? <Alert tone="danger">{actionError}</Alert> : null}
+      {expired && !decided ? (
+        <Alert tone="warning" title="This conflict window has expired.">
+          The server will not approve this collision evidence after its expiry time. You can still
+          reject the request, or return to the queue and re-run the contact check.
+        </Alert>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] xl:items-start">
         <div className="flex flex-col gap-5">
@@ -212,11 +250,17 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
                 <span className="font-normal text-ink-soft">“{detail.reason}”</span>
               </FieldRow>
 
-              <FieldRow label="Requester">{shortenId(detail.requestedBy)}</FieldRow>
+              <FieldRow label="Requester">
+                {context?.requester?.displayName || shortenId(detail.requestedBy)}
+              </FieldRow>
 
-              <FieldRow label="Prospect">{shortenId(detail.campaignProspectId)}</FieldRow>
+              <FieldRow label="Prospect">
+                {context?.prospect?.name || shortenId(detail.campaignProspectId)}
+              </FieldRow>
 
-              <FieldRow label="Campaign">{shortenId(collision.campaignId)}</FieldRow>
+              <FieldRow label="Campaign">
+                {context?.campaign?.name || shortenId(collision.campaignId)}
+              </FieldRow>
 
               <FieldRow label="Raised">{formatDateTime(detail.createdAt)}</FieldRow>
             </dl>
@@ -232,7 +276,9 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
                 </FieldRow>
 
                 <FieldRow label="Decided by">
-                  {detail.decidedBy ? shortenId(detail.decidedBy) : '—'}
+                  {detail.decidedBy
+                    ? context?.decider?.displayName || shortenId(detail.decidedBy)
+                    : '—'}
                 </FieldRow>
 
                 <FieldRow label="Decided at">
@@ -320,7 +366,9 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
             <CardHeader title="Conflict window" />
 
             <dl className="divide-y divide-line-soft">
-              <FieldRow label="Detected by">{shortenId(collision.detectedBy)}</FieldRow>
+              <FieldRow label="Detected by">
+                {context?.detector?.displayName || shortenId(collision.detectedBy)}
+              </FieldRow>
 
               <FieldRow label="Detected at">{formatDateTime(collision.createdAt)}</FieldRow>
 

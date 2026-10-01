@@ -2,12 +2,20 @@
 
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BarChart3, ChevronRight, CircleAlert, CircleDot, UserRound, Users } from 'lucide-react';
+import {
+  CalendarDays,
+  ChevronRight,
+  CircleAlert,
+  Download,
+  ShieldAlert,
+  Target,
+  TrendingUp,
+  UserRound,
+} from 'lucide-react';
 
 import { MemberCell } from '@/components/manager/member-cell';
-import { DEFAULT_SCOPE, type ManagerScope, ScopeFilters } from '@/components/manager/scope-filters';
 import {
   PeriodFilter,
   type ManagerPeriod,
@@ -16,18 +24,12 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { LinkButton } from '@/components/ui/link-button';
 import { CapacityBar } from '@/components/ui/capacity-bar';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { PreviewTag } from '@/components/ui/preview-notice';
-import { getReport } from '@/lib/api/report-client';
-import { formatRate, type ConversionsReport, type FollowUpsReport } from '@/lib/api/report-types';
-import { StatTile } from '@/components/ui/stat-tile';
 import { ApiError } from '@/lib/api/api-error';
 import { getManagerDashboard } from '@/lib/api/manager-dashboard-client';
 import type { ManagerDashboardResponse } from '@/lib/api/manager-dashboard-types';
-import { RecentActivity } from '@/components/manager/recent-activity';
 import { listScopedMemberships as listMemberships } from '@/lib/api/membership-client';
 import type { MembershipSummary } from '@/lib/api/membership-types';
 import { listOverrideRequests } from '@/lib/api/override-client';
@@ -40,58 +42,10 @@ export default function TeamOverviewPage() {
   const { activeWorkspace } = useAuth();
 
   const [period, setPeriod] = useState<ManagerPeriod>('this_week');
-  const [scope, setScope] = useState<ManagerScope>(DEFAULT_SCOPE);
   const [data, setData] = useState<ManagerDashboardResponse | null>(null);
   const [memberships, setMemberships] = useState<MembershipSummary[] | null>(null);
   const [requests, setRequests] = useState<OverrideRequestSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  /* Real conversion and follow-up figures for the snapshot card. */
-  const [snapshot, setSnapshot] = useState<Array<{
-    id: string;
-    label: string;
-    value: number | null;
-    caption: string;
-  }> | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    Promise.all([
-      getReport<ConversionsReport>('conversions', {}, controller.signal),
-      getReport<FollowUpsReport>('follow-ups', {}, controller.signal),
-    ])
-      .then(([conversions, followUps]) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setSnapshot([
-          {
-            id: 'contact',
-            label: 'Contact rate',
-            value: conversions.data.contactRate,
-            caption: `${conversions.data.contacted} of ${conversions.data.total} prospects`,
-          },
-          {
-            id: 'conversion',
-            label: 'Conversion rate',
-            value: conversions.data.conversionRate,
-            caption: `${conversions.data.converted} converted`,
-          },
-          {
-            id: 'followups',
-            label: 'Follow-ups completed',
-            value: followUps.data.completionRate,
-            caption: `${followUps.data.overdue} overdue`,
-          },
-        ]);
-      })
-      .catch(() => setSnapshot([]));
-
-    return () => controller.abort();
-  }, []);
 
   const load = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
@@ -102,10 +56,7 @@ export default function TeamOverviewPage() {
           getManagerDashboard({ ...resolvePeriod(period), ...(teamId ? { teamId } : {}) }, signal),
           listMemberships({ ...(teamId ? { teamId } : {}), status: 'active', limit: 100 }, signal),
           /* The queue is advisory here; a failure must not blank the screen. */
-          listOverrideRequests({ status: 'pending', limit: 5 }, signal).catch(() => ({
-            items: [],
-            nextCursor: null,
-          })),
+          listPendingOverrideRequests(signal).catch(() => []),
         ]);
 
         if (signal?.aborted) {
@@ -114,7 +65,7 @@ export default function TeamOverviewPage() {
 
         setData(response);
         setMemberships(membershipPage.items);
-        setRequests(requestPage.items);
+        setRequests(requestPage);
         setError(null);
       } catch (caught) {
         if (signal?.aborted) {
@@ -144,8 +95,6 @@ export default function TeamOverviewPage() {
   const roster = useMemo(() => buildTeamRoster(memberships ?? [], data), [data, memberships]);
 
   const totals = useMemo(() => {
-    const withCapacity = roster.filter((row) => row.capacityPercent !== null);
-
     return {
       /*
        * Every one of these is a server aggregate, named for what the backend
@@ -164,51 +113,41 @@ export default function TeamOverviewPage() {
       activitiesInPeriod: data?.activities.total ?? 0,
       activeProspectors: data?.activities.activeProspectors ?? 0,
       followUpsCompleted: data?.followUps.completedInRange ?? 0,
-
-      /* Averaging over members without a target would understate the load. */
-      capacity: withCapacity.length
-        ? Math.round(
-            withCapacity.reduce((sum, row) => sum + (row.capacityPercent ?? 0), 0) /
-              withCapacity.length,
-          )
-        : null,
     };
-  }, [data, roster]);
+  }, [data]);
 
   const inactiveCount = roster.filter((row) => rosterStatus(row) === 'inactive').length;
 
-  function toggle(id: string): void {
-    setSelected((current) => {
-      const next = new Set(current);
-
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-
-      return next;
-    });
-  }
-
-  const allSelected = roster.length > 0 && selected.size === roster.length;
+  const activitySeries = roster
+    .map((member) => ({ label: member.name, value: member.actionsThisPeriod }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 7);
+  const maxActivity = Math.max(...activitySeries.map((item) => item.value), 1);
+  const channelSeries = Object.entries(data?.activities.byType ?? {})
+    .map(([label, value]) => ({ label: label.replace(/_/g, ' '), value }))
+    .sort((a, b) => b.value - a.value);
+  const maxChannel = Math.max(...channelSeries.map((item) => item.value), 1);
+  const onTrack = roster.length
+    ? Math.round(
+        (roster.filter((member) => rosterStatus(member) === 'on_track').length / roster.length) *
+          100,
+      )
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Team overview"
-        subtitle={`Coordinate workload, activity and exceptions across ${
-          scope.territory === 'region-54' ? 'Region 54' : scope.territory
-        }`}
+        title="Team Dashboard"
+        subtitle={`Team ${activeWorkspace?.teamId ? '· ' : ''}${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · 30-second operational read`}
         action={
-          <div className="flex flex-wrap gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <PeriodFilter value={period} onChange={setPeriod} />
-
-            <ScopeFilters
-              scope={scope}
-              fields={['team', 'campaign', 'territory']}
-              onChange={setScope}
-            />
+            <Link
+              href="/manager/exports"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-bold text-ink hover:border-brand hover:text-brand"
+            >
+              <Download aria-hidden="true" className="size-4" /> Export
+            </Link>
           </div>
         }
       />
@@ -216,358 +155,403 @@ export default function TeamOverviewPage() {
       {error ? (
         <Alert tone="warning" title="Live figures are unavailable">
           {error}
-
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
             Try again
           </Button>
         </Alert>
       ) : null}
 
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <StatTile
-            icon={<Users aria-hidden="true" className="size-6" />}
-            tone="success"
-            value={totals.openAssignments}
-            label="Open assignments"
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <DashboardMetric
+          icon={<Target aria-hidden="true" className="size-5" />}
+          value={data ? totals.openAssignments : '—'}
+          label="Active assignments"
+          detail="Current team portfolio"
+          tone="blue"
+        />
+        <DashboardMetric
+          icon={<CalendarDays aria-hidden="true" className="size-5" />}
+          value={data ? totals.pendingFollowUps : '—'}
+          label="Follow-ups due"
+          detail={data ? `${totals.followUpsCompleted} completed in range` : 'Waiting for API'}
+          tone="indigo"
+        />
+        <DashboardMetric
+          icon={<CircleAlert aria-hidden="true" className="size-5" />}
+          value={data ? totals.overdue : '—'}
+          label="Overdue"
+          detail={data ? 'Needs attention' : 'Waiting for API'}
+          tone="red"
+        />
+        <DashboardMetric
+          icon={<ShieldAlert aria-hidden="true" className="size-5" />}
+          value={data ? requests.length : '—'}
+          label="Collisions / overrides"
+          detail="Pending manager decision"
+          tone="amber"
+        />
+        <DashboardMetric
+          icon={<TrendingUp aria-hidden="true" className="size-5" />}
+          value={onTrack === null ? '—' : `${onTrack}%`}
+          label="On track"
+          detail={data ? `${totals.activeProspectors} active prospectors` : 'Waiting for API'}
+          tone="green"
+        />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)] xl:items-start">
+        <Card padding="none" className="overflow-hidden">
+          <DashboardCardHeader
+            title="Activity over time"
+            subtitle="Actions logged · selected period"
+            value={data ? `${totals.activitiesInPeriod} actions` : 'Waiting for API'}
           />
+          <div className="flex min-h-[220px] items-end gap-4 px-6 pb-5 pt-8 sm:gap-7">
+            {activitySeries.length ? (
+              activitySeries.map((item, index) => (
+                <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                  <div className="flex h-36 w-full items-end justify-center">
+                    <div
+                      className={cn(
+                        'w-full max-w-10 rounded-t-md transition-[height]',
+                        index === 0 ? 'bg-brand' : 'bg-brand/60',
+                      )}
+                      style={{ height: `${Math.max(8, (item.value / maxActivity) * 100)}%` }}
+                      role="img"
+                      aria-label={`${item.label}: ${item.value} actions`}
+                    />
+                  </div>
+                  <span className="max-w-20 truncate text-center text-[11px] text-ink-muted">
+                    {item.label}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="w-full self-center text-center text-[13px] text-ink-muted">
+                Activity bars appear when the manager API returns team members.
+              </p>
+            )}
+          </div>
         </Card>
 
-        <Card>
-          <StatTile
-            icon={<CircleDot aria-hidden="true" className="size-6" />}
-            tone="neutral"
-            value={totals.pendingFollowUps}
-            /* Pending follow-ups, not remaining work — those are different counts. */
-            label="Pending follow-ups"
-          />
-        </Card>
-
-        <Card>
-          <StatTile
-            icon={<CircleAlert aria-hidden="true" className="size-6" />}
-            tone="danger"
-            value={totals.overdue}
-            label="Overdue follow-ups"
-          />
-        </Card>
-
-        <Card>
-          <StatTile
-            icon={<BarChart3 aria-hidden="true" className="size-6" />}
-            tone="brand"
-            value={totals.capacity === null ? null : `${totals.capacity}%`}
-            label="Capacity used"
-          />
-        </Card>
-
-        {/* Counted over the selected period, by the server. */}
-        <Card>
-          <StatTile
-            icon={<BarChart3 aria-hidden="true" className="size-6" />}
-            tone="brand"
-            value={totals.activitiesInPeriod}
-            label="Activity in period"
-          />
-        </Card>
-
-        <Card>
-          <StatTile
-            icon={<Users aria-hidden="true" className="size-6" />}
-            tone="neutral"
-            value={totals.activeProspectors}
-            label="Active prospectors"
-          />
-        </Card>
-
-        <Card>
-          <StatTile
-            icon={<CircleDot aria-hidden="true" className="size-6" />}
-            tone="success"
-            value={totals.followUpsCompleted}
-            label="Follow-ups completed"
-          />
+        <Card padding="none" className="overflow-hidden">
+          <DashboardCardHeader title="Activity by channel" subtitle="Selected period" />
+          <div className="flex min-h-[220px] items-center gap-6 px-6 py-6">
+            <div
+              className="flex size-36 shrink-0 items-center justify-center rounded-full"
+              style={{ background: donutGradient(channelSeries) }}
+              role="img"
+              aria-label="Activity distribution by channel"
+            >
+              <div className="flex size-24 flex-col items-center justify-center rounded-full bg-surface text-center">
+                <span className="text-[22px] font-extrabold text-navy">
+                  {data ? totals.activitiesInPeriod : '—'}
+                </span>
+                <span className="text-[11px] text-ink-muted">complete</span>
+              </div>
+            </div>
+            <ul className="min-w-0 flex-1 space-y-3">
+              {channelSeries.length ? (
+                channelSeries.slice(0, 5).map((item, index) => (
+                  <li key={item.label} className="flex items-center gap-2 text-[12px]">
+                    <span className={cn('size-2 rounded-full', channelTone(index))} />
+                    <span className="min-w-0 flex-1 truncate capitalize text-ink">
+                      {item.label}
+                    </span>
+                    <span className="font-bold tabular-nums text-navy">{item.value}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="text-[13px] text-ink-muted">No channel data returned.</li>
+              )}
+            </ul>
+          </div>
+          {channelSeries.length ? (
+            <div className="sr-only">Maximum channel count: {maxChannel}</div>
+          ) : null}
         </Card>
       </div>
 
-      {/*
-       * What the team actually did, from the action feed rather than the aggregates
-       * above — a different question and a different source. Nothing in it computes a
-       * total from the rows it fetched.
-       */}
-      <RecentActivity members={memberships ?? []} />
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
-        <Card className="p-0 sm:p-0">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-6">
-            <h2 className="flex items-center gap-2.5 text-[22px] font-bold tracking-[-0.02em] text-navy">
-              Team workload
-              <PreviewTag />
-            </h2>
-
-            <Link
-              href="/manager/reports"
-              className="text-[14px] font-semibold text-brand hover:text-brand-hover"
-            >
-              View team details
-            </Link>
-          </div>
-
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] border-collapse">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] xl:items-start">
+        <Card padding="none" className="overflow-hidden">
+          <DashboardCardHeader
+            title="Team performance"
+            subtitle="This week"
+            action={
+              <Link
+                href="/manager/reports"
+                className="text-[12px] font-bold text-brand hover:text-brand-hover"
+              >
+                View all
+              </Link>
+            }
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse">
               <thead>
-                <tr className="border-y border-line-soft text-left">
-                  <th scope="col" className="w-12 px-5 py-3 sm:px-6">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all members"
-                      checked={allSelected}
-                      onChange={() =>
-                        setSelected(
-                          allSelected ? new Set() : new Set(roster.map((member) => member.id)),
-                        )
-                      }
-                      className="size-[18px] cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
-                    />
-                  </th>
-                  <Th>Member</Th>
-                  <Th align="center">Active prospects</Th>
-                  <Th align="center">Actions this week</Th>
-                  <Th align="center">Overdue</Th>
-                  <Th>Capacity</Th>
-                  <Th>Status</Th>
+                <tr className="border-y border-line-soft text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+                  <th className="px-5 py-3">Prospector</th>
+                  <th className="px-3 py-3 text-center">Actions</th>
+                  <th className="px-3 py-3 text-center">Follow-ups</th>
+                  <th className="px-5 py-3 text-right">On track</th>
                 </tr>
               </thead>
-
               <tbody className="divide-y divide-line-soft">
                 {roster.map((member) => (
                   <tr key={member.id}>
-                    <td className="px-5 py-4 sm:px-6">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${member.name}`}
-                        checked={selected.has(member.id)}
-                        onChange={() => toggle(member.id)}
-                        className="size-[18px] cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
-                      />
-                    </td>
-
-                    <td className="px-3 py-4">
+                    <td className="px-5 py-3.5">
                       <MemberCell
                         initials={member.initials}
                         name={member.name}
                         location={member.role}
                       />
                     </td>
-
-                    <td className="px-3 py-4 text-center text-[15px] text-ink tabular-nums">
-                      {member.activeProspects}
-                    </td>
-
-                    <td className="px-3 py-4 text-center text-[15px] text-ink tabular-nums">
+                    <td className="px-3 py-3.5 text-center text-[14px] font-semibold text-navy">
                       {member.actionsThisPeriod}
                     </td>
-
-                    <td
-                      className={cn(
-                        'px-3 py-4 text-center text-[15px] tabular-nums',
-                        member.overdue > 0 ? 'font-bold text-danger' : 'text-ink',
-                      )}
-                    >
-                      {member.overdue}
+                    <td className="px-3 py-3.5 text-center text-[14px] font-semibold text-navy">
+                      {member.pendingFollowUps}
                     </td>
-
-                    <td className="px-3 py-4">
-                      <CapacityBar percent={member.capacityPercent} />
-                    </td>
-
-                    <td className="px-5 py-4 sm:px-6">
-                      <MemberStatus member={member} />
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        <CapacityBar percent={member.capacityPercent} className="justify-end" />
+                        <MemberStatus member={member} />
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <ul className="divide-y divide-line-soft border-t border-line-soft md:hidden">
-            {roster.map((member) => (
-              <li key={member.id} className="flex flex-col gap-3 px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <MemberCell
-                    initials={member.initials}
-                    name={member.name}
-                    location={member.role}
-                  />
-
-                  <MemberStatus member={member} />
-                </div>
-
-                <dl className="grid grid-cols-3 gap-3 text-[14px]">
-                  <Stat label="Prospects" value={member.activeProspects} />
-                  <Stat label="Actions" value={member.actionsThisPeriod} />
-                  <Stat label="Overdue" value={member.overdue} danger={member.overdue > 0} />
-                </dl>
-
-                <CapacityBar percent={member.capacityPercent} />
-              </li>
-            ))}
-          </ul>
+          {!roster.length ? (
+            <p className="px-5 py-6 text-[13px] text-ink-muted">
+              Team members appear after the scoped membership API loads.
+            </p>
+          ) : null}
         </Card>
 
-        <Card>
-          <CardHeader title="Needs attention" />
-
-          <div className="flex flex-col gap-5">
-            <AttentionGroup
-              tone="bg-danger"
-              icon={<CircleAlert aria-hidden="true" className="size-5 text-white" />}
-              title={`${requests.length} pending override request${requests.length === 1 ? '' : 's'}`}
-            >
-              {requests.length === 0 ? (
-                <p className="mt-1 text-[13px] text-ink-muted">
-                  Nothing is waiting on a manager decision.
-                </p>
-              ) : (
-                <ul className="mt-2 flex flex-col">
-                  {requests.map((request) => (
-                    <li key={request.id}>
-                      <Link
-                        href={`/manager/approvals/${request.id}`}
-                        className="flex items-center gap-3 rounded-lg py-2 transition-colors hover:bg-surface-muted"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-semibold text-navy">
-                            {request.reason}
-                          </span>
-
-                          <span className="block truncate text-[13px] text-ink-muted">
-                            {formatDateTime(request.createdAt)}
-                          </span>
-                        </span>
-
-                        <ChevronRight
-                          aria-hidden="true"
-                          className="size-4 shrink-0 text-ink-muted"
-                        />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <Link
-                href="/manager/approvals"
-                className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-brand-wash py-2.5 text-[14px] font-semibold text-brand hover:bg-brand-tint"
-              >
-                <Users aria-hidden="true" className="size-[18px]" />
-                Review approvals
-              </Link>
-            </AttentionGroup>
-
-            <AttentionGroup
-              tone="bg-surface-muted"
-              icon={<UserRound aria-hidden="true" className="size-5 text-ink-muted" />}
-              title={`${inactiveCount} inactive member${inactiveCount === 1 ? '' : 's'}`}
-            >
-              <p className="mt-1 text-[13px] text-ink-muted">No activity for 4 days</p>
-            </AttentionGroup>
+        <Card padding="none" className="overflow-hidden">
+          <DashboardCardHeader title="Current risks" subtitle="Needs attention" />
+          <div className="space-y-2 px-5 pb-5">
+            {totals.overdue > 0 ? (
+              <RiskRow tone="danger" icon={<CircleAlert aria-hidden="true" className="size-4" />}>
+                <strong>{totals.overdue} overdue follow-ups</strong> need attention.
+              </RiskRow>
+            ) : null}
+            {requests.length > 0 ? (
+              <RiskRow tone="warning" icon={<ShieldAlert aria-hidden="true" className="size-4" />}>
+                <strong>
+                  {requests.length} pending override request{requests.length === 1 ? '' : 's'}
+                </strong>{' '}
+                awaiting manager decision.
+              </RiskRow>
+            ) : null}
+            {inactiveCount > 0 ? (
+              <RiskRow tone="warning" icon={<UserRound aria-hidden="true" className="size-4" />}>
+                <strong>
+                  {inactiveCount} inactive member{inactiveCount === 1 ? '' : 's'}
+                </strong>{' '}
+                have no recent activity.
+              </RiskRow>
+            ) : null}
+            {!totals.overdue && !requests.length && !inactiveCount ? (
+              <RiskRow tone="success" icon={<TrendingUp aria-hidden="true" className="size-4" />}>
+                No active risks in the current scope.
+              </RiskRow>
+            ) : null}
+            {requests.length > 0 ? (
+              <ul className="space-y-1 pt-1">
+                {requests.slice(0, 5).map((request) => (
+                  <li key={request.id}>
+                    <Link
+                      href={`/manager/approvals/${request.id}`}
+                      className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[12px] text-ink-muted hover:bg-surface-muted hover:text-brand"
+                    >
+                      <span className="truncate">{request.reason}</span>
+                      <ChevronRight aria-hidden="true" className="size-3.5 shrink-0" />
+                    </Link>
+                  </li>
+                ))}
+                {requests.length > 5 ? (
+                  <li className="px-2 pt-1 text-[11px] text-ink-muted">
+                    + {requests.length - 5} more pending request
+                    {requests.length - 5 === 1 ? '' : 's'}
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <Card>
-          <h2 className="text-[22px] font-bold tracking-[-0.02em] text-navy">
-            Performance snapshot
-          </h2>
-
-          {/* Fed by /reports/conversions and /reports/follow-ups. A rate the
-              API reports as null means nothing was measured, which is not the
-              same as a rate of zero. */}
-          {snapshot === null ? (
-            <div className="mt-6 grid gap-6 sm:grid-cols-3" aria-busy="true">
-              {[0, 1, 2].map((row) => (
-                <div key={row} className="h-14 animate-pulse rounded-lg bg-line-soft" />
-              ))}
+      <Card padding="none" className="overflow-hidden">
+        <DashboardCardHeader
+          title="Overdue follow-ups"
+          subtitle="From the same scoped dashboard aggregate"
+          action={
+            <Link
+              href="/follow-ups"
+              className="text-[12px] font-bold text-brand hover:text-brand-hover"
+            >
+              All {totals.overdue}
+            </Link>
+          }
+        />
+        <div className="divide-y divide-line-soft">
+          {totals.overdue > 0 ? (
+            <div className="flex items-center justify-between gap-4 px-5 py-4 text-[13px]">
+              <div className="flex min-w-0 items-center gap-3">
+                <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-danger" />
+                <span className="truncate font-semibold text-navy">
+                  {totals.overdue} follow-ups require manager attention
+                </span>
+              </div>
+              <Link
+                href="/follow-ups?overdue=true"
+                className="shrink-0 text-brand hover:text-brand-hover"
+              >
+                Open queue <ChevronRight aria-hidden="true" className="inline size-4" />
+              </Link>
             </div>
           ) : (
-            <div className="mt-6 grid gap-6 sm:grid-cols-3">
-              {snapshot.map((metric) => (
-                <div key={metric.id} className="flex flex-col">
-                  <span className="text-[26px] font-bold tracking-[-0.02em] text-navy">
-                    {formatRate(metric.value)}
-                  </span>
-
-                  <span className="text-[14px] font-semibold text-ink">{metric.label}</span>
-
-                  <span className="mt-1 text-[12px] text-ink-muted">{metric.caption}</span>
-                </div>
-              ))}
-            </div>
+            <p className="px-5 py-5 text-[13px] text-ink-muted">
+              No overdue follow-ups in this scope.
+            </p>
           )}
-        </Card>
-
-        <Card>
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="flex items-center gap-2.5 text-[22px] font-bold tracking-[-0.02em] text-navy">
-              Territory coverage
-              <PreviewTag />
-            </h2>
-
-            <Link
-              href="/map"
-              className="text-[14px] font-semibold text-brand hover:text-brand-hover"
-            >
-              Open map
-            </Link>
-          </div>
-
-          {/* The territory model landed recently; this tile is wired when
-              GET /territories/map is integrated. */}
-          <Alert tone="info">
-            Coverage clusters render once the territory map endpoint is integrated.
-          </Alert>
-
-          <LinkButton href="/map" className="mt-4 w-full">
-            View territory map
-          </LinkButton>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 }
 
-function Th({
-  children,
-  align = 'left',
+async function listPendingOverrideRequests(
+  signal?: AbortSignal,
+): Promise<OverrideRequestSummary[]> {
+  const items: OverrideRequestSummary[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await listOverrideRequests(
+      { status: 'pending', limit: 1000, ...(cursor ? { cursor } : {}) },
+      signal,
+    );
+
+    items.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor && !signal?.aborted);
+
+  return items;
+}
+
+function DashboardMetric({
+  icon,
+  value,
+  label,
+  detail,
+  tone,
 }: {
-  children: React.ReactNode;
-  align?: 'left' | 'center';
+  icon: ReactNode;
+  value: number | string;
+  label: string;
+  detail: string;
+  tone: 'blue' | 'indigo' | 'red' | 'amber' | 'green';
+}) {
+  const tones = {
+    blue: 'bg-blue-50 text-brand',
+    indigo: 'bg-indigo-50 text-indigo-500',
+    red: 'bg-red-50 text-danger',
+    amber: 'bg-amber-50 text-amber-600',
+    green: 'bg-emerald-50 text-emerald-600',
+  } as const;
+
+  return (
+    <Card className="flex min-h-[112px] flex-col justify-between">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[12px] font-semibold text-ink-muted">{label}</span>
+        <span className={cn('flex size-8 items-center justify-center rounded-lg', tones[tone])}>
+          {icon}
+        </span>
+      </div>
+      <div>
+        <p className="text-[26px] font-extrabold leading-none tracking-[-0.03em] text-navy">
+          {value}
+        </p>
+        <p className="mt-2 truncate text-[11px] text-ink-muted">{detail}</p>
+      </div>
+    </Card>
+  );
+}
+
+function DashboardCardHeader({
+  title,
+  subtitle,
+  value,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  value?: string;
+  action?: ReactNode;
 }) {
   return (
-    <th
-      scope="col"
-      className={cn(
-        'px-3 py-3 text-[13px] font-semibold text-ink-muted',
-        align === 'center' && 'text-center',
-      )}
-    >
-      {children}
-    </th>
+    <div className="flex items-start justify-between gap-4 border-b border-line-soft px-5 py-4">
+      <div>
+        <h2 className="text-[15px] font-extrabold text-navy">{title}</h2>
+        {subtitle ? <p className="mt-1 text-[12px] text-ink-muted">{subtitle}</p> : null}
+      </div>
+      {action ??
+        (value ? (
+          <span className="rounded-full bg-brand-tint px-3 py-1 text-[11px] font-bold text-brand">
+            {value}
+          </span>
+        ) : null)}
+    </div>
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
-  return (
-    <div>
-      <dt className="text-ink-muted">{label}</dt>
+function RiskRow({
+  tone,
+  icon,
+  children,
+}: {
+  tone: 'danger' | 'warning' | 'success';
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  const styles = {
+    danger: 'border-red-200 bg-red-50 text-red-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  } as const;
 
-      <dd className={cn('font-bold tabular-nums', danger ? 'text-danger' : 'text-navy')}>
-        {value}
-      </dd>
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[12px]',
+        styles[tone],
+      )}
+    >
+      {icon}
+      <span>{children}</span>
     </div>
   );
+}
+
+function channelTone(index: number): string {
+  return ['bg-brand', 'bg-blue-400', 'bg-blue-200', 'bg-lime-400', 'bg-violet-400'][index % 5]!;
+}
+
+function donutGradient(series: Array<{ label: string; value: number }>): string {
+  const total = series.reduce((sum, item) => sum + item.value, 0);
+  if (!total) return '#e9eef8';
+  const colors = ['#1f5eff', '#6f9bf1', '#a9c3f5', '#9bd63f', '#8b5cf6'];
+  let cursor = 0;
+  const stops = series.slice(0, colors.length).map((item, index) => {
+    const start = cursor;
+    cursor += (item.value / total) * 360;
+    return `${colors[index]} ${start}deg ${cursor}deg`;
+  });
+  return `conic-gradient(${stops.join(', ')})`;
 }
 
 function MemberStatus({ member }: { member: TeamRosterRow }) {
@@ -582,43 +566,4 @@ function MemberStatus({ member }: { member: TeamRosterRow }) {
   }
 
   return <Badge tone="success">On track</Badge>;
-}
-
-function AttentionGroup({
-  tone,
-  icon,
-  title,
-  children,
-}: {
-  tone: string;
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-line-soft p-4">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', tone)}
-        >
-          {icon}
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <p className="text-[16px] font-bold text-navy">{title}</p>
-
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }

@@ -7,6 +7,8 @@ import {
   PROSPECT_GEOCODE_JOB,
   SYSTEM_HEALTH_CHECK_JOB,
   SYSTEM_RETRY_PROBE_JOB,
+  NOTIFICATION_DELIVERY_JOB,
+  NOTIFICATION_DIGEST_JOB,
 } from './job.constants.js';
 
 export interface BaseJobData {
@@ -116,6 +118,15 @@ export interface ProspectGeocodeJobData extends BaseJobData {
   prospectId: string;
 }
 
+export interface NotificationDeliveryJobData extends BaseJobData {
+  deliveryId: string;
+}
+
+export interface NotificationDigestJobData extends BaseJobData {
+  asOf: string;
+  inactivityDays: number;
+}
+
 export interface TrackRosterJobMap {
   [SYSTEM_HEALTH_CHECK_JOB]: SystemHealthCheckJobData;
 
@@ -128,6 +139,8 @@ export interface TrackRosterJobMap {
   [SCHEDULED_REPORT_JOB]: ScheduledReportJobData;
   [COMPLIANCE_ARTIFACT_JOB]: ComplianceArtifactJobData;
   [PROSPECT_GEOCODE_JOB]: ProspectGeocodeJobData;
+  [NOTIFICATION_DELIVERY_JOB]: NotificationDeliveryJobData;
+  [NOTIFICATION_DIGEST_JOB]: NotificationDigestJobData;
 }
 
 export type TrackRosterJobName = keyof TrackRosterJobMap;

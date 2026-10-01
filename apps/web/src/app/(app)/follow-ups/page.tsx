@@ -85,10 +85,6 @@ export default function ActionsPage() {
 
   const load = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
-      if (!teamId) {
-        return;
-      }
-
       try {
         /*
          * Everything once, rather than a filtered request per tab. A prospector's
@@ -194,7 +190,7 @@ export default function ActionsPage() {
   }
 
   async function runBulk(action: 'complete' | 'cancel'): Promise<void> {
-    if (!teamId || selected.size === 0) {
+    if (selected.size === 0) {
       return;
     }
 
@@ -249,18 +245,6 @@ export default function ActionsPage() {
     await load();
   }
 
-  if (!teamId) {
-    return (
-      <div className="flex flex-col gap-[18px]">
-        <PageHeader title={t('actions.title')} />
-
-        <Alert tone="info" title={t('actions.teamScoped')}>
-          {t('actions.teamScopedBody')}
-        </Alert>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-[18px]">
       <PageHeader
@@ -276,6 +260,10 @@ export default function ActionsPage() {
           </div>
         }
       />
+
+      {!teamId ? (
+        <Alert tone="info">Showing follow-ups across the workspace as an administrator.</Alert>
+      ) : null}
 
       <div className="flex flex-wrap gap-3">
         <SearchInput

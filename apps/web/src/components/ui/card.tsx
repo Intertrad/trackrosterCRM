@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -6,10 +6,12 @@ export function Card({
   children,
   className,
   padding = 'default',
+  style,
 }: {
   children: ReactNode;
   className?: string;
   padding?: 'default' | 'none';
+  style?: CSSProperties;
 }) {
   return (
     <section
@@ -18,6 +20,7 @@ export function Card({
         padding === 'default' && 'p-[18px]',
         className,
       )}
+      style={style}
     >
       {children}
     </section>

@@ -4,7 +4,7 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, CircleAlert, MapPinned, Navigation, X } from 'lucide-react';
+import { CheckCircle2, CircleAlert, Clock3, MapPinned, Navigation, X } from 'lucide-react';
 
 import { ActionChannelIcon, getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import {
@@ -27,7 +27,6 @@ import { listCollisionEvents } from '@/lib/api/collision-client';
 import { reasonLabel, type CollisionEvent } from '@/lib/api/collision-types';
 import { getProspectorToday } from '@/lib/api/prospector-today-client';
 
-import { AssignedWork } from './assigned-work';
 import { DayStart } from '@/components/prospector/day-start';
 import {
   buildVisits,
@@ -40,6 +39,7 @@ import { useTranslation } from '@/lib/i18n/i18n-context';
 import { getNavigationForWorkspace } from '@/lib/auth/navigation';
 import type { MessageKey } from '@/lib/i18n/dictionary';
 import { cn } from '@/lib/ui/cn';
+import { text } from '@/lib/workspace/copy';
 
 type FilterId = 'all' | 'overdue' | 'due_today';
 
@@ -50,8 +50,8 @@ const CATEGORY_LABELS = {
 } as const satisfies Record<ProspectorTodayPriority['category'], MessageKey>;
 
 export default function TodayPage() {
-  const { activeWorkspace } = useAuth();
-  const { t } = useTranslation();
+  const { activeWorkspace, user } = useAuth();
+  const { t, language } = useTranslation();
 
   /*
    * "/" is Today for a prospector and an overview for every other role, so
@@ -68,6 +68,7 @@ export default function TodayPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterId>('all');
+  const [search, setSearch] = useState('');
 
   /*
    * Collisions are read once for the whole day rather than per prospect: a
@@ -195,16 +196,26 @@ export default function TodayPage() {
       return [];
     }
 
-    if (filter === 'all') {
-      return today.priorities;
-    }
-
-    return today.priorities.filter((priority) => {
+    const normalizedSearch = search.trim().toLocaleLowerCase();
+    const filtered = today.priorities.filter((priority) => {
       const state = states.get(priority.id);
-
-      return filter === 'overdue' ? state === 'overdue' : countsAsDueToday(state ?? 'upcoming');
+      const matchesFilter =
+        filter === 'all'
+          ? true
+          : filter === 'overdue'
+            ? state === 'overdue'
+            : countsAsDueToday(state ?? 'upcoming');
+      const matchesSearch =
+        !normalizedSearch ||
+        `${priority.establishment.name} ${priority.establishment.city ?? ''}`
+          .toLocaleLowerCase()
+          .includes(normalizedSearch);
+      return matchesFilter && matchesSearch;
     });
-  }, [filter, states, today]);
+    return filter === 'due_today'
+      ? [...filtered].sort((left, right) => priorityScore(right) - priorityScore(left))
+      : filtered;
+  }, [filter, search, states, today]);
 
   if (!isProspector) {
     return <WorkspaceOverview />;
@@ -247,83 +258,98 @@ export default function TodayPage() {
       <h1 className="sr-only">{t('today.title')}</h1>
       {error ? <Alert tone="warning">{error}</Alert> : null}
 
-      <DayStart today={today} />
-      <AssignedWork teamId={teamId} onRefresh={() => void refresh()} refreshing={refreshing} />
+      <DayStart
+        today={today}
+        displayName={user?.displayName}
+        search={search}
+        onSearchChange={setSearch}
+        filter={filter}
+        counts={counts}
+        onFilterChange={setFilter}
+        onRefresh={() => void refresh()}
+        refreshing={refreshing}
+      />
 
       {counts.all === 0 ? (
         <EmptyState filter={filter} totalToday={0} />
       ) : (
-        <div
-          className={cn(
-            'grid gap-5 xl:items-start',
-            visits.length > 0 && 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
-          )}
-        >
-          <Card className="p-0 sm:p-0">
-            <div className="border-b border-line-soft px-[18px] pt-[18px] pb-3">
-              <h2 className="text-base font-extrabold tracking-[-0.02em] text-navy">
-                {t('today.nextActions')}
-              </h2>
-
-              <div className="mt-3 inline-flex flex-wrap gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
-                {(
-                  [
-                    { id: 'all', label: t('today.filter.all') },
-                    { id: 'overdue', label: t('today.filter.overdue') },
-                    { id: 'due_today', label: t('today.filter.dueToday') },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setFilter(tab.id)}
-                    aria-pressed={filter === tab.id}
-                    className={cn(
-                      'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold',
-                      'transition-colors duration-150',
-                      filter === tab.id
-                        ? 'bg-surface text-navy shadow-sm'
-                        : 'bg-surface-muted text-ink-soft hover:text-ink',
-                    )}
-                  >
-                    {tab.label}
-
-                    <span
+        <>
+          <Card className="overflow-hidden p-0 sm:p-0">
+            <div className="flex flex-col gap-3 border-b border-line-soft px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-5">
+              <div>
+                <h2 className="text-[15px] font-extrabold tracking-[-0.015em] text-navy">
+                  {text('Priority work list', 'Liste des priorités', language)}
+                  <span className="sr-only">{t('today.nextActions')}</span>
+                </h2>
+                <p className="mt-1 text-[12px] text-ink-muted">
+                  {text(
+                    'Your next best actions — collision-checked before you start',
+                    'Vos prochaines actions — vérifiées avant de commencer',
+                    language,
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="inline-flex rounded-lg bg-surface-muted p-0.5">
+                  {(
+                    [
+                      { id: 'all', label: 'Today', count: counts.all },
+                      { id: 'overdue', label: 'Overdue', count: counts.overdue },
+                      { id: 'due_today', label: 'Priority', count: counts.due_today },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setFilter(tab.id)}
+                      aria-pressed={filter === tab.id}
                       className={cn(
-                        'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
-                        tab.id === 'overdue' && counts.overdue > 0
-                          ? 'bg-danger text-white'
-                          : filter === tab.id
-                            ? 'bg-brand text-white'
-                            : 'bg-line-soft text-ink-soft',
+                        'rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors',
+                        filter === tab.id
+                          ? 'bg-surface text-navy shadow-sm'
+                          : 'text-ink-muted hover:text-ink',
                       )}
                     >
-                      {counts[tab.id]}
-                    </span>
-                  </button>
-                ))}
+                      {tab.label} <span className="ml-1 tabular-nums">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <span className="hidden text-[11px] font-semibold text-ink-muted sm:inline">
+                  Sorted by priority &amp; time
+                </span>
               </div>
             </div>
 
             {visible.length === 0 ? (
               <EmptyState filter={filter} totalToday={counts.all} />
             ) : (
-              <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
-                {visible.map((priority) => (
-                  <PriorityRow
-                    key={priority.id}
-                    priority={priority}
-                    state={states.get(priority.id) ?? 'upcoming'}
-                    timeZone={timeZone}
-                    onLogged={() => void refresh()}
-                  />
-                ))}
-              </ul>
+              <>
+                <div className="hidden grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_auto] gap-4 border-b border-line-soft bg-surface-muted/55 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted lg:grid">
+                  <span>Establishment</span>
+                  <span>Action</span>
+                  <span>Time / deadline</span>
+                  <span>Priority</span>
+                  <span>Contact check</span>
+                  <span />
+                </div>
+                <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
+                  {visible.map((priority) => (
+                    <PriorityRow
+                      key={priority.id}
+                      priority={priority}
+                      state={states.get(priority.id) ?? 'upcoming'}
+                      timeZone={timeZone}
+                      collision={getContactCheck(priority, collisions)}
+                      onLogged={() => void refresh()}
+                    />
+                  ))}
+                </ul>
+              </>
             )}
           </Card>
 
           {visits.length > 0 && <TodaysVisits visits={visits} timeZone={timeZone} />}
-        </div>
+        </>
       )}
 
       <CollisionNotice
@@ -559,11 +585,13 @@ function PriorityRow({
   priority,
   state,
   timeZone,
+  collision,
   onLogged,
 }: {
   priority: ProspectorTodayPriority;
   state: DueState;
   timeZone: string;
+  collision: ContactCheck;
   onLogged: () => void;
 }) {
   const { t } = useTranslation();
@@ -577,86 +605,115 @@ function PriorityRow({
    */
   const [logging, setLogging] = useState(false);
 
-  const action = (className?: string) => (
-    <ContactActionButton
-      channel={priority.channel}
-      phone={priority.establishment.phone}
-      prospectHref={href}
-      prospectName={priority.establishment.name}
-      onLogOutcome={() => setLogging(true)}
-      className={className}
-    />
-  );
+  const actionLabel =
+    priority.channel === 'visit'
+      ? 'Start visit'
+      : priority.channel === 'call'
+        ? 'Start call'
+        : 'Start email';
+  const action = (className?: string) => {
+    if (collision === 'blocked') {
+      return (
+        <LinkButton
+          href={href}
+          className={cn('h-8 min-h-8 rounded-md px-3 py-1 text-[12px]', className)}
+        >
+          View activity
+        </LinkButton>
+      );
+    }
+    if (collision === 'approval') {
+      return (
+        <LinkButton
+          href={href}
+          className={cn('h-8 min-h-8 rounded-md px-3 py-1 text-[12px]', className)}
+        >
+          Request approval
+        </LinkButton>
+      );
+    }
+    return (
+      <ContactActionButton
+        channel={priority.channel}
+        phone={priority.establishment.phone}
+        prospectHref={href}
+        prospectName={priority.establishment.name}
+        onLogOutcome={() => setLogging(true)}
+        actionLabel={actionLabel}
+        fallbackLabel={priority.channel === 'visit' ? 'Start visit' : 'View prospect'}
+        fallbackVariant="primary"
+        className={cn(
+          'h-8 min-h-8 rounded-md bg-brand px-3 py-1 text-[12px] font-bold text-white hover:bg-brand-hover',
+          className,
+        )}
+      />
+    );
+  };
+
+  const priorityLevel = getPriorityLevel(priority, state);
+  const deadline =
+    state === 'overdue'
+      ? `Overdue · ${overdueDays(priority.dueAt)} d`
+      : formatTime(priority.dueAt, timeZone);
 
   return (
-    <li className="px-4 py-3.5 sm:px-6 sm:py-4">
-      {/*
-        One row on a desktop, two stacked bands on a phone. The identity of
-        the action (time, channel, who) always leads; the controls move below
-        it rather than being squeezed or wrapped mid-line.
-      */}
-      <div className="flex items-start gap-3 sm:items-center">
+    <li className="px-4 py-3 sm:px-5 sm:py-3.5">
+      <div className="grid gap-3 lg:grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_auto] lg:items-center lg:gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <ActionChannelIcon channel={priority.channel} className="size-8 rounded-lg" />
+          <span className="min-w-0">
+            <Link
+              href={href}
+              className="block truncate text-[13px] font-bold text-navy hover:text-brand"
+            >
+              {priority.establishment.name}
+            </Link>
+            <span className="block truncate text-[11px] text-ink-muted">
+              {priority.establishment.city ?? t(CATEGORY_LABELS[priority.category])}
+            </span>
+          </span>
+        </div>
+
+        <span className="hidden text-[12px] font-semibold text-ink-soft lg:block">
+          {t(getChannelLabelKey(priority.channel))}
+        </span>
+
         <span
           className={cn(
-            'w-[46px] shrink-0 pt-0.5 text-[15px] font-bold tabular-nums sm:w-[52px] sm:pt-0',
-            state === 'overdue' ? 'text-danger' : 'text-ink',
+            'flex items-center gap-1 text-[12px] font-semibold tabular-nums',
+            state === 'overdue' && 'text-danger',
           )}
         >
-          {formatTime(priority.dueAt, timeZone)}
+          <Clock3 aria-hidden="true" className="size-3.5" />
+          {deadline}
         </span>
 
-        <ActionChannelIcon channel={priority.channel} className="size-9 sm:size-10" />
-
-        <span className="min-w-0 flex-1 pr-2">
-          <Link
-            href={href}
-            className="block truncate text-[15px] font-bold text-navy hover:text-brand"
-          >
-            {priority.establishment.name}
-          </Link>
-
-          {priority.establishment.city ? (
-            <span className="block truncate text-[14px] text-ink-muted">
-              {priority.establishment.city}
-            </span>
-          ) : null}
+        <span className="flex items-center gap-1.5 text-[11px] font-bold">
+          <span className={cn('size-1.5 rounded-full', priorityLevel.dot)} />
+          <span className={priorityLevel.text}>{priorityLevel.label}</span>
         </span>
 
-        <span className="hidden w-24 shrink-0 xl:block">
-          <span className="block text-[15px] font-semibold text-ink">
-            {t(getChannelLabelKey(priority.channel))}
-          </span>
-
-          <span className="block text-[14px] text-ink-muted">
-            {t(CATEGORY_LABELS[priority.category])}
-          </span>
+        <span
+          className={cn(
+            'inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold',
+            contactTone(collision),
+          )}
+        >
+          <span className="size-1.5 rounded-full bg-current" />
+          {contactLabel(collision)}
         </span>
 
-        <span className="hidden w-[92px] shrink-0 md:block">
-          <DueStateBadge state={state} />
-        </span>
-
-        <span className="hidden shrink-0 items-center gap-1 sm:flex">
+        <span className="flex items-center gap-1.5 lg:justify-end">
           {action()}
-
           <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
         </span>
       </div>
 
-      {/* Below md the row has no status column, so the state moves under the
-          name rather than disappearing between breakpoints. */}
-      <div className="mt-3 flex items-center gap-3 pl-[58px] md:hidden">
-        <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
-          {t(getChannelLabelKey(priority.channel))} · {t(CATEGORY_LABELS[priority.category])}
+      <div className="mt-2 flex items-center justify-between gap-3 lg:hidden">
+        <span className="text-[11px] text-ink-muted">
+          {t(getChannelLabelKey(priority.channel))} · {contactLabel(collision)}
         </span>
-
         <DueStateBadge state={state} />
-      </div>
-
-      <div className="mt-3 flex items-center gap-2 pl-[58px] sm:hidden">
-        {action('flex-1')}
-
-        <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
       </div>
 
       <LogOutcomeDrawer
@@ -674,6 +731,50 @@ function PriorityRow({
       />
     </li>
   );
+}
+
+type ContactCheck = 'allowed' | 'approval' | 'blocked';
+
+function getContactCheck(
+  priority: ProspectorTodayPriority,
+  collisions: CollisionEvent[],
+): ContactCheck {
+  const event = collisions.find((item) => item.campaignProspectId === priority.campaignProspectId);
+  if (event?.decision === 'block') return 'blocked';
+  if (event?.decision === 'require_override') return 'approval';
+  return 'allowed';
+}
+
+function contactLabel(check: ContactCheck): string {
+  return check === 'blocked' ? 'Blocked' : check === 'approval' ? 'Approval' : 'Allowed';
+}
+
+function contactTone(check: ContactCheck): string {
+  return check === 'blocked'
+    ? 'bg-danger-bg text-danger'
+    : check === 'approval'
+      ? 'bg-warning-bg text-warning'
+      : 'bg-success-bg text-success';
+}
+
+function getPriorityLevel(
+  priority: ProspectorTodayPriority,
+  state: DueState,
+): { label: string; dot: string; text: string } {
+  if (state === 'overdue' || priority.category === 'meeting')
+    return { label: 'High', dot: 'bg-danger', text: 'text-danger' };
+  if (priority.category === 'follow_up')
+    return { label: 'Medium', dot: 'bg-warning', text: 'text-warning' };
+  return { label: 'Low', dot: 'bg-brand-mid', text: 'text-brand-mid' };
+}
+
+function priorityScore(priority: ProspectorTodayPriority): number {
+  return priority.category === 'meeting' ? 3 : priority.category === 'follow_up' ? 2 : 1;
+}
+
+function overdueDays(value: string): number {
+  const days = Math.ceil((Date.now() - new Date(value).getTime()) / 86_400_000);
+  return Math.max(1, Number.isFinite(days) ? days : 1);
 }
 
 function EmptyState({ filter, totalToday }: { filter: FilterId; totalToday: number }) {

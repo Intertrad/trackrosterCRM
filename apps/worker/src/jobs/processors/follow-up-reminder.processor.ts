@@ -1,16 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import type { FollowUpReminderJobData } from '@trackroster/jobs';
+import { NOTIFICATION_DELIVERY_JOB, type FollowUpReminderJobData } from '@trackroster/jobs';
 
 import { PermanentJobError } from '../job-errors.js';
 import type { JobProcessingContext, JobProcessorResult } from '../job-processing.types.js';
 import { FollowUpReminderRepository } from '../repositories/follow-up-reminder.repository.js';
+import { JobsQueueService } from '../../queue/jobs-queue.service.js';
 
 @Injectable()
 export class FollowUpReminderProcessor {
   private readonly logger = new Logger(FollowUpReminderProcessor.name);
 
-  constructor(private readonly repository: FollowUpReminderRepository) {}
+  constructor(
+    private readonly repository: FollowUpReminderRepository,
+    private readonly queue?: JobsQueueService,
+  ) {}
 
   async process(
     data: FollowUpReminderJobData,
@@ -105,6 +109,25 @@ export class FollowUpReminderProcessor {
 
       scheduledFor,
     );
+    if (this.repository.queueEmailDeliveries) {
+      const deliveryIds = await this.repository.queueEmailDeliveries(followUp, scheduledFor);
+      if (this.queue) {
+        await Promise.all(
+          deliveryIds.map((deliveryId) =>
+            this.queue!.getQueue().add(
+              NOTIFICATION_DELIVERY_JOB,
+              {
+                jobId: `notification-delivery:${deliveryId}`,
+                tenantId: data.tenantId,
+                requestedAt: new Date().toISOString(),
+                deliveryId,
+              },
+              { jobId: `notification-delivery:${deliveryId}` },
+            ),
+          ),
+        );
+      }
+    }
 
     this.logger.log(
       [

@@ -10,6 +10,7 @@ import { ImportExecutionController } from './import-execution.controller.js';
 import { ImportExecutionService } from './import-execution.service.js';
 import { ImportPreviewModule } from './import-preview.module.js';
 import { JobQueueModule } from '../jobs/job-queue.module.js';
+import { NotificationModule } from '../notifications/notification.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { JobQueueModule } from '../jobs/job-queue.module.js';
     EstablishmentModule,
     EstablishmentContactModule,
     JobQueueModule,
+    NotificationModule,
   ],
 
   controllers: [ImportExecutionController],

@@ -64,13 +64,14 @@ export function extendReservation(
 export function releaseReservation(
   reservationId: string,
   idempotencyKey: string,
+  reason = 'Released from live activity',
 ): Promise<Reservation> {
   return browserJson<Reservation>(
     `/api/reservations/${encodeURIComponent(reservationId)}/release`,
     {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
-      body: '{}',
+      body: JSON.stringify({ reason }),
     },
   );
 }

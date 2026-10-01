@@ -9,6 +9,7 @@ import {
   NotificationPreferencesDto,
   PresignUploadDto,
   RegisterDeviceDto,
+  normalizeNotificationPreferences,
 } from './communications.dto.js';
 
 function check<T extends object>(cls: new () => T, payload: unknown) {
@@ -114,5 +115,15 @@ describe('NotificationPreferencesDto', () => {
 
   it('accepts an empty document', () => {
     expect(check(NotificationPreferencesDto, {})).toEqual([]);
+  });
+
+  it('keeps collision alerts enabled in the in-app inbox', () => {
+    expect(
+      normalizeNotificationPreferences(
+        plainToInstance(NotificationPreferencesDto, {
+          collisions: { email: false, inApp: false },
+        }),
+      ).collisions,
+    ).toEqual({ email: false, inApp: true });
   });
 });

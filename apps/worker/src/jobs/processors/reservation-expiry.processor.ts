@@ -116,6 +116,10 @@ export class ReservationExpiryProcessor {
       };
     }
 
+    if (this.repository.notifyExpiredWithoutSummary) {
+      await this.repository.notifyExpiredWithoutSummary(current);
+    }
+
     this.logger.log(
       [
         'Expired reservation cleanup processed',

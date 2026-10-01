@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, Check } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, Check, ExternalLink } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import {
@@ -20,7 +21,7 @@ const POLL_INTERVAL_MS = 60_000;
  * visible, so the unread count refreshes on a timer until a realtime channel
  * exists. Polling is deliberately slow — this is an awareness cue, not a feed.
  */
-export function NotificationBell() {
+export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' } = {}) {
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
@@ -114,7 +115,12 @@ export function NotificationBell() {
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
-        className="relative flex size-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+        className={cn(
+          'relative flex size-9 items-center justify-center rounded-full transition-colors',
+          tone === 'light'
+            ? 'text-white/80 hover:bg-white/10 hover:text-white'
+            : 'text-ink-muted hover:bg-surface-muted hover:text-navy',
+        )}
       >
         <Bell aria-hidden="true" className="size-5" />
 
@@ -138,16 +144,25 @@ export function NotificationBell() {
             <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
               <p className="text-[15px] font-bold text-navy">Notifications</p>
 
-              {count > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => void readAll()}
+              <div className="flex items-center gap-3">
+                {count > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void readAll()}
+                    className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand hover:text-brand-hover"
+                  >
+                    <Check aria-hidden="true" className="size-4" />
+                    Mark all read
+                  </button>
+                ) : null}
+                <Link
+                  href="/workspace/notifications"
+                  onClick={() => setOpen(false)}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand hover:text-brand-hover"
                 >
-                  <Check aria-hidden="true" className="size-4" />
-                  Mark all read
-                </button>
-              ) : null}
+                  View all <ExternalLink aria-hidden="true" className="size-3.5" />
+                </Link>
+              </div>
             </div>
 
             {items === null ? (

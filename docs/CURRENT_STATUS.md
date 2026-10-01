@@ -19,6 +19,9 @@ This is the current development baseline for TrackRoster. Detailed contracts and
 historical audits remain useful, but dated status claims must be read against this
 page and the source code/migrations.
 
+The latest remediation run and release decision are recorded in the root
+[TrackRoster remediation report](../TRACKROSTER_REMEDIATION_REPORT.md).
+
 ## What is currently available
 
 - The API, web application, worker, database migrations, and operational tooling are

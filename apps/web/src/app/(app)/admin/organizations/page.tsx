@@ -14,13 +14,6 @@ import { text } from '@/lib/workspace/copy';
 import { WORKSPACE_MODULES } from '@/lib/workspace/modules';
 import type { DataRecord, Action } from '@/lib/workspace/types';
 const definition = WORKSPACE_MODULES.find((m) => m.id === 'organizations')!;
-const tones: Record<string, string> = {
-  gftij: 'border-l-navy',
-  intertrad: 'border-l-brand',
-  ofti: 'border-l-company-teal',
-  sdi: 'border-l-company-purple',
-  aftij: 'border-l-company-orange',
-};
 export default function Page() {
   return (
     <AdminGuard title="Entreprises">
@@ -87,36 +80,62 @@ function Companies() {
         {rows?.map((r) => (
           <Card
             key={String(r.id)}
-            className={`border-l-[3px] ${tones[String(r.slug).toLowerCase()] ?? 'border-l-brand'}`}
+            className="overflow-hidden border border-white/15 bg-[#0d1938] text-white shadow-card"
+            style={{ borderLeftColor: String(r.color ?? '#2F61E6'), borderLeftWidth: 4 }}
           >
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold">
-                {String(r.name)}{' '}
-                <span className="text-xs font-semibold text-ink-muted">
-                  ({String(r.slug ?? '')})
+              <h2 className="text-lg font-extrabold text-white">
+                {String(r.shortName ?? r.name)}{' '}
+                <span className="text-xs font-semibold text-slate-300">
+                  {r.shortName ? `(${String(r.name)})` : `(${String(r.slug ?? '')})`}
                 </span>
               </h2>
-              <span className="rounded-full bg-success-bg px-2.5 py-1 text-xs font-bold text-success">
+              <span className="rounded-full bg-[#123b2b] px-3 py-1 text-xs font-bold text-[#55d68a]">
                 {r.status === 'active' ? l('Active', 'Active') : l('Inactive', 'Inactive')}
               </span>
             </div>
             <dl className="grid gap-4 sm:grid-cols-3">
               {[
-                [l('Name', 'Nom'), r.name],
-                [l('Identifier', 'Identifiant'), r.slug],
+                [l('Short name', 'Nom court'), r.shortName ?? r.slug],
+                [l('Full name', 'Nom complet'), r.name],
+                [l('Color', 'Couleur'), r.color],
+                [l('Phone', 'Téléphone'), r.phone],
+                [l('Email', 'E-mail'), r.email],
+                [l('Website', 'Site internet'), r.website],
+                [l('Address', 'Adresse'), r.address],
+                [l('Currency', 'Devise'), r.currency],
                 [
-                  l('Status', 'État'),
-                  r.status === 'active' ? l('Active', 'Active') : l('Inactive', 'Inactive'),
+                  l('Prospected sectors', 'Secteurs prospectés'),
+                  Array.isArray(r.prospectedSectors) && r.prospectedSectors.length
+                    ? r.prospectedSectors.join(', ')
+                    : l('All sectors', 'Tous les secteurs'),
                 ],
               ].map(([label, value]) => (
                 <div key={String(label)}>
-                  <dt className="mb-1.5 text-[13px] font-bold">{String(label)}</dt>
-                  <dd className="rounded-[9px] border border-line px-3 py-2 text-sm">
+                  <dt className="mb-1.5 text-[13px] font-bold text-slate-200">{String(label)}</dt>
+                  <dd className="rounded-[9px] border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-slate-100">
+                    {typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value) ? (
+                      <span
+                        aria-hidden="true"
+                        className="mr-2 inline-block size-3 rounded-full align-[-1px] ring-1 ring-white/30"
+                        style={{ backgroundColor: String(value) }}
+                      />
+                    ) : null}
                     {String(value ?? '—')}
                   </dd>
                 </div>
               ))}
             </dl>
+            {r.argumentaire ? (
+              <div className="mt-4">
+                <p className="mb-1.5 text-[13px] font-bold text-slate-200">
+                  {l('Company argumentaire', 'Argumentaire propre à l’entreprise')}
+                </p>
+                <p className="rounded-[9px] border border-white/15 bg-white/[0.03] px-3 py-2 text-sm whitespace-pre-wrap text-slate-100">
+                  {String(r.argumentaire)}
+                </p>
+              </div>
+            ) : null}
             <div className="mt-4 flex justify-end">
               <Button variant="primary" disabled={editing} onClick={() => void edit(r)}>
                 {l('Edit company', 'Modifier l’entreprise')}

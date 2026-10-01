@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { Paperclip } from 'lucide-react';
+import { Download, FileText, Paperclip } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
@@ -17,6 +17,12 @@ function safeUrl(value: unknown): string {
   const url = new URL(value);
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Invalid storage URL');
   return url.href;
+}
+
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** Attach to a persisted message so retries never create a duplicate message. */
@@ -67,25 +73,54 @@ export function MessageAttachments({
 
   return (
     <>
-      <button
-        type="button"
-        aria-label={
-          attachmentCount
-            ? text('Open message attachments', 'Ouvrir les pièces jointes', language)
-            : text('Add an attachment', 'Ajouter une pièce jointe', language)
-        }
-        className={`mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-[11px] font-semibold text-current/70 transition-opacity hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40 ${mine && !attachmentCount ? 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100' : ''}`}
-        onClick={() => setOpen(true)}
-      >
-        <Paperclip aria-hidden="true" className="size-3.5" />
-        {attachmentCount
-          ? text(
-              `${attachmentCount} attachment(s)`,
-              `${attachmentCount} pièce(s) jointe(s)`,
-              language,
-            )
-          : text('Add attachment', 'Ajouter une pièce jointe', language)}
-      </button>
+      {attachmentCount ? (
+        <div className="mt-2 space-y-1.5">
+          {message.attachments?.map((attachment) => (
+            <button
+              key={attachment.id}
+              type="button"
+              aria-label={text(
+                'Open message attachments',
+                'Ouvrir les pièces jointes du message',
+                language,
+              )}
+              className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ${mine ? 'border-white/25 bg-white/15 text-white hover:bg-white/20' : 'border-line bg-canvas text-ink hover:border-brand-pale hover:bg-brand-wash'}`}
+              onClick={() => setOpen(true)}
+            >
+              {attachment === message.attachments?.[0] ? (
+                <span className="sr-only">
+                  {attachmentCount} {text('attachment(s)', 'pièce(s) jointe(s)', language)}
+                </span>
+              ) : null}
+              <span
+                className={`flex size-7 shrink-0 items-center justify-center rounded-md ${mine ? 'bg-white/15 text-white' : 'bg-brand-tint text-brand'}`}
+              >
+                <FileText aria-hidden="true" className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[11px] font-bold">{attachment.filename}</span>
+                <span className={`block text-[10px] ${mine ? 'text-white/70' : 'text-ink-muted'}`}>
+                  {formatAttachmentSize(attachment.byteSize)}
+                </span>
+              </span>
+              <Download
+                aria-hidden="true"
+                className={`size-3.5 shrink-0 ${mine ? 'text-white/80' : 'text-ink-muted'}`}
+              />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button
+          type="button"
+          aria-label={text('Add an attachment', 'Ajouter une pièce jointe', language)}
+          className={`mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-[11px] font-semibold text-current/70 transition-opacity hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/40 ${mine ? 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100' : ''}`}
+          onClick={() => setOpen(true)}
+        >
+          <Paperclip aria-hidden="true" className="size-3.5" />
+          {text('Add attachment', 'Ajouter une pièce jointe', language)}
+        </button>
+      )}
       <Drawer
         open={open}
         title={text('Message attachments', 'Pièces jointes du message', language)}

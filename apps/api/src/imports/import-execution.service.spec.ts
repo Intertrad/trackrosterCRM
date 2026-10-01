@@ -39,6 +39,10 @@ describe('ImportExecutionService', () => {
     findImportDuplicate: ReturnType<typeof vi.fn>;
   };
 
+  let notificationEvents: {
+    importAnomalies: ReturnType<typeof vi.fn>;
+  };
+
   let service: ImportExecutionService;
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -203,6 +207,10 @@ describe('ImportExecutionService', () => {
       findImportDuplicate: vi.fn(),
     };
 
+    notificationEvents = {
+      importAnomalies: vi.fn().mockResolvedValue([]),
+    };
+
     service = new ImportExecutionService(
       database as unknown as Database,
 
@@ -215,6 +223,8 @@ describe('ImportExecutionService', () => {
       contactService as unknown as EstablishmentContactService,
 
       contactRepository as unknown as EstablishmentContactRepository,
+      undefined,
+      notificationEvents as never,
     );
   });
 
@@ -417,6 +427,33 @@ describe('ImportExecutionService', () => {
     expect(deduplicationService.acquireExecutionLock).not.toHaveBeenCalled();
 
     expect(deduplicationService.findExisting).not.toHaveBeenCalled();
+  });
+
+  it('notifies tenant administrators when an import contains anomalies', async () => {
+    const invalidRow: ImportPreviewRow = {
+      rowNumber: 2,
+      status: 'invalid',
+      establishment: null,
+      contact: null,
+      issues: [
+        {
+          field: 'name',
+          code: 'required',
+          message: 'Establishment name is required',
+          severity: 'error',
+        },
+      ],
+    };
+    const importId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    previewService.previewCsv.mockReturnValue(preview([invalidRow]));
+
+    await service.executeCsv(tenantId, 'csv', importId);
+
+    expect(notificationEvents.importAnomalies).toHaveBeenCalledWith({
+      tenantId,
+      importId,
+      anomalyCount: 1,
+    });
   });
 
   it('continues after a row fails', async () => {
