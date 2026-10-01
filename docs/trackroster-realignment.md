@@ -305,9 +305,11 @@ follow-ups, audit, authorization, isolation.
   prospect-master listing, campaign enrolment and the manager dispatch queue. The
   taxonomy values are `prospection`, `justice_enquetes`, `sante`, `asile_social`,
   `douanes_onaf`, `cra` and `prescripteurs`.
-- **TR-922 — Load the 14,000 prospects.** Requires the file. Depends on TR-921 for
-  category mapping and on import dedupe being trustworthy (TR-905) so a re-import does
-  not duplicate the base.
+- **TR-922 — Load the 14,000 prospects.** **Done for the supplied beta dataset.** The
+  workbook was converted through the application's import contract, reconciled against
+  the isolated `trackroster-beta` tenant, and re-imported through the API canary without
+  creating duplicates. The production import remains a separately authorized deployment
+  operation.
 - **TR-923 — Manager dispatch screen.** Entity → campaign → territory → section →
   eligible → prospector → objective → assign, over the existing assignment and collision
   APIs. Frontend-led; backend already supports it.
@@ -447,10 +449,9 @@ fabricated one, and it is honest about what remains.
 
 ## 25. Next ticket
 
-**TR-922 — load and classify the prospect dataset** once the source file is supplied.
-TR-921 is complete and the category filter is available to the import, prospect and
-assignment paths. The remaining uncertainty is data mapping quality, not schema or
-filter plumbing.
+**TR-923 — manager dispatch screen.** TR-921 is complete and TR-922 has validated the
+supplied dataset, category mapping, API import idempotency and category filter. The next
+product ticket is the manager workflow that turns the enrolled base into assignments.
 
 ### TR-921 evidence
 
@@ -464,3 +465,25 @@ filter plumbing.
   disposable Redis/Postgres services are unavailable (`EPERM` on `127.0.0.1:6379` and
   `ENOTFOUND` for the configured Supabase pooler). They remain required evidence for
   the connected environment.
+
+### TR-922 evidence
+
+- Source: `TrackRoster_Base_Prospection_Interpretes_France-1.xlsx`, converted with
+  `scripts/convert-prospect-workbook.py` into seven contract-compatible CSVs.
+- Conversion validation: **14,649/14,649 valid**, zero invalid rows, zero duplicate
+  `ID TrackRoster` values, 14,649 categorized rows, and 4,503 rows with coordinates.
+  The converter padded 115 four-digit postal codes (85 justice/enquêtes and 30
+  prescripteurs) so department filters retain those records.
+- Isolated beta reconciliation: every one of the 14,649 source references is present in
+  `trackroster-beta` with the expected category; the tenant's 16 additional rows are
+  pre-existing beta fixtures.
+- API preview: CRA canary, 28 rows, **28 valid / 0 warnings / 0 invalid**.
+- API execute canary: CRA re-import, **28 reused / 0 created / 0 skipped / 0 failed**.
+- Authenticated category filter: `GET /establishments?category=cra` returned 28 rows,
+  all with category `cra`; an unknown category returned HTTP 400.
+- Post-load maintenance: `ANALYZE establishments`, `ANALYZE campaign_prospects` and
+  `ANALYZE campaign_prospect_assignments` completed in the beta database.
+- The beta migration replay is still blocked by pre-existing schema/ledger drift
+  (`organizations.short_name` already exists after 82 recorded entries); no migration
+  or product behavior was changed for TR-922. A fresh-environment migration run remains
+  a separate release-gate item.

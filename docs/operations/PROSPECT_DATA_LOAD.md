@@ -186,6 +186,17 @@ seven import jobs completed with zero invalid rows and zero unresolved duplicate
 This is local database state, not repository content; a clone must run the import
 against its own database.
 
+### TR-922 beta validation (2026-10-02)
+
+The supplied `TrackRoster_Base_Prospection_Interpretes_France-1.xlsx` was converted
+and reconciled in the isolated `trackroster-beta` tenant. All **14,649** source
+references matched their expected categories; the tenant's 16 additional rows are
+pre-existing fixtures. A 28-row CRA preview was 28/28 valid, and the authenticated
+execute canary reused all 28 records (0 created, 0 skipped, 0 failed). The CRA
+category filter returned 28 rows. Post-load `ANALYZE` completed for the establishment,
+campaign-prospect, and assignment tables. This validates the import path and
+idempotency without changing the production tenant.
+
 ## Where it goes
 
 **Decided: the référentiel is tenant-level and shared.** All five entities — OFTI,
