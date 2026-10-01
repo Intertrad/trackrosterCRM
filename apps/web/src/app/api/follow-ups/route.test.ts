@@ -80,6 +80,7 @@ describe('follow-up queue BFF', () => {
         `?teamId=${teamId}` +
         '&overdue=true' +
         '&limit=25' +
+        '&includeCompleted=true' +
         '&tenantId=browser-tenant' +
         '&userId=browser-user' +
         '&role=client_admin',
@@ -88,7 +89,7 @@ describe('follow-up queue BFF', () => {
     const response = await GET(request);
 
     expect(authenticatedBackendJsonMock).toHaveBeenCalledWith(
-      `/follow-ups?teamId=${teamId}&overdue=true&limit=25`,
+      `/follow-ups?teamId=${teamId}&overdue=true&limit=25&includeCompleted=true`,
     );
 
     expect(response.status).toBe(200);

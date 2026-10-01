@@ -32,6 +32,7 @@ import { DayStart } from '@/components/prospector/day-start';
 import {
   buildVisits,
   totalVisitKm,
+  type ProspectorTodayCompleted,
   type ProspectorTodayPriority,
   type ProspectorTodayResponse,
 } from '@/lib/api/prospector-today-types';
@@ -41,7 +42,7 @@ import { getNavigationForWorkspace } from '@/lib/auth/navigation';
 import type { MessageKey } from '@/lib/i18n/dictionary';
 import { cn } from '@/lib/ui/cn';
 
-type FilterId = 'all' | 'overdue' | 'due_today';
+type FilterId = 'all' | 'overdue' | 'due_today' | 'completed';
 
 const CATEGORY_LABELS = {
   todo: 'category.todo',
@@ -187,8 +188,13 @@ export default function TodayPage() {
       if (countsAsDueToday(state)) dueToday += 1;
     }
 
-    return { all: states.size, overdue, due_today: dueToday };
-  }, [states]);
+    return {
+      all: states.size,
+      overdue,
+      due_today: dueToday,
+      completed: today?.summary.completedToday ?? 0,
+    };
+  }, [states, today]);
 
   const visible = useMemo(() => {
     if (!today) {
@@ -230,7 +236,7 @@ export default function TodayPage() {
         </Alert>
 
         <Button className="mt-5" loading={refreshing} onClick={() => void refresh()}>
-          Try again
+          {t('common.retry')}
         </Button>
       </div>
     );
@@ -248,83 +254,94 @@ export default function TodayPage() {
       {error ? <Alert tone="warning">{error}</Alert> : null}
 
       <DayStart today={today} />
-      <AssignedWork teamId={teamId} onRefresh={() => void refresh()} refreshing={refreshing} />
+      <div className="order-2 sm:order-none">
+        <AssignedWork
+          today={today}
+          teamId={teamId}
+          onRefresh={() => void refresh()}
+          refreshing={refreshing}
+        />
+      </div>
 
-      {counts.all === 0 ? (
-        <EmptyState filter={filter} totalToday={0} />
-      ) : (
-        <div
-          className={cn(
-            'grid gap-5 xl:items-start',
-            visits.length > 0 && 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
-          )}
-        >
-          <Card className="p-0 sm:p-0">
-            <div className="border-b border-line-soft px-[18px] pt-[18px] pb-3">
-              <h2 className="text-base font-extrabold tracking-[-0.02em] text-navy">
-                {t('today.nextActions')}
-              </h2>
+      <div
+        className={cn(
+          'contents sm:grid sm:gap-5 xl:items-start',
+          visits.length > 0 && 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
+        )}
+      >
+        <Card className="order-3 min-w-0 p-0! sm:order-none sm:p-0!">
+          <div className="flex min-w-0 flex-wrap items-center gap-3 border-b border-line-soft py-3">
+            <h2 className="shrink-0 px-[18px] text-xl font-bold text-navy">
+              {t('today.nextActions')}
+            </h2>
 
-              <div className="mt-3 inline-flex flex-wrap gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
-                {(
-                  [
-                    { id: 'all', label: t('today.filter.all') },
-                    { id: 'overdue', label: t('today.filter.overdue') },
-                    { id: 'due_today', label: t('today.filter.dueToday') },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setFilter(tab.id)}
-                    aria-pressed={filter === tab.id}
+            <div className="flex w-full min-w-0 flex-wrap gap-2 px-2 sm:mx-2 sm:w-auto sm:max-w-[calc(100%-1rem)] sm:flex-nowrap sm:gap-0.5 sm:overflow-x-auto sm:rounded-[11px] sm:bg-surface-muted sm:p-[3px]">
+              {(
+                [
+                  { id: 'all', label: t('today.filter.all') },
+                  { id: 'overdue', label: t('today.filter.overdue') },
+                  { id: 'due_today', label: t('today.filter.dueToday') },
+                  { id: 'completed', label: t('today.filter.completed') },
+                ] as const
+              ).map((tab) => (
+                <Button
+                  key={tab.id}
+                  size="md"
+                  variant="ghost"
+                  onClick={() => setFilter(tab.id)}
+                  aria-pressed={filter === tab.id}
+                  className={cn(
+                    'shrink-0 whitespace-nowrap',
+                    tab.id === 'completed' && 'mr-auto sm:mr-0',
+                    filter === tab.id
+                      ? 'bg-white! text-navy shadow-sm hover:bg-white!'
+                      : 'bg-surface-muted! text-ink-muted hover:bg-line-soft!',
+                  )}
+                >
+                  {tab.label}
+
+                  <span
                     className={cn(
-                      'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold',
-                      'transition-colors duration-150',
-                      filter === tab.id
-                        ? 'bg-surface text-navy shadow-sm'
-                        : 'bg-surface-muted text-ink-soft hover:text-ink',
+                      'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
+                      tab.id === 'overdue' && counts.overdue > 0
+                        ? 'bg-danger text-white'
+                        : filter === tab.id
+                          ? 'bg-brand text-white'
+                          : 'bg-line-soft text-ink-soft',
                     )}
                   >
-                    {tab.label}
-
-                    <span
-                      className={cn(
-                        'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
-                        tab.id === 'overdue' && counts.overdue > 0
-                          ? 'bg-danger text-white'
-                          : filter === tab.id
-                            ? 'bg-brand text-white'
-                            : 'bg-line-soft text-ink-soft',
-                      )}
-                    >
-                      {counts[tab.id]}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                    {counts[tab.id]}
+                  </span>
+                </Button>
+              ))}
             </div>
+          </div>
 
-            {visible.length === 0 ? (
-              <EmptyState filter={filter} totalToday={counts.all} />
-            ) : (
-              <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
-                {visible.map((priority) => (
-                  <PriorityRow
-                    key={priority.id}
-                    priority={priority}
-                    state={states.get(priority.id) ?? 'upcoming'}
-                    timeZone={timeZone}
-                    onLogged={() => void refresh()}
-                  />
-                ))}
-              </ul>
-            )}
-          </Card>
+          {filter === 'completed' ? (
+            <CompletedTasks
+              items={today.completed ?? []}
+              total={today.summary.completedToday}
+              timeZone={timeZone}
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState filter={filter} totalToday={counts.all} />
+          ) : (
+            <ul aria-label={t('today.nextActions')} className="space-y-2.5 p-2">
+              {visible.map((priority) => (
+                <PriorityRow
+                  key={priority.id}
+                  priority={priority}
+                  state={states.get(priority.id) ?? 'upcoming'}
+                  timeZone={timeZone}
+                  onLogged={() => void refresh()}
+                />
+              ))}
+            </ul>
+          )}
+        </Card>
 
-          {visits.length > 0 && <TodaysVisits visits={visits} timeZone={timeZone} />}
-        </div>
-      )}
+        {visits.length > 0 && <TodaysVisits visits={visits} timeZone={timeZone} />}
+      </div>
 
       <CollisionNotice
         collisions={collisions}
@@ -334,6 +351,57 @@ export default function TodayPage() {
         onDismiss={() => setNoticeDismissed(true)}
       />
     </div>
+  );
+}
+
+function CompletedTasks({
+  items,
+  total,
+  timeZone,
+}: {
+  items: ProspectorTodayCompleted[];
+  total: number;
+  timeZone: string;
+}) {
+  const { t, locale } = useTranslation();
+  if (items.length === 0) {
+    return (
+      <p className="px-6 py-6 text-center text-[15px] text-ink-muted">
+        {t('today.completedEmpty')}
+      </p>
+    );
+  }
+  return (
+    <>
+      <ul aria-label={t('today.filter.completed')} className="divide-y divide-line-soft">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-start gap-3 px-[18px] py-4">
+            <CheckCircle2 aria-hidden="true" className="mt-1 size-5 shrink-0 text-success" />
+            <div className="min-w-0 flex-1">
+              <Link
+                href={`/work-queue/${item.campaignId}/${item.campaignProspectId}`}
+                className="break-words text-[15px] font-bold text-navy hover:text-brand"
+              >
+                {item.establishmentName}
+              </Link>
+              <p className="mt-1 text-sm text-ink-muted">
+                {t('today.completedAt', {
+                  time: new Intl.DateTimeFormat(locale, { timeZone, timeStyle: 'short' }).format(
+                    new Date(item.completedAt),
+                  ),
+                })}
+                {item.channel ? ` · ${t(getChannelLabelKey(item.channel))}` : ''}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {total > items.length ? (
+        <p className="px-[18px] pb-4 text-sm text-ink-muted">
+          {t('today.completedRange', { count: items.length, total })}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -365,7 +433,7 @@ function TodaysVisits({
   const total = totalVisitKm(visits);
 
   return (
-    <Card className="flex flex-col">
+    <Card className="order-1 flex flex-col sm:order-none">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-extrabold tracking-[-0.02em] text-navy">
@@ -589,74 +657,49 @@ function PriorityRow({
   );
 
   return (
-    <li className="px-4 py-3.5 sm:px-6 sm:py-4">
-      {/*
-        One row on a desktop, two stacked bands on a phone. The identity of
-        the action (time, channel, who) always leads; the controls move below
-        it rather than being squeezed or wrapped mid-line.
-      */}
-      <div className="flex items-start gap-3 sm:items-center">
-        <span
-          className={cn(
-            'w-[46px] shrink-0 pt-0.5 text-[15px] font-bold tabular-nums sm:w-[52px] sm:pt-0',
-            state === 'overdue' ? 'text-danger' : 'text-ink',
-          )}
-        >
-          {formatTime(priority.dueAt, timeZone)}
-        </span>
-
-        <ActionChannelIcon channel={priority.channel} className="size-9 sm:size-10" />
-
-        <span className="min-w-0 flex-1 pr-2">
+    <li className="rounded-xl border border-line-soft bg-surface px-3 py-3.5 sm:px-4">
+      <div className="min-w-0 sm:grid sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-x-3 sm:gap-y-1">
+        <div className="flex items-start justify-between gap-2 sm:contents">
           <Link
             href={href}
-            className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+            className="min-w-0 break-words text-[15.2px] font-bold text-navy hover:text-brand sm:col-start-2 sm:row-start-1"
           >
             {priority.establishment.name}
           </Link>
-
-          {priority.establishment.city ? (
-            <span className="block truncate text-[14px] text-ink-muted">
-              {priority.establishment.city}
-            </span>
-          ) : null}
-        </span>
-
-        <span className="hidden w-24 shrink-0 xl:block">
-          <span className="block text-[15px] font-semibold text-ink">
-            {t(getChannelLabelKey(priority.channel))}
+          <div className="sm:col-start-3 sm:row-start-1 sm:justify-self-end">
+            <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
+          </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2 sm:contents">
+          <div className="flex min-w-0 items-center gap-2.5 sm:contents">
+            <ActionChannelIcon
+              channel={priority.channel}
+              className="size-8! shrink-0 rounded-lg! sm:col-start-1 sm:row-span-2 sm:row-start-1 sm:my-1.5 sm:h-auto! sm:w-14! sm:self-stretch sm:[&_svg]:size-7"
+            />
+            <div className="min-w-0 text-[13px] text-ink-muted sm:col-start-2 sm:row-start-2">
+              {priority.establishment.city && (
+                <p className="break-words">{priority.establishment.city}</p>
+              )}
+              <time
+                dateTime={priority.dueAt}
+                className={state === 'overdue' ? 'font-semibold text-danger' : 'font-semibold'}
+              >
+                {formatTime(priority.dueAt, timeZone)}
+              </time>
+            </div>
+          </div>
+          {action(
+            'shrink-0 whitespace-nowrap px-2! text-[12px]! sm:col-start-3 sm:row-start-2 sm:px-3! sm:text-[13px]!',
+          )}
+        </div>
+        <div className="mt-2 flex items-end justify-between gap-2 sm:col-span-3 sm:row-start-3">
+          <span className="min-w-0 text-[12px] text-ink-muted">
+            {t(getChannelLabelKey(priority.channel))} · {t(CATEGORY_LABELS[priority.category])}
           </span>
-
-          <span className="block text-[14px] text-ink-muted">
-            {t(CATEGORY_LABELS[priority.category])}
+          <span className="shrink-0">
+            <DueStateBadge state={state} />
           </span>
-        </span>
-
-        <span className="hidden w-[92px] shrink-0 md:block">
-          <DueStateBadge state={state} />
-        </span>
-
-        <span className="hidden shrink-0 items-center gap-1 sm:flex">
-          {action()}
-
-          <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
-        </span>
-      </div>
-
-      {/* Below md the row has no status column, so the state moves under the
-          name rather than disappearing between breakpoints. */}
-      <div className="mt-3 flex items-center gap-3 pl-[58px] md:hidden">
-        <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
-          {t(getChannelLabelKey(priority.channel))} · {t(CATEGORY_LABELS[priority.category])}
-        </span>
-
-        <DueStateBadge state={state} />
-      </div>
-
-      <div className="mt-3 flex items-center gap-2 pl-[58px] sm:hidden">
-        {action('flex-1')}
-
-        <PriorityRowMenu prospectHref={href} label={priority.establishment.name} />
+        </div>
       </div>
 
       <LogOutcomeDrawer

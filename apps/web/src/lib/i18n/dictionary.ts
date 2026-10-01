@@ -27,7 +27,7 @@ export const DICTIONARY = {
   'nav.rules': { en: 'Rules and settings', fr: 'Règles et réglages' },
   'nav.configuration': { en: 'Configuration', fr: 'Configuration' },
   'nav.tools': { en: 'Other tools', fr: 'Autres outils' },
-  'nav.followUps': { en: 'Follow-ups', fr: 'Relances' },
+  'nav.followUps': { en: 'Follow-ups', fr: 'Suivi' },
   'nav.history': { en: 'History', fr: 'Historique' },
   /* ---------- navigation ---------- */
   'nav.today': { en: 'My day', fr: 'Ma journée' },
@@ -342,6 +342,26 @@ export const DICTIONARY = {
   },
 
   /* ---------- actions queue ---------- */
+  'actions.completedNotice': { en: 'Completed tasks: {count}.', fr: 'Tâches terminées : {count}.' },
+  'actions.cancelledNotice': { en: 'Cancelled tasks: {count}.', fr: 'Tâches annulées : {count}.' },
+  'actions.completedPartial': {
+    en: 'Completed {count} of {total} tasks. Please retry the rest.',
+    fr: '{count} tâches terminées sur {total}. Réessayez pour les autres.',
+  },
+  'actions.cancelledPartial': {
+    en: 'Cancelled {count} of {total} tasks. Please retry the rest.',
+    fr: '{count} tâches annulées sur {total}. Réessayez pour les autres.',
+  },
+  'today.filter.completed': { en: 'Completed', fr: 'Terminé' },
+  'today.completedEmpty': {
+    en: 'No tasks completed today yet.',
+    fr: 'Aucune tâche terminée aujourd’hui pour le moment.',
+  },
+  'today.completedAt': { en: 'Completed at {time}', fr: 'Terminée à {time}' },
+  'today.completedRange': {
+    en: 'Showing {count} of {total} tasks completed today.',
+    fr: '{count} tâches affichées sur {total} terminées aujourd’hui.',
+  },
   'actions.title': { en: 'Actions', fr: 'Actions' },
   'actions.subtitle': {
     en: 'Manage your calls, emails, visits and follow-ups',

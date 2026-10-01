@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, isNull, lt, or, sql } from 'drizzle-orm';
 
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
@@ -12,7 +12,7 @@ import {
   type ProspectFollowUpCategory,
   type ProspectFollowUpChannel,
 } from '../database/schema/prospect-follow-ups.js';
-import type { ProspectorTodaySummary } from './prospector-today.types.js';
+import type { ProspectorTodayCompleted, ProspectorTodaySummary } from './prospector-today.types.js';
 
 const PRIORITY_LIMIT = 25;
 
@@ -62,6 +62,8 @@ export interface ProspectorTodayRepositoryPriority {
 }
 
 export interface ProspectorTodayRepositoryResult {
+  completed: (Omit<ProspectorTodayCompleted, 'completedAt'> & { completedAt: Date | null })[];
+
   summary: ProspectorTodaySummary;
 
   priorities: ProspectorTodayRepositoryPriority[];
@@ -224,6 +226,24 @@ export class ProspectorTodayRepository {
      * status to 'pending', so a completed follow-up is invisible to the
      * summary above by construction.
      */
+    const completedScope = and(
+      eq(prospectFollowUps.tenantId, input.tenantId),
+      eq(prospectFollowUps.status, 'completed'),
+      gte(prospectFollowUps.completedAt, input.startsAt),
+      lt(prospectFollowUps.completedAt, input.endsAt),
+      eq(campaignProspectAssignments.organizationId, input.organizationId),
+      eq(campaignProspectAssignments.teamId, input.teamId),
+      isNull(campaignProspectAssignments.endedAt),
+      or(
+        eq(campaignProspectAssignments.assignedUserId, input.userId),
+        isNull(campaignProspectAssignments.assignedUserId),
+      ),
+      or(
+        eq(prospectFollowUps.assignedUserId, input.userId),
+        isNull(prospectFollowUps.assignedUserId),
+      ),
+    );
+
     const completedQuery = this.database
       .select({ completedToday: sql<number>`count(*)`.mapWith(Number) })
       .from(prospectFollowUps)
@@ -234,26 +254,41 @@ export class ProspectorTodayRepository {
           eq(prospectFollowUps.assignmentId, campaignProspectAssignments.id),
         ),
       )
-      .where(
-        and(
-          eq(prospectFollowUps.tenantId, input.tenantId),
-          eq(prospectFollowUps.status, 'completed'),
-          gte(prospectFollowUps.completedAt, input.startsAt),
-          lt(prospectFollowUps.completedAt, input.endsAt),
-          eq(campaignProspectAssignments.organizationId, input.organizationId),
-          eq(campaignProspectAssignments.teamId, input.teamId),
-          isNull(campaignProspectAssignments.endedAt),
-          or(
-            eq(prospectFollowUps.assignedUserId, input.userId),
-            isNull(prospectFollowUps.assignedUserId),
-          ),
-        ),
-      );
+      .where(completedScope);
 
-    const [[summary], priorities, [completed]] = await Promise.all([
+    const completedRowsQuery = this.database
+      .select({
+        id: prospectFollowUps.id,
+        campaignId: prospectFollowUps.campaignId,
+        campaignProspectId: prospectFollowUps.campaignProspectId,
+        completedAt: prospectFollowUps.completedAt,
+        channel: prospectFollowUps.channel,
+        establishmentName: establishments.name,
+      })
+      .from(prospectFollowUps)
+      .innerJoin(
+        campaignProspectAssignments,
+        and(
+          eq(prospectFollowUps.tenantId, campaignProspectAssignments.tenantId),
+          eq(prospectFollowUps.assignmentId, campaignProspectAssignments.id),
+        ),
+      )
+      .innerJoin(
+        establishments,
+        and(
+          eq(prospectFollowUps.tenantId, establishments.tenantId),
+          eq(prospectFollowUps.establishmentId, establishments.id),
+        ),
+      )
+      .where(completedScope)
+      .orderBy(desc(prospectFollowUps.completedAt), asc(prospectFollowUps.id))
+      .limit(100);
+
+    const [[summary], priorities, [completed], completedRows] = await Promise.all([
       summaryQuery,
       prioritiesQuery,
       completedQuery,
+      completedRowsQuery,
     ]);
 
     return {
@@ -268,6 +303,7 @@ export class ProspectorTodayRepository {
         completedToday: completed?.completedToday ?? 0,
       },
       priorities,
+      completed: completedRows,
     };
   }
 

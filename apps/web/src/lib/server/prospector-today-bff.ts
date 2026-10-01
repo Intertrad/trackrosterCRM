@@ -1,10 +1,13 @@
 import type {
   ProspectorTodayCategory,
+  ProspectorTodayCompleted,
   ProspectorTodayChannel,
   ProspectorTodayResponse,
 } from '@/lib/api/prospector-today-types';
 
 export interface BackendProspectorTodayResponse {
+  completed?: ProspectorTodayCompleted[];
+
   generatedAt: string;
 
   day: {
@@ -69,6 +72,16 @@ export function toBrowserProspectorTodayResponse(
 ): ProspectorTodayResponse {
   return {
     generatedAt: response.generatedAt,
+    completed: (response.completed ?? []).map(
+      ({ id, campaignId, campaignProspectId, completedAt, channel, establishmentName }) => ({
+        id,
+        campaignId,
+        campaignProspectId,
+        completedAt,
+        channel,
+        establishmentName,
+      }),
+    ),
     day: {
       date: response.day.date,
       timeZone: response.day.timeZone,

@@ -136,7 +136,7 @@ describe('FollowUpsPage', () => {
       </I18nProvider>,
     );
 
-    await screen.findByRole('heading', { name: 'Actions' });
+    await screen.findByRole('heading', { name: 'Suivi' });
 
     expect(screen.getByText('Gérez vos appels, emails, visites et relances')).toBeInTheDocument();
     /* The three operational groups, in French, replacing the old À faire tab. */
@@ -260,7 +260,7 @@ describe('FollowUpsPage', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Select follow-up for Paris Clinic/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Mark completed' }));
 
-    expect(await screen.findByText(/0 of 1 actions completed/)).toBeInTheDocument();
+    expect(await screen.findByText(/Completed 0 of 1 tasks/)).toBeInTheDocument();
   });
 
   it('surfaces a read failure instead of showing an empty queue', async () => {
@@ -360,7 +360,7 @@ describe('FollowUpsPage', () => {
 
       render(<FollowUpsPage />);
 
-      await waitFor(() => expect(screen.getByText('visit')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('Visit')).toBeInTheDocument());
     });
 
     it('says which group is empty rather than showing one blank table', async () => {

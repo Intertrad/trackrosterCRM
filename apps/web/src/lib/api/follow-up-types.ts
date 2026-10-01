@@ -83,6 +83,8 @@ export interface ListFollowUpQueueOptions {
    */
   teamId: string;
 
+  includeCompleted?: boolean;
+
   overdue?: boolean;
 
   limit?: number;

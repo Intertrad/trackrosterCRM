@@ -47,6 +47,7 @@ const todayResponse: ProspectorTodayResponse = {
     overdue: 4,
     completedToday: 12,
   },
+  completed: [],
   priorities: [
     {
       id: '44444444-4444-4444-8444-444444444444',
@@ -141,6 +142,48 @@ describe('TodayPage', () => {
     vi.restoreAllMocks();
   });
 
+  it('shows completed tasks even when no pending priorities remain', async () => {
+    getProspectorTodayMock.mockResolvedValue({
+      ...todayResponse,
+      priorities: [],
+      summary: { ...todayResponse.summary, actionsLeft: 0, completedToday: 1 },
+      completed: [
+        {
+          id: 'done',
+          campaignId,
+          campaignProspectId,
+          completedAt: '2026-09-20T09:30:00Z',
+          channel: 'call',
+          establishmentName: 'Completed clinic',
+        },
+      ],
+    });
+    render(
+      <I18nProvider locale="fr-FR">
+        <TodayPage />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Terminé/ }));
+    expect(screen.getByRole('link', { name: 'Completed clinic' })).toHaveAttribute(
+      'href',
+      `/work-queue/${campaignId}/${campaignProspectId}`,
+    );
+    expect(screen.getByText(/Terminée à 11:30/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Log outcome/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps an explicit completed-today empty state', async () => {
+    getProspectorTodayMock.mockResolvedValue({
+      ...todayResponse,
+      priorities: [],
+      completed: [],
+      summary: { ...todayResponse.summary, completedToday: 0 },
+    });
+    render(<TodayPage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Completed/ }));
+    expect(screen.getByText('No tasks completed today yet.')).toBeInTheDocument();
+  });
+
   it('never requests the prospector queue outside a prospector workspace', async () => {
     useAuthMock.mockReturnValue({
       user: { email: 'manager@intertrad.test', displayName: 'Marie Garnier' },
@@ -184,11 +227,10 @@ describe('TodayPage', () => {
     /* The date follows the viewer's locale, so assert the parts, not an order. */
     expect(screen.getByText(/Sunday/)).toBeInTheDocument();
     expect(screen.getByText(/September/)).toBeInTheDocument();
-    /* The name appears twice by design: once as a next action and once as a
-     * numbered stop in the day's visits. */
-    expect(screen.getAllByText('Nancy central police station')).toHaveLength(2);
+    /* The task is visible in the portfolio, next actions and visit order. */
+    expect(screen.getAllByText('Nancy central police station')).toHaveLength(3);
     expect(screen.getByText('Nancy')).toBeInTheDocument();
-    expect(screen.getAllByText('Saint-Dié hospital')).toHaveLength(1);
+    expect(screen.getAllByText('Saint-Dié hospital')).toHaveLength(2);
     /* Due time shows on the action row and on its map stop. */
     expect(screen.getAllByText('11:00').length).toBeGreaterThan(0);
 
@@ -269,6 +311,7 @@ describe('TodayPage', () => {
     getProspectorTodayMock.mockResolvedValue({
       ...todayResponse,
       summary: { actionsLeft: 0, toDo: 0, followUps: 0, meetings: 0, overdue: 0 },
+      completed: [],
       priorities: [],
     });
 
@@ -323,6 +366,7 @@ describe('TodayPage', () => {
     setProspectorWorkspace(secondTeamId);
     getProspectorTodayMock.mockResolvedValue({
       ...todayResponse,
+      completed: [],
       priorities: [
         {
           ...todayResponse.priorities[0]!,
@@ -390,6 +434,7 @@ describe('TodayPage', () => {
 
     render(<TodayPage />);
 
+    fireEvent.click(await screen.findByRole('button', { name: 'All' }));
     await waitFor(() =>
       expect(screen.getByText('Brigade tout juste attribuee')).toBeInTheDocument(),
     );

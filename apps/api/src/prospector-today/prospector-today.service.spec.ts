@@ -53,6 +53,7 @@ describe('ProspectorTodayService', () => {
           meetings: 1,
           overdue: 1,
         },
+        completed: [],
         priorities: [
           {
             id: followUpId,
@@ -107,6 +108,7 @@ describe('ProspectorTodayService', () => {
         meetings: 1,
         overdue: 1,
       },
+      completed: [],
       priorities: [
         {
           id: followUpId,
@@ -183,6 +185,7 @@ describe('ProspectorTodayService', () => {
         meetings: 0,
         overdue: 0,
       },
+      completed: [],
       priorities: [
         {
           id: followUpId,

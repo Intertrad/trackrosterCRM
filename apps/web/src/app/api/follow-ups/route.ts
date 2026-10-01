@@ -8,7 +8,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_QUERY_PARAMETERS = ['teamId', 'overdue', 'limit'] as const;
+const ALLOWED_QUERY_PARAMETERS = ['teamId', 'overdue', 'limit', 'includeCompleted'] as const;
 
 export async function GET(request: Request): Promise<Response> {
   try {

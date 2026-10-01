@@ -49,7 +49,18 @@ export interface ProspectorTodayPriority {
   };
 }
 
+export interface ProspectorTodayCompleted {
+  id: string;
+  campaignId: string;
+  campaignProspectId: string;
+  completedAt: string;
+  channel: ProspectorTodayPriority['channel'];
+  establishmentName: string;
+}
+
 export interface ProspectorTodayResponse {
+  completed: ProspectorTodayCompleted[];
+
   generatedAt: string;
 
   day: {

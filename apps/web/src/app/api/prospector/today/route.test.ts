@@ -38,6 +38,7 @@ describe('GET /api/prospector/today', () => {
       overdue: 1,
       internalTotal: 99,
     },
+    completed: [],
     priorities: [
       {
         id: '22222222-2222-4222-8222-222222222222',

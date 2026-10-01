@@ -48,6 +48,9 @@ export async function listFollowUpQueue(
 
   query.set('teamId', input.teamId);
 
+  if (input.includeCompleted !== undefined)
+    query.set('includeCompleted', String(input.includeCompleted));
+
   if (input.overdue !== undefined) {
     query.set('overdue', String(input.overdue));
   }

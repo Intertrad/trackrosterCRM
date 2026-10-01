@@ -25,6 +25,7 @@ describe('ProspectorTodayRepository', () => {
   let summaryBuilder: QueryBuilder;
   let priorityBuilder: QueryBuilder;
   let completedBuilder: QueryBuilder;
+  let completedRowsBuilder: QueryBuilder;
   let repository: ProspectorTodayRepository;
 
   beforeEach(() => {
@@ -60,11 +61,13 @@ describe('ProspectorTodayRepository', () => {
      * pins status to 'pending', so it cannot come from the summary. */
     completedBuilder = createQueryBuilder([{ completedToday: 12 }]);
 
+    completedRowsBuilder = createQueryBuilder([]);
     select = vi
       .fn()
       .mockReturnValueOnce(summaryBuilder)
       .mockReturnValueOnce(priorityBuilder)
-      .mockReturnValueOnce(completedBuilder);
+      .mockReturnValueOnce(completedBuilder)
+      .mockReturnValueOnce(completedRowsBuilder);
 
     repository = new ProspectorTodayRepository({
       select,
@@ -105,11 +108,13 @@ describe('ProspectorTodayRepository', () => {
     summaryBuilder = createQueryBuilder([]);
     priorityBuilder = createQueryBuilder([]);
     completedBuilder = createQueryBuilder([]);
+    completedRowsBuilder = createQueryBuilder([]);
     select = vi
       .fn()
       .mockReturnValueOnce(summaryBuilder)
       .mockReturnValueOnce(priorityBuilder)
-      .mockReturnValueOnce(completedBuilder);
+      .mockReturnValueOnce(completedBuilder)
+      .mockReturnValueOnce(completedRowsBuilder);
     repository = new ProspectorTodayRepository({
       select,
     } as unknown as Database);
@@ -135,6 +140,7 @@ describe('ProspectorTodayRepository', () => {
         completedToday: 0,
       },
       priorities: [],
+      completed: [],
     });
   });
 
@@ -160,5 +166,39 @@ describe('ProspectorTodayRepository', () => {
     expect(compiled.sql).toContain('"campaign_prospect_assignments"."assigned_user_id"');
     expect(compiled.sql).toContain('"prospect_follow_ups"."assigned_user_id"');
     expect(compiled.params.filter((parameter) => parameter === userId)).toHaveLength(2);
+  });
+  it('uses completion day boundaries and workspace ownership for both count and rows', async () => {
+    const startsAt = new Date('2026-09-19T22:00:00Z');
+    const endsAt = new Date('2026-09-20T22:00:00Z');
+    const userId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    await repository.findToday({
+      tenantId: 'tenant',
+      organizationId: 'org',
+      teamId: 'team',
+      userId,
+      startsAt,
+      endsAt,
+      now: new Date('2026-09-20T10:00:00Z'),
+    });
+    const condition = completedRowsBuilder.where!.mock.calls[0]![0];
+    expect(condition).toBe(completedBuilder.where!.mock.calls[0]![0]);
+    const query = new PgDialect().sqlToQuery(condition);
+    expect(query.sql).toContain('"completed_at" >=');
+    expect(query.sql).toContain('"completed_at" <');
+    expect(query.params).toEqual(
+      expect.arrayContaining([
+        startsAt.toISOString(),
+        endsAt.toISOString(),
+        'completed',
+        'tenant',
+        'org',
+        'team',
+      ]),
+    );
+    expect(query.params.filter((value) => value === userId)).toHaveLength(2);
+    expect(completedRowsBuilder.limit).toHaveBeenCalledWith(100);
+    expect(completedBuilder.limit).not.toHaveBeenCalled();
+    const order = completedRowsBuilder.orderBy!.mock.calls[0]![0];
+    expect(new PgDialect().sqlToQuery(order).sql).toContain('"completed_at" desc');
   });
 });

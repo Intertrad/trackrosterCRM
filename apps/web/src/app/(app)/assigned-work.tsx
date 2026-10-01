@@ -13,6 +13,8 @@ import { LinkButton } from '@/components/ui/link-button';
 import { LifecycleBadge } from '@/components/prospector/lifecycle-badge';
 import { ApiError } from '@/lib/api/api-error';
 import { listWorkQueue } from '@/lib/api/work-queue-client';
+import type { ProspectorTodayResponse } from '@/lib/api/prospector-today-types';
+import { getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import type { WorkQueueItem } from '@/lib/api/work-queue-types';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
@@ -23,27 +25,35 @@ const PAGE_SIZE = 25;
 /** Today's bounded portfolio preview, refreshed without replacing visible rows during polling. */
 export function AssignedWork({
   teamId,
+  today,
   onRefresh,
   refreshing = false,
 }: {
   teamId: string;
+  today?: ProspectorTodayResponse;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
-  const { language, locale } = useTranslation();
+  const { language, locale, t } = useTranslation();
   const l = (en: string, fr: string) => text(en, fr, language);
   const [items, setItems] = useState<WorkQueueItem[] | null>(null);
-  const [selected, setSelected] = useState<WorkQueueItem | null>(null);
+  const [selected, setSelected] = useState<{
+    campaign: { id: string };
+    campaignProspectId: string;
+  } | null>(null);
   const [detailDirty, setDetailDirty] = useState(false);
   const [discard, setDiscard] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  const [view, setView] = useState<'all' | 'to_contact'>('all');
+  const [view, setView] = useState<'pending' | 'completed' | 'all' | 'to_contact'>(
+    today ? 'pending' : 'all',
+  );
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
   const load = useCallback(
     async (signal?: AbortSignal) => {
       const current = ++generation.current;
+      if (view === 'pending' || view === 'completed') return;
       try {
         const page = await listWorkQueue({
           teamId,
@@ -83,38 +93,60 @@ export function AssignedWork({
     return () => c.abort();
   }, [load, attempt]);
   useLiveRefresh(load, { scope: teamId + view });
+  const dailyView = view === 'pending' || view === 'completed';
+  const tasks =
+    view === 'completed'
+      ? (today?.completed ?? []).map((row) => ({
+          ...row,
+          name: row.establishmentName,
+          at: row.completedAt,
+          overdue: false,
+        }))
+      : (today?.priorities ?? []).map((row) => ({
+          ...row,
+          name: row.establishment.name,
+          at: row.dueAt,
+          overdue: row.isOverdue,
+        }));
+  const total = dailyView
+    ? ((view === 'completed' ? today?.summary.completedToday : today?.summary.actionsLeft) ?? 0)
+    : (items?.length ?? 0);
+  const labels = {
+    pending: l('To process', 'À traiter'),
+    completed: l('Processed', 'Traité'),
+    all: l('All', 'Tous'),
+    to_contact: l('To contact', 'À contacter'),
+  };
   return (
-    <section className="space-y-2.5">
-      <header className="flex flex-wrap items-center gap-3 py-3">
-        <div className="flex items-center gap-2">
-          <h2 className="sr-only text-xl font-bold text-navy">
-            {l('My prospects', 'Mes établissements')}
-          </h2>
-          {items && (
+    <section className="space-y-2.5" aria-label={l('My prospects', 'Mes établissements')}>
+      <header className="grid grid-cols-3 items-center gap-x-1 gap-y-3 py-3 sm:flex sm:flex-wrap sm:gap-3 lg:flex-nowrap">
+        <div className="col-span-3 flex w-full shrink-0 items-center gap-2 lg:w-auto">
+          <h2 className="text-xl font-bold text-navy">{l('My prospects', 'Mes établissements')}</h2>
+          {(dailyView || items) && (
             <Badge tone="neutral">
-              {items.length}
-              {truncated ? '+' : ''}
+              {total}
+              {!dailyView && truncated ? '+' : ''}
             </Badge>
           )}
         </div>
-        <div className="flex gap-0.5 rounded-[11px] bg-surface-muted p-[3px]">
-          {(['all', 'to_contact'] as const).map((option) => (
+        <div className="contents sm:flex sm:max-w-full sm:shrink-0 sm:gap-0.5 sm:rounded-[11px] sm:bg-surface-muted sm:p-[3px]">
+          {(['pending', 'completed', 'all', 'to_contact'] as const).map((option) => (
             <Button
               key={option}
               size="md"
               variant="ghost"
-              className={view === option ? 'bg-surface text-navy shadow-sm' : 'text-ink-muted'}
+              className={`${option === 'to_contact' ? 'col-start-1 justify-self-start whitespace-nowrap' : ''} ${view === option ? 'bg-white! text-navy shadow-sm hover:bg-white!' : 'bg-surface-muted! text-ink-muted hover:bg-line-soft!'}`}
               aria-pressed={view === option}
               onClick={() => setView(option)}
             >
-              {option === 'all' ? l('All', 'Tous') : l('To contact', 'À contacter')}
+              {labels[option]}
             </Button>
           ))}
         </div>
         <Button
           size="md"
           variant="secondary"
-          className="ml-auto"
+          className="col-span-2 col-start-2 row-start-3 justify-self-end sm:ml-auto"
           aria-label={l('Refresh today', 'Actualiser la journée')}
           loading={refreshing}
           onClick={() => {
@@ -126,7 +158,7 @@ export function AssignedWork({
           {l('Refresh', 'Actualiser')}
         </Button>
       </header>
-      {failed && (
+      {!dailyView && failed && (
         <div className="space-y-3 px-5 pb-4">
           <Alert tone="warning">{failed}</Alert>
           <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
@@ -134,7 +166,92 @@ export function AssignedWork({
           </Button>
         </div>
       )}
-      {items === null ? (
+      {dailyView ? (
+        <>
+          <p className="text-sm text-ink-muted">
+            {view === 'pending'
+              ? l(
+                  'Due today, including overdue tasks.',
+                  'Tâches prévues aujourd’hui, y compris celles en retard.',
+                )
+              : l('Tasks completed today.', 'Tâches réalisées aujourd’hui.')}
+          </p>
+          {tasks.length === 0 ? (
+            <p className="rounded-xl border border-line-soft bg-surface px-6 py-8 text-center text-ink-muted">
+              {view === 'pending'
+                ? l('No tasks left to process today.', 'Aucune tâche à traiter pour aujourd’hui.')
+                : l(
+                    'No tasks completed today yet.',
+                    'Aucune tâche réalisée aujourd’hui pour le moment.',
+                  )}
+            </p>
+          ) : (
+            <ul className="space-y-2.5">
+              {tasks.map((task, index) => (
+                <li key={task.id}>
+                  <Link
+                    href={`/work-queue/${task.campaignId}/${task.campaignProspectId}`}
+                    onClick={(event) => {
+                      if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                        event.preventDefault();
+                        setSelected({
+                          campaign: { id: task.campaignId },
+                          campaignProspectId: task.campaignProspectId,
+                        });
+                      }
+                    }}
+                    className="flex min-h-[66px] items-center gap-3.5 rounded-xl border border-line-soft bg-surface px-4 py-3.5 transition-colors hover:border-brand-pale hover:bg-brand-wash"
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-tint text-sm font-bold text-brand">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block break-words text-[15.2px] font-bold text-navy">
+                        {task.name}
+                      </span>
+                      <span className="mt-1 block text-sm text-ink-muted">
+                        {view === 'completed'
+                          ? l('Completed', 'Terminée')
+                          : l('Scheduled', 'Prévue')}{' '}
+                        ·{' '}
+                        {new Intl.DateTimeFormat(locale ?? language, {
+                          timeZone: today?.day.timeZone,
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }).format(new Date(task.at))}
+                        {task.channel ? ` · ${t(getChannelLabelKey(task.channel))}` : ''}
+                      </span>
+                    </div>
+                    <Badge
+                      tone={view === 'completed' ? 'success' : task.overdue ? 'danger' : 'neutral'}
+                    >
+                      {view === 'completed'
+                        ? labels.completed
+                        : task.overdue
+                          ? l('Overdue', 'En retard')
+                          : l('To do', 'À faire')}
+                    </Badge>
+                    <ArrowRight
+                      aria-hidden="true"
+                      className="hidden size-4 shrink-0 text-brand sm:block"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {total > tasks.length && (
+            <p className="text-sm text-ink-muted">
+              {l(
+                `Showing ${tasks.length} of ${total} tasks.`,
+                `${tasks.length} tâches affichées sur ${total}.`,
+              )}
+            </p>
+          )}
+        </>
+      ) : items === null ? (
         !failed && (
           <div className="animate-pulse space-y-3 px-5 py-6" aria-busy="true">
             <span className="sr-only">
@@ -232,14 +349,16 @@ export function AssignedWork({
           ))}
         </ul>
       )}
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-5 py-4">
+      <footer className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-line-soft py-3">
         <span className="text-sm text-ink-muted">
-          {truncated
-            ? l(
-                `Latest ${PAGE_SIZE} assignments shown`,
-                `${PAGE_SIZE} dernières attributions affichées`,
-              )
-            : l('Your assigned portfolio', 'Votre portefeuille attribué')}
+          {dailyView
+            ? l('Today’s tasks', 'Tâches de la journée')
+            : truncated
+              ? l(
+                  `Latest ${PAGE_SIZE} assignments shown`,
+                  `${PAGE_SIZE} dernières attributions affichées`,
+                )
+              : l('Your assigned portfolio', 'Votre portefeuille attribué')}
         </span>
         <LinkButton href="/work-queue">{l('Open portfolio', 'Ouvrir le portefeuille')}</LinkButton>
       </footer>

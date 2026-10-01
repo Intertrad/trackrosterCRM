@@ -39,6 +39,7 @@ export class FollowUpQueueController {
       teamId: query.teamId!,
 
       overdue: query.overdue,
+      ...(query.includeCompleted !== undefined ? { includeCompleted: query.includeCompleted } : {}),
 
       limit: query.limit,
     });

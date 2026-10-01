@@ -29,6 +29,7 @@ describe('prospector-today-client', () => {
       overdue: 0,
       completedToday: 12,
     },
+    completed: [],
     priorities: [],
   };
 

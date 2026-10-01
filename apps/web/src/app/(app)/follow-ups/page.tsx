@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, X } from 'lucide-react';
 
+import { getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -97,7 +98,12 @@ export default function ActionsPage() {
          * classification. The API's `overdue` filter is not used here for the same
          * reason: it would be a second definition of the word.
          */
-        const response = await listFollowUpQueue({ teamId, limit: 100, signal });
+        const response = await listFollowUpQueue({
+          teamId,
+          limit: 100,
+          includeCompleted: true,
+          signal,
+        });
 
         setTruncated(response.items.length >= 100);
 
@@ -202,7 +208,7 @@ export default function ActionsPage() {
     setActionError(null);
     setNotice(null);
 
-    const targets = visible.filter((item) => selected.has(item.id));
+    const targets = visible.filter((item) => item.status === 'pending' && selected.has(item.id));
 
     let succeeded = 0;
 
@@ -238,12 +244,19 @@ export default function ActionsPage() {
     setBusy(false);
     setSelected(new Set());
 
-    const verb = action === 'complete' ? 'completed' : 'cancelled';
-
     if (succeeded === targets.length) {
-      setNotice(`${succeeded} action${succeeded === 1 ? '' : 's'} ${verb}.`);
+      setNotice(
+        t(action === 'complete' ? 'actions.completedNotice' : 'actions.cancelledNotice', {
+          count: succeeded,
+        }),
+      );
     } else {
-      setActionError(`${succeeded} of ${targets.length} actions ${verb}. Please retry the rest.`);
+      setActionError(
+        t(action === 'complete' ? 'actions.completedPartial' : 'actions.cancelledPartial', {
+          count: succeeded,
+          total: targets.length,
+        }),
+      );
     }
 
     await load();
@@ -252,7 +265,7 @@ export default function ActionsPage() {
   if (!teamId) {
     return (
       <div className="flex flex-col gap-[18px]">
-        <PageHeader title={t('actions.title')} />
+        <PageHeader title={t('nav.followUps')} />
 
         <Alert tone="info" title={t('actions.teamScoped')}>
           {t('actions.teamScopedBody')}
@@ -264,7 +277,7 @@ export default function ActionsPage() {
   return (
     <div className="flex flex-col gap-[18px]">
       <PageHeader
-        title={t('actions.title')}
+        title={t('nav.followUps')}
         subtitle={t('actions.subtitle')}
         action={
           /* The history of completed work and the round planner are no longer
@@ -283,7 +296,7 @@ export default function ActionsPage() {
           placeholder={`${t('actions.search')}…`}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="min-w-[240px] flex-1"
+          className="min-w-0 flex-1"
         />
       </div>
 
@@ -299,7 +312,10 @@ export default function ActionsPage() {
           <button
             key={item.id}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => {
+              setTab(item.id);
+              setSelected(new Set());
+            }}
             aria-pressed={tab === item.id}
             className={cn(
               'inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[14px] font-semibold transition-colors',
@@ -451,7 +467,7 @@ function RescheduleDialog({
   onClose: () => void;
   onRescheduled: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
@@ -526,8 +542,8 @@ function RescheduleDialog({
       {followUp ? (
         <div className="flex flex-col gap-4">
           <p className="text-[14px] text-ink-muted">
-            {t('actions.reschedule.current')}: {formatDate(followUp.dueAt)}{' '}
-            {formatTime(followUp.dueAt)}
+            {t('actions.reschedule.current')}: {formatDate(followUp.dueAt, locale)}{' '}
+            {formatTime(followUp.dueAt, locale)}
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -577,78 +593,92 @@ function ActionRow({
   onToggle: () => void;
   onReschedule: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   /* The shared classifier, so this row and the counts above cannot disagree. */
   const overdue = classifyFollowUp(item) === 'overdue';
 
   return (
-    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3">
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 rounded-xl sm:flex sm:flex-wrap sm:items-center border border-line bg-surface px-4 py-3">
       <input
         type="checkbox"
+        disabled={item.status !== 'pending'}
         checked={selected}
         onChange={onToggle}
         aria-label={t('actions.select', { name: item.establishmentName })}
-        className="size-[18px] shrink-0 cursor-pointer appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
+        className="mt-1 size-[18px] shrink-0 cursor-pointer disabled:invisible appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
       />
 
       <span
-        className={cn('w-24 shrink-0 text-[14px] font-bold', overdue ? 'text-danger' : 'text-ink')}
+        className={cn(
+          'col-start-2 row-start-2 flex flex-wrap gap-x-2 text-[14px] font-bold sm:block sm:w-24 sm:shrink-0',
+          overdue ? 'text-danger' : 'text-ink',
+        )}
       >
-        {formatDate(item.dueAt)}
+        {formatDate(item.dueAt, locale)}
 
         <span className="block text-[13px] font-medium text-ink-muted">
-          {overdue ? t('actions.status.overdue') : formatTime(item.dueAt)}
+          {overdue ? t('actions.status.overdue') : formatTime(item.dueAt, locale)}
         </span>
       </span>
 
-      <span className="min-w-0 flex-1 basis-48">
+      <span className="col-start-2 row-start-1 min-w-0 sm:flex-1 sm:basis-48">
         <Link
           href={`/work-queue/${item.campaignId}/${item.prospectId}`}
-          className="block truncate text-[15px] font-bold text-navy hover:text-brand"
+          className="block break-words text-[15px] sm:truncate font-bold text-navy hover:text-brand"
         >
           {item.establishmentName}
         </Link>
 
-        <span className="block truncate text-[14px] text-ink-muted">{item.campaignName}</span>
+        <span className="block break-words text-[14px] sm:truncate text-ink-muted">
+          {item.campaignName}
+        </span>
       </span>
 
-      <Badge tone={item.ownership === 'team' ? 'brand' : 'neutral'} className="shrink-0">
-        {t(item.ownership === 'team' ? 'actions.owner.team' : 'actions.owner.you')}
-      </Badge>
-
-      {/*
-       * An appointment keeps its time group and is marked here instead. Moving every
-       * meeting into a bucket of its own would hide an overdue one from Overdue,
-       * which is the list it most needs to be in.
-       */}
-      {isAppointment(item) ? (
-        <Badge tone="brand" className="shrink-0">
-          {t('actions.appointment')}
+      <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:contents">
+        <Badge tone={item.ownership === 'team' ? 'brand' : 'neutral'} className="shrink-0">
+          {t(item.ownership === 'team' ? 'actions.owner.team' : 'actions.owner.you')}
         </Badge>
-      ) : null}
 
-      {/* The channel the next action is meant to use, when one was recorded. */}
-      {item.channel ? (
-        <span className="shrink-0 text-[13px] text-ink-muted capitalize">{item.channel}</span>
-      ) : null}
+        {/*
+         * An appointment keeps its time group and is marked here instead. Moving every
+         * meeting into a bucket of its own would hide an overdue one from Overdue,
+         * which is the list it most needs to be in.
+         */}
+        {isAppointment(item) ? (
+          <Badge tone="brand" className="shrink-0">
+            {t('actions.appointment')}
+          </Badge>
+        ) : null}
 
-      <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
-        {t(
-          item.status === 'completed'
-            ? 'actions.status.completed'
-            : overdue
-              ? 'actions.status.overdue'
-              : 'actions.status.open',
-        )}
-      </Badge>
+        {/* The channel the next action is meant to use, when one was recorded. */}
+        {item.channel ? (
+          <span className="shrink-0 text-[13px] text-ink-muted capitalize">
+            {t(getChannelLabelKey(item.channel))}
+          </span>
+        ) : null}
+
+        <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
+          {t(
+            item.status === 'completed'
+              ? 'actions.status.completed'
+              : overdue
+                ? 'actions.status.overdue'
+                : 'actions.status.open',
+          )}
+        </Badge>
+      </div>
 
       {/*
        * Only a pending follow-up can be moved. A completed or cancelled one is
        * settled, and the API offers no reopening.
        */}
       {item.status === 'pending' ? (
-        <Button variant="secondary" className="shrink-0" onClick={onReschedule}>
+        <Button
+          variant="secondary"
+          className="col-start-2 justify-self-start sm:shrink-0"
+          onClick={onReschedule}
+        >
           {t('actions.reschedule')}
         </Button>
       ) : null}
@@ -677,18 +707,18 @@ function QueueSkeleton() {
   );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale?: string): string {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
     ? '—'
-    : new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short' }).format(date);
+    : new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short' }).format(date);
 }
 
-function formatTime(value: string): string {
+function formatTime(value: string, locale?: string): string {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
     ? ''
-    : new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(date);
+    : new Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(date);
 }

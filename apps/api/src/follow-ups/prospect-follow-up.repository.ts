@@ -169,7 +169,9 @@ export class ProspectFollowUpRepository {
         and(
           eq(prospectFollowUps.tenantId, tenantId),
 
-          eq(prospectFollowUps.status, 'pending'),
+          options.includeCompleted
+            ? or(eq(prospectFollowUps.status, 'pending'), eq(prospectFollowUps.status, 'completed'))
+            : eq(prospectFollowUps.status, 'pending'),
 
           /*
            * Only current assignment work belongs
@@ -182,6 +184,10 @@ export class ProspectFollowUpRepository {
           eq(campaigns.status, 'active'),
 
           assignmentScopeCondition,
+          or(
+            eq(campaignProspectAssignments.assignedUserId, options.userId),
+            isNull(campaignProspectAssignments.assignedUserId),
+          ),
 
           ownershipCondition,
 

@@ -12,6 +12,11 @@ export class ListFollowUpQueueQueryDto {
   @IsOptional() @IsUUID() campaignId?: string;
 
   @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  includeCompleted?: boolean;
+
+  @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true') {
       return true;

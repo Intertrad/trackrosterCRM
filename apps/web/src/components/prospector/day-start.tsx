@@ -19,7 +19,7 @@ export function DayStart({ today }: { today: ProspectorTodayResponse }) {
         <div className="flex flex-col justify-between gap-5 sm:flex-row">
           <div className="min-w-0 flex-1">
             <p className="text-[13.44px] text-white/75">
-              {new Date(`${today.day.date}T12:00:00`).toLocaleDateString(locale, {
+              {new Date(`${today.day.date}T12:00:00`).toLocaleDateString(locale ?? language, {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',

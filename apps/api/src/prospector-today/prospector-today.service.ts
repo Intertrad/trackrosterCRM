@@ -78,6 +78,16 @@ export class ProspectorTodayService {
         endsAt: day.endsAt.toISOString(),
       },
       summary: result.summary,
+      completed: result.completed.flatMap((row) =>
+        row.completedAt
+          ? [
+              {
+                ...row,
+                completedAt: row.completedAt.toISOString(),
+              },
+            ]
+          : [],
+      ),
       priorities: result.priorities.map((priority) => ({
         id: priority.id,
         campaignId: priority.campaignId,

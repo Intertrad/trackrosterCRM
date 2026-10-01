@@ -33,6 +33,8 @@ export interface ListFollowUpQueueInput {
 
   teamId: string;
 
+  includeCompleted?: boolean;
+
   overdue?: boolean;
 
   limit?: number;
@@ -91,6 +93,9 @@ export class ProspectFollowUpQueryService {
         teamScopes,
 
         overdue: input.overdue,
+        ...(input.includeCompleted !== undefined
+          ? { includeCompleted: input.includeCompleted }
+          : {}),
 
         now: new Date(),
 

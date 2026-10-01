@@ -82,6 +82,8 @@ export interface ProspectFollowUpQueueOptions {
 
   teamScopes: FollowUpTeamScope[];
 
+  includeCompleted?: boolean;
+
   overdue?: boolean;
 
   now: Date;

@@ -18,6 +18,8 @@ vi.mock('@/components/prospector/prospect-detail', () => ({
   ),
 }));
 
+import type { ProspectorTodayResponse } from '@/lib/api/prospector-today-types';
+import { I18nProvider } from '@/lib/i18n/i18n-context';
 import { AssignedWork } from './assigned-work';
 
 const teamId = '11111111-1111-4111-8111-111111111111';
@@ -70,6 +72,82 @@ describe('assigned work on Ma journée', () => {
    * follow-ups alone, so a prospect assigned this morning has none and showed up
    * nowhere. This is the assignment arriving.
    */
+  it('orders daily tabs and keeps pending, completed and portfolio records separate', async () => {
+    const today: ProspectorTodayResponse = {
+      generatedAt: '2026-10-01T10:00:00Z',
+      day: {
+        date: '2026-10-01',
+        timeZone: 'Europe/Paris',
+        startsAt: '2026-09-30T22:00:00Z',
+        endsAt: '2026-10-01T22:00:00Z',
+      },
+      summary: {
+        actionsLeft: 1,
+        toDo: 1,
+        followUps: 0,
+        meetings: 0,
+        overdue: 0,
+        completedToday: 1,
+      },
+      priorities: [
+        {
+          id: 'pending',
+          campaignId: 'campaign',
+          campaignProspectId: 'prospect-pending',
+          dueAt: '2026-10-01T13:00:00Z',
+          isOverdue: false,
+          category: 'todo',
+          channel: 'call',
+          establishment: {
+            id: 'est',
+            name: 'Pending clinic',
+            city: null,
+            phone: null,
+            latitude: null,
+            longitude: null,
+          },
+        },
+      ],
+      completed: [
+        {
+          id: 'done',
+          campaignId: 'campaign',
+          campaignProspectId: 'prospect-done',
+          completedAt: '2026-10-01T09:00:00Z',
+          channel: 'email',
+          establishmentName: 'Completed clinic',
+        },
+      ],
+    };
+    render(
+      <I18nProvider locale="fr-FR">
+        <AssignedWork teamId={teamId} today={today} />
+      </I18nProvider>,
+    );
+    expect(
+      screen
+        .getAllByRole('button')
+        .slice(0, 4)
+        .map((b) => b.textContent),
+    ).toEqual(['À traiter', 'Traité', 'Tous', 'À contacter']);
+    expect(screen.getByRole('button', { name: 'À traiter' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByText('Pending clinic')).toBeInTheDocument();
+    expect(screen.queryByText('Completed clinic')).not.toBeInTheDocument();
+    expect(listWorkQueueMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Traité' }));
+    expect(screen.getByText('Completed clinic')).toBeInTheDocument();
+    expect(screen.queryByText('Pending clinic')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: /Completed clinic/ }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Detail campaign prospect-done');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Tous' }));
+    expect(await screen.findByText('Brigade de Bastia')).toBeInTheDocument();
+    expect(screen.queryByText('Completed clinic')).not.toBeInTheDocument();
+  });
+
   it('shows an assignment that has no follow-up yet', async () => {
     render(<AssignedWork teamId={teamId} />);
 
@@ -114,7 +192,7 @@ describe('assigned work on Ma journée', () => {
     listWorkQueueMock.mockResolvedValue(
       page([
         item({
-          nextFollowUp: { id: 'f-1', dueAt: '2026-09-30T09:00:00.000Z' },
+          nextFollowUp: { id: 'f-1', dueAt: new Date(Date.now() + 86400000).toISOString() },
           lifecycleStage: 'follow_up',
         }),
       ]),
