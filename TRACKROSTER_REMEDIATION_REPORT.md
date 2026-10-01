@@ -1,9 +1,9 @@
 # TrackRoster remediation report
 
 **Run date:** 2026-10-02
-**Decision:** **Not ready for production deployment.** The P0 code and test gates are
-green, but provider provisioning, product approval, notification delivery, recovery,
-authenticated six-role E2E, and load evidence are still open.
+**Decision:** **Not ready for production deployment.** TR-910 beta acceptance is green,
+but provider provisioning, product approval, recovery, reservation reconciliation,
+pilot and load evidence remain open.
 
 This report records the remediation work completed in this run. The approved dossier
 was subsequently supplied at `/Users/zainsubhani/Downloads/files/TrackRoster_Product_Design_Dossier_EN.pdf`;
@@ -57,8 +57,10 @@ the requirements matrix and notification matrix now use that source of truth.
    observer completion mutation returned 403. The desktop browser matrix passed
    login for manager, director, prospector, observer/auditor, client-admin and
    super-admin. A frontend workspace route guard was added and the forbidden pasted
-   URL checks now redirect to each role's home. Responsive breakpoints, a second
-   populated tenant assertion and the remaining worker-path matrix are still open.
+   URL checks now redirect to each role's home. The responsive matrix at 390, 768 and
+   1440 pixels has no horizontal overflow; a second populated tenant fixture returned
+   404 for cross-tenant GET and PATCH; and targeted worker/API authorization paths are
+   green. The final deployment rehearsal with `TENANT_RLS_MODE=enforce` remains open.
    The environment validator still refuses `TENANT_RLS_MODE=enforce` until every
    access path is certified; do not enable that setting in production based only on
    this run.
@@ -107,12 +109,11 @@ runbook are not complete enough for a production claim.
 
 ### Authenticated E2E
 
-The beta desktop login and ACL matrix now certifies manager, director, prospector,
-observer/auditor, client-admin and super-admin journeys. It includes allowed role
-homes, forbidden pasted URLs and a browser route-guard redirect, with API responses
-recorded alongside the checks. The existing web tests are component/page tests and do
-not replace responsive evidence, a second populated tenant assertion or the remaining
-worker-path matrix. Mobile/tablet breakpoints therefore remain open.
+The beta authenticated browser matrix now certifies manager, director, prospector,
+observer/auditor, client-admin and super-admin journeys at 390, 768 and 1440 pixels.
+It includes allowed role homes, forbidden pasted URLs, route-guard redirects and no
+horizontal overflow. The second-tenant establishment denial and targeted worker/API
+authorization suites are green. The final deployment rehearsal remains separate.
 
 ### TR-910 evidence update — 2 October 2026
 
@@ -130,9 +131,9 @@ plus `tsc --noEmit` passes. The beta browser rerun confirmed:
 | Client administrator | `/admin/overview`    | `/director/overview`    | Allowed by administrator scope |
 | Super administrator  | `/admin/overview`    | `/manager/overview`     | Allowed by administrator scope |
 
-This closes the frontend route-guard defect, but does not close G-02/G-10: responsive
-390/768/1440 evidence, second-tenant browser denial and the remaining worker-path
-authorization proof are still required.
+This closes TR-910 for beta acceptance. G-02 and G-10 are green for the beta release
+evidence; the remaining work is the deployment-environment rehearsal with
+`TENANT_RLS_MODE=enforce`.
 
 ## P2 status
 
@@ -159,7 +160,24 @@ maintenance work.
 2. Supply tenant-safe email and push credentials or a controlled
    staging equivalent.
 3. Approve RPO/RTO, backup retention and a scratch restore target.
-4. Schedule the authenticated six-role browser/ACL matrix and the load test profile.
+4. Schedule the final deployment rehearsal with `TENANT_RLS_MODE=enforce` and the load
+   test profile.
+
+## TR-916 — next remediation ticket
+
+TR-910 is closed for beta acceptance. The next correctness item is proving that
+reservation intent survives retries, worker restart and lease expiry before the final
+deployment rehearsal.
+
+Acceptance criteria:
+
+1. Prove reservation intent is durable before the Redis lease is acquired and remains
+   correct across API retries.
+2. Restart the worker with pending intent and verify reconciliation completes exactly
+   once, without duplicate claim or release.
+3. Verify tenant scope, idempotency keys, cooldown/expiry behavior and immutable audit
+   records for success, conflict and retry paths.
+4. Update G-06 and this report with retained API/worker evidence.
 
 Until those inputs and tests are complete, the correct release status is **NO-GO** even
 though the local P0 code/test gates are green.
