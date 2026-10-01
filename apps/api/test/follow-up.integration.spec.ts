@@ -1265,6 +1265,7 @@ describe('Follow-up HTTP integration', () => {
       .values({
         ...notificationA,
         id: randomUUID(),
+        eventKey: `${notificationA.eventKey}:severity-filter`,
         readAt: null,
         scheduledFor: new Date(Date.now() + 1000),
         severity: 'warning',
