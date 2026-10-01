@@ -280,6 +280,8 @@ What stops management's flow working today, in order:
 3. **No session / objective-from-time** concept.
 4. **No scripts** for the prospector to read while calling.
 5. **No category taxonomy** to filter "Gendarmeries / Commissariats / Douanes / CRA".
+   **Resolved by TR-921**; the remaining beta work is loading and classifying the
+   supplied prospect dataset.
 6. **The dispatch model decision** (§23) — resolved by TR-920; implementation now
    follows [ADR-006](decisions/ADR-006-dispatch-model.md).
 
@@ -296,9 +298,13 @@ follow-ups, audit, authorization, isolation.
   hybrid manager-push + prospector-pull model in
   [ADR-006](decisions/ADR-006-dispatch-model.md). TR-923 and TR-924 implement the two
   entry points over the existing assignment/collision lifecycle.
-- **TR-921 — Prospect category (section) taxonomy.** Add a category to the référentiel
-  and expose it as a filter. Decide between a column on `establishments` and the existing
-  `tags`. Migration + filter plumbing.
+- **TR-921 — Prospect category (section) taxonomy.** **Done.** A nullable single-valued
+  `establishment_category` enum is stored on `establishments`; tags remain free-form
+  many-to-many labels. Migration `0081_establishment_category.sql` and the API/web
+  filter plumbing cover create, update, import preview, establishment listing,
+  prospect-master listing, campaign enrolment and the manager dispatch queue. The
+  taxonomy values are `prospection`, `justice_enquetes`, `sante`, `asile_social`,
+  `douanes_onaf`, `cra` and `prescripteurs`.
 - **TR-922 — Load the 14,000 prospects.** Requires the file. Depends on TR-921 for
   category mapping and on import dedupe being trustworthy (TR-905) so a re-import does
   not duplicate the base.
@@ -336,7 +342,7 @@ Realtime push, route optimisation, advanced analytics, messaging (hide for the b
 ```text
 TR-920 (hybrid decision) ✅
    ↓
-TR-921 → TR-922        category, then the data
+TR-921 (taxonomy) ✅ → TR-922 (data load)
    ↓
 TR-924 (if pull model) ──┐
 TR-923 (if push model) ──┤ → TR-926 (My Day) → TR-925 (scripts)
@@ -441,7 +447,20 @@ fabricated one, and it is honest about what remains.
 
 ## 25. Next ticket
 
-**TR-921 — prospect category (section) taxonomy**, immediately followed by **TR-922** once
-the dataset is supplied. Both are useful under the recorded hybrid dispatch model,
-neither is blocked, and together they are what turns the existing engine into something
-management can recognise as their product.
+**TR-922 — load and classify the prospect dataset** once the source file is supplied.
+TR-921 is complete and the category filter is available to the import, prospect and
+assignment paths. The remaining uncertainty is data mapping quality, not schema or
+filter plumbing.
+
+### TR-921 evidence
+
+- API unit tests: 19/19 passed in `establishment-category.dto.spec.ts` and
+  `establishment.service.spec.ts`.
+- Web BFF route tests: 13/13 passed across the prospects, unassigned-assignment and
+  campaign bulk-selection routes.
+- API and web TypeScript checks passed.
+- Migration integrity passed for the 86-entry chain, including migration 0081.
+- HTTP integration tests are not runnable in this shell because the configured
+  disposable Redis/Postgres services are unavailable (`EPERM` on `127.0.0.1:6379` and
+  `ENOTFOUND` for the configured Supabase pooler). They remain required evidence for
+  the connected environment.
