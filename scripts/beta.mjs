@@ -62,7 +62,20 @@ for (const key of ['DATABASE_URL', 'DATABASE_MIGRATION_URL', 'DATABASE_SEED_URL'
 
   if (!value) throw new Error(`.env.beta is missing ${key}`);
 
-  if (!value.includes('127.0.0.1:5434') || !value.endsWith('/trackroster_beta')) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    parsed = null;
+  }
+
+  if (
+    !parsed ||
+    parsed.protocol !== 'postgresql:' ||
+    parsed.hostname !== '127.0.0.1' ||
+    parsed.port !== '5434' ||
+    parsed.pathname !== '/trackroster_beta'
+  ) {
     throw new Error(
       `${key} in .env.beta does not address the beta database ` +
         '(expected 127.0.0.1:5434/trackroster_beta). Refusing to run.',

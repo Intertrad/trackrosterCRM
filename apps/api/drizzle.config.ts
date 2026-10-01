@@ -29,6 +29,7 @@ const parsedUrl = new URL(url);
 const configuredRejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED;
 const isProduction = process.env.NODE_ENV?.toLowerCase() === 'production';
 const usesRequiredTls = /(?:^|[?&])sslmode=require(?:&|$)/i.test(url);
+const explicitlyDisablesTls = /(?:^|[?&])sslmode=disable(?:&|$)/i.test(url);
 const allowDevelopmentSelfSigned = !isProduction && usesRequiredTls;
 
 if (isProduction && configuredRejectUnauthorized?.toLowerCase() === 'false') {
@@ -46,16 +47,26 @@ const rejectUnauthorized = configuredRejectUnauthorized
   ? configuredRejectUnauthorized.toLowerCase() !== 'false'
   : !allowDevelopmentSelfSigned;
 
-const dbCredentials = {
+const dbCredentials: {
+  host: string;
+  port?: number;
+  user: string;
+  password: string;
+  database: string;
+  ssl?: { rejectUnauthorized: boolean } | false;
+} = {
   host: parsedUrl.hostname,
   port: parsedUrl.port ? Number(parsedUrl.port) : undefined,
   user: decodeURIComponent(parsedUrl.username),
   password: decodeURIComponent(parsedUrl.password),
   database: decodeURIComponent(parsedUrl.pathname.replace(/^\//, '')),
-  ssl: {
-    rejectUnauthorized,
-  },
 };
+
+if (explicitlyDisablesTls) {
+  dbCredentials.ssl = false;
+} else {
+  dbCredentials.ssl = { rejectUnauthorized };
+}
 
 export default defineConfig({
   dialect: 'postgresql',
