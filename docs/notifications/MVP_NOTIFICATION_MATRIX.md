@@ -29,9 +29,9 @@ day, and is covered by `notification-digest-scheduler.service.spec.ts`. The work
 suite passes 17 files and 80 tests, including the OneSignal request-contract tests.
 In the controlled beta environment, migrations and seed completed, the Brevo account
 endpoint authenticated successfully, and one staging verification email was accepted
-by Brevo with HTTP 201. OneSignal certification remains open: the supplied credential
-returned HTTP 401 during read-only validation, and no OneSignal app ID or test
-subscription was supplied, so no push was sent. Disposable PostgreSQL integration is
+by Brevo with HTTP 201. The supplied OneSignal app ID and credential passed the
+app-scoped read-only validation with HTTP 200. Push certification remains open because
+no test subscription/device ID has been supplied, so no push was sent. Disposable PostgreSQL integration is
 still not claimable because the configured local database connection at `127.0.0.1:5433`
 is denied with `EPERM`. Authenticated role delivery, live collision inbox evidence, and
 provider retry/final-failure evidence still require a controlled staging environment.
