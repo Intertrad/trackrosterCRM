@@ -280,7 +280,8 @@ What stops management's flow working today, in order:
 3. **No session / objective-from-time** concept.
 4. **No scripts** for the prospector to read while calling.
 5. **No category taxonomy** to filter "Gendarmeries / Commissariats / Douanes / CRA".
-6. **The undecided dispatch model** (§23) — building the wrong one wastes the week.
+6. **The dispatch model decision** (§23) — resolved by TR-920; implementation now
+   follows [ADR-006](decisions/ADR-006-dispatch-model.md).
 
 Note what is _not_ on this list: collision prevention, assignment, activity recording,
 follow-ups, audit, authorization, isolation.
@@ -291,8 +292,10 @@ follow-ups, audit, authorization, isolation.
 
 ### P0 — beta-critical
 
-- **TR-920 — Decide and document the dispatch model.** Manager-push, prospector-pull, or
-  both. Blocks TR-923 and TR-924. _Decision, not code._
+- **TR-920 — Decide and document the dispatch model.** **Done.** The beta uses the
+  hybrid manager-push + prospector-pull model in
+  [ADR-006](decisions/ADR-006-dispatch-model.md). TR-923 and TR-924 implement the two
+  entry points over the existing assignment/collision lifecycle.
 - **TR-921 — Prospect category (section) taxonomy.** Add a category to the référentiel
   and expose it as a filter. Decide between a column on `establishments` and the existing
   `tags`. Migration + filter plumbing.
@@ -331,7 +334,7 @@ Realtime push, route optimisation, advanced analytics, messaging (hide for the b
 ## 19. Implementation order
 
 ```text
-TR-920 (decision)
+TR-920 (hybrid decision) ✅
    ↓
 TR-921 → TR-922        category, then the data
    ↓
@@ -402,10 +405,12 @@ failure modes. Both are defensible:
   nos équipes" implies.
 - **Prospector-pull** removes a daily manual step and is what the mockup demonstrates.
 - **Both** — manager defines the campaign, territory and objective; the prospector pulls
-  their day from that scope — is probably what is actually wanted, and is the most work.
+  their day from that scope — is the recorded beta decision. The detailed invariants
+  and acceptance evidence live in [ADR-006](decisions/ADR-006-dispatch-model.md).
 
-**This needs one sentence from management before TR-923/TR-924 start.** Everything else
-in the backlog can proceed without it.
+TR-923 and TR-924 can now start against that contract. If management later chooses a
+single-mode product, it is a product change that must supersede ADR-006 before either
+ticket changes implementation direction.
 
 ---
 
@@ -437,6 +442,6 @@ fabricated one, and it is honest about what remains.
 ## 25. Next ticket
 
 **TR-921 — prospect category (section) taxonomy**, immediately followed by **TR-922** once
-the dataset is supplied. Both are useful under either dispatch model, neither is blocked,
-and together they are what turns the existing engine into something management can
-recognise as their product.
+the dataset is supplied. Both are useful under the recorded hybrid dispatch model,
+neither is blocked, and together they are what turns the existing engine into something
+management can recognise as their product.
