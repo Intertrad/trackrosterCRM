@@ -1,4 +1,6 @@
 import type { NotificationPage } from '@/lib/api/notification-types';
+import type { NotificationItem } from '@/lib/api/notification-types';
+import { ApiError } from '@/lib/api/api-error';
 import { apiErrorResponse, unauthenticatedResponse } from '@/lib/server/api-error-response';
 import { authenticatedBackendJson } from '@/lib/server/authenticated-backend-json';
 
@@ -21,15 +23,31 @@ export async function GET(request: Request): Promise<Response> {
 
     const search = query.toString();
 
-    const page = await authenticatedBackendJson<NotificationPage>(
-      search ? `/notifications?${search}` : '/notifications',
-    );
+    /* Prefer the cursor-aware contract, but keep older API deployments usable
+     * while they roll forward. The neutral endpoint returns a bare array. */
+    let page: NotificationPage | NotificationItem[] | null;
+
+    try {
+      page = await authenticatedBackendJson<NotificationPage>(
+        search ? `/api/v1/notifications?${search}` : '/api/v1/notifications',
+      );
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.statusCode !== 404) {
+        throw error;
+      }
+
+      page = await authenticatedBackendJson<NotificationPage | NotificationItem[]>(
+        search ? `/notifications?${search}` : '/notifications',
+      );
+    }
 
     if (!page) {
       return unauthenticatedResponse();
     }
 
-    return Response.json(page, { headers: { 'cache-control': 'no-store' } });
+    return Response.json(Array.isArray(page) ? { items: page, nextCursor: null } : page, {
+      headers: { 'cache-control': 'no-store' },
+    });
   } catch (error) {
     return apiErrorResponse(error);
   }
