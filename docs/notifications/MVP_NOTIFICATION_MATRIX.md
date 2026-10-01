@@ -28,8 +28,9 @@ discovers active tenants, enqueues one deterministic `notification.digest` job p
 day, and is covered by `notification-digest-scheduler.service.spec.ts`. The worker
 suite passes 17 files and 80 tests, including the OneSignal request-contract tests.
 In the controlled beta environment, migrations and seed completed, the Brevo account
-endpoint authenticated successfully, and one staging verification email was accepted
-by Brevo with HTTP 201. The supplied OneSignal app ID and credential passed the
+endpoint authenticated successfully, one direct staging verification email was accepted
+by Brevo with HTTP 201, and the application `WorkerMailService.sendNotification` path
+returned `sent: true` with a provider ID. The supplied OneSignal app ID and credential passed the
 app-scoped read-only validation with HTTP 200. The supplied test subscription is valid
 but is an Email subscription, not a Push subscription, so it cannot certify the
 worker's `target_channel: push` contract; no push was sent. Disposable PostgreSQL integration is
