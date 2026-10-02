@@ -38,6 +38,7 @@ export * from './contact-consents.js';
 export * from './actions.js';
 export * from './collision-workflows.js';
 export * from './reservation-lifecycle.js';
+export * from './reservation-intents.js';
 export * from './assignment-rules.js';
 export * from './data-jobs.js';
 export * from './outcome-settings.js';

@@ -432,7 +432,7 @@ async function listPendingOverrideRequests(
 
   do {
     const page = await listOverrideRequests(
-      { status: 'pending', limit: 1000, ...(cursor ? { cursor } : {}) },
+      { status: 'pending', limit: 100, ...(cursor ? { cursor } : {}) },
       signal,
     );
 

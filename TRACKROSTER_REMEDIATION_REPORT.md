@@ -163,21 +163,33 @@ maintenance work.
 4. Schedule the final deployment rehearsal with `TENANT_RLS_MODE=enforce` and the load
    test profile.
 
-## TR-916 — next remediation ticket
+## TR-916 — durable reservation intent and background reconciliation
 
-TR-910 is closed for beta acceptance. The next correctness item is proving that
-reservation intent survives retries, worker restart and lease expiry before the final
-deployment rehearsal.
+TR-916 is complete for beta acceptance. Migration `0086_reservation_intent` adds an
+append-only, tenant-scoped intent table with forced RLS and a restricted-runtime
+discovery function. `ReservationLedgerService.prepare()` commits the intent before
+Redis acquisition; confirmation and close use the request transaction when one is
+active, while uncertain post-commit persistence uses an independent transaction.
+Reconciliation validates the exact and organization Redis keys, materializes one
+durable record and is idempotent across repeated worker passes.
 
-Acceptance criteria:
+Retained evidence:
 
-1. Prove reservation intent is durable before the Redis lease is acquired and remains
-   correct across API retries.
-2. Restart the worker with pending intent and verify reconciliation completes exactly
-   once, without duplicate claim or release.
-3. Verify tenant scope, idempotency keys, cooldown/expiry behavior and immutable audit
-   records for success, conflict and retry paths.
-4. Update G-06 and this report with retained API/worker evidence.
+- `reservation-lifecycle.integration.spec.ts`: **19/19** tests, including retry,
+  confirmation failure, restart-style reconciliation, exactly-once materialization and
+  event evidence, tenant-scoped reads, cooldown and expiry behavior.
+- `background-sweep-discovery.integration.spec.ts`: **3/3** restricted-runtime tests,
+  including RLS denial for context-free intent reads and privileged cross-tenant
+  discovery.
+- Reservation service unit tests: **44/44**.
+- Manager overview test: **9/9**; the pending override query now uses `limit=100`,
+  eliminating the server-side HTTP 400 caused by `limit=1000`.
 
-Until those inputs and tests are complete, the correct release status is **NO-GO** even
-though the local P0 code/test gates are green.
+The local web production build was attempted with a 180-second timeout and did not
+finish, so this ticket does not change the release decision: production remains
+**NO-GO** pending the outstanding dossier gates, deployment-environment rehearsal and
+provider/backup evidence.
+
+The next ticket is **TR-917 — manager approval/blocked reservation UX acceptance**:
+exercise the authenticated browser collision, approval and blocked-reservation paths
+against the now-correct API and retain screenshots or trace evidence for G-06.

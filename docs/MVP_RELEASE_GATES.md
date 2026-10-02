@@ -18,7 +18,7 @@ These gates are derived from the complete working v1.0 Product Design Dossier, e
 | G-03 Import quality                        | Excel/CSV preview flags duplicates/anomalies before final insert and preserves tenant-safe identity.                                                               | OPEN                                                                                                                                           | MVP release blocker    | Complete dossier dedupe-key coverage, malformed/recovery tests and admin walkthrough.                                                 |
 | G-04 Prospects, lifecycle and assignments  | Prospects/sites/contacts, campaigns, ownership and manager batch assign/reassign/close work without export.                                                        | OPEN                                                                                                                                           | MVP release blocker    | Authenticated manager/prospector walkthrough and assignment audit evidence.                                                           |
 | G-05 Immutable action history              | Every action has author/timestamp/context and corrections append history.                                                                                          | PASS with evidence gap                                                                                                                         | MVP non-blocking issue | Runtime-role privilege test and authenticated action-recording walkthrough.                                                           |
-| G-06 Anti-collision and reservation safety | Incompatible concurrent reservations cannot both succeed; cooldown, override reason and expiry are enforced.                                                       | PASS automated / E2E open                                                                                                                      | MVP release blocker    | Retain API/worker concurrency results and add blocked/approval UX evidence.                                                           |
+| G-06 Anti-collision and reservation safety | Incompatible concurrent reservations cannot both succeed; cooldown, override reason and expiry are enforced.                                                       | PASS automated / durable-intent and restricted-runtime evidence / E2E open                                                                     | MVP release blocker    | Retain TR-916 API and sweep evidence; add blocked/approval UX evidence.                                                               |
 | G-07 Follow-ups and notifications          | Follow-ups create tasks/alerts; p. 28 recipient, priority, in-app/email/push and digest rules are enforced.                                                        | PASS automated / six-role beta API+browser evidence / email outbox verified                                                                    | MVP release blocker    | Retain the attached beta evidence and provider certification. Push remains unverified until a Push-channel subscription is available. |
 | G-08 Manager dashboard dimensions          | Dashboard filters by company, team, period, campaign and territory with authorized manager/director scope.                                                         | OPEN                                                                                                                                           | MVP release blocker    | Territory dimension scope tests and authenticated browser evidence.                                                                   |
 | G-09 Audit and exports                     | Overrides require reason/audit; exports are role-controlled, scope-limited and logged; real artifacts can be downloaded.                                           | OPEN                                                                                                                                           | MVP release blocker    | Artifact generation/download/expiry/large-file evidence and audit privilege test.                                                     |
@@ -124,6 +124,32 @@ in the release environment.
 **Why this is next:** TR-910 is closed for beta acceptance. The next correctness item is
 proving that reservation intent survives retries, worker restart and lease expiry before
 the final deployment rehearsal.
+
+**Acceptance result (2 October 2026):**
+
+The durable intent boundary is implemented in migration `0086_reservation_intent` and
+`ReservationLedgerService.prepare()` now commits the intent independently before the
+Redis lease call. Confirmation and close operations reuse the request transaction when
+one is active, avoiding the campaign guard lock cycle; post-commit pending persistence
+uses the independent boundary. Reconciliation discovers intent IDs through a
+`SECURITY DEFINER` function, rechecks both Redis lease keys, materializes one durable
+record and emits one terminal/active event. The new table is tenant-scoped with RLS,
+forced RLS and restricted runtime grants.
+
+Evidence retained:
+
+- `reservation-lifecycle.integration.spec.ts`: **19/19** tests, including intent
+  persistence after confirmation failure, retry/idempotency, cooldown and expiry,
+  tenant-scoped API reads, immutable evidence and two reconciliation passes with one
+  record plus one `live_state_observed` event.
+- `background-sweep-discovery.integration.spec.ts`: **3/3** tests, including context-free
+  RLS denial for intents, cross-tenant discovery and privileged-function grants.
+- API unit tests: **44/44** reservation-service tests.
+- Manager overview browser-facing unit test: **9/9**; pending override requests now
+  request the server-supported `limit=100` instead of `1000` (HTTP 400).
+
+The web production build was attempted with a 180-second bound but did not complete in
+the local environment, so production deployment remains **NO-GO**.
 
 **Next-phase acceptance criteria:**
 
