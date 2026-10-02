@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { resolvePostgresClient, runPostgresClient } from './postgres-client.mjs';
 
 const databaseUrl = process.env.DATABASE_MIGRATION_URL ?? process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -17,17 +17,16 @@ const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '');
 const output = join(backupDir, `trackroster-${stamp}.dump`);
 await mkdir(dirname(output), { recursive: true });
 
-await new Promise((resolve, reject) => {
-  const child = spawn(
-    process.env.PG_DUMP_BIN ?? 'pg_dump',
-    ['--format=custom', '--no-owner', '--no-privileges', '--file', output, '--dbname', databaseUrl],
-    { stdio: ['ignore', 'inherit', 'inherit'] },
-  );
-  child.once('error', reject);
-  child.once('exit', (code) =>
-    code === 0 ? resolve() : reject(new Error(`pg_dump exited with ${code}`)),
-  );
-});
+const client = await resolvePostgresClient('pg_dump', [output]);
+await runPostgresClient(client, [
+  '--format=custom',
+  '--no-owner',
+  '--no-privileges',
+  '--file',
+  output,
+  '--dbname',
+  databaseUrl,
+]);
 
 const bytes = await readFile(output);
 const metadata = {
@@ -37,6 +36,7 @@ const metadata = {
   sha256: createHash('sha256').update(bytes).digest('hex'),
   runtimeRole: 'trackroster_app',
   runtimeRoleSql: 'infrastructure/docker/postgres/init/01-runtime-role.sql',
+  postgresClient: client.description,
 };
 await writeFile(`${output}.json`, `${JSON.stringify(metadata, null, 2)}\n`, 'utf8');
 process.stdout.write(`${JSON.stringify(metadata)}\n`);
