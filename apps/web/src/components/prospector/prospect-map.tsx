@@ -13,7 +13,7 @@ import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   MAP_ATTRIBUTION,
-  PMTILES_URL,
+  MAP_STYLE_URL,
   isMapConfigured,
 } from '@/lib/ui/map-config';
 import type { TerritoryFeatureCollection } from '@/lib/api/territory-types';
@@ -145,11 +145,9 @@ export function ProspectMap({
    */
   const [ready, setReady] = useState(false);
 
-  /*
-   * MapLibre touches window/WebGL on construction and the bundle is large, so
-   * it is imported dynamically on the client only. The protocol registration
-   * teaches MapLibre to read a single self-hosted .pmtiles archive, which is
-   * why no tile requests leave the deployment.
+  /* MapLibre touches window/WebGL on construction and the bundle is large, so
+   * it is imported dynamically on the client only. The style URL supplies the
+   * OpenFreeMap Liberty basemap while all TrackRoster overlays remain local.
    */
   useEffect(() => {
     if (!isMapConfigured() || !containerRef.current || mapRef.current) {
@@ -157,86 +155,20 @@ export function ProspectMap({
     }
 
     let cancelled = false;
-    let protocolName: string | null = null;
-
     async function boot(): Promise<void> {
       try {
-        const [{ Map, NavigationControl, addProtocol }, { Protocol }] = await Promise.all([
-          import('maplibre-gl'),
-          import('pmtiles'),
-        ]);
+        const { Map, NavigationControl } = await import('maplibre-gl');
 
         if (cancelled || !containerRef.current) {
           return;
         }
-
-        const protocol = new Protocol();
-        addProtocol('pmtiles', protocol.tile);
-        protocolName = 'pmtiles';
 
         const map = new Map({
           container: containerRef.current,
           center: DEFAULT_CENTER,
           zoom: DEFAULT_ZOOM,
           attributionControl: { customAttribution: MAP_ATTRIBUTION },
-          style: {
-            version: 8,
-            glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-            sources: {
-              protomaps: {
-                type: 'vector',
-                url: `pmtiles://${PMTILES_URL}`,
-                attribution: MAP_ATTRIBUTION,
-              },
-            },
-            layers: [
-              { id: 'background', type: 'background', paint: { 'background-color': '#f6f8fd' } },
-              {
-                id: 'earth',
-                type: 'fill',
-                source: 'protomaps',
-                'source-layer': 'earth',
-                paint: { 'fill-color': '#ffffff' },
-              },
-              {
-                id: 'water',
-                type: 'fill',
-                source: 'protomaps',
-                'source-layer': 'water',
-                paint: { 'fill-color': '#d8e6fb' },
-              },
-              {
-                id: 'landuse',
-                type: 'fill',
-                source: 'protomaps',
-                'source-layer': 'landuse',
-                paint: { 'fill-color': '#eef3ea' },
-              },
-              {
-                id: 'roads',
-                type: 'line',
-                source: 'protomaps',
-                'source-layer': 'roads',
-                paint: { 'line-color': '#e3e8f2', 'line-width': 1.2 },
-              },
-              {
-                id: 'places',
-                type: 'symbol',
-                source: 'protomaps',
-                'source-layer': 'places',
-                layout: {
-                  'text-field': ['get', 'name'],
-                  'text-font': ['Noto Sans Regular'],
-                  'text-size': 12,
-                },
-                paint: {
-                  'text-color': '#3d4a6d',
-                  'text-halo-color': '#ffffff',
-                  'text-halo-width': 1.2,
-                },
-              },
-            ],
-          },
+          style: MAP_STYLE_URL,
         });
 
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right');
@@ -284,10 +216,6 @@ export function ProspectMap({
       mapRef.current?.remove();
       mapRef.current = null;
       setReady(false);
-
-      if (protocolName) {
-        void import('maplibre-gl').then(({ removeProtocol }) => removeProtocol(protocolName!));
-      }
     };
   }, []);
 
@@ -589,8 +517,8 @@ export function ProspectMap({
   if (!isMapConfigured()) {
     return (
       <MapNotice className={className} title="Basemap is not configured">
-        The map tiles are not available in this environment. Contact your administrator to configure
-        the TrackRoster basemap.
+        The TrackRoster basemap is not available in this environment. Contact your administrator to
+        configure a map style.
       </MapNotice>
     );
   }
@@ -598,7 +526,7 @@ export function ProspectMap({
   if (failed) {
     return (
       <MapNotice className={className} title="The basemap could not be loaded">
-        Map tiles are temporarily unavailable. Please try again later.
+        The basemap is temporarily unavailable. Please try again later.
       </MapNotice>
     );
   }

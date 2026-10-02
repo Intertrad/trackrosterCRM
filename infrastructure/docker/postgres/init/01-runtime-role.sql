@@ -43,15 +43,47 @@ GRANT USAGE ON SCHEMA public TO trackroster_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trackroster_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trackroster_app;
 
+-- Discovery functions are created by migrations. In a fresh disposable
+-- database the runtime role may be created by this bootstrap before those
+-- migrations run, so the migration-time conditional GRANT is skipped. Apply
+-- the grants again here when the functions already exist; this keeps the
+-- worker paths callable without widening PUBLIC access.
+DO $$
+DECLARE
+  function_name text;
+BEGIN
+  FOREACH function_name IN ARRAY ARRAY[
+    'trackroster_pending_action_effects(integer)',
+    'trackroster_claimable_export_jobs(integer)',
+    'trackroster_expirable_export_jobs(integer)',
+    'trackroster_reconcilable_reservations(integer)',
+    'trackroster_reconcilable_reservation_intents(integer)'
+  ] LOOP
+    IF to_regprocedure(function_name) IS NOT NULL THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO trackroster_app', function_name);
+    END IF;
+  END LOOP;
+END $$;
+
 -- Evidence tables are append-only. Keep this invariant when the runtime role
 -- is created after the migrations (as happens in local integration databases).
-REVOKE UPDATE, DELETE ON TABLE collision_events FROM trackroster_app;
-REVOKE UPDATE, DELETE ON TABLE audit_events FROM trackroster_app;
+DO $$
+BEGIN
+  IF to_regclass('public.collision_events') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE ON TABLE collision_events FROM trackroster_app;
+  END IF;
+  IF to_regclass('public.audit_events') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE ON TABLE audit_events FROM trackroster_app;
+  END IF;
+END $$;
 
 -- Tables created by later migrations must be reachable too, otherwise the
 -- next migration silently locks the application out of its own data.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+-- The image entrypoint runs this file as its bootstrap superuser, while
+-- migrations run later as `trackroster`. Scope the defaults explicitly to the
+-- migration owner so tables created by Drizzle inherit the runtime grants.
+ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trackroster_app;
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO trackroster_app;

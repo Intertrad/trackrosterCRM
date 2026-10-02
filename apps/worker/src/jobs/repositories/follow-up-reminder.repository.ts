@@ -352,15 +352,15 @@ export class FollowUpReminderRepository {
             recipient.user_id,
             'follow_up_reminder',
             'follow_up_due:' || $2::text || ':' || $3::text,
-            $2,
-            $3,
+            $2::uuid,
+            $3::timestamptz,
             $4,
             $5
 
           FROM unnest(
             $6::uuid[]
           ) AS recipient(user_id)
-          WHERE EXISTS (SELECT 1 FROM prospect_follow_ups f WHERE f.tenant_id=$1 AND f.id=$2
+          WHERE EXISTS (SELECT 1 FROM prospect_follow_ups f WHERE f.tenant_id=$1 AND f.id=$2::uuid
             AND NOT trackroster_consent_blocked(f.tenant_id,f.establishment_id,
               CASE f.channel::text WHEN 'call' THEN 'phone' WHEN 'message' THEN 'sms' ELSE f.channel::text END))
 

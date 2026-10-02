@@ -30,6 +30,7 @@ const SWEEP_FUNCTIONS = [
   'trackroster_claimable_export_jobs',
   'trackroster_expirable_export_jobs',
   'trackroster_reconcilable_reservations',
+  'trackroster_reconcilable_reservation_intents',
 ] as const;
 
 describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
@@ -38,6 +39,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
   const tenants: string[] = [];
   const identities: string[] = [];
   const jobs: string[] = [];
+  const intents: string[] = [];
 
   beforeAll(async () => {
     application = await NestFactory.createApplicationContext(AppModule, {
@@ -54,6 +56,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
       const identityId = randomUUID();
       const membershipId = randomUUID();
       const jobId = randomUUID();
+      const intentId = randomUUID();
       const suffix = `${label}-${tenantId.slice(0, 8)}`;
 
       /* One statement per call: a parameterised query cannot carry several. */
@@ -69,10 +72,14 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
       await seed.execute(
         sql`insert into export_jobs (id, tenant_id, requester_id, status, request, authority_hash) values (${jobId}, ${tenantId}, ${membershipId}, 'queued', '{}'::jsonb, ${`hash-${suffix}`})`,
       );
+      await seed.execute(
+        sql`insert into reservation_intents (id, tenant_id, campaign_id, campaign_prospect_id, establishment_id, owner_membership_id, lease, rule_snapshot) values (${intentId}, ${tenantId}, ${randomUUID()}, ${randomUUID()}, ${randomUUID()}, ${membershipId}, ${JSON.stringify({ reservationId: intentId, tenantId, expiresAt: new Date(Date.now() + 60000).toISOString() })}::jsonb, '{}'::jsonb)`,
+      );
 
       tenants.push(tenantId);
       identities.push(identityId);
       jobs.push(jobId);
+      intents.push(intentId);
     }
   });
 
@@ -85,6 +92,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
      */
     for (const tenantId of tenants) {
       await seed.execute(sql`delete from export_jobs where tenant_id = ${tenantId}`);
+      await seed.execute(sql`delete from reservation_intents where tenant_id = ${tenantId}`);
       await seed.execute(sql`delete from tenant_memberships where tenant_id = ${tenantId}`);
     }
     for (const identityId of identities) {
@@ -107,6 +115,10 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
      * isolation guarantee is gone — which is a bigger failure than the sweep.
      */
     expect(Number(direct.rows[0]?.total)).toBe(0);
+    const intentDirect = await database.execute<{ total: string }>(
+      sql`select count(*) as total from reservation_intents`,
+    );
+    expect(Number(intentDirect.rows[0]?.total)).toBe(0);
   });
 
   it('discovers queued work across every tenant through the definer function', async () => {
@@ -118,6 +130,12 @@ describe.skipIf(!process.env.DATABASE_URL)('Background sweep discovery', () => {
 
     expect(found).toHaveLength(2);
     expect(new Set(found.map((row) => row.tenant_id))).toEqual(new Set(tenants));
+    const intentRows = await database.execute<{ id: string; tenant_id: string }>(
+      sql`select id, tenant_id from trackroster_reconcilable_reservation_intents(100)`,
+    );
+    const foundIntents = intentRows.rows.filter((row) => intents.includes(row.id));
+    expect(foundIntents).toHaveLength(2);
+    expect(new Set(foundIntents.map((row) => row.tenant_id))).toEqual(new Set(tenants));
   });
 
   it('keeps every sweep discovery function privileged and unreachable by PUBLIC', async () => {

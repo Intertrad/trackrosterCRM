@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
 
+  // The beta browser runs on 127.0.0.1 while the dev server binds to the
+  // local loopback interface. Allow its HMR/font requests so authenticated
+  // acceptance checks hydrate the app instead of remaining on the shell.
+  allowedDevOrigins: ['127.0.0.1'],
+
   /*
    * A second dev server needs its own build directory.
    *

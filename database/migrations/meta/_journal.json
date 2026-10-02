@@ -603,6 +603,13 @@
       "when": 1790880000000,
       "tag": "0085_mvp_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1790899656042,
+      "tag": "0086_reservation_intent",
+      "breakpoints": true
     }
   ]
 }

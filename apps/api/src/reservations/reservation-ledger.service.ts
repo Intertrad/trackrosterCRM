@@ -3,9 +3,16 @@ import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { discoverSweepWork, sweepByTenant } from '../database/tenant-sweep.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
-import { currentTenantExecutor } from '../database/request-tenant-executor.js';
+import {
+  currentTenantExecutor,
+  runWithoutTenantExecutor,
+} from '../database/request-tenant-executor.js';
 import { setTenantContext } from '../database/tenant-context.js';
-import { reservationRecords, reservationEvents } from '../database/schema/index.js';
+import {
+  reservationEvents,
+  reservationIntents,
+  reservationRecords,
+} from '../database/schema/index.js';
 import { RedisService } from '../redis/redis.service.js';
 import type { ProspectReservation } from './reservation.types.js';
 
@@ -45,116 +52,34 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
   async prepare(
     lease: ProspectReservation,
     rule: Record<string, unknown>,
-    blockingOrganizationIds: string[] = [lease.organizationId],
+    blockingOrganizationIds: string[] = [],
   ) {
-    const prepareWith = async (tx: DatabaseExecutor) => {
-      /*
-       * Redis remains the fast lease/co-ordination layer, but it is not the
-       * authority for durable ownership. Serialize claims for the same
-       * tenant/establishment in PostgreSQL before creating the pending row.
-       * This closes the window where two callers could both prepare a lease
-       * before either caller reached Redis.
-       */
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${lease.tenantId}:${lease.establishmentId}`}, 0))`,
-      );
-
-      const openRows = await tx.execute<{
-        id: string;
-        status: string;
-        lease: ProspectReservation;
-      }>(sql`
-        SELECT id, status, lease
-        FROM reservation_records
-        WHERE tenant_id = ${lease.tenantId}::uuid
-          AND establishment_id = ${lease.establishmentId}::uuid
-          AND status IN ('pending', 'active')
-          AND expires_at > clock_timestamp()
-        FOR UPDATE
-      `);
-
-      const blocking = new Set(blockingOrganizationIds);
-      const liveRows: ProspectReservation[] = [];
-      for (const row of openRows.rows) {
-        const existing = row.lease;
-        if (
-          existing.reservationId === lease.reservationId ||
-          !blocking.has(existing.organizationId)
-        ) {
-          continue;
-        }
-
-        const [reservationValue, organizationCollisionValue] = await this.redis
-          .getClient()
-          .mGet([
-            [
-              'trackroster',
-              'reservation',
-              existing.tenantId,
-              existing.campaignId,
-              existing.campaignProspectId,
-            ].join(':'),
-            [
-              'trackroster',
-              'collision',
-              existing.tenantId,
-              existing.organizationId,
-              existing.establishmentId,
-            ].join(':'),
-          ]);
-        const reservationLease = reservationValue
-          ? (JSON.parse(reservationValue) as ProspectReservation)
-          : null;
-        const organizationLease = organizationCollisionValue
-          ? (JSON.parse(organizationCollisionValue) as ProspectReservation)
-          : null;
-        const lockIsLive =
-          reservationLease?.reservationId === existing.reservationId &&
-          organizationLease?.reservationId === existing.reservationId &&
-          reservationLease?.expiresAt === existing.expiresAt &&
-          organizationLease?.expiresAt === existing.expiresAt;
-
-        if (lockIsLive) {
-          liveRows.push(existing);
-          continue;
-        }
-
-        // Redis is the lease authority. A durable row whose paired lease has
-        // disappeared is stale and must stop blocking the next claim.
+    /*
+     * The request transaction may hold campaign, establishment or assignment
+     * locks while Redis is contacted. Do not insert reservation_records here:
+     * its guard trigger takes locks that can deadlock with that request. The
+     * intent log has only the tenant FK and commits on an independent
+     * connection before the external lease is acquired.
+     */
+    void blockingOrganizationIds;
+    await runWithoutTenantExecutor(() =>
+      this.db.transaction(async (tx) => {
+        await setTenantContext(tx, lease.tenantId);
         await tx
-          .update(reservationRecords)
-          .set({
-            status: existing.expiresAt <= new Date().toISOString() ? 'expired' : 'lost',
-            updatedAt: sql`clock_timestamp()`,
+          .insert(reservationIntents)
+          .values({
+            id: lease.reservationId,
+            tenantId: lease.tenantId,
+            campaignId: lease.campaignId,
+            campaignProspectId: lease.campaignProspectId,
+            establishmentId: lease.establishmentId,
+            ownerMembershipId: lease.userId,
+            lease,
+            ruleSnapshot: rule,
           })
-          .where(
-            and(
-              eq(reservationRecords.id, row.id),
-              eq(reservationRecords.status, row.status as 'pending' | 'active'),
-            ),
-          );
-      }
-
-      if (liveRows.length > 0) {
-        throw new ReservationClaimConflictError('A conflicting reservation already exists');
-      }
-
-      await tx.insert(reservationRecords).values({
-        id: lease.reservationId,
-        tenantId: lease.tenantId,
-        campaignId: lease.campaignId,
-        campaignProspectId: lease.campaignProspectId,
-        establishmentId: lease.establishmentId,
-        ownerMembershipId: lease.userId,
-        lease,
-        ruleSnapshot: rule,
-        expiresAt: new Date(lease.expiresAt),
-      });
-      await this.event(tx, lease.tenantId, lease.reservationId, 'claim_requested');
-    };
-    const active = currentTenantExecutor();
-    if (active) await prepareWith(active);
-    else await this.db.transaction(prepareWith);
+          .onConflictDoNothing();
+      }),
+    );
   }
   async observeLegacy(lease: ProspectReservation, rule: Record<string, unknown>) {
     await this.db.transaction(async (tx) => {
@@ -181,40 +106,69 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
     });
   }
   async persistPending(lease: ProspectReservation, rule: Record<string, unknown>) {
-    await this.db.transaction(async (tx) => {
-      await setTenantContext(tx, lease.tenantId);
-      const [added] = await tx
-        .insert(reservationRecords)
-        .values({
-          id: lease.reservationId,
-          tenantId: lease.tenantId,
-          campaignId: lease.campaignId,
-          campaignProspectId: lease.campaignProspectId,
-          establishmentId: lease.establishmentId,
-          ownerMembershipId: lease.userId,
-          lease,
-          ruleSnapshot: rule,
-          expiresAt: new Date(lease.expiresAt),
-        })
-        .onConflictDoNothing()
-        .returning({ id: reservationRecords.id });
-      if (added) await this.event(tx, lease.tenantId, lease.reservationId, 'claim_requested');
-    });
+    await runWithoutTenantExecutor(() =>
+      this.db.transaction(async (tx) => {
+        await setTenantContext(tx, lease.tenantId);
+        const [intent] = await tx
+          .select()
+          .from(reservationIntents)
+          .where(
+            and(
+              eq(reservationIntents.tenantId, lease.tenantId),
+              eq(reservationIntents.id, lease.reservationId),
+            ),
+          );
+        if (!intent) {
+          await tx
+            .insert(reservationIntents)
+            .values({
+              id: lease.reservationId,
+              tenantId: lease.tenantId,
+              campaignId: lease.campaignId,
+              campaignProspectId: lease.campaignProspectId,
+              establishmentId: lease.establishmentId,
+              ownerMembershipId: lease.userId,
+              lease,
+              ruleSnapshot: rule,
+            })
+            .onConflictDoNothing();
+        }
+        const [existing] = await tx
+          .select({ id: reservationRecords.id })
+          .from(reservationRecords)
+          .where(
+            and(
+              eq(reservationRecords.tenantId, lease.tenantId),
+              eq(reservationRecords.id, lease.reservationId),
+            ),
+          );
+        await this.materializeIntent(tx, lease.tenantId, lease.reservationId, 'pending');
+        if (!existing) await this.event(tx, lease.tenantId, lease.reservationId, 'claim_requested');
+      }),
+    );
   }
   async confirm(lease: ProspectReservation, type = 'claimed') {
-    await this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select()
+    const confirmWith = async (tx: DatabaseExecutor) => {
+      await setTenantContext(tx, lease.tenantId);
+      const [existing] = await tx
+        .select({ id: reservationRecords.id })
         .from(reservationRecords)
         .where(
           and(
             eq(reservationRecords.tenantId, lease.tenantId),
             eq(reservationRecords.id, lease.reservationId),
           ),
-        )
-        .for('update');
-      if (!row) return; // Reservations made before registry deployment have no invented history.
+        );
+      const row = await this.materializeIntent(tx, lease.tenantId, lease.reservationId, 'active');
+      if (!row) return; // Reservations made before the intent log have no invented history.
+      if (!existing) {
+        await this.event(tx, lease.tenantId, lease.reservationId, type, {
+          expiresAt: lease.expiresAt,
+        });
+        return;
+      }
       if (row.status === 'active' && row.expiresAt.toISOString() === lease.expiresAt) return;
+      if (['released', 'expired', 'lost', 'failed'].includes(row.status)) return;
       await tx
         .update(reservationRecords)
         .set({
@@ -223,9 +177,27 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
           expiresAt: new Date(lease.expiresAt),
           updatedAt: sql`clock_timestamp()`,
         })
-        .where(eq(reservationRecords.id, row.id));
-      await this.event(tx, row.tenantId, row.id, type, { expiresAt: lease.expiresAt });
-    });
+        .where(
+          and(
+            eq(reservationRecords.tenantId, lease.tenantId),
+            eq(reservationRecords.id, lease.reservationId),
+          ),
+        );
+      await this.event(tx, lease.tenantId, lease.reservationId, type, {
+        expiresAt: lease.expiresAt,
+      });
+    };
+    /*
+     * A legacy claim already materializes its record in the active request
+     * transaction before calling confirm. Reusing that executor avoids a
+     * self-deadlock where an independent confirmation waits on the
+     * uncommitted record while the request waits for confirmation. Background
+     * reconciliation and external-lease paths have no active executor, so
+     * they retain the independent tenant-scoped transaction boundary.
+     */
+    const active = currentTenantExecutor();
+    if (active) await confirmWith(active);
+    else await runWithoutTenantExecutor(() => this.db.transaction(confirmWith));
   }
   async recordAttempt(
     tenantId: string,
@@ -235,20 +207,72 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
   ) {
     await this.event(this.db, tenantId, id, `${type}_requested`, data);
   }
+
+  private async materializeIntent(
+    tx: DatabaseExecutor,
+    tenantId: string,
+    id: string,
+    status: 'pending' | 'active' | 'released' | 'failed' | 'expired' | 'lost',
+  ) {
+    const [existing] = await tx
+      .select()
+      .from(reservationRecords)
+      .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)))
+      .for('update');
+    if (existing) return existing;
+
+    // Intent rows are immutable and the runtime role is intentionally denied
+    // UPDATE/DELETE. The reservation record lock above is the mutable
+    // serialization point; locking the intent would require UPDATE privilege
+    // and makes restricted-runtime reconciliation fail with 42501.
+    const [intent] = await tx
+      .select()
+      .from(reservationIntents)
+      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)));
+    if (!intent) return null;
+
+    const [inserted] = await tx
+      .insert(reservationRecords)
+      .values({
+        id: intent.id,
+        tenantId: intent.tenantId,
+        campaignId: intent.campaignId,
+        campaignProspectId: intent.campaignProspectId,
+        establishmentId: intent.establishmentId,
+        ownerMembershipId: intent.ownerMembershipId,
+        lease: intent.lease,
+        ruleSnapshot: intent.ruleSnapshot,
+        status,
+        expiresAt: intent.lease.expiresAt ? new Date(intent.lease.expiresAt) : intent.createdAt,
+      })
+      .onConflictDoNothing()
+      .returning();
+    return inserted ?? null;
+  }
   async close(tenantId: string, id: string, status: 'released' | 'failed', reason: string) {
-    await this.db.transaction(async (tx) => {
-      const [row] = await tx
-        .select()
+    const closeWith = async (tx: DatabaseExecutor) => {
+      await setTenantContext(tx, tenantId);
+      const [existing] = await tx
+        .select({ status: reservationRecords.status })
         .from(reservationRecords)
-        .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)))
-        .for('update');
-      if (!row || row.status === status) return;
+        .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)));
+      const row = await this.materializeIntent(tx, tenantId, id, status);
+      if (!row) return;
+      if (!existing) {
+        await this.event(tx, tenantId, id, status, { reason });
+        return;
+      }
+      if (row.status === status) return;
+      if (['released', 'expired', 'lost'].includes(row.status)) return;
       await tx
         .update(reservationRecords)
         .set({ status, updatedAt: sql`clock_timestamp()` })
-        .where(eq(reservationRecords.id, id));
+        .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)));
       await this.event(tx, tenantId, id, status, { reason });
-    });
+    };
+    const active = currentTenantExecutor();
+    if (active) await closeWith(active);
+    else await runWithoutTenantExecutor(() => this.db.transaction(closeWith));
   }
   async refresh(tenantId: string, id: string) {
     return this.db.transaction(async (tx) => {
@@ -314,6 +338,70 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
       return updated!;
     });
   }
+  private async reconcileIntent(tx: DatabaseExecutor, tenantId: string, id: string): Promise<void> {
+    // Immutable intent rows do not need a row lock. The record lock and the
+    // tenant-scoped transaction serialize materialization/reconciliation.
+    const [intent] = await tx
+      .select()
+      .from(reservationIntents)
+      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)));
+    if (!intent) return;
+
+    const [exact, paired] = await this.redis
+      .getClient()
+      .mGet([
+        ['trackroster', 'reservation', tenantId, intent.campaignId, intent.campaignProspectId].join(
+          ':',
+        ),
+        [
+          'trackroster',
+          'collision',
+          tenantId,
+          intent.lease.organizationId,
+          intent.establishmentId,
+        ].join(':'),
+      ]);
+    const live = exact ? (JSON.parse(exact) as ProspectReservation) : null;
+    const collision = paired ? (JSON.parse(paired) as ProspectReservation) : null;
+    const leaseIsLive =
+      live?.reservationId === id &&
+      collision?.reservationId === id &&
+      live.expiresAt === intent.lease.expiresAt &&
+      collision.expiresAt === intent.lease.expiresAt;
+
+    const [existing] = await tx
+      .select()
+      .from(reservationRecords)
+      .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)))
+      .for('update');
+
+    if (leaseIsLive) {
+      if (existing?.status === 'active') return;
+      const row = await this.materializeIntent(tx, tenantId, id, 'active');
+      if (!row) return;
+      await tx
+        .update(reservationRecords)
+        .set({
+          lease: live,
+          status: 'active',
+          expiresAt: new Date(live.expiresAt),
+          updatedAt: sql`clock_timestamp()`,
+        })
+        .where(and(eq(reservationRecords.tenantId, tenantId), eq(reservationRecords.id, id)));
+      await this.event(tx, tenantId, id, 'reconciled_active', { expiresAt: live.expiresAt });
+      return;
+    }
+
+    if (existing) return;
+    const terminalStatus =
+      intent.lease.expiresAt <= new Date().toISOString() ? 'expired' : 'failed';
+    const row = await this.materializeIntent(tx, tenantId, id, terminalStatus);
+    if (row) {
+      await this.event(tx, tenantId, id, terminalStatus, {
+        reason: 'intent_without_live_lease',
+      });
+    }
+  }
   async reconcile() {
     if (this.busy) return;
     this.busy = true;
@@ -349,6 +437,14 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
           .where(eq(reservationRecords.id, row.id));
 
         if (failure) throw failure;
+      });
+
+      const intents = await discoverSweepWork(
+        this.db,
+        sql`SELECT id, tenant_id FROM trackroster_reconcilable_reservation_intents(100)`,
+      );
+      await sweepByTenant(this.db, intents, async (row, tx) => {
+        await this.reconcileIntent(tx, row.tenant_id, row.id);
       });
     } finally {
       this.busy = false;

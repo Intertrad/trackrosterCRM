@@ -22,10 +22,10 @@ jobs:
       # environment. Pointing this at the owner instead would leave the
       # policies inert and the gate would prove nothing about tenant
       # isolation — tenant-rls.integration.spec.ts fails when it is.
-      DATABASE_URL: postgresql://trackroster_app:trackroster_app@127.0.0.1:5432/trackroster
+      DATABASE_URL: postgresql://trackroster_app:trackroster_app@127.0.0.1:5432/trackroster?sslmode=disable
       # The owner. DDL and cross-tenant fixture seeding only.
-      DATABASE_MIGRATION_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
-      DATABASE_SEED_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster
+      DATABASE_MIGRATION_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
+      DATABASE_SEED_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
       REDIS_URL: redis://127.0.0.1:6379
       NODE_ENV: test
       JWT_ACCESS_SECRET: trackroster-ci-access-secret-0123456789-abcdefghijklmnopqrstuvwxyz

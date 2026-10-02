@@ -19,6 +19,7 @@ import { getSeedDatabase } from './support/seed.js';
 import type { Database } from '../src/database/database.types.js';
 import {
   reservationRules,
+  reservationIntents,
   reservationRecords,
   reservationEvents,
   collisionEvents,
@@ -43,6 +44,8 @@ import {
   tenantMemberships,
   tenants,
   userAccessGrants,
+  notificationDeliveries,
+  notifications,
 } from '../src/database/schema/index.js';
 import { PasswordService } from '../src/auth/password.service.js';
 describe('Reservation rules, lifecycle and durable evidence', () => {
@@ -213,6 +216,7 @@ describe('Reservation rules, lifecycle and durable evidence', () => {
       );
     for (const t of [
       reservationRecords,
+      reservationIntents,
       reservationRules,
       overrideRequests,
       collisionEvents,
@@ -257,6 +261,8 @@ describe('Reservation rules, lifecycle and durable evidence', () => {
         prospectFollowUps,
         idempotencyRecords,
         auditEvents,
+        notificationDeliveries,
+        notifications,
         campaignProspectAssignments,
         campaignProspects,
         establishmentContacts,
@@ -568,10 +574,29 @@ describe('Reservation rules, lifecycle and durable evidence', () => {
         .where(eq(reservationRecords.id, live!.reservationId))
     )[0]!;
     expect(row.status).toBe('pending');
+    const intents = await db
+      .select()
+      .from(reservationIntents)
+      .where(eq(reservationIntents.id, live!.reservationId));
+    expect(intents).toHaveLength(1);
+    expect(intents[0]!.tenantId).toBe(tenantId);
+    await ledger.reconcile();
     await ledger.reconcile();
     expect(
       (await call('GET', `/reservations/${live!.reservationId}`, undefined, member)).json().status,
     ).toBe('active');
+    expect(
+      await db
+        .select()
+        .from(reservationRecords)
+        .where(eq(reservationRecords.id, live!.reservationId)),
+    ).toHaveLength(1);
+    const evidence = await db
+      .select()
+      .from(reservationEvents)
+      .where(eq(reservationEvents.reservationId, live!.reservationId));
+    expect(evidence.filter((event) => event.type === 'claim_requested')).toHaveLength(1);
+    expect(evidence.filter((event) => event.type === 'live_state_observed')).toHaveLength(1);
   });
   it('records observed expiry once and retains it in the prospect timeline', async () => {
     const initial = (await claim()).json(),
