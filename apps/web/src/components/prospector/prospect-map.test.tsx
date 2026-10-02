@@ -1,32 +1,95 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
 vi.mock('maplibre-gl/dist/maplibre-gl.css', () => ({}));
 
-import { ProspectMap, toMapPoint } from './prospect-map';
+const mapState = vi.hoisted(() => ({ instances: [] as Array<{ options: { style: unknown } }> }));
 
-afterEach(cleanup);
+vi.mock('maplibre-gl', () => {
+  class MockMap {
+    options: { style: unknown };
+
+    constructor(options: { style: unknown }) {
+      this.options = options;
+      mapState.instances.push(this);
+    }
+
+    addControl() {
+      return this;
+    }
+
+    isStyleLoaded() {
+      return true;
+    }
+
+    on() {
+      return this;
+    }
+
+    off() {
+      return this;
+    }
+
+    once() {
+      return this;
+    }
+
+    remove() {}
+  }
+
+  return {
+    Map: MockMap,
+    NavigationControl: class MockNavigationControl {},
+    Marker: class MockMarker {
+      setLngLat() {
+        return this;
+      }
+
+      setPopup() {
+        return this;
+      }
+
+      addTo() {
+        return this;
+      }
+
+      remove() {}
+    },
+    Popup: class MockPopup {
+      setText() {
+        return this;
+      }
+    },
+    LngLatBounds: class MockLngLatBounds {
+      extend() {
+        return this;
+      }
+    },
+  };
+});
+
+import { ProspectMap, toMapPoint } from './prospect-map';
+import { MAP_STYLE_URL } from '@/lib/ui/map-config';
+
+afterEach(() => {
+  cleanup();
+  mapState.instances.length = 0;
+});
 
 describe('ProspectMap', () => {
-  it('explains the missing basemap instead of rendering an empty canvas', () => {
-    /*
-     * NEXT_PUBLIC_PMTILES_URL is unset in tests, which is also the state of a
-     * fresh checkout. The map must say what is missing rather than show a
-     * blank grey box.
-     */
+  it('renders without NEXT_PUBLIC_PMTILES_URL', () => {
     render(<ProspectMap points={[]} />);
 
-    expect(screen.getByText('Basemap is not configured')).toBeInTheDocument();
-    expect(screen.getByText(/map tiles are not available/i)).toBeInTheDocument();
+    expect(screen.getByRole('application', { name: 'Prospect map' })).toBeInTheDocument();
   });
 
-  it('never mounts a map surface while the basemap is unconfigured', () => {
+  it('passes the OpenFreeMap style URL directly to MapLibre', async () => {
     render(<ProspectMap points={[]} />);
 
-    expect(screen.queryByRole('application', { name: 'Prospect map' })).not.toBeInTheDocument();
+    await waitFor(() => expect(mapState.instances[0]?.options.style).toBe(MAP_STYLE_URL));
   });
 });
 
