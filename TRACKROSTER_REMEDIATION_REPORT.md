@@ -261,3 +261,33 @@ The exact next remediation step is the final deployment-environment rehearsal wi
 `TENANT_RLS_MODE=enforce`, followed by the remaining open MVP gates (visual sign-off,
 import quality, dashboard dimensions, export artifacts, full restore and pilot
 evidence). Production remains **NO-GO** until those gates have retained evidence.
+
+## Final deployment rehearsal — 2 October 2026
+
+The parallel rehearsal used the disposable Postgres/Redis stack and the restricted
+`trackroster_app` role (`rolbypassrls=false`, 87 migrations). With
+`TENANT_RLS_MODE=observe`, the following checks passed: tenant RLS **3/3**, background
+discovery **3/3**, reservation lifecycle **19/19**, API follow-up/notification
+integration **30/30**, API authorization **6/6**, worker reservation expiry **4/4**,
+and worker infrastructure **2/2**. Two provider tests were skipped because external
+provider flags were not configured.
+
+The enforce rehearsal is still blocked before application startup by the validator:
+`TENANT_RLS_MODE=enforce is not available until all database access uses
+tenant-scoped transactions`. This is the primary remaining P0 blocker.
+
+The worker follow-up notification query also exposed an untyped parameter contract;
+UUID and timestamp casts were added in
+`apps/worker/src/jobs/repositories/follow-up-reminder.repository.ts`. The integration
+test now passes **2/2**, including retry idempotency and consent suppression.
+
+Additional release evidence:
+
+- Full backup and restore passed with PostgreSQL 16 tooling, including 84 RLS tables,
+  84 forced-RLS tables, runtime grants, append-only evidence privileges and
+  cross-tenant denial. The repository scripts remain blocked because the host tools
+  are PostgreSQL 14 while the database is PostgreSQL 16.
+- Manager, director, prospector, client-admin and super-admin browser smoke checks
+  passed. Observer audit endpoints still return HTTP 400 and show the audit access
+  error state; this is an MVP ACL/API blocker. The super-admin platform view also
+  shows a `CLIENT ADMIN` badge and needs a small UX correction.
