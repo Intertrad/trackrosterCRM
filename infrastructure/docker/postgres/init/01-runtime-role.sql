@@ -45,13 +45,23 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trackroster_app;
 
 -- Evidence tables are append-only. Keep this invariant when the runtime role
 -- is created after the migrations (as happens in local integration databases).
-REVOKE UPDATE, DELETE ON TABLE collision_events FROM trackroster_app;
-REVOKE UPDATE, DELETE ON TABLE audit_events FROM trackroster_app;
+DO $$
+BEGIN
+  IF to_regclass('public.collision_events') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE ON TABLE collision_events FROM trackroster_app;
+  END IF;
+  IF to_regclass('public.audit_events') IS NOT NULL THEN
+    REVOKE UPDATE, DELETE ON TABLE audit_events FROM trackroster_app;
+  END IF;
+END $$;
 
 -- Tables created by later migrations must be reachable too, otherwise the
 -- next migration silently locks the application out of its own data.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+-- The image entrypoint runs this file as its bootstrap superuser, while
+-- migrations run later as `trackroster`. Scope the defaults explicitly to the
+-- migration owner so tables created by Drizzle inherit the runtime grants.
+ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trackroster_app;
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO trackroster_app;

@@ -480,6 +480,17 @@ export class ReservationService {
       }
 
       if (redisAcquired) {
+        const cause =
+          error && typeof error === 'object' && 'cause' in error ? error.cause : undefined;
+        this.logger.error(
+          `Reservation confirmation failed reservationId=${reservation.reservationId} code=${
+            error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown'
+          } causeCode=${
+            cause && typeof cause === 'object' && 'code' in cause ? String(cause.code) : 'unknown'
+          } message=${error instanceof Error ? error.message : String(error)} causeMessage=${
+            cause instanceof Error ? cause.message : String(cause ?? '')
+          }`,
+        );
         throw new ReservationConfirmationUncertainException(
           () => this.ledger?.persistPending(reservation, rule ?? {}) ?? Promise.resolve(),
         );

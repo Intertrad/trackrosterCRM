@@ -190,6 +190,49 @@ finish, so this ticket does not change the release decision: production remains
 **NO-GO** pending the outstanding dossier gates, deployment-environment rehearsal and
 provider/backup evidence.
 
-The next ticket is **TR-917 — manager approval/blocked reservation UX acceptance**:
-exercise the authenticated browser collision, approval and blocked-reservation paths
-against the now-correct API and retain screenshots or trace evidence for G-06.
+The TR-917 acceptance result is recorded below.
+
+## TR-917 — manager approval and blocked-reservation browser acceptance
+
+TR-917 is complete for beta acceptance. The check used authenticated beta manager and
+prospector sessions against the running web proxy and API.
+
+The API evidence is:
+
+- A fresh competing-team reservation returned **201 Created**.
+- The other prospector's collision check returned **200 OK** with
+  `decision=block`, `reasonCode=ACTIVE_RESERVATION`, `overrideable=false`, and a
+  collision ID.
+- The manager list query with the supported `limit=50` returned **200 OK**. Approval
+  with `If-Match` and an idempotency key returned **200 OK** and an approved override.
+- The previously observed `limit=1000` query still returns **400** by contract; the
+  current web consumers use `limit=100` for the overview and `limit=50` for approvals.
+
+The browser evidence is:
+
+- Manager `/manager/approvals` rendered the pending request and detail policy view.
+  Entering a decision reason and selecting **Approve override** produced **200 OK**;
+  the detail page then showed `approved`, the success audit-log alert, manager decider,
+  and the persisted reason.
+- Prospector `/work-queue/:campaignId/:prospectId` rendered **Contact blocked** for
+  the active reservation held by another team member, showed the current lease expiry,
+  disabled **Log action**, and offered **Ask a manager to authorise this contact**.
+  It also showed no local reservation, so the conflicting lease was not presented as
+  owned by the current user.
+
+The code fix behind this acceptance keeps post-Redis confirmation on an independent
+tenant-scoped transaction, removes `FOR UPDATE` from immutable intent reads for the
+restricted runtime role, and scopes later-migration default grants to `trackroster` while
+retaining append-only evidence-table privileges.
+
+Production remains **NO-GO**. Beta acceptance is green for G-06, but the deployment
+environment still needs `TENANT_RLS_MODE=enforce` rehearsal and the open MVP gates for
+visual sign-off, import quality, dashboard dimensions, export artifacts, full restore,
+and pilot evidence. A focused shared-beta integration rerun timed out in two long
+lifecycle tests; the retained disposable suite remains the authoritative green run and
+must be repeated in an isolated environment before release.
+
+The next remediation ticket is **TR-918 — isolated reservation integration rerun and
+manager approval contract cleanup**: run the full TR-916/TR-917 suite in a fresh beta
+database/Redis pair, remove or identify the stale `limit=1000` consumer, and retain the
+green trace before the final deployment rehearsal.

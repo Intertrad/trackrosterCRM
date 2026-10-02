@@ -18,7 +18,7 @@ These gates are derived from the complete working v1.0 Product Design Dossier, e
 | G-03 Import quality                        | Excel/CSV preview flags duplicates/anomalies before final insert and preserves tenant-safe identity.                                                               | OPEN                                                                                                                                           | MVP release blocker    | Complete dossier dedupe-key coverage, malformed/recovery tests and admin walkthrough.                                                 |
 | G-04 Prospects, lifecycle and assignments  | Prospects/sites/contacts, campaigns, ownership and manager batch assign/reassign/close work without export.                                                        | OPEN                                                                                                                                           | MVP release blocker    | Authenticated manager/prospector walkthrough and assignment audit evidence.                                                           |
 | G-05 Immutable action history              | Every action has author/timestamp/context and corrections append history.                                                                                          | PASS with evidence gap                                                                                                                         | MVP non-blocking issue | Runtime-role privilege test and authenticated action-recording walkthrough.                                                           |
-| G-06 Anti-collision and reservation safety | Incompatible concurrent reservations cannot both succeed; cooldown, override reason and expiry are enforced.                                                       | PASS automated / durable-intent and restricted-runtime evidence / E2E open                                                                     | MVP release blocker    | Retain TR-916 API and sweep evidence; add blocked/approval UX evidence.                                                               |
+| G-06 Anti-collision and reservation safety | Incompatible concurrent reservations cannot both succeed; cooldown, override reason and expiry are enforced.                                                       | PASS automated / durable-intent, restricted-runtime and TR-917 authenticated browser evidence                                                  | MVP release blocker    | Retain TR-916 API/sweep evidence and TR-917 manager approval plus blocked-reservation trace.                                          |
 | G-07 Follow-ups and notifications          | Follow-ups create tasks/alerts; p. 28 recipient, priority, in-app/email/push and digest rules are enforced.                                                        | PASS automated / six-role beta API+browser evidence / email outbox verified                                                                    | MVP release blocker    | Retain the attached beta evidence and provider certification. Push remains unverified until a Push-channel subscription is available. |
 | G-08 Manager dashboard dimensions          | Dashboard filters by company, team, period, campaign and territory with authorized manager/director scope.                                                         | OPEN                                                                                                                                           | MVP release blocker    | Territory dimension scope tests and authenticated browser evidence.                                                                   |
 | G-09 Audit and exports                     | Overrides require reason/audit; exports are role-controlled, scope-limited and logged; real artifacts can be downloaded.                                           | OPEN                                                                                                                                           | MVP release blocker    | Artifact generation/download/expiry/large-file evidence and audit privilege test.                                                     |
@@ -37,7 +37,7 @@ These gates are derived from the complete working v1.0 Product Design Dossier, e
 5. **Dashboard authorization/dimensions:** close territory and manager/director filter evidence.
 6. **Export acceptance:** produce and verify role-controlled, logged artifacts and downloads.
 7. **Full backup/restore:** restore into a second database and verify grants, migrations, RLS and recovery objectives.
-8. **Anti-collision/reservation UI evidence:** automated concurrency is green, but the user-visible blocked/override path still needs authenticated proof.
+8. **Anti-collision/reservation safety:** closed for beta acceptance by TR-916 durable-intent evidence and TR-917 authenticated manager/prospector browser evidence. Production still requires the final deployment-environment rehearsal.
 9. **Pilot Definition of Done:** demonstrate the dossier’s five pilot success measures.
 
 ## MVP non-blocking issues
@@ -162,3 +162,52 @@ the local environment, so production deployment remains **NO-GO**.
 4. Update G-06 and the root remediation report with the retained API/worker evidence.
 
 Do not implement attachments, SSO, external webhooks, advanced mapping or another V1.1/V2 capability as part of this ticket.
+
+### TR-917 — Manager approval and blocked-reservation browser acceptance
+
+**Acceptance result (2 October 2026):** TR-917 is complete for beta acceptance. The
+browser path was exercised with authenticated beta manager and prospector sessions
+against the real web proxy and API; no UI-only mock was used.
+
+**API evidence retained:**
+
+- A fresh holder reservation returned **201 Created** and durable reservation data.
+- The competing prospector collision check returned **200 OK** with
+  `decision=block`, `reasonCode=ACTIVE_RESERVATION`, `overrideable=false`, and a
+  collision ID. This is the non-overrideable blocked-reservation path.
+- The manager approval path returned **200 OK** after an `If-Match` decision and
+  idempotency key. The approved response included the manager decider, override ID,
+  and approved status.
+- The supported manager list query `GET /override-requests?status=pending&limit=50`
+  returned **200 OK**. A stale consumer using `limit=1000` still receives **400**
+  because the API contract caps `limit` at 100; the current web manager overview and
+  approvals page use supported limits (100 and 50 respectively).
+
+**Authenticated browser evidence retained:**
+
+- Manager `/manager/approvals` rendered the pending request, opened its detail page,
+  displayed the policy evaluation and required decision reason, and submitted
+  **Approve override**. The resulting page showed `approved`, the success audit-log
+  alert, the manager decider, and the recorded reason.
+- Prospector `/work-queue/:campaignId/:prospectId` rendered **Contact blocked** for
+  the active reservation held by another team member, displayed the lease expiry,
+  disabled **Log action**, and offered **Ask a manager to authorise this contact**.
+  The page also showed no local reservation, proving the conflicting lease was not
+  incorrectly presented as owned by the current user.
+- Browser network evidence recorded authenticated 200 responses for the work-queue
+  detail, collision decision, reservation lookup, follow-ups and contact data; the
+  manager approval mutation recorded **200 OK**.
+
+**Code correctness fix included:** confirmation now uses an independent tenant-scoped
+transaction after Redis acquisition, immutable reservation-intent reads no longer use
+`FOR UPDATE` under the restricted runtime role, and the runtime bootstrap grants later
+migrations the required table/sequence privileges while preserving append-only audit
+and collision evidence.
+
+**Remaining release caveat:** beta acceptance is green, but production remains
+**NO-GO** until the deployment-environment `TENANT_RLS_MODE=enforce` rehearsal and the
+other open MVP gates (visual sign-off, import quality, dashboard dimensions, export
+artifacts, full restore, and pilot evidence) are closed. A focused shared-beta
+integration rerun still timed out in two long lifecycle cases; the previously retained
+disposable suite evidence remains the authoritative green run and must be repeated in
+an isolated environment before release.

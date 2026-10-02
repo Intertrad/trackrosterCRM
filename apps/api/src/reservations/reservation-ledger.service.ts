@@ -187,9 +187,14 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
         expiresAt: lease.expiresAt,
       });
     };
-    const active = currentTenantExecutor();
-    if (active) await confirmWith(active);
-    else await runWithoutTenantExecutor(() => this.db.transaction(confirmWith));
+    /*
+     * Confirmation happens after Redis has granted the external lease. Keep
+     * it on its own tenant-scoped transaction so request-level reads/locks
+     * cannot abort the durable ledger write. If this transaction fails, the
+     * caller can safely persist a pending intent for reconciliation without
+     * poisoning the request transaction that is still handling the response.
+     */
+    await runWithoutTenantExecutor(() => this.db.transaction(confirmWith));
   }
   async recordAttempt(
     tenantId: string,
@@ -213,11 +218,14 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
       .for('update');
     if (existing) return existing;
 
+    // Intent rows are immutable and the runtime role is intentionally denied
+    // UPDATE/DELETE. The reservation record lock above is the mutable
+    // serialization point; locking the intent would require UPDATE privilege
+    // and makes restricted-runtime reconciliation fail with 42501.
     const [intent] = await tx
       .select()
       .from(reservationIntents)
-      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)))
-      .for('update');
+      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)));
     if (!intent) return null;
 
     const [inserted] = await tx
@@ -328,11 +336,12 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
     });
   }
   private async reconcileIntent(tx: DatabaseExecutor, tenantId: string, id: string): Promise<void> {
+    // Immutable intent rows do not need a row lock. The record lock and the
+    // tenant-scoped transaction serialize materialization/reconciliation.
     const [intent] = await tx
       .select()
       .from(reservationIntents)
-      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)))
-      .for('update');
+      .where(and(eq(reservationIntents.tenantId, tenantId), eq(reservationIntents.id, id)));
     if (!intent) return;
 
     const [exact, paired] = await this.redis
