@@ -11,6 +11,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog } from '@/components/ui/dialog';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -599,57 +600,52 @@ function ActionRow({
   const overdue = classifyFollowUp(item) === 'overdue';
 
   return (
-    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 rounded-xl sm:flex sm:flex-wrap sm:items-center border border-line bg-surface px-4 py-3">
-      <input
-        type="checkbox"
-        disabled={item.status !== 'pending'}
-        checked={selected}
-        onChange={onToggle}
-        aria-label={t('actions.select', { name: item.establishmentName })}
-        className="mt-1 size-[18px] shrink-0 cursor-pointer disabled:invisible appearance-none rounded-[5px] border border-line bg-surface checked:border-brand checked:bg-brand"
-      />
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-3 rounded-xl border border-line bg-surface px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-x-4 sm:gap-y-2 sm:py-5">
+      <div className="col-start-1 row-span-4 row-start-1 self-center sm:row-span-2">
+        <Checkbox
+          hideLabel
+          label={t('actions.select', { name: item.establishmentName })}
+          disabled={item.status !== 'pending'}
+          checked={selected}
+          onChange={onToggle}
+          className="size-8! rounded-[9px]! disabled:invisible focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand motion-reduce:transition-none"
+        />
+      </div>
 
       <span
         className={cn(
-          'col-start-2 row-start-2 flex flex-wrap gap-x-2 text-[14px] font-bold sm:block sm:w-24 sm:shrink-0',
+          'col-start-2 row-start-2 block text-[14px] font-bold',
           overdue ? 'text-danger' : 'text-ink',
         )}
       >
         {formatDate(item.dueAt, locale)}
+        {isAppointment(item) ? ` - ${t('actions.appointment')}` : null}
 
-        <span className="block text-[13px] font-medium text-ink-muted">
+        <span
+          className={cn(
+            'block text-[13px] font-medium',
+            overdue ? 'text-danger' : 'text-ink-muted',
+          )}
+        >
           {overdue ? t('actions.status.overdue') : formatTime(item.dueAt, locale)}
         </span>
       </span>
 
-      <span className="col-start-2 row-start-1 min-w-0 sm:flex-1 sm:basis-48">
+      <span className="col-start-2 row-start-1 min-w-0">
         <Link
           href={`/work-queue/${item.campaignId}/${item.prospectId}`}
-          className="block break-words text-[15px] sm:truncate font-bold text-navy hover:text-brand"
+          className="block break-words text-[15px] font-bold text-navy hover:text-brand"
         >
           {item.establishmentName}
         </Link>
 
-        <span className="block break-words text-[14px] sm:truncate text-ink-muted">
-          {item.campaignName}
-        </span>
+        <span className="block break-words text-[14px] text-ink-muted">{item.campaignName}</span>
       </span>
 
-      <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-2 sm:contents">
+      <div className="col-start-2 row-start-3 flex min-w-0 flex-wrap items-center gap-2 sm:col-start-3 sm:row-start-1 sm:max-w-64 sm:justify-end">
         <Badge tone={item.ownership === 'team' ? 'brand' : 'neutral'} className="shrink-0">
           {t(item.ownership === 'team' ? 'actions.owner.team' : 'actions.owner.you')}
         </Badge>
-
-        {/*
-         * An appointment keeps its time group and is marked here instead. Moving every
-         * meeting into a bucket of its own would hide an overdue one from Overdue,
-         * which is the list it most needs to be in.
-         */}
-        {isAppointment(item) ? (
-          <Badge tone="brand" className="shrink-0">
-            {t('actions.appointment')}
-          </Badge>
-        ) : null}
 
         {/* The channel the next action is meant to use, when one was recorded. */}
         {item.channel ? (
@@ -658,15 +654,11 @@ function ActionRow({
           </span>
         ) : null}
 
-        <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
-          {t(
-            item.status === 'completed'
-              ? 'actions.status.completed'
-              : overdue
-                ? 'actions.status.overdue'
-                : 'actions.status.open',
-          )}
-        </Badge>
+        {!overdue && (
+          <Badge tone={item.status === 'completed' ? 'success' : 'neutral'}>
+            {t(item.status === 'completed' ? 'actions.status.completed' : 'actions.status.open')}
+          </Badge>
+        )}
       </div>
 
       {/*
@@ -676,7 +668,7 @@ function ActionRow({
       {item.status === 'pending' ? (
         <Button
           variant="secondary"
-          className="col-start-2 justify-self-start sm:shrink-0"
+          className="col-start-2 row-start-4 justify-self-start sm:col-start-3 sm:row-start-2 sm:self-end sm:justify-self-end"
           onClick={onReschedule}
         >
           {t('actions.reschedule')}

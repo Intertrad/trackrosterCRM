@@ -6,13 +6,17 @@ import { cn } from '@/lib/ui/cn';
 
 export function Checkbox({
   label,
+  hideLabel = false,
   className,
   ...rest
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'type'> & { label: string }) {
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'type'> & {
+  label: string;
+  hideLabel?: boolean;
+}) {
   const id = useId();
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className={cn('flex items-center', !hideLabel && 'gap-2.5')}>
       <input
         id={id}
         type="checkbox"
@@ -28,7 +32,10 @@ export function Checkbox({
         {...rest}
       />
 
-      <label htmlFor={id} className="cursor-pointer text-[14px] text-ink-soft select-none">
+      <label
+        htmlFor={id}
+        className={hideLabel ? 'sr-only' : 'cursor-pointer text-[14px] text-ink-soft select-none'}
+      >
         {label}
       </label>
     </div>

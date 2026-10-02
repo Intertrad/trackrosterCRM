@@ -349,7 +349,7 @@ describe('FollowUpsPage', () => {
       await waitFor(() => expect(screen.getByText('Prefecture')).toBeInTheDocument());
 
       /* In words, not by colour. */
-      expect(screen.getByText('Appointment')).toBeInTheDocument();
+      expect(screen.getByText(/ - Appointment$/)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Overdue/ })).toHaveTextContent('1');
     });
 
