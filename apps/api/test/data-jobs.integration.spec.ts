@@ -21,6 +21,8 @@ import {
   establishments,
   identities,
   idempotencyRecords,
+  notificationDeliveries,
+  notifications,
   membershipSettings,
   organizations,
   teams,
@@ -238,6 +240,8 @@ describe('Durable import and asynchronous export jobs', () => {
     for (const t of [
       importJobs,
       exportJobs,
+      notificationDeliveries,
+      notifications,
       establishmentContacts,
       assignmentRules,
       campaignProspectAssignments,
@@ -262,6 +266,8 @@ describe('Durable import and asynchronous export jobs', () => {
       const ids = [tenantId, foreignTenantId];
       for (const t of [
         idempotencyRecords,
+        notificationDeliveries,
+        notifications,
         auditEvents,
         assignmentRules,
         territoryAssignments,

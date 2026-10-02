@@ -17,7 +17,7 @@ This report records automated evidence only. Product visual sign-off remains a m
 | Import quality                     | **PASS**                              | Import unit/integration suites                                                                 | Duplicates/anomalies detected before commit                                      | Unit: 8 files, **63/63**; enforced integration: **35/35**; execution: **6/6**                                                                                                         | Pilot data acceptance still required                                               |
 | Dashboard authorization/dimensions | **PASS**                              | Manager/director scope and canonical dashboard suites                                          | Authorized team/org/tenant dimensions only                                       | **17/17** dashboard authorization integration tests; web client/route **21/21**; manager page **9/9**                                                                                 | Product visual review remains open                                                 |
 | Export generation/download/auth    | **PASS**                              | `test/controlled-export.integration.spec.ts`                                                   | Role-scoped artifact, download and audit trail                                   | **6/6**: 401 unauthenticated, manager exact-team, director org scope, prospector 403, CSV headers and audit records                                                                   | Live provider/artifact retention still needs release environment check             |
-| Data-jobs export/import suite      | **FAIL (fixture cleanup)**            | `data-jobs.integration.spec.ts`                                                                | Suite teardown completes cleanly                                                 | **18/18 functional tests passed**, teardown fails on `notifications_tenant_recipient_fk` because notification rows are not removed before memberships                                 | Fix test cleanup; no product behavior failure shown                                |
+| Data-jobs export/import suite      | **PASS**                              | `data-jobs.integration.spec.ts`                                                                | Suite teardown completes cleanly                                                 | **18/18** passed after deleting notification deliveries and notifications before membership cleanup                                                                                   | None                                                                               |
 | Enforced tenant RLS                | **PASS**                              | Enforced isolated API suite                                                                    | App starts and denies cross-tenant access                                        | Tenant/RLS/sweep/reservation combined suite **25/25** passed                                                                                                                          | Repeat in deployment environment                                                   |
 | Web quality                        | **PASS**                              | Direct web Vitest, typegen, TypeScript, webpack build                                          | Tests, types and production build complete                                       | Web **88 files / 731 tests**; typegen and `tsc` passed; `next build --webpack` completed all routes                                                                                   | Turbopack build still times out; release command must use webpack or fix Turbopack |
 | Backup/restore                     | **PASS with version-matched tooling** | `backup-postgres.mjs`, `verify-postgres-backup.mjs`, PostgreSQL 16 clients                     | Dump, restore, grants and RLS survive                                            | Archive 994 entries; restore and 84 RLS/forced-RLS tables passed                                                                                                                      | Production backup destination/RPO/RTO still require approval                       |
@@ -30,7 +30,6 @@ This report records automated evidence only. Product visual sign-off remains a m
 
 ### Critical/high
 
-- **Data-jobs fixture cleanup:** delete notification rows before tenant memberships in the integration teardown, then rerun the suite.
 - **Deployment-environment repeat:** rerun enforced RLS, six-role browser, workers and provider checks against the release configuration.
 - **Backup operations decision:** approve the PostgreSQL 16 client path, storage destination, retention and RPO/RTO.
 
@@ -43,8 +42,7 @@ This report records automated evidence only. Product visual sign-off remains a m
 
 ## Exact next actions
 
-1. Fix the `data-jobs.integration.spec.ts` teardown ordering and rerun the full data-jobs suite.
-2. Run the same automated matrix in the deployment environment with `TENANT_RLS_MODE=enforce` and the version-matched backup client.
-3. Perform the product-owner visual review across all six roles and responsive/error states.
-4. Supply a Push-channel subscription and deploy the worker before claiming push certification.
-5. Reassess production GO/NO-GO only after those results are retained.
+1. Run the same automated matrix in the deployment environment with `TENANT_RLS_MODE=enforce` and the version-matched backup client.
+2. Perform the product-owner visual review across all six roles and responsive/error states.
+3. Supply a Push-channel subscription and deploy the worker before claiming push certification.
+4. Reassess production GO/NO-GO only after those results are retained.
