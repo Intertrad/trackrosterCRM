@@ -1,0 +1,44 @@
+{
+  "sources": [
+    {
+      "source": "TrackRoster_API_Build_List.md",
+      "bytes": 34895,
+      "sha256": "cf0ee9c8bf478ef6f8ad9f14853abbc79223bea33c782bd5ce0f3158537657d6"
+    },
+    {
+      "source": "TrackRoster_Complete_Design_Handoff.zip",
+      "bytes": 44539505,
+      "sha256": "3e559f0d71a1921ff2b62f9cc6b0021edb63bb47ffd798f8249d40d6866910cb"
+    },
+    {
+      "source": "TrackRoster_Complete_Page_Design_Spec.md",
+      "bytes": 22564,
+      "sha256": "a3dd1ac355a8201581c93be6e0281167ae9580ac76d0268645ed477268c5523e"
+    },
+    {
+      "source": "TrackRoster_Database_Architecture.md",
+      "bytes": 14507,
+      "sha256": "b1367ca06f5fe7bf5541875cb18f7c91df071c79423d8fc674496b03562f55e6"
+    },
+    {
+      "source": "TrackRoster_Product_Design_Dossier_EN.pdf",
+      "bytes": 2136858,
+      "sha256": "904dacd63fbb182ed6ff84cc489c57a7ff7fe77e19a81b7c6c5c788618b3977f"
+    },
+    {
+      "source": "ZIP/00-documentation/TrackRoster_Complete_Page_Design_Spec.md",
+      "bytes": 36735,
+      "sha256": "51093fa92a00f2e509e72bae240550278597318ac352ceb8177cff0cfebf822e"
+    },
+    {
+      "source": "ZIP/10-database-architecture/trackroster_schema.sql",
+      "bytes": 30519,
+      "sha256": "26725e14cf32dc520cbd0fc25c27f92b7f69136ca4145d6ed8c415199dfb7568"
+    }
+  ],
+  "api_requirement_count": 381,
+  "page_requirement_count": 190,
+  "dossier_pages": 42,
+  "design_images": 30,
+  "original_reference_images": 1
+}
