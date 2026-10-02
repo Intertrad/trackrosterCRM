@@ -2,8 +2,9 @@
 
 **Run date:** 2026-10-02
 **Decision:** **Not ready for production deployment.** TR-910 beta acceptance is green,
-but provider provisioning, product approval, recovery, reservation reconciliation,
-pilot and load evidence remain open.
+and TR-918 reservation integration evidence is now green in an isolated stack, but
+provider provisioning, product approval, recovery, pilot and load evidence remain
+open.
 
 This report records the remediation work completed in this run. The approved dossier
 was subsequently supplied at `/Users/zainsubhani/Downloads/files/TrackRoster_Product_Design_Dossier_EN.pdf`;
@@ -65,8 +66,8 @@ the requirements matrix and notification matrix now use that source of truth.
    access path is certified; do not enable that setting in production based only on
    this run.
 2. **Collision, override, reservation, sweep and tenant-RLS API failures — green in
-   the disposable suite.** The final run passed all API files and worker files listed
-   above.
+   the disposable suite.** TR-918 reran the reservation lifecycle at **19/19** and
+   background discovery at **3/3** against a fresh Postgres/Redis pair.
 3. **Web quality gate — green.** Assigned-work test, generated route/type errors,
    root lint/format, TypeScript and production build all pass.
 4. **Product requirements/visual acceptance — partially open.** The actual dossier is
@@ -221,18 +222,42 @@ The browser evidence is:
   owned by the current user.
 
 The code fix behind this acceptance keeps post-Redis confirmation on an independent
-tenant-scoped transaction, removes `FOR UPDATE` from immutable intent reads for the
-restricted runtime role, and scopes later-migration default grants to `trackroster` while
-retaining append-only evidence-table privileges.
+tenant-scoped transaction when no request executor is active, while reusing the active
+executor for legacy claims that materialize the row in the same transaction. It also
+removes `FOR UPDATE` from immutable intent reads for the restricted runtime role and
+scopes later-migration default grants to `trackroster` while retaining append-only
+evidence-table privileges.
 
 Production remains **NO-GO**. Beta acceptance is green for G-06, but the deployment
 environment still needs `TENANT_RLS_MODE=enforce` rehearsal and the open MVP gates for
 visual sign-off, import quality, dashboard dimensions, export artifacts, full restore,
 and pilot evidence. A focused shared-beta integration rerun timed out in two long
-lifecycle tests; the retained disposable suite remains the authoritative green run and
-must be repeated in an isolated environment before release.
+lifecycle tests because the shared database had an idle transaction holding the
+reservation row lock. TR-918 reproduced and fixed the application deadlock in an
+isolated stack; the shared timeout is retained as an environment-contention finding
+rather than release evidence.
 
-The next remediation ticket is **TR-918 — isolated reservation integration rerun and
-manager approval contract cleanup**: run the full TR-916/TR-917 suite in a fresh beta
-database/Redis pair, remove or identify the stale `limit=1000` consumer, and retain the
-green trace before the final deployment rehearsal.
+## TR-918 — isolated reservation integration rerun and contract cleanup
+
+TR-918 is complete for beta acceptance. The isolated stack used a fresh PostgreSQL
+database, restricted `trackroster_app` role, Redis instance and Mailpit service. The
+runtime bootstrap now reapplies `EXECUTE` grants for all five background discovery
+functions when the role is created before migrations, without granting them to PUBLIC.
+
+Evidence retained:
+
+- `reservation-lifecycle.integration.spec.ts`: **19/19** passed after fixing the
+  legacy-claim self-deadlock. `confirm()` reuses the active tenant executor when the
+  claim already materialized the row, and uses an independent transaction for
+  background or post-lease paths.
+- `background-sweep-discovery.integration.spec.ts`: **3/3** passed, including
+  cross-tenant discovery, context-free RLS denial and privileged-function grants.
+- Reservation service unit tests: **44/44** passed.
+- API TypeScript check (`tsc --noEmit`): passed; Prettier and `git diff --check` passed.
+- No executable web consumer sends `limit=1000`. The supported manager consumers use
+  `limit=100` and `limit=50`; HTTP 400 for `limit=1000` is the intentional API cap.
+
+The exact next remediation step is the final deployment-environment rehearsal with
+`TENANT_RLS_MODE=enforce`, followed by the remaining open MVP gates (visual sign-off,
+import quality, dashboard dimensions, export artifacts, full restore and pilot
+evidence). Production remains **NO-GO** until those gates have retained evidence.

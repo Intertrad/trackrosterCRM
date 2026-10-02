@@ -188,13 +188,16 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
       });
     };
     /*
-     * Confirmation happens after Redis has granted the external lease. Keep
-     * it on its own tenant-scoped transaction so request-level reads/locks
-     * cannot abort the durable ledger write. If this transaction fails, the
-     * caller can safely persist a pending intent for reconciliation without
-     * poisoning the request transaction that is still handling the response.
+     * A legacy claim already materializes its record in the active request
+     * transaction before calling confirm. Reusing that executor avoids a
+     * self-deadlock where an independent confirmation waits on the
+     * uncommitted record while the request waits for confirmation. Background
+     * reconciliation and external-lease paths have no active executor, so
+     * they retain the independent tenant-scoped transaction boundary.
      */
-    await runWithoutTenantExecutor(() => this.db.transaction(confirmWith));
+    const active = currentTenantExecutor();
+    if (active) await confirmWith(active);
+    else await runWithoutTenantExecutor(() => this.db.transaction(confirmWith));
   }
   async recordAttempt(
     tenantId: string,

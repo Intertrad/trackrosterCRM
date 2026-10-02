@@ -208,6 +208,30 @@ and collision evidence.
 **NO-GO** until the deployment-environment `TENANT_RLS_MODE=enforce` rehearsal and the
 other open MVP gates (visual sign-off, import quality, dashboard dimensions, export
 artifacts, full restore, and pilot evidence) are closed. A focused shared-beta
-integration rerun still timed out in two long lifecycle cases; the previously retained
-disposable suite evidence remains the authoritative green run and must be repeated in
-an isolated environment before release.
+integration rerun timed out in two long lifecycle cases because an idle transaction in
+the shared database held the reservation row lock. The isolated rerun and bootstrap
+grant repair are recorded below.
+
+### TR-918 — Isolated reservation integration rerun and contract cleanup
+
+**Status: complete for beta acceptance.** A fresh PostgreSQL/Redis/Mailpit stack was
+provisioned with the restricted `trackroster_app` role. The runtime bootstrap now
+reapplies `EXECUTE` for the five background discovery functions when the role is
+created before migrations, while keeping PUBLIC execution revoked.
+
+Evidence:
+
+- Reservation lifecycle integration: **19/19** passed.
+- Background sweep discovery: **3/3** passed, including cross-tenant discovery,
+  context-free RLS denial and runtime-function privilege checks.
+- Reservation service unit tests: **44/44** passed.
+- API `tsc --noEmit`, Prettier and `git diff --check`: passed.
+- The legacy claim self-deadlock is fixed by reusing the active tenant executor when
+  confirmation follows row materialization; background and post-lease paths retain an
+  independent tenant-scoped transaction.
+- No executable web consumer sends `limit=1000`; supported consumers use `100` and
+  `50`, and the API's `400` response for `1000` is the intentional limit contract.
+
+Production remains **NO-GO**. The exact next step is the deployment-environment
+rehearsal with `TENANT_RLS_MODE=enforce`, followed by the still-open MVP gates listed in
+the blocker table.

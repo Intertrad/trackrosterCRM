@@ -43,6 +43,28 @@ GRANT USAGE ON SCHEMA public TO trackroster_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO trackroster_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO trackroster_app;
 
+-- Discovery functions are created by migrations. In a fresh disposable
+-- database the runtime role may be created by this bootstrap before those
+-- migrations run, so the migration-time conditional GRANT is skipped. Apply
+-- the grants again here when the functions already exist; this keeps the
+-- worker paths callable without widening PUBLIC access.
+DO $$
+DECLARE
+  function_name text;
+BEGIN
+  FOREACH function_name IN ARRAY ARRAY[
+    'trackroster_pending_action_effects(integer)',
+    'trackroster_claimable_export_jobs(integer)',
+    'trackroster_expirable_export_jobs(integer)',
+    'trackroster_reconcilable_reservations(integer)',
+    'trackroster_reconcilable_reservation_intents(integer)'
+  ] LOOP
+    IF to_regprocedure(function_name) IS NOT NULL THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO trackroster_app', function_name);
+    END IF;
+  END LOOP;
+END $$;
+
 -- Evidence tables are append-only. Keep this invariant when the runtime role
 -- is created after the migrations (as happens in local integration databases).
 DO $$
