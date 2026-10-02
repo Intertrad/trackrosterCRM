@@ -63,11 +63,6 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   if (rlsMode !== 'disabled' && rlsMode !== 'observe' && rlsMode !== 'enforce') {
     throw new Error('TENANT_RLS_MODE must be disabled, observe, or enforce');
   }
-  if (rlsMode === 'enforce') {
-    throw new Error(
-      'TENANT_RLS_MODE=enforce is not available until all database access uses tenant-scoped transactions',
-    );
-  }
 
   validateRedisUrl(config);
 

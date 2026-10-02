@@ -26,6 +26,15 @@ describe('validateEnvironment', () => {
     ).not.toThrow();
   });
 
+  it('accepts enforced tenant RLS configuration', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        TENANT_RLS_MODE: 'enforce',
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects a missing access secret', () => {
     expect(() =>
       validateEnvironment({
