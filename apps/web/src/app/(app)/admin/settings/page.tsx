@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { browserJson } from '@/lib/api/browser-json';
+import { CalendarClock, Info, LockKeyhole, Mail, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import {
   listCoordinationPolicies,
   createCoordinationPolicy,
@@ -78,6 +79,7 @@ type ReservationRule = {
   durationMinutes: number;
   cooldownMinutes: number;
   maxHoldMinutes: number;
+  allowHeartbeat: boolean;
   allowExtension: boolean;
   allowManagerOverride: boolean;
 };
@@ -88,10 +90,14 @@ function ReservationSettings({ language }: { language: string }) {
   const [policies, setPolicies] = useState<CoordinationPolicy[]>([]);
   const [rule, setRule] = useState<ReservationRule | null>(null);
   const [matrix, setMatrix] = useState<Record<string, number>>({});
+  const [policyMatrix, setPolicyMatrix] = useState<Record<string, CoordinationPolicy['policy']>>(
+    {},
+  );
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mirrorDirections, setMirrorDirections] = useState(true);
   const load = async () => {
     setLoading(true);
     try {
@@ -108,18 +114,23 @@ function ReservationSettings({ language }: { language: string }) {
       setPolicies(policyRows);
       setRule(rulePage.items?.find((item) => item.id) ?? null);
       const next: Record<string, number> = {};
+      const nextPolicies: Record<string, CoordinationPolicy['policy']> = {};
       for (const a of orgPage.items ?? [])
         for (const b of orgPage.items ?? [])
           next[`${a.id}:${b.id}`] =
             a.id === b.id ? (rulePage.items?.[0]?.durationMinutes ?? 30) : 7;
-      for (const p of policyRows)
-        next[`${p.organizationAId}:${p.organizationBId}`] =
-          p.policy === 'delayed'
-            ? Math.ceil((p.delayMinutes ?? 10080) / 1440)
-            : p.policy === 'independent'
-              ? 0
-              : 7;
+      for (const a of orgPage.items ?? [])
+        for (const b of orgPage.items ?? [])
+          nextPolicies[`${a.id}:${b.id}`] = a.id === b.id ? 'shared' : 'coordinated';
+      for (const p of policyRows) {
+        const days = p.policy === 'delayed' ? Math.ceil((p.delayMinutes ?? 10080) / 1440) : 7;
+        next[`${p.organizationAId}:${p.organizationBId}`] = p.policy === 'independent' ? 0 : days;
+        nextPolicies[`${p.organizationAId}:${p.organizationBId}`] = p.policy;
+        next[`${p.organizationBId}:${p.organizationAId}`] = p.policy === 'independent' ? 0 : days;
+        nextPolicies[`${p.organizationBId}:${p.organizationAId}`] = p.policy;
+      }
       setMatrix(next);
+      setPolicyMatrix(nextPolicies);
       setError(false);
     } catch {
       setError(true);
@@ -132,12 +143,33 @@ function ReservationSettings({ language }: { language: string }) {
   }, []);
   const setCell = (a: string, b: string, value: number) =>
     setMatrix((current) => ({ ...current, [`${a}:${b}`]: value }));
+  const setPolicy = (a: string, b: string, policy: CoordinationPolicy['policy']) => {
+    setPolicyMatrix((current) => ({
+      ...current,
+      [`${a}:${b}`]: policy,
+      ...(mirrorDirections ? { [`${b}:${a}`]: policy } : {}),
+    }));
+    if (policy === 'independent') {
+      setCell(a, b, 0);
+      if (mirrorDirections) setCell(b, a, 0);
+    } else if (policy === 'delayed') {
+      setCell(a, b, Math.max(1, matrix[`${a}:${b}`] ?? 30));
+      if (mirrorDirections) setCell(b, a, Math.max(1, matrix[`${b}:${a}`] ?? 30));
+    } else {
+      setCell(a, b, 7);
+      if (mirrorDirections) setCell(b, a, 7);
+    }
+  };
   const applyPreset = (sameCompany: number, otherCompany: number) => {
     const next: Record<string, number> = {};
+    const nextPolicies: Record<string, CoordinationPolicy['policy']> = {};
     for (const a of organizations)
-      for (const b of organizations)
+      for (const b of organizations) {
         next[`${a.id}:${b.id}`] = a.id === b.id ? sameCompany : otherCompany;
+        nextPolicies[`${a.id}:${b.id}`] = a.id === b.id ? 'delayed' : 'coordinated';
+      }
     setMatrix(next);
+    setPolicyMatrix(nextPolicies);
     setSaved(false);
   };
   const save = async () => {
@@ -145,7 +177,13 @@ function ReservationSettings({ language }: { language: string }) {
     setSaving(true);
     try {
       const existing = new Map(
-        policies.map((p) => [`${p.organizationAId}:${p.organizationBId}`, p]),
+        policies.map((p) => {
+          const key =
+            p.organizationAId < p.organizationBId
+              ? `${p.organizationAId}:${p.organizationBId}`
+              : `${p.organizationBId}:${p.organizationAId}`;
+          return [key, p] as const;
+        }),
       );
       for (let i = 0; i < organizations.length; i++)
         for (let j = i + 1; j < organizations.length; j++) {
@@ -153,13 +191,14 @@ function ReservationSettings({ language }: { language: string }) {
             b = organizations[j]!;
           const key = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
           const days = matrix[`${a.id}:${b.id}`] ?? 7;
+          const policy = policyMatrix[`${a.id}:${b.id}`] ?? 'coordinated';
           const current = existing.get(key);
           const input = {
-            policy: days === 0 ? ('independent' as const) : ('delayed' as const),
-            delayMinutes: days === 0 ? null : days * 1440,
+            policy,
+            delayMinutes: policy === 'delayed' ? days * 1440 : null,
           };
           if (current) await updateCoordinationPolicy(current.id, input);
-          else if (days !== 7)
+          else if (policy !== 'shared')
             await createCoordinationPolicy({
               organizationAId: a.id,
               organizationBId: b.id,
@@ -180,11 +219,26 @@ function ReservationSettings({ language }: { language: string }) {
       setSaving(false);
     }
   };
+  const policyMeta: Record<CoordinationPolicy['policy'], { label: string; tone: string }> = {
+    shared: { label: l('Shared', 'Partagé'), tone: 'border-lime-200 bg-lime-50 text-lime-800' },
+    coordinated: {
+      label: l('Coordinated', 'Coordonné'),
+      tone: 'border-amber-200 bg-amber-50 text-amber-800',
+    },
+    delayed: {
+      label: l('Deferred', 'Différé'),
+      tone: 'border-blue-200 bg-blue-50 text-blue-800',
+    },
+    independent: {
+      label: l('Independent', 'Indépendant'),
+      tone: 'border-violet-200 bg-violet-50 text-violet-800',
+    },
+  };
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <SettingsHeader language={language} activeId="reservation-rules" />
       {error && (
-        <Alert tone="danger" className="flex items-center justify-between gap-3">
+        <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
           {l('Unable to load settings.', 'Impossible de charger les réglages.')}{' '}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
@@ -193,15 +247,143 @@ function ReservationSettings({ language }: { language: string }) {
       )}
       <Card className="overflow-hidden border-line/80 shadow-[0_18px_50px_rgba(9,31,105,0.07)]">
         <CardHeader
-          title={l(
-            'Delay between contacts at the same establishment',
-            'Délais entre deux contacts d’un même établissement',
-          )}
+          title={l('Reservation locks', 'Verrous de réservation')}
+          action={<LockKeyhole className="size-5 text-brand" aria-hidden="true" />}
         />
         <p className="mb-5 max-w-3xl text-sm leading-6 text-ink-muted">
           {l(
-            'Rows show the company that contacted last; columns show the next company. Values are days.',
-            'Ligne = entreprise qui a contacté en dernier ; colonne = entreprise qui veut contacter. Valeurs en jours.',
+            'A lock holds an establishment while a prospector is working on it, then expires on its own.',
+            'Un verrou protège un établissement pendant le travail du prospecteur, puis expire automatiquement.',
+          )}
+        </p>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-xl border border-line bg-surface-muted/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-bold text-navy">
+              <Phone className="size-4 text-brand" aria-hidden="true" /> {l('Call', 'Appel')}
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-ink-muted">
+              <input
+                aria-label={l(
+                  'Call lock duration in minutes',
+                  'Durée du verrou d’appel en minutes',
+                )}
+                type="number"
+                min={1}
+                max={240}
+                value={rule?.durationMinutes ?? 20}
+                onChange={(event) => {
+                  setRule((current) =>
+                    current
+                      ? {
+                          ...current,
+                          durationMinutes: Math.max(1, Number(event.target.value) || 1),
+                        }
+                      : current,
+                  );
+                  setSaved(false);
+                }}
+                className="w-20 rounded-lg border border-line bg-surface px-3 py-2 text-center font-bold text-navy outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+              {l('minutes', 'minutes')}
+            </div>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-muted/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-bold text-navy">
+              <MapPin className="size-4 text-brand" aria-hidden="true" />{' '}
+              {l('Field visit', 'Visite terrain')}
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-sm text-ink-muted">
+              <CalendarClock className="size-4" aria-hidden="true" />
+              {l('The booked time slot', 'Le créneau réservé')}
+            </div>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-muted/40 p-4">
+            <div className="flex items-center gap-2 text-sm font-bold text-navy">
+              <Mail className="size-4 text-brand" aria-hidden="true" />{' '}
+              {l('Letter and e-mail', 'Courrier et e-mail')}
+            </div>
+            <p className="mt-3 text-sm text-ink-muted">
+              {l('No lock — logged as sent', 'Aucun verrou — enregistré comme envoyé')}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+            <input
+              className="mt-0.5 size-4 accent-brand"
+              type="checkbox"
+              checked={rule?.allowHeartbeat ?? true}
+              onChange={(event) => {
+                setRule((current) =>
+                  current ? { ...current, allowHeartbeat: event.target.checked } : current,
+                );
+                setSaved(false);
+              }}
+            />
+            <span>
+              <strong className="block text-sm text-navy">
+                {l(
+                  'Hold the lock while the call screen is open',
+                  'Garder le verrou pendant l’appel',
+                )}
+              </strong>
+              <span className="text-xs text-ink-muted">
+                {l(
+                  'Prevents a long call from expiring mid-conversation.',
+                  'Évite qu’un long appel expire en cours de conversation.',
+                )}
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+            <input
+              className="mt-0.5 size-4 accent-brand"
+              type="checkbox"
+              checked={rule?.allowExtension ?? true}
+              onChange={(event) => {
+                setRule((current) =>
+                  current ? { ...current, allowExtension: event.target.checked } : current,
+                );
+                setSaved(false);
+              }}
+            />
+            <span>
+              <strong className="block text-sm text-navy">
+                {l('Allow an extension request', 'Autoriser une demande de prolongation')}
+              </strong>
+              <span className="text-xs text-ink-muted">
+                {l(
+                  'Every extension is recorded in the audit log.',
+                  'Chaque prolongation est inscrite dans le journal d’audit.',
+                )}
+              </span>
+            </span>
+          </label>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden border-line/80 shadow-[0_18px_50px_rgba(9,31,105,0.07)]">
+        <CardHeader
+          title={l(
+            'Delay before another company may contact the same establishment',
+            'Délai avant qu’une autre entreprise contacte le même établissement',
+          )}
+          action={
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink-muted">
+              <input
+                type="checkbox"
+                className="size-4 accent-brand"
+                checked={mirrorDirections}
+                onChange={(event) => setMirrorDirections(event.target.checked)}
+              />
+              {l('Mirror both directions', 'Miroir dans les deux sens')}
+            </label>
+          }
+        />
+        <p className="mb-5 max-w-3xl text-sm leading-6 text-ink-muted">
+          {l(
+            'Read a row as “after this company has made contact”, and a column as “this company may contact next”.',
+            'Ligne = entreprise ayant contacté ; colonne = entreprise pouvant contacter ensuite.',
           )}
         </p>
         {loading ? (
@@ -209,8 +391,8 @@ function ReservationSettings({ language }: { language: string }) {
             className="grid gap-3 py-6"
             aria-label={l('Loading settings', 'Chargement des réglages')}
           >
-            {[0, 1, 2, 3].map((item) => (
-              <div key={item} className="h-12 animate-pulse rounded-xl bg-surface-muted" />
+            {[0, 1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-14 animate-pulse rounded-xl bg-surface-muted" />
             ))}
           </div>
         ) : organizations.length === 0 ? (
@@ -221,18 +403,17 @@ function ReservationSettings({ language }: { language: string }) {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface-muted/50 p-2">
-            <table className="min-w-[760px] border-separate border-spacing-1.5 text-center text-sm">
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface-muted/40 p-2">
+            <table className="min-w-[850px] border-separate border-spacing-1.5 text-center text-sm">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 min-w-48 bg-surface-muted p-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted">
-                    {l('Contacted by ↓ / then by →', 'Contacté par ↓ / puis par →')}
+                  <th className="sticky left-0 z-10 min-w-44 bg-surface-muted p-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted">
+                    {l('Then may contact →', 'Puis peut contacter →')}
                   </th>
                   {organizations.map((org) => (
                     <th
                       key={org.id}
-                      className="min-w-28 rounded-xl px-3 py-3 text-xs font-bold text-white shadow-sm"
-                      style={{ backgroundColor: org.color ?? '#155eef' }}
+                      className="min-w-32 rounded-xl border border-line bg-surface px-3 py-3 text-xs font-bold text-navy"
                     >
                       {org.shortName ?? org.name}
                     </th>
@@ -242,32 +423,87 @@ function ReservationSettings({ language }: { language: string }) {
               <tbody>
                 {organizations.map((row) => (
                   <tr key={row.id}>
-                    <th
-                      className="sticky left-0 z-[1] min-w-48 rounded-xl px-4 py-3 text-left text-xs font-bold text-white shadow-sm"
-                      style={{ backgroundColor: row.color ?? '#155eef' }}
-                    >
+                    <th className="sticky left-0 z-[1] min-w-44 rounded-xl border border-line bg-surface px-3 py-3 text-left text-xs font-bold text-navy">
+                      <span
+                        className="mr-2 inline-block size-2 rounded-full"
+                        style={{ backgroundColor: row.color ?? '#155eef' }}
+                      />
                       {row.shortName ?? row.name}
                     </th>
-                    {organizations.map((col) => (
-                      <td key={col.id}>
-                        <input
-                          aria-label={`${row.name} to ${col.name}`}
-                          min="0"
-                          max="365"
-                          type="number"
-                          value={matrix[`${row.id}:${col.id}`] ?? 7}
-                          onChange={(event) => {
-                            setCell(
-                              row.id,
-                              col.id,
-                              Math.max(0, Math.min(365, Number(event.target.value) || 0)),
-                            );
-                            setSaved(false);
-                          }}
-                          className={`w-20 rounded-xl border px-3 py-2.5 text-center font-semibold text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 ${row.id === col.id ? 'border-brand/30 bg-brand-tint/40' : 'border-line bg-surface'}`}
-                        />
-                      </td>
-                    ))}
+                    {organizations.map((col) => {
+                      const key = `${row.id}:${col.id}`;
+                      const policy =
+                        policyMatrix[key] ?? (row.id === col.id ? 'shared' : 'coordinated');
+                      const meta = policyMeta[policy];
+                      const days =
+                        matrix[key] ?? (row.id === col.id ? (rule?.durationMinutes ?? 20) : 7);
+                      return (
+                        <td key={col.id} className={`rounded-xl border p-2 align-top ${meta.tone}`}>
+                          <div className="mb-1 flex items-center justify-between gap-1 text-[10px] font-extrabold uppercase tracking-wide">
+                            <span>
+                              {row.id === col.id
+                                ? l('Same company', 'Même entreprise')
+                                : meta.label}
+                            </span>
+                            {row.id === col.id ? (
+                              <LockKeyhole className="size-3" aria-hidden="true" />
+                            ) : null}
+                          </div>
+                          {row.id === col.id ? (
+                            <div className="text-left text-sm font-extrabold text-navy">
+                              {days}{' '}
+                              <span className="text-xs font-medium text-ink-muted">
+                                {l('days', 'jours')}
+                              </span>
+                            </div>
+                          ) : (
+                            <select
+                              aria-label={`${row.name} to ${col.name}`}
+                              value={policy}
+                              onChange={(event) => {
+                                setPolicy(
+                                  row.id,
+                                  col.id,
+                                  event.target.value as CoordinationPolicy['policy'],
+                                );
+                                setSaved(false);
+                              }}
+                              className="w-full bg-transparent text-left text-xs font-bold text-navy outline-none"
+                            >
+                              <option value="shared">{l('Shared', 'Partagé')}</option>
+                              <option value="coordinated">
+                                {l('Coordinated · 7 days', 'Coordonné · 7 jours')}
+                              </option>
+                              <option value="delayed">
+                                {l('Deferred · custom delay', 'Différé · délai personnalisé')}
+                              </option>
+                              <option value="independent">{l('Independent', 'Indépendant')}</option>
+                            </select>
+                          )}
+                          {row.id !== col.id && policy === 'delayed' ? (
+                            <label className="mt-1 flex items-center gap-1 text-[11px] text-ink-muted">
+                              <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={days}
+                                aria-label={`${row.name} to ${col.name} delay in days`}
+                                onChange={(event) => {
+                                  setCell(
+                                    row.id,
+                                    col.id,
+                                    Math.max(1, Math.min(365, Number(event.target.value) || 1)),
+                                  );
+                                  setSaved(false);
+                                }}
+                                className="w-12 rounded border border-current/20 bg-white/60 px-1 py-0.5 text-center font-bold text-navy"
+                              />
+                              {l('days', 'jours')}
+                            </label>
+                          ) : null}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -276,55 +512,141 @@ function ReservationSettings({ language }: { language: string }) {
         )}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className="mr-1 text-xs font-bold uppercase tracking-wide text-ink-muted">
-            {l('Presets', 'Préréglages')}
+            {l('Apply a preset', 'Appliquer un modèle')}
           </span>
           <button
             type="button"
             onClick={() => applyPreset(30, 7)}
             className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
           >
-            30 / 7 {l('days', 'jours')}
+            {l(
+              'Standard — 30 d same company, 7 d across',
+              'Standard — 30 j même entreprise, 7 j entre entreprises',
+            )}
           </button>
           <button
             type="button"
             onClick={() => applyPreset(30, 14)}
             className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
           >
-            30 / 14 {l('days', 'jours')}
+            {l('Careful — 30 / 14', 'Prudent — 30 / 14')}
           </button>
           <button
             type="button"
             onClick={() => applyPreset(45, 30)}
             className="rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-brand hover:text-brand"
           >
-            45 / 30 {l('days', 'jours')}
+            {l('Institutional — 45 / 30', 'Institutionnel — 45 / 30')}
           </button>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink">
-            <input
-              type="checkbox"
-              checked={rule?.allowManagerOverride ?? true}
-              onChange={(event) =>
-                setRule((current) =>
-                  current ? { ...current, allowManagerOverride: event.target.checked } : current,
-                )
-              }
-            />
-            {l('Allow manager overrides', 'Autoriser les dérogations manager')}
-          </label>
-          <label className="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink">
-            <input
-              type="checkbox"
-              checked={rule?.allowExtension ?? true}
-              onChange={(event) =>
-                setRule((current) =>
-                  current ? { ...current, allowExtension: event.target.checked } : current,
-                )
-              }
-            />
-            {l('Allow reservation extensions', 'Autoriser les prolongations')}
-          </label>
+        <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-line pt-4 text-xs text-ink-muted">
+          {(
+            Object.entries(policyMeta) as [
+              CoordinationPolicy['policy'],
+              { label: string; tone: string },
+            ][]
+          ).map(([key, meta]) => (
+            <span key={key} className="inline-flex items-center gap-2">
+              <span className={`size-2 rounded-full ${meta.tone.split(' ')[1]}`} />
+              {meta.label}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden border-line/80 shadow-[0_18px_50px_rgba(9,31,105,0.07)]">
+        <CardHeader
+          title={l('Exceptions', 'Exceptions')}
+          action={<ShieldCheck className="size-5 text-brand" aria-hidden="true" />}
+        />
+        <p className="mb-5 text-sm text-ink-muted">
+          {l(
+            'When a rule blocks a prospector, these settings decide what they can ask for.',
+            'Lorsqu’une règle bloque un prospecteur, ces réglages déterminent ce qu’il peut demander.',
+          )}
+        </p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-line bg-surface-muted/40 p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-brand"
+                checked={rule?.allowManagerOverride ?? true}
+                onChange={(event) => {
+                  setRule((current) =>
+                    current ? { ...current, allowManagerOverride: event.target.checked } : current,
+                  );
+                  setSaved(false);
+                }}
+              />
+              <span>
+                <strong className="block text-sm text-navy">
+                  {l('A manager may override a block', 'Un manager peut déroger à un blocage')}
+                </strong>
+                <span className="text-xs text-ink-muted">
+                  {l(
+                    'The prospector sends a request; the manager decides.',
+                    'Le prospecteur envoie une demande ; le manager décide.',
+                  )}
+                </span>
+              </span>
+            </label>
+            <div className="mt-4 flex items-center gap-2 text-sm text-ink-muted">
+              <span>{l('Override valid for', 'Dérogation valable')}</span>
+              <span className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold text-navy">
+                24 {l('hours', 'heures')}
+              </span>
+            </div>
+            <p className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
+              <LockKeyhole className="size-3" aria-hidden="true" />
+              {l(
+                'A written reason is always required and kept in the audit log.',
+                'Un motif écrit est toujours requis et conservé dans le journal d’audit.',
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl border border-line bg-surface-muted/40 p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-brand"
+                checked={rule?.allowExtension ?? true}
+                onChange={(event) => {
+                  setRule((current) =>
+                    current ? { ...current, allowExtension: event.target.checked } : current,
+                  );
+                  setSaved(false);
+                }}
+              />
+              <span>
+                <strong className="block text-sm text-navy">
+                  {l(
+                    'A prospector may extend their own lock',
+                    'Un prospecteur peut prolonger son propre verrou',
+                  )}
+                </strong>
+                <span className="text-xs text-ink-muted">
+                  {l(
+                    'Useful when a call runs long or a visit is delayed.',
+                    'Utile lorsqu’un appel se prolonge ou qu’une visite est retardée.',
+                  )}
+                </span>
+              </span>
+            </label>
+            <div className="mt-4 flex items-center gap-2 text-sm text-ink-muted">
+              <span>{l('At most', 'Au maximum')}</span>
+              <span className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold text-navy">
+                {l('once per action', 'une fois par action')}
+              </span>
+            </div>
+            <p className="mt-3 flex items-center gap-2 text-xs text-ink-muted">
+              <Info className="size-3" aria-hidden="true" />
+              {l(
+                'An expired lock with no summary alerts the manager.',
+                'Un verrou expiré sans résumé alerte le manager.',
+              )}
+            </p>
+          </div>
         </div>
       </Card>
       <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
@@ -339,7 +661,7 @@ function ReservationSettings({ language }: { language: string }) {
                 'Les changements s’appliquent aux prochaines listes.',
               )}
         </span>
-        <Button disabled={loading || saving || !rule} onClick={() => void save()}>
+        <Button loading={saving} disabled={loading || !rule} onClick={() => void save()}>
           {saving
             ? l('Saving…', 'Enregistrement…')
             : l('Save settings', 'Enregistrer les réglages')}
