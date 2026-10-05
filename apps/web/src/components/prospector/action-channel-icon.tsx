@@ -54,7 +54,7 @@ export function ActionChannelIcon({
         className,
       )}
     >
-      <Icon aria-hidden="true" className="size-[18px]" strokeWidth={2} />
+      <Icon aria-hidden="true" className="size-4.5" strokeWidth={2} />
     </span>
   );
 }

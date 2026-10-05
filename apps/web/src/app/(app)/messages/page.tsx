@@ -427,7 +427,7 @@ export default function MessagesPage() {
       <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
         <div
           className={cn(
-            'min-h-[min(760px,calc(100dvh-180px))] max-lg:flex max-lg:min-h-[calc(100dvh-148px)]',
+            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[calc(100dvh-148px)]',
             active
               ? 'grid lg:grid-cols-[348px_minmax(0,1fr)_294px]'
               : 'grid lg:grid-cols-[348px_minmax(0,1fr)]',
@@ -435,7 +435,7 @@ export default function MessagesPage() {
         >
           <aside
             className={cn(
-              'border-b border-line lg:border-r lg:border-b-0',
+              'min-h-0 border-b border-line lg:border-r lg:border-b-0',
               active && 'max-lg:hidden',
             )}
           >
@@ -608,7 +608,10 @@ export default function MessagesPage() {
           </aside>
 
           <section
-            className={cn('flex min-w-0 flex-col bg-surface text-ink', !active && 'max-lg:hidden')}
+            className={cn(
+              'flex min-h-0 min-w-0 flex-col bg-surface text-ink',
+              !active && 'max-lg:hidden',
+            )}
           >
             {!active ? (
               <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-20 text-center">
