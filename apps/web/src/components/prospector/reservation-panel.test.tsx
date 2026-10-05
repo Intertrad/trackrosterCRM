@@ -143,6 +143,12 @@ describe('reservation claim', () => {
     expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
   });
 
+  it('does not acquire while collision authorization is unknown', () => {
+    render(<ReservationPanel {...props({ state: 'none' })} acquireDisabled />);
+
+    expect(screen.getByRole('button', { name: 'Reserve' })).toBeDisabled();
+  });
+
   it('offers no claim when another user already holds it', () => {
     render(
       <ReservationPanel {...props({ state: 'reserved', expiresAt: '2026-09-28T12:00:00.000Z' })} />,

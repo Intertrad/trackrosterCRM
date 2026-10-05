@@ -24,6 +24,7 @@ export function ReservationPanel({
   teamId,
   reservation,
   reservationError,
+  acquireDisabled = false,
   onChanged,
 }: {
   campaignId: string;
@@ -31,6 +32,7 @@ export function ReservationPanel({
   teamId: string;
   reservation: ProspectReservationState | null;
   reservationError?: string | null;
+  acquireDisabled?: boolean;
   onChanged: () => void;
 }) {
   const { language, locale } = useTranslation();
@@ -213,7 +215,13 @@ export function ReservationPanel({
       ) : null}
 
       {reservation?.state === 'none' ? (
-        <Button fullWidth className="mt-4" loading={pending} onClick={() => void run('acquire')}>
+        <Button
+          fullWidth
+          className="mt-4"
+          loading={pending}
+          disabled={acquireDisabled}
+          onClick={() => void run('acquire')}
+        >
           {l('Reserve', 'Réserver')}
         </Button>
       ) : null}

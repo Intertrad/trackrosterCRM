@@ -559,6 +559,7 @@ export function ProspectDetail({
             teamId={teamId}
             reservation={reservation}
             reservationError={reservationError}
+            acquireDisabled={collisionError !== null}
             onChanged={refresh}
           />
 
