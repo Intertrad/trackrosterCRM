@@ -98,6 +98,8 @@ interface DashboardResponse {
 
     completedInRange: number;
 
+    lateCompletedInRange: number;
+
     cancelledInRange: number;
   };
 
@@ -111,6 +113,8 @@ interface DashboardResponse {
     pendingFollowUps: number;
 
     overdueFollowUps: number;
+
+    lateCompletedFollowUps: number;
   }>;
 }
 
@@ -1315,6 +1319,8 @@ describe('Manager dashboard HTTP integration', () => {
 
       completedInRange: 1,
 
+      lateCompletedInRange: 0,
+
       cancelledInRange: 1,
     });
 
@@ -1330,6 +1336,8 @@ describe('Manager dashboard HTTP integration', () => {
       pendingFollowUps: 1,
 
       overdueFollowUps: 1,
+
+      lateCompletedFollowUps: 0,
     });
 
     expect(findProspectorRow(body, prospectorCId)).toEqual({
@@ -1342,6 +1350,8 @@ describe('Manager dashboard HTTP integration', () => {
       pendingFollowUps: 1,
 
       overdueFollowUps: 0,
+
+      lateCompletedFollowUps: 0,
     });
 
     /*
@@ -1408,6 +1418,8 @@ describe('Manager dashboard HTTP integration', () => {
 
       completedInRange: 1,
 
+      lateCompletedInRange: 0,
+
       cancelledInRange: 1,
     });
 
@@ -1421,6 +1433,8 @@ describe('Manager dashboard HTTP integration', () => {
       pendingFollowUps: 1,
 
       overdueFollowUps: 1,
+
+      lateCompletedFollowUps: 0,
     });
 
     expect(findProspectorRow(body, prospectorBId)).toBeUndefined();
@@ -1498,6 +1512,8 @@ describe('Manager dashboard HTTP integration', () => {
 
       completedInRange: 1,
 
+      lateCompletedInRange: 0,
+
       cancelledInRange: 1,
     });
 
@@ -1511,6 +1527,8 @@ describe('Manager dashboard HTTP integration', () => {
       pendingFollowUps: 1,
 
       overdueFollowUps: 0,
+
+      lateCompletedFollowUps: 0,
     });
   });
 
@@ -1554,6 +1572,8 @@ describe('Manager dashboard HTTP integration', () => {
         pendingFollowUps: 1,
 
         overdueFollowUps: 1,
+
+        lateCompletedFollowUps: 0,
       },
     ]);
   });
@@ -1604,6 +1624,8 @@ describe('Manager dashboard HTTP integration', () => {
 
       completedInRange: 1,
 
+      lateCompletedInRange: 0,
+
       cancelledInRange: 1,
     });
 
@@ -1618,6 +1640,8 @@ describe('Manager dashboard HTTP integration', () => {
         pendingFollowUps: 1,
 
         overdueFollowUps: 1,
+
+        lateCompletedFollowUps: 0,
       },
     ]);
   });
