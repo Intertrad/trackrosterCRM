@@ -106,7 +106,7 @@ describe('admin campaign enrolment', () => {
   it('refuses to act until a criterion is chosen, so the whole base cannot be enrolled by accident', async () => {
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     expect(
       screen.getByText(
@@ -127,7 +127,7 @@ describe('admin campaign enrolment', () => {
   it('sends the section and department the API names, and only when the department is complete', async () => {
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
 
@@ -155,7 +155,7 @@ describe('admin campaign enrolment', () => {
   it('previews without enrolling, then enrols and re-reads the queue from the server', async () => {
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
     fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
@@ -183,7 +183,7 @@ describe('admin campaign enrolment', () => {
   it('asks the dispatch queue for the same population it enrolled', async () => {
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
     typeDepartment('974');
@@ -218,7 +218,7 @@ describe('admin campaign enrolment', () => {
 
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
     fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
@@ -251,7 +251,7 @@ describe('admin campaign enrolment', () => {
 
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
     fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
@@ -273,7 +273,7 @@ describe('admin campaign enrolment', () => {
 
     render(<CampaignEnrolmentPage />);
 
-    await waitFor(() => expect(listCampaignsMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Section')).toBeInTheDocument());
 
     chooseSection();
     fireEvent.click(screen.getByRole('button', { name: 'Check the selection' }));
