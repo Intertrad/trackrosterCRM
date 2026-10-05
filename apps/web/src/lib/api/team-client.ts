@@ -1,6 +1,14 @@
 import { browserJson } from './browser-json';
 import { browserResource, type BrowserResource } from './browser-resource';
-import type { RosterPage, RosterState, Team, TeamCapacity, TeamPage, TeamRole } from './team-types';
+import type {
+  RosterPage,
+  RosterState,
+  Team,
+  TeamCapacity,
+  TeamPage,
+  TeamRole,
+  TeamStatus,
+} from './team-types';
 
 function writeHeaders(etag?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
@@ -16,7 +24,12 @@ function writeHeaders(etag?: string | null): Record<string, string> {
 }
 
 export function listTeams(
-  query: { organizationId?: string; cursor?: string; limit?: number } = {},
+  query: {
+    organizationId?: string;
+    status?: TeamStatus;
+    cursor?: string;
+    limit?: number;
+  } = {},
   signal?: AbortSignal,
 ): Promise<TeamPage> {
   const params = new URLSearchParams();

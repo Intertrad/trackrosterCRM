@@ -9,7 +9,10 @@ import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
 import { inviteMembership } from '@/lib/api/membership-client';
+import { listOrganizations, type OrganizationSummary } from '@/lib/api/organization-client';
 import { roleLabel, TENANT_ROLES } from '@/lib/api/role-types';
+import { listTeams } from '@/lib/api/team-client';
+import type { Team } from '@/lib/api/team-types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,6 +36,11 @@ export function InviteUserDrawer({
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<string>('prospector');
+  const [organizationId, setOrganizationId] = useState('');
+  const [teamId, setTeamId] = useState('');
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [scopeLoading, setScopeLoading] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -47,6 +55,10 @@ export function InviteUserDrawer({
     setEmail('');
     setDisplayName('');
     setRole('prospector');
+    setOrganizationId('');
+    setTeamId('');
+    setOrganizations([]);
+    setTeams([]);
     setEmailError(null);
     setFormError(null);
     setNotice(null);
@@ -54,6 +66,44 @@ export function InviteUserDrawer({
      * second invitation for the same person. */
     setIdempotencyKey(crypto.randomUUID());
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !requiresOrganization(role)) return;
+
+    const controller = new AbortController();
+    setScopeLoading(true);
+    void listOrganizations({ status: 'active', limit: 100 }, controller.signal)
+      .then((page) => setOrganizations(page.items))
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) setFormError(describeInviteError(caught));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setScopeLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [open, role]);
+
+  useEffect(() => {
+    if (!organizationId || !requiresTeam(role)) {
+      setTeams([]);
+      setTeamId('');
+      return;
+    }
+
+    const controller = new AbortController();
+    setScopeLoading(true);
+    void listTeams({ organizationId, status: 'active', limit: 100 }, controller.signal)
+      .then((page) => setTeams(page.items))
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) setFormError(describeInviteError(caught));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setScopeLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [organizationId, role]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -72,6 +122,16 @@ export function InviteUserDrawer({
 
     setEmailError(null);
     setFormError(null);
+
+    if (requiresOrganization(role) && !organizationId) {
+      setFormError('Choose an organization for this role.');
+      return;
+    }
+    if (requiresTeam(role) && !teamId) {
+      setFormError('Choose a team for this role.');
+      return;
+    }
+
     setBusy(true);
 
     try {
@@ -79,6 +139,8 @@ export function InviteUserDrawer({
         {
           email: trimmed,
           role,
+          ...(organizationId ? { organizationId } : {}),
+          ...(teamId ? { teamId } : {}),
           ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
         },
         idempotencyKey ?? crypto.randomUUID(),
@@ -134,12 +196,70 @@ export function InviteUserDrawer({
         <SelectField
           label="Role"
           value={role}
-          onChange={(event) => setRole(event.target.value)}
+          onChange={(event) => {
+            const nextRole = event.target.value;
+            setRole(nextRole);
+            setFormError(null);
+            if (!requiresOrganization(nextRole)) {
+              setOrganizationId('');
+              setTeamId('');
+            } else if (!requiresTeam(nextRole)) {
+              setTeamId('');
+            }
+          }}
           disabled={busy}
           options={TENANT_ROLES.map((value) => ({ value, label: roleLabel(value) }))}
         />
 
         <p className="-mt-2 text-[13px] text-ink-muted">{describeRole(role)}</p>
+
+        {requiresOrganization(role) ? (
+          <SelectField
+            label="Organization"
+            value={organizationId}
+            onChange={(event) => {
+              setOrganizationId(event.target.value);
+              setTeamId('');
+              setFormError(null);
+            }}
+            disabled={busy || scopeLoading}
+            required
+            options={[
+              {
+                value: '',
+                label: scopeLoading ? 'Loading organizations…' : 'Choose an organization',
+              },
+              ...organizations.map((organization) => ({
+                value: organization.id,
+                label: organization.name,
+              })),
+            ]}
+          />
+        ) : null}
+
+        {requiresTeam(role) ? (
+          <SelectField
+            label="Team"
+            value={teamId}
+            onChange={(event) => {
+              setTeamId(event.target.value);
+              setFormError(null);
+            }}
+            disabled={busy || scopeLoading || !organizationId}
+            required
+            options={[
+              {
+                value: '',
+                label: !organizationId
+                  ? 'Choose an organization first'
+                  : scopeLoading
+                    ? 'Loading teams…'
+                    : 'Choose a team',
+              },
+              ...teams.map((team) => ({ value: team.id, label: team.name })),
+            ]}
+          />
+        ) : null}
 
         {formError ? <Alert tone="danger">{formError}</Alert> : null}
 
@@ -147,12 +267,30 @@ export function InviteUserDrawer({
           TrackRoster emails a single-use invitation link. You never see or set their credentials.
         </Alert>
 
-        <Button type="submit" fullWidth loading={busy} disabled={email.trim().length === 0}>
+        <Button
+          type="submit"
+          fullWidth
+          loading={busy}
+          disabled={
+            email.trim().length === 0 ||
+            scopeLoading ||
+            (requiresOrganization(role) && !organizationId) ||
+            (requiresTeam(role) && !teamId)
+          }
+        >
           Send invitation
         </Button>
       </form>
     </Drawer>
   );
+}
+
+function requiresOrganization(role: string): boolean {
+  return role === 'director' || role === 'manager' || role === 'prospector';
+}
+
+function requiresTeam(role: string): boolean {
+  return role === 'manager' || role === 'prospector';
 }
 
 function describeRole(role: string): string {
