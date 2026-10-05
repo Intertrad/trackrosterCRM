@@ -25,7 +25,8 @@ import type { ProspectFollowUp } from '@/lib/api/follow-up-types';
  * the same instant. A UTC midnight would put a 23:30 follow-up on the wrong day for
  * most of Europe.
  */
-export type FollowUpDueState = 'overdue' | 'today' | 'upcoming' | 'completed' | 'cancelled';
+export type FollowUpDueState =
+  'review' | 'overdue' | 'today' | 'upcoming' | 'completed' | 'cancelled';
 
 /** The end of the reader's local day, as an instant. */
 export function endOfLocalDay(now: Date = new Date()): Date {
@@ -37,7 +38,9 @@ export function endOfLocalDay(now: Date = new Date()): Date {
 }
 
 export function classifyFollowUp(
-  followUp: Pick<ProspectFollowUp, 'dueAt' | 'status'>,
+  followUp: Pick<ProspectFollowUp, 'dueAt' | 'status'> & {
+    reviewStatus?: ProspectFollowUp['reviewStatus'];
+  },
   now: Date = new Date(),
   dayEnd: Date = endOfLocalDay(now),
 ): FollowUpDueState {
@@ -52,6 +55,10 @@ export function classifyFollowUp(
 
   if (followUp.status === 'cancelled') {
     return 'cancelled';
+  }
+
+  if (followUp.reviewStatus === 'pending') {
+    return 'review';
   }
 
   const due = new Date(followUp.dueAt).getTime();

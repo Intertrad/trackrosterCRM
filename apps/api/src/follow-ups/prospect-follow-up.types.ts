@@ -26,6 +26,10 @@ export interface PublicProspectFollowUp {
 
   status: ProspectFollowUpStatus;
 
+  reviewStatus: 'none' | 'pending';
+
+  completedLate: boolean;
+
   completedAt: string | null;
 
   cancelledAt: string | null;
@@ -60,6 +64,10 @@ export function toPublicProspectFollowUp(followUp: ProspectFollowUp): PublicPros
     channel: followUp.channel,
 
     status: followUp.status,
+
+    reviewStatus: followUp.reviewStatus,
+
+    completedLate: followUp.completedLate,
 
     completedAt: followUp.completedAt ? followUp.completedAt.toISOString() : null,
 

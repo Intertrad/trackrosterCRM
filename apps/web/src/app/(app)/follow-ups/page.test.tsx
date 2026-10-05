@@ -12,6 +12,7 @@ const {
   listFollowUpQueueMock,
   completeProspectFollowUpMock,
   rescheduleProspectFollowUpMock,
+  requestFollowUpReviewMock,
   cancelProspectFollowUpMock,
 } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
@@ -21,6 +22,8 @@ const {
   completeProspectFollowUpMock: vi.fn(),
 
   rescheduleProspectFollowUpMock: vi.fn(),
+
+  requestFollowUpReviewMock: vi.fn(),
 
   cancelProspectFollowUpMock: vi.fn(),
 }));
@@ -37,6 +40,10 @@ vi.mock('@/lib/api/follow-up-client', () => ({
   rescheduleProspectFollowUp: rescheduleProspectFollowUpMock,
 
   cancelProspectFollowUp: cancelProspectFollowUpMock,
+}));
+
+vi.mock('@/lib/api/follow-up-review-client', () => ({
+  requestFollowUpReview: requestFollowUpReviewMock,
 }));
 
 import { I18nProvider } from '@/lib/i18n/i18n-context';
@@ -385,6 +392,7 @@ describe('FollowUpsPage', () => {
 
     beforeEach(() => {
       rescheduleProspectFollowUpMock.mockResolvedValue(undefined);
+      requestFollowUpReviewMock.mockResolvedValue(undefined);
       listFollowUpQueueMock.mockResolvedValue({
         items: [{ ...followUp, dueAt: past, establishmentName: 'Late one' }],
       });
@@ -400,58 +408,57 @@ describe('FollowUpsPage', () => {
       await waitFor(() => expect(screen.getByLabelText('New date')).toBeInTheDocument());
     }
 
-    it('opens with the current due date and sends the new one', async () => {
+    it('warns that overdue work needs a manager review and sends the missed reason', async () => {
       await openDialog();
 
       /* The operator sees what they are changing. */
       expect(screen.getByText(/Currently due/)).toBeInTheDocument();
       expect(screen.getByLabelText<HTMLInputElement>('New date').value).toBe('2020-01-01');
+      expect(screen.getByText(/cannot be rescheduled directly/)).toBeInTheDocument();
+      expect(screen.getByLabelText('Why was this follow-up missed?')).toBeInTheDocument();
 
       fireEvent.change(screen.getByLabelText('New date'), { target: { value: '2099-03-04' } });
       fireEvent.change(screen.getByLabelText('New time'), { target: { value: '14:30' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+      fireEvent.change(screen.getByLabelText('Why was this follow-up missed?'), {
+        target: { value: 'The prospect moved the meeting and the call was missed.' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Request manager review' }));
 
-      await waitFor(() => expect(rescheduleProspectFollowUpMock).toHaveBeenCalled());
+      await waitFor(() => expect(requestFollowUpReviewMock).toHaveBeenCalled());
 
-      const sent = rescheduleProspectFollowUpMock.mock.calls[0]?.[0] as Record<string, string>;
+      const sent = requestFollowUpReviewMock.mock.calls[0]?.[0] as Record<string, string>;
 
       expect(sent.followUpId).toBe(followUp.id);
       expect(sent.campaignId).toBe(followUp.campaignId);
       expect(sent.prospectId).toBe(followUp.prospectId);
       /* A canonical instant, not a semantic string. */
       expect(sent.dueAt).toMatch(/^2099-03-04T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(sent.reason).toContain('prospect moved');
       expect(sent.idempotencyKey).toBeTruthy();
+      expect(rescheduleProspectFollowUpMock).not.toHaveBeenCalled();
     });
 
     /*
      * §33. The card moves because the server was re-read, not because an array was
      * edited locally.
      */
-    it('moves the follow-up out of Overdue and into Upcoming', async () => {
+    it('reloads the queue after requesting a review and keeps the overdue item pending', async () => {
       await openDialog();
 
-      listFollowUpQueueMock.mockResolvedValue({
-        items: [{ ...followUp, dueAt: '2099-03-04T14:30:00.000Z', establishmentName: 'Late one' }],
-      });
-
       fireEvent.change(screen.getByLabelText('New date'), { target: { value: '2099-03-04' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+      fireEvent.change(screen.getByLabelText('Why was this follow-up missed?'), {
+        target: { value: 'The prospect was unavailable during the agreed calling window.' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Request manager review' }));
 
       await waitFor(() => expect(listFollowUpQueueMock).toHaveBeenCalledTimes(2));
-
-      /* Gone from Overdue... */
-      await waitFor(() => expect(screen.queryByText('Late one')).not.toBeInTheDocument());
-
-      fireEvent.click(screen.getByRole('button', { name: /Upcoming/ }));
-
-      /* ...and present in Upcoming, on the refetched truth. */
-      expect(screen.getByText('Late one')).toBeInTheDocument();
+      expect(await screen.findByText(/Review requested/)).toBeInTheDocument();
     });
 
     it('refuses a second submission while the first is in flight', async () => {
       let release: (() => void) | undefined;
 
-      rescheduleProspectFollowUpMock.mockImplementation(
+      requestFollowUpReviewMock.mockImplementation(
         () =>
           new Promise<void>((resolve) => {
             release = () => resolve();
@@ -460,23 +467,30 @@ describe('FollowUpsPage', () => {
 
       await openDialog();
 
-      const confirm = screen.getByRole('button', { name: 'Confirm' });
+      fireEvent.change(screen.getByLabelText('Why was this follow-up missed?'), {
+        target: { value: 'The prospect was unexpectedly closed during the planned call.' },
+      });
+
+      const confirm = screen.getByRole('button', { name: 'Request manager review' });
 
       fireEvent.click(confirm);
       fireEvent.click(confirm);
       fireEvent.click(confirm);
 
-      await waitFor(() => expect(rescheduleProspectFollowUpMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(requestFollowUpReviewMock).toHaveBeenCalledTimes(1));
 
       release?.();
     });
 
     it('keeps the dialog usable and the date unchanged when it fails', async () => {
-      rescheduleProspectFollowUpMock.mockRejectedValue(new Error('nope'));
+      requestFollowUpReviewMock.mockRejectedValue(new Error('nope'));
 
       await openDialog();
 
-      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+      fireEvent.change(screen.getByLabelText('Why was this follow-up missed?'), {
+        target: { value: 'The prospect asked us to move the conversation to another day.' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Request manager review' }));
 
       await waitFor(() => expect(screen.getByText(/could not be rescheduled/)).toBeInTheDocument());
 

@@ -139,6 +139,9 @@ export class CanonicalFollowUpService {
       if (!row) throw new NotFoundException('Follow-up not found');
       assertResourceMatches(version, row);
       if (row.status !== 'pending') throw new ConflictException('Follow-up is already finalized');
+      if (op === 'complete' && row.reviewStatus === 'pending') {
+        throw new ConflictException('Follow-up requires manager review before completion');
+      }
       // Cancellation remains available to clean up obsolete ownership. Other changes
       // must refer to a live, unpaused assignment.
       if (op !== 'cancel' && (!assignment || assignment.endedAt || assignment.status !== 'active'))
@@ -169,6 +172,7 @@ export class CanonicalFollowUpService {
       } else if (op === 'complete') {
         values.status = 'completed';
         values.completedAt = now;
+        values.completedLate = row.completedLate || row.dueAt.getTime() < now.getTime();
       } else {
         values.status = 'cancelled';
         values.cancelledAt = now;

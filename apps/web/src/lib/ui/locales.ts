@@ -1,18 +1,15 @@
 import type { SelectOption } from '@/components/ui/select-field';
 
 /*
- * The API validates locale with IsLocale and timezone with IsTimeZone, so the
- * lists here only need to offer the values the pilot actually uses. Anything
- * the backend already stores is merged in at render time so an existing value
- * is never silently dropped from the control.
+ * The API accepts many locale formats, but the interface only ships English
+ * and French translation catalogs today. Keep the language selector aligned
+ * with those catalogs so every selectable value changes the interface. A
+ * locale already stored by the backend is still merged in at render time so
+ * it is never silently dropped from the control.
  */
 export const LOCALE_OPTIONS: SelectOption[] = [
-  { value: 'fr-FR', label: 'French' },
+  { value: 'fr-FR', label: 'Français' },
   { value: 'en-GB', label: 'English (UK)' },
-  { value: 'en-US', label: 'English (US)' },
-  { value: 'ar', label: 'Arabic' },
-  { value: 'es-ES', label: 'Spanish' },
-  { value: 'de-DE', label: 'German' },
 ];
 
 export const TIMEZONE_OPTIONS: SelectOption[] = [

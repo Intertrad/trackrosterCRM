@@ -4,9 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
-const { useAuthMock, replaceMock, pathnameMock, unreadMessagesMock } = vi.hoisted(() => ({
+const { useAuthMock, replaceMock, pushMock, pathnameMock, unreadMessagesMock } = vi.hoisted(() => ({
   useAuthMock: vi.fn(),
   replaceMock: vi.fn(),
+  pushMock: vi.fn(),
   pathnameMock: vi.fn(),
   unreadMessagesMock: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock('@/lib/api/messaging-client', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: replaceMock, push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ replace: replaceMock, push: pushMock, refresh: vi.fn() }),
   usePathname: pathnameMock,
 }));
 
@@ -57,15 +58,7 @@ describe('AppShell', () => {
       within(sidebar)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual([
-      'My day',
-      'Prospects',
-      'Map',
-      'Follow-ups',
-      'Actions / History',
-      'My Performance',
-      'Messages',
-    ]);
+    ).toEqual(['My day', 'Prospects', 'Follow-ups', 'Actions / History', 'Messages']);
   });
 
   it('shows the unread message count on the sidebar', async () => {
@@ -135,7 +128,7 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    for (const label of ['My day', 'Prospects', 'Map', 'Follow-ups', 'Messages']) {
+    for (const label of ['My day', 'Prospects', 'Follow-ups', 'Messages']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     }
   });
@@ -172,6 +165,22 @@ describe('AppShell', () => {
     const bottomBar = screen.getByRole('navigation', { name: 'Primary' });
 
     expect(bottomBar).toHaveTextContent('More');
+  });
+
+  it('keeps workspace search available in the mobile shell', () => {
+    authenticated();
+
+    render(<AppShell>content</AppShell>);
+
+    const searches = screen.getAllByRole('search');
+    expect(searches).toHaveLength(2);
+
+    fireEvent.change(within(searches[0]!).getByRole('textbox'), {
+      target: { value: 'Nancy central' },
+    });
+    fireEvent.submit(searches[0]!);
+
+    expect(pushMock).toHaveBeenCalledWith('/search?q=Nancy%20central');
   });
 
   it('switches navigation when the active workspace is a manager', () => {

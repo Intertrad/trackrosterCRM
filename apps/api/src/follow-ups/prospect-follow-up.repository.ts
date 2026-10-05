@@ -18,6 +18,7 @@ import {
   lt,
   ne,
   or,
+  sql,
   type SQL,
 } from 'drizzle-orm';
 import type { ProspectFollowUpQueueOptions } from './prospect-follow-up.types.js';
@@ -113,6 +114,10 @@ export class ProspectFollowUpRepository {
         channel: prospectFollowUps.channel,
 
         status: prospectFollowUps.status,
+
+        reviewStatus: prospectFollowUps.reviewStatus,
+
+        completedLate: prospectFollowUps.completedLate,
 
         completedAt: prospectFollowUps.completedAt,
 
@@ -256,6 +261,10 @@ export class ProspectFollowUpRepository {
 
         status: prospectFollowUps.status,
 
+        reviewStatus: prospectFollowUps.reviewStatus,
+
+        completedLate: prospectFollowUps.completedLate,
+
         completedAt: prospectFollowUps.completedAt,
 
         cancelledAt: prospectFollowUps.cancelledAt,
@@ -383,6 +392,10 @@ export class ProspectFollowUpRepository {
         channel: prospectFollowUps.channel,
 
         status: prospectFollowUps.status,
+
+        reviewStatus: prospectFollowUps.reviewStatus,
+
+        completedLate: prospectFollowUps.completedLate,
 
         completedAt: prospectFollowUps.completedAt,
 
@@ -594,6 +607,10 @@ export class ProspectFollowUpRepository {
       .set({
         status: 'completed',
 
+        completedLate: sql`${prospectFollowUps.completedLate} OR ${prospectFollowUps.dueAt} < ${completedAt}`,
+
+        reviewStatus: 'none',
+
         completedAt,
 
         cancelledAt: null,
@@ -632,6 +649,10 @@ export class ProspectFollowUpRepository {
       .update(prospectFollowUps)
       .set({
         status: 'cancelled',
+
+        completedLate: false,
+
+        reviewStatus: 'none',
 
         cancelledAt,
 

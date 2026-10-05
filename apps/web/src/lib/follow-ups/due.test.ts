@@ -100,6 +100,21 @@ describe('follow-up due state', () => {
     ).toBe('cancelled');
   });
 
+  it('moves an overdue follow-up into manager review while it is pending a decision', () => {
+    const dayEnd = new Date('2026-09-28T23:59:59.999Z');
+
+    expect(
+      classifyFollowUp(
+        followUp({
+          dueAt: '2026-09-27T09:00:00.000Z',
+          reviewStatus: 'pending',
+        }),
+        now,
+        dayEnd,
+      ),
+    ).toBe('review');
+  });
+
   /*
    * §37. The today/upcoming boundary is the only calendar question, and it is cut in
    * the reader's own zone. A UTC midnight would put a 23:30 local follow-up on the

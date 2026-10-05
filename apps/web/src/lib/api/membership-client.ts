@@ -39,7 +39,11 @@ export async function listScopedMemberships(
       if (capacity.members.truncated)
         throw new Error('Narrow the team filter to load the complete roster.');
       for (const member of capacity.members.items) {
-        if (!member.identityId) continue;
+        // The capacity endpoint includes roster members that are no longer
+        // assignable (suspended membership, disabled identity, or a revoked
+        // prospector grant). Keep those records out of assignment pickers so
+        // the preview does not immediately fail with `ineligible_target`.
+        if (!member.identityId || !member.eligible) continue;
         people.set(member.membershipId, {
           id: member.membershipId,
           identityId: member.identityId,

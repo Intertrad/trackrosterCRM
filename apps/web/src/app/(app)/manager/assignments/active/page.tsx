@@ -20,6 +20,7 @@ import { ApiError } from '@/lib/api/api-error';
 import {
   completeAssignment,
   listAssignments,
+  listAllAssignments,
   reassignAssignment,
   revokeAssignment,
   updateAssignment,
@@ -63,13 +64,15 @@ export default function ActiveAssignmentsPage() {
         signal,
       );
       const summaryRequest =
-        status === 'all' ? pageRequest : listAssignments({ teamId, limit: 100 }, signal);
+        status === 'all'
+          ? pageRequest.then((page) => page.items)
+          : listAllAssignments({ teamId }, signal);
 
       return Promise.all([pageRequest, summaryRequest])
         .then(([page, summary]) => {
           if (!signal?.aborted) {
             setAssignments(page.items);
-            setSummaryAssignments(summary.items);
+            setSummaryAssignments(summary);
             setReadError(null);
           }
         })
@@ -104,7 +107,7 @@ export default function ActiveAssignmentsPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    listMemberships({ teamId, limit: 100 }, controller.signal)
+    listMemberships({ teamId, role: 'prospector', status: 'active', limit: 100 }, controller.signal)
       .then((page) => setPeople(new Map(page.items.map((item) => [item.id, item]))))
       .catch(() => setPeople(new Map()));
 

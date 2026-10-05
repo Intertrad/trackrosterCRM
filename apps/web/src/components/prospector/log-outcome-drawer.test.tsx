@@ -250,6 +250,28 @@ describe('recording a result', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
   });
 
+  it('explains when the web proxy cannot reach the backend', async () => {
+    completeActionMock.mockRejectedValue(
+      new ApiError({
+        statusCode: 502,
+        code: 'UPSTREAM_REQUEST_FAILED',
+        message: 'Backend service is unavailable',
+        error: 'Bad Gateway',
+      }),
+    );
+
+    render(<LogOutcomeDrawer {...props()} />);
+
+    await waitFor(() => expect(screen.getByText('Joint au standard')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Joint au standard'));
+    fireEvent.click(screen.getByRole('button', { name: /Complete/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/TrackRoster service is unavailable/)).toBeInTheDocument(),
+    );
+  });
+
   it('asks for an outcome before anything is sent', async () => {
     render(<LogOutcomeDrawer {...props()} />);
 

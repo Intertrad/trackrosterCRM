@@ -1,6 +1,8 @@
 export type ProspectorTodayCategory = 'todo' | 'follow_up' | 'meeting';
 
 export type ProspectorTodayChannel = 'call' | 'email' | 'message' | 'visit' | 'letter';
+export type ProspectorTodayLifecycleStage =
+  'to_contact' | 'contact_made' | 'in_progress' | 'follow_up' | 'qualified' | 'converted';
 
 export interface ProspectorTodaySummary {
   actionsLeft: number;
@@ -31,6 +33,9 @@ export interface ProspectorTodayPriority {
   category: ProspectorTodayCategory;
 
   channel: ProspectorTodayChannel | null;
+
+  /** Optional for compatibility with older API builds. */
+  lifecycleStage?: ProspectorTodayLifecycleStage;
 
   establishment: {
     id: string;

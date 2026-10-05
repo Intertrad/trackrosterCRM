@@ -2,9 +2,9 @@
 
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, CircleAlert, Clock3, MapPinned, Navigation, X } from 'lucide-react';
+import { CheckCircle2, Clock3, MapPinned, Navigation } from 'lucide-react';
 
 import { ActionChannelIcon, getChannelLabelKey } from '@/components/prospector/action-channel-icon';
 import {
@@ -14,17 +14,21 @@ import {
   resolveDueState,
 } from '@/components/prospector/due-state-badge';
 import { ContactActionButton } from '@/components/prospector/contact-action-button';
+import { LifecycleBadge } from '@/components/prospector/lifecycle-badge';
 import { LogOutcomeDrawer } from '@/components/prospector/log-outcome-drawer';
 import { PriorityRowMenu } from '@/components/prospector/priority-row-menu';
+import { ProspectDetail } from '@/components/prospector/prospect-detail';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { Drawer } from '@/components/ui/drawer';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
 import { ProspectMap } from '@/components/prospector/prospect-map';
 import { ApiError } from '@/lib/api/api-error';
 import { listCollisionEvents } from '@/lib/api/collision-client';
-import { reasonLabel, type CollisionEvent } from '@/lib/api/collision-types';
+import type { CollisionEvent } from '@/lib/api/collision-types';
 import { getProspectorToday } from '@/lib/api/prospector-today-client';
 
 import { DayStart } from '@/components/prospector/day-start';
@@ -79,7 +83,9 @@ export default function TodayPage() {
 
   /* Dismissed for this visit only; the collision itself is not resolved by
    * closing the notice, so it is not persisted. */
-  const [noticeDismissed, setNoticeDismissed] = useState(false);
+  const [selected, setSelected] = useState<ProspectorTodayPriority | null>(null);
+  const [detailDirty, setDetailDirty] = useState(false);
+  const [discard, setDiscard] = useState(false);
 
   /*
    * "Due soon" is relative to the clock, so it has to be re-evaluated as the
@@ -253,6 +259,20 @@ export default function TodayPage() {
 
   const timeZone = today.day.timeZone;
 
+  function selectProspect(priority: ProspectorTodayPriority): void {
+    setDetailDirty(false);
+    setSelected(priority);
+  }
+
+  function closeProspect(): void {
+    if (detailDirty) {
+      setDiscard(true);
+      return;
+    }
+
+    setSelected(null);
+  }
+
   return (
     <div className="flex flex-col gap-[18px]">
       <h1 className="sr-only">{t('today.title')}</h1>
@@ -324,12 +344,13 @@ export default function TodayPage() {
               <EmptyState filter={filter} totalToday={counts.all} />
             ) : (
               <>
-                <div className="hidden grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_auto] gap-4 border-b border-line-soft bg-surface-muted/55 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted lg:grid">
+                <div className="hidden grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto] gap-4 border-b border-line-soft bg-surface-muted/55 px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted lg:grid">
                   <span>Establishment</span>
                   <span>Action</span>
                   <span>Time / deadline</span>
                   <span>Priority</span>
                   <span>Contact check</span>
+                  <span>Status</span>
                   <span />
                 </div>
                 <ul aria-label={t('today.nextActions')} className="divide-y divide-line-soft">
@@ -341,6 +362,7 @@ export default function TodayPage() {
                       timeZone={timeZone}
                       collision={getContactCheck(priority, collisions)}
                       onLogged={() => void refresh()}
+                      onSelect={selectProspect}
                     />
                   ))}
                 </ul>
@@ -352,12 +374,34 @@ export default function TodayPage() {
         </>
       )}
 
-      <CollisionNotice
-        collisions={collisions}
-        priorities={today.priorities}
-        timeZone={timeZone}
-        dismissed={noticeDismissed}
-        onDismiss={() => setNoticeDismissed(true)}
+      {selected ? (
+        <Drawer open title={selected.establishment.name} width="prospect" onClose={closeProspect}>
+          <Suspense>
+            <ProspectDetail
+              campaignId={selected.campaignId}
+              prospectId={selected.campaignProspectId}
+              embedded
+              onDirtyChange={setDetailDirty}
+            />
+          </Suspense>
+        </Drawer>
+      ) : null}
+
+      <ConfirmDialog
+        open={discard}
+        title={text('Discard this draft?', 'Abandonner ce brouillon ?', language)}
+        description={text(
+          'Your unsaved contact-permission changes will be lost.',
+          'Les modifications d’autorisation de contact non enregistrées seront perdues.',
+          language,
+        )}
+        confirmLabel={text('Discard draft', 'Abandonner le brouillon', language)}
+        onClose={() => setDiscard(false)}
+        onConfirm={() => {
+          setDiscard(false);
+          setSelected(null);
+          setDetailDirty(false);
+        }}
       />
     </div>
   );
@@ -460,92 +504,6 @@ function TodaysVisits({
   );
 }
 
-/**
- * The most recent collision the engine recorded against a prospect on today's
- * list.
- *
- * Shown only when it matches work the prospector is actually about to do;
- * a collision on someone else's prospect is not theirs to act on.
- */
-function CollisionNotice({
-  collisions,
-  priorities,
-  timeZone,
-  dismissed,
-  onDismiss,
-}: {
-  collisions: CollisionEvent[];
-  priorities: ProspectorTodayPriority[];
-  timeZone: string;
-  dismissed: boolean;
-  onDismiss: () => void;
-}) {
-  const { t, locale } = useTranslation();
-
-  const byProspect = new Map(priorities.map((p) => [p.campaignProspectId, p]));
-
-  const relevant = collisions.find(
-    (event) =>
-      byProspect.has(event.campaignProspectId) &&
-      (event.decision === 'block' || event.decision === 'require_override'),
-  );
-
-  if (!relevant || dismissed) return null;
-
-  const priority = byProspect.get(relevant.campaignProspectId)!;
-
-  return (
-    <Card className="relative border-danger-border bg-danger-bg/40">
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label={t('today.hideCollision')}
-        className={cn(
-          'absolute top-4 right-4 inline-flex size-8 items-center justify-center rounded-lg',
-          'text-ink-muted transition-colors duration-150 hover:bg-surface hover:text-ink',
-        )}
-      >
-        <X aria-hidden="true" className="size-[18px]" />
-      </button>
-
-      <div className="flex items-start gap-3.5 pr-10">
-        <span
-          aria-hidden="true"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-danger text-white"
-        >
-          <CircleAlert className="size-5" />
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[17px] font-bold text-navy">
-            {t(
-              relevant.decision === 'block' ? 'today.collisionBlocked' : 'today.collisionOverride',
-            )}
-          </h2>
-
-          <p className="mt-0.5 text-[14px] text-ink-muted">
-            {priority.establishment.name}
-            {priority.establishment.city ? ` \u00b7 ${priority.establishment.city}` : ''}
-          </p>
-
-          <p className="mt-2 text-[14px] text-ink-soft">
-            {reasonLabel(relevant.reasonCode)}. Detected{' '}
-            {formatDayShort(relevant.createdAt, timeZone, locale)} at{' '}
-            {formatTime(relevant.createdAt, timeZone)}.
-          </p>
-
-          <LinkButton
-            href={`/work-queue/${priority.campaignId}/${priority.campaignProspectId}`}
-            className="mt-4"
-          >
-            {t('today.viewDetails')}
-          </LinkButton>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 function WorkspaceOverview() {
   const { activeWorkspace } = useAuth();
 
@@ -587,12 +545,14 @@ function PriorityRow({
   timeZone,
   collision,
   onLogged,
+  onSelect,
 }: {
   priority: ProspectorTodayPriority;
   state: DueState;
   timeZone: string;
   collision: ContactCheck;
   onLogged: () => void;
+  onSelect: (priority: ProspectorTodayPriority) => void;
 }) {
   const { t } = useTranslation();
 
@@ -658,12 +618,26 @@ function PriorityRow({
 
   return (
     <li className="px-4 py-3 sm:px-5 sm:py-3.5">
-      <div className="grid gap-3 lg:grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_auto] lg:items-center lg:gap-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(230px,2fr)_minmax(100px,0.8fr)_minmax(120px,1fr)_minmax(90px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_auto] lg:items-center lg:gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <ActionChannelIcon channel={priority.channel} className="size-8 rounded-lg" />
           <span className="min-w-0">
             <Link
               href={href}
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                if (
+                  !event.defaultPrevented &&
+                  !event.altKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  !event.shiftKey &&
+                  event.button === 0
+                ) {
+                  event.preventDefault();
+                  onSelect(priority);
+                }
+              }}
               className="block truncate text-[13px] font-bold text-navy hover:text-brand"
             >
               {priority.establishment.name}
@@ -698,9 +672,15 @@ function PriorityRow({
             'inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold',
             contactTone(collision),
           )}
+          title={contactTooltip(collision)}
+          aria-label={`${contactLabel(collision)}: ${contactTooltip(collision)}`}
         >
           <span className="size-1.5 rounded-full bg-current" />
           {contactLabel(collision)}
+        </span>
+
+        <span className="hidden lg:block">
+          <LifecycleBadge stage={priority.lifecycleStage ?? 'to_contact'} className="text-[10px]" />
         </span>
 
         <span className="flex items-center gap-1.5 lg:justify-end">
@@ -739,7 +719,13 @@ function getContactCheck(
   priority: ProspectorTodayPriority,
   collisions: CollisionEvent[],
 ): ContactCheck {
-  const event = collisions.find((item) => item.campaignProspectId === priority.campaignProspectId);
+  const events = collisions.filter(
+    (item) => item.campaignProspectId === priority.campaignProspectId,
+  );
+  const event =
+    events.find((item) => item.decision === 'block') ??
+    events.find((item) => item.decision === 'require_override') ??
+    events[0];
   if (event?.decision === 'block') return 'blocked';
   if (event?.decision === 'require_override') return 'approval';
   return 'allowed';
@@ -747,6 +733,12 @@ function getContactCheck(
 
 function contactLabel(check: ContactCheck): string {
   return check === 'blocked' ? 'Blocked' : check === 'approval' ? 'Approval' : 'Allowed';
+}
+
+function contactTooltip(check: ContactCheck): string {
+  if (check === 'blocked') return 'Contact blocked by the collision policy.';
+  if (check === 'approval') return 'Manager approval is required before contact.';
+  return 'Contact is allowed by the current collision policy.';
 }
 
 function contactTone(check: ContactCheck): string {
@@ -826,22 +818,6 @@ function getBrowserTimeZone(): string {
   } catch {
     return 'UTC';
   }
-}
-
-/** "Mon, 21 Sep" — the compact form used in the header pill. */
-function formatDayShort(value: string, timeZone: string, locale?: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone,
-  }).format(date);
 }
 
 function formatTime(value: string, timeZone: string): string {

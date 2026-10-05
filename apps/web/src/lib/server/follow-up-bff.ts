@@ -3,6 +3,7 @@ import type {
   ProspectFollowUp,
   ProspectFollowUpCategory,
   ProspectFollowUpChannel,
+  ProspectFollowUpReviewStatus,
   ProspectFollowUpStatus,
 } from '@/lib/api/follow-up-types';
 import type { WorkQueueProspectDetail } from '@/lib/api/work-queue-types';
@@ -25,6 +26,10 @@ export interface BackendProspectFollowUp {
   dueAt: string;
 
   status: ProspectFollowUpStatus;
+
+  reviewStatus?: ProspectFollowUpReviewStatus;
+
+  completedLate?: boolean;
 
   completedAt: string | null;
 
@@ -73,6 +78,10 @@ export function toBrowserProspectFollowUp(followUp: BackendProspectFollowUp): Pr
     dueAt: followUp.dueAt,
 
     status: followUp.status,
+
+    ...(followUp.reviewStatus === undefined ? {} : { reviewStatus: followUp.reviewStatus }),
+
+    ...(followUp.completedLate === undefined ? {} : { completedLate: followUp.completedLate }),
 
     category: followUp.category,
 

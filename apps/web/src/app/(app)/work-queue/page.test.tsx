@@ -47,6 +47,23 @@ vi.mock('@/lib/api/work-queue-client', () => ({
   listWorkQueue: listWorkQueueMock,
 }));
 
+vi.mock('@/components/prospector/prospect-detail', () => ({
+  ProspectDetail: ({
+    prospectId,
+    onDirtyChange,
+  }: {
+    prospectId: string;
+    onDirtyChange?: (dirty: boolean) => void;
+  }) => (
+    <div data-testid="prospect-detail-panel">
+      Prospect detail {prospectId}
+      <button type="button" onClick={() => onDirtyChange?.(true)}>
+        Make draft dirty
+      </button>
+    </div>
+  ),
+}));
+
 import { I18nProvider } from '@/lib/i18n/i18n-context';
 
 import MyProspectsPage from './page';
@@ -208,6 +225,19 @@ describe('WorkQueuePage', () => {
     expect(screen.getByText('Call · yesterday')).toBeInTheDocument();
 
     expect(listWorkQueueMock).toHaveBeenCalledWith(expect.objectContaining({ teamId, limit: 100 }));
+  });
+
+  it('opens prospect details in a side panel while preserving the deep link', async () => {
+    render(<MyProspectsPage />);
+
+    const row = await screen.findByRole('link', { name: /North Star Dental/ });
+
+    expect(row).toHaveAttribute('href', `/work-queue/${campaignId}/${prospectId}`);
+
+    fireEvent.click(row);
+
+    expect(await screen.findByRole('dialog', { name: 'North Star Dental' })).toBeInTheDocument();
+    expect(screen.getByTestId('prospect-detail-panel')).toHaveTextContent(prospectId);
   });
 
   it('reads the whole portfolio so its totals are not a page count', async () => {

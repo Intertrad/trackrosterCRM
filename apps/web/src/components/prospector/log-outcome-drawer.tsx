@@ -635,6 +635,17 @@ function describeError(error: unknown, language: 'en' | 'fr'): string {
     );
   }
 
+  if (
+    error.statusCode === 502 ||
+    error.code === 'UPSTREAM_REQUEST_FAILED' ||
+    error.code === 'UNEXPECTED_BACKEND_ERROR'
+  ) {
+    return l(
+      'The TrackRoster service is unavailable. Reconnect the backend and retry; nothing was saved.',
+      'Le service TrackRoster est indisponible. Reconnectez le backend puis réessayez ; rien n’a été enregistré.',
+    );
+  }
+
   return l(
     'We could not confirm that the outcome was saved. Retry to check and complete it.',
     'L’enregistrement du résultat n’a pas pu être confirmé. Réessayez pour le vérifier et le terminer.',

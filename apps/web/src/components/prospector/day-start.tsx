@@ -17,6 +17,7 @@ import { LinkButton } from '@/components/ui/link-button';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
 import type { ProspectorTodayResponse } from '@/lib/api/prospector-today-types';
+import { cn } from '@/lib/ui/cn';
 
 type FilterId = 'all' | 'overdue' | 'due_today';
 
@@ -162,6 +163,13 @@ export function DayStart({
         </div>
       </div>
 
+      <DayProgressBanner
+        dateLabel={dateLabel}
+        completed={completedToday}
+        total={Math.max(planned, completedToday + actionsLeft)}
+        nextPriority={today.priorities[0] ?? null}
+      />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           tone="brand"
@@ -223,6 +231,86 @@ export function DayStart({
       </div>
       <div className="sr-only" aria-live="polite">
         <Bell aria-hidden="true" /> {actionsLeft} {l('actions remaining', 'actions restantes')}
+      </div>
+    </section>
+  );
+}
+
+function DayProgressBanner({
+  dateLabel,
+  completed,
+  total,
+  nextPriority,
+}: {
+  dateLabel: string;
+  completed: number;
+  total: number;
+  nextPriority: ProspectorTodayResponse['priorities'][number] | null;
+}) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const safeTotal = Math.max(total, 0);
+  const safeCompleted = Math.min(Math.max(completed, 0), safeTotal);
+  const percentage = safeTotal > 0 ? Math.round((safeCompleted / safeTotal) * 100) : 0;
+  const cellCount = Math.min(Math.max(safeTotal, 1), 50);
+  const completedCells = Math.round((percentage / 100) * cellCount);
+  const nextHref = nextPriority
+    ? `/work-queue/${nextPriority.campaignId}/${nextPriority.campaignProspectId}`
+    : '/work-queue';
+
+  return (
+    <section
+      aria-label={l('Today progress', 'Progression du jour')}
+      className="overflow-hidden rounded-2xl border border-navy-800 bg-navy px-4 py-4 text-white shadow-[0_8px_24px_rgba(5,18,74,0.14)] sm:px-5 sm:py-4"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-[0.02em] text-brand-pale">
+            {dateLabel} — {l('today session', 'session du jour')}
+          </p>
+          <p className="mt-1 text-[20px] font-extrabold tracking-[-0.02em] sm:text-[22px]">
+            {safeCompleted} / {safeTotal} {l('actions completed', 'actions terminées')}
+          </p>
+          <p className="mt-1 text-[12px] text-ink-onDark-soft">
+            {percentage === 100
+              ? l('Everything planned is complete.', 'Tout ce qui était prévu est terminé.')
+              : l('Keep moving through your assigned work.', 'Continuez vos actions attribuées.')}
+          </p>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-3 sm:items-end">
+          <div
+            role="progressbar"
+            aria-label={l('Actions completed today', 'Actions terminées aujourd’hui')}
+            aria-valuemin={0}
+            aria-valuemax={safeTotal}
+            aria-valuenow={safeCompleted}
+            className="grid w-full max-w-[260px] grid-cols-10 gap-1 sm:w-[260px]"
+          >
+            {Array.from({ length: cellCount }, (_, index) => (
+              <span
+                key={index}
+                aria-hidden="true"
+                className={cn(
+                  'aspect-square rounded-[3px] border border-white/10',
+                  index < completedCells ? 'bg-lime' : 'bg-white/20',
+                )}
+              />
+            ))}
+          </div>
+
+          <LinkButton
+            href={nextHref}
+            variant="primary"
+            className="min-h-9 w-full rounded-lg bg-lime px-3.5 py-1.5 text-[13px] text-navy hover:bg-lime-deep sm:w-auto"
+          >
+            <span className="max-w-[260px] truncate">
+              {nextPriority
+                ? `${l('Next', 'Prochaine')} : ${nextPriority.establishment.name}`
+                : l('Open work queue', 'Ouvrir la file de travail')}
+            </span>
+          </LinkButton>
+        </div>
       </div>
     </section>
   );

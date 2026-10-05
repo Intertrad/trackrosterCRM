@@ -536,7 +536,7 @@ export function ProspectMap({
       ref={containerRef}
       role="application"
       aria-label="Prospect map"
-      className={cn('min-h-[380px] w-full overflow-hidden rounded-xl bg-surface-muted', className)}
+      className={cn('min-h-95 w-full overflow-hidden rounded-xl bg-surface-muted', className)}
     />
   );
 }
@@ -553,7 +553,7 @@ function MapNotice({
   return (
     <div
       className={cn(
-        'flex min-h-[380px] flex-col items-center justify-center rounded-xl border border-line-soft bg-surface-muted px-6 py-12 text-center',
+        'flex min-h-95 flex-col items-center justify-center rounded-xl border border-line-soft bg-surface-muted px-6 py-12 text-center',
         className,
       )}
     >

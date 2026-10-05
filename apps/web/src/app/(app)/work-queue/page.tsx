@@ -23,10 +23,13 @@ import {
   LifecycleBadge,
   getLifecycleLabelKey,
 } from '@/components/prospector/lifecycle-badge';
+import { ProspectDetail } from '@/components/prospector/prospect-detail';
 import { PortfolioMap } from '@/components/prospector/portfolio-map';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/dialog';
+import { Drawer } from '@/components/ui/drawer';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
@@ -56,6 +59,7 @@ import type {
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
+import { text } from '@/lib/workspace/copy';
 
 type ViewMode = 'list' | 'map';
 
@@ -69,7 +73,8 @@ export default function MyProspectsPage() {
 
 function MyProspectsView() {
   const { activeWorkspace } = useAuth();
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
 
   const teamId = activeWorkspace?.teamId ?? null;
 
@@ -90,6 +95,9 @@ function MyProspectsView() {
   const [blockedIds, setBlockedIds] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
+  const [selected, setSelected] = useState<WorkQueueItem | null>(null);
+  const [detailDirty, setDetailDirty] = useState(false);
+  const [discard, setDiscard] = useState(false);
 
   /*
    * The whole portfolio is read once and every figure on this screen is
@@ -172,6 +180,20 @@ function MyProspectsView() {
     setReloading(true);
     await load();
     setReloading(false);
+  }
+
+  function selectProspect(item: WorkQueueItem): void {
+    setDetailDirty(false);
+    setSelected(item);
+  }
+
+  function closeProspect(): void {
+    if (detailDirty) {
+      setDiscard(true);
+      return;
+    }
+
+    setSelected(null);
   }
 
   const summary = useMemo(() => summarize(items ?? [], blockedIds), [blockedIds, items]);
@@ -337,9 +359,18 @@ function MyProspectsView() {
       {items === null ? (
         <PortfolioSkeleton />
       ) : view === 'map' ? (
-        <PortfolioMap items={visible} blockedProspectIds={blockedIds} />
+        <PortfolioMap
+          items={visible}
+          blockedProspectIds={blockedIds}
+          onOpenProspect={selectProspect}
+        />
       ) : (
-        <ProspectTable items={visible} blockedProspectIds={blockedIds} filtered={narrowed} />
+        <ProspectTable
+          items={visible}
+          blockedProspectIds={blockedIds}
+          filtered={narrowed}
+          onSelect={selectProspect}
+        />
       )}
 
       {items !== null ? (
@@ -377,6 +408,35 @@ function MyProspectsView() {
           <span>{t('portfolio.showing', { shown: visible.length, total: summary.assigned })}</span>
         </div>
       ) : null}
+
+      {selected ? (
+        <Drawer open title={selected.establishment.name} width="prospect" onClose={closeProspect}>
+          <Suspense>
+            <ProspectDetail
+              campaignId={selected.campaign.id}
+              prospectId={selected.campaignProspectId}
+              embedded
+              onDirtyChange={setDetailDirty}
+            />
+          </Suspense>
+        </Drawer>
+      ) : null}
+
+      <ConfirmDialog
+        open={discard}
+        title={l('Discard this draft?', 'Abandonner ce brouillon ?')}
+        description={l(
+          'Your unsaved contact-permission changes will be lost.',
+          'Les modifications d’autorisation de contact non enregistrées seront perdues.',
+        )}
+        confirmLabel={l('Discard draft', 'Abandonner le brouillon')}
+        onClose={() => setDiscard(false)}
+        onConfirm={() => {
+          setDiscard(false);
+          setSelected(null);
+          setDetailDirty(false);
+        }}
+      />
     </div>
   );
 }
@@ -421,11 +481,13 @@ function ProspectTable({
   items,
   blockedProspectIds,
   filtered,
+  onSelect,
 }: {
   items: WorkQueueItem[];
   blockedProspectIds: ReadonlySet<string>;
   /** Whether any filter is narrowing the portfolio right now. */
   filtered: boolean;
+  onSelect: (item: WorkQueueItem) => void;
 }) {
   const { t } = useTranslation();
 
@@ -472,6 +534,7 @@ function ProspectTable({
             key={item.campaignProspectId}
             item={item}
             blocked={blockedProspectIds.has(item.campaignProspectId)}
+            onSelect={onSelect}
           />
         ))}
       </ul>
@@ -479,7 +542,15 @@ function ProspectTable({
   );
 }
 
-function ProspectRow({ item, blocked }: { item: WorkQueueItem; blocked: boolean }) {
+function ProspectRow({
+  item,
+  blocked,
+  onSelect,
+}: {
+  item: WorkQueueItem;
+  blocked: boolean;
+  onSelect: (item: WorkQueueItem) => void;
+}) {
   const { t } = useTranslation();
 
   const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
@@ -490,6 +561,22 @@ function ProspectRow({ item, blocked }: { item: WorkQueueItem; blocked: boolean 
     <li>
       <Link
         href={href}
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          /* Keep the real href for deep links and modifier-clicks, while a
+           * normal click opens the detail in context. */
+          if (
+            !event.defaultPrevented &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey &&
+            event.button === 0
+          ) {
+            event.preventDefault();
+            onSelect(item);
+          }
+        }}
         className={cn(
           'grid gap-x-4 gap-y-3 rounded-xl border border-line-soft bg-surface px-5 py-4',
           'transition-colors duration-150 hover:border-brand-pale hover:bg-brand-wash',

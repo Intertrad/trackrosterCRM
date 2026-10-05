@@ -27,6 +27,7 @@ export type NavigationItemId =
   | 'exports'
   | 'administration'
   | 'overrides'
+  | 'follow_up_reviews'
   | 'team'
   | 'assignments'
   | 'campaigns'
@@ -146,7 +147,20 @@ function isOfferable(item: WorkspaceNavigationItem): boolean {
 }
 
 export function getNavigationForWorkspace(mode: WorkspaceMode): WorkspaceNavigationItem[] {
-  const items = navigationFor(mode).filter(isOfferable);
+  let items = navigationFor(mode).filter(isOfferable);
+
+  /* The simplified prospector MVP keeps the daily operating flow in the
+   * primary shell. Map and performance remain available through their guarded
+   * routes for existing deep links, but do not compete with the daily queue. */
+  if (mode === 'prospector') {
+    items = items.filter((item) => !['map', 'performance'].includes(item.id));
+  }
+
+  /* Campaign and territory administration stay in the API for later rollout;
+   * the manager MVP exposes assignments, team and approvals instead. */
+  if (mode === 'manager') {
+    items = items.filter((item) => !['campaigns', 'territories'].includes(item.id));
+  }
 
   /* Keep the prospector shell focused on the daily operating flow. Workspace
    * tools remain reachable from the account menu instead of competing with
@@ -399,6 +413,14 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           href: '/manager/approvals',
           availability: 'ready',
           primary: true,
+          group: 'control',
+        },
+        {
+          id: 'follow_up_reviews',
+          label: 'nav.followUpReviews',
+          icon: 'overrides',
+          href: '/manager/follow-up-reviews',
+          availability: 'ready',
           group: 'control',
         },
         {

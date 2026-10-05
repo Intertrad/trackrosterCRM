@@ -511,6 +511,29 @@ describe('ProspectFollowUpService', () => {
     expect(result.channel).toBeNull();
   });
 
+  it('requires manager review before rescheduling an overdue follow-up', async () => {
+    followUpRepository.findById.mockResolvedValue({
+      ...followUp,
+      dueAt: new Date(now.getTime() - 60 * 60 * 1000),
+    });
+
+    await expect(
+      service.reschedule({
+        tenantId,
+        userId,
+        campaignId,
+        campaignProspectId,
+        followUpId,
+        dueAt: laterDueAt,
+      }),
+    ).rejects.toMatchObject({
+      response: { message: 'Overdue follow-ups require manager review' },
+    });
+
+    expect(followUpReminderSchedulerService.schedule).not.toHaveBeenCalled();
+    expect(followUpRepository.reschedulePending).not.toHaveBeenCalled();
+  });
+
   it('fails closed when reminder scheduling fails during create', async () => {
     followUpReminderSchedulerService.schedule.mockRejectedValue(new Error('BullMQ unavailable'));
 

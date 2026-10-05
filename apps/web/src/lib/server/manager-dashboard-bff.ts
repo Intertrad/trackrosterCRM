@@ -41,6 +41,7 @@ export interface BackendManagerDashboardResponse {
     overdue: number;
     dueInRange: number;
     completedInRange: number;
+    lateCompletedInRange?: number;
     cancelledInRange: number;
   };
 
@@ -50,6 +51,7 @@ export interface BackendManagerDashboardResponse {
     currentAssignments: number;
     pendingFollowUps: number;
     overdueFollowUps: number;
+    lateCompletedFollowUps?: number;
   }>;
 }
 
@@ -132,6 +134,9 @@ export function toBrowserManagerDashboard(
       overdue: dashboard.followUps.overdue,
       dueInRange: dashboard.followUps.dueInRange,
       completedInRange: dashboard.followUps.completedInRange,
+      ...(dashboard.followUps.lateCompletedInRange === undefined
+        ? {}
+        : { lateCompletedInRange: dashboard.followUps.lateCompletedInRange }),
       cancelledInRange: dashboard.followUps.cancelledInRange,
     },
 
@@ -141,6 +146,9 @@ export function toBrowserManagerDashboard(
       currentAssignments: prospector.currentAssignments,
       pendingFollowUps: prospector.pendingFollowUps,
       overdueFollowUps: prospector.overdueFollowUps,
+      ...(prospector.lateCompletedFollowUps === undefined
+        ? {}
+        : { lateCompletedFollowUps: prospector.lateCompletedFollowUps }),
     })),
   };
 }

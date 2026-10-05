@@ -56,6 +56,7 @@ export const DICTIONARY = {
   'nav.referential': { en: 'Prospects', fr: 'Prospects' },
   'nav.collisions': { en: 'Collision center', fr: 'Centre des conflits' },
   'nav.approvals': { en: 'Approvals', fr: 'Validations' },
+  'nav.followUpReviews': { en: 'Follow-up reviews', fr: 'Validation des relances' },
   'nav.overrides': { en: 'Overrides', fr: 'Dérogations' },
   'nav.users': { en: 'Users & roles', fr: 'Utilisateurs et rôles' },
   'nav.audit': { en: 'Audit log', fr: 'Journal d’audit' },
@@ -369,6 +370,7 @@ export const DICTIONARY = {
   'actions.search': { en: 'Search actions', fr: 'Rechercher une action' },
   'actions.loading': { en: 'Loading your actions…', fr: 'Chargement de vos actions…' },
   'actions.tab.todo': { en: 'To do', fr: 'À faire' },
+  'actions.tab.review': { en: 'Manager review', fr: 'Validation manager' },
   'actions.tab.overdue': { en: 'Overdue', fr: 'En retard' },
   'actions.truncated': {
     en: 'Showing your first 100 follow-ups; groups describe those.',
@@ -383,11 +385,39 @@ export const DICTIONARY = {
   'actions.reschedule.newDate': { en: 'New date', fr: 'Nouvelle date' },
   'actions.reschedule.newTime': { en: 'New time', fr: 'Nouvelle heure' },
   'actions.reschedule.confirm': { en: 'Confirm', fr: 'Confirmer' },
+  'actions.reschedule.requestReview': {
+    en: 'Request manager review',
+    fr: 'Demander une validation au manager',
+  },
+  'actions.reschedule.overdueWarning': {
+    en: 'This follow-up is overdue and cannot be rescheduled directly. Explain what happened and a manager must approve the new date.',
+    fr: 'Cette relance est en retard et ne peut pas être reportée directement. Expliquez ce qui s’est passé ; un manager doit valider la nouvelle date.',
+  },
+  'actions.reschedule.missedReason': {
+    en: 'Why was this follow-up missed?',
+    fr: 'Pourquoi cette relance a-t-elle été manquée ?',
+  },
+  'actions.reschedule.missedReasonHint': {
+    en: 'Add the context a manager needs to review the missed follow-up.',
+    fr: 'Ajoutez le contexte nécessaire à la validation par le manager.',
+  },
+  'actions.reschedule.reviewRequested': {
+    en: 'Review requested. Your manager must approve the new date before it is scheduled.',
+    fr: 'Demande envoyée. Votre manager doit valider la nouvelle date avant sa planification.',
+  },
+  'actions.reschedule.reasonRequired': {
+    en: 'Explain why the follow-up was missed before requesting review.',
+    fr: 'Expliquez pourquoi la relance a été manquée avant de demander une validation.',
+  },
   'actions.reschedule.failed': {
     en: 'The follow-up could not be rescheduled. Its current date is unchanged.',
     fr: 'La relance n’a pas pu être reportée. Son échéance actuelle est inchangée.',
   },
   'actions.empty.overdue': { en: 'No overdue follow-ups.', fr: 'Aucune relance en retard.' },
+  'actions.empty.review': {
+    en: 'No follow-ups are waiting for manager review.',
+    fr: 'Aucune relance n’attend une validation manager.',
+  },
   'actions.empty.today': { en: 'Nothing else due today.', fr: "Rien d'autre pour aujourd'hui." },
   'actions.empty.upcoming': { en: 'No upcoming follow-ups.', fr: 'Aucune relance à venir.' },
   'actions.tab.completed': { en: 'Completed', fr: 'Terminées' },
@@ -419,6 +449,7 @@ export const DICTIONARY = {
   'actions.status.open': { en: 'Open', fr: 'Ouverte' },
   'actions.status.completed': { en: 'Completed', fr: 'Terminée' },
   'actions.status.overdue': { en: 'Overdue', fr: 'En retard' },
+  'actions.status.review': { en: 'Under review', fr: 'En validation' },
 
   /* ---------- messages ---------- */
   'messages.title': { en: 'Messages', fr: 'Messages' },

@@ -146,4 +146,21 @@ describe('prospect base assignment', () => {
     expect(screen.getByText('Preview assignment')).toBeDisabled();
     expect(api.enroll).not.toHaveBeenCalled();
   });
+  it('explains stale member eligibility and lets the manager choose another prospector', async () => {
+    api.preview.mockResolvedValue({
+      canApply: false,
+      proposed: 0,
+      conflicts: 1,
+      decisions: [{ prospectId: 'campaign-prospect-1', outcome: 'ineligible_target' }],
+    });
+    render(<ProspectAssignmentDrawer records={records} onClose={vi.fn()} onAssigned={vi.fn()} />);
+    await choose();
+    fireEvent.click(screen.getByText('Add and preview assignment'));
+    await screen.findByText('0 ready · 1 conflicts');
+
+    expect(screen.getByText(/no longer eligible for the selected team/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /choose another prospector/i }));
+    expect(screen.queryByText(/no longer eligible for the selected team/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Preview selection')).toBeInTheDocument();
+  });
 });

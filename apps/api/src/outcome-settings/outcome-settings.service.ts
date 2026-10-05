@@ -39,7 +39,11 @@ export async function resolveOutcome(
 ) {
   const { outcomes } = await readOutcomes(tx, tenantId);
   const outcome = outcomes.find(
-    (o) => o.code === code && o.enabled && o.actionTypes.includes(type),
+    (o) =>
+      o.code === code &&
+      o.enabled &&
+      /* An empty channel list is the documented tenant-wide outcome. */
+      (o.actionTypes.length === 0 || o.actionTypes.includes(type)),
   );
   if (!outcome) throw new BadRequestException('Outcome is unavailable for this action type');
   return outcome;

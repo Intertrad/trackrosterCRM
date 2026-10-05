@@ -216,7 +216,22 @@ export default function TeamPage() {
         }
       />
 
-      {readError ? <Alert tone="danger">{readError}</Alert> : null}
+      {readError ? (
+        <Alert tone="danger">
+          <span className="flex flex-wrap items-center gap-3">
+            <span>{readError}</span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={() => void load()}
+              disabled={busy === 'reload'}
+            >
+              Try again
+            </Button>
+          </span>
+        </Alert>
+      ) : null}
 
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
