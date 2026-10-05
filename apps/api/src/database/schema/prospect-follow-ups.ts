@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -19,6 +20,11 @@ export const prospectFollowUpStatusEnum = pgEnum('prospect_follow_up_status', [
   'pending',
   'completed',
   'cancelled',
+]);
+
+export const prospectFollowUpReviewStatusEnum = pgEnum('prospect_follow_up_review_status', [
+  'none',
+  'pending',
 ]);
 
 export const PROSPECT_FOLLOW_UP_CATEGORIES = ['todo', 'follow_up', 'meeting'] as const;
@@ -119,6 +125,17 @@ export const prospectFollowUps = pgTable(
     channel: prospectFollowUpChannelEnum('channel'),
 
     status: prospectFollowUpStatusEnum('status').default('pending').notNull(),
+
+    /*
+     * A missed follow-up leaves the operational queue only after a manager
+     * reviews the reschedule/late-completion request. This is separate from
+     * the lifecycle status so the row remains pending while it is awaiting a
+     * decision and the state survives a browser refresh or worker restart.
+     */
+    reviewStatus: prospectFollowUpReviewStatusEnum('review_status').default('none').notNull(),
+
+    /* Preserves the performance signal across approved late reschedules. */
+    completedLate: boolean('completed_late').default(false).notNull(),
 
     completedAt: timestamp('completed_at', {
       withTimezone: true,
@@ -283,6 +300,12 @@ export const prospectFollowUps = pgTable(
       table.status,
       table.dueAt,
     ),
+
+    index('prospect_follow_ups_tenant_review_status_idx').on(
+      table.tenantId,
+      table.reviewStatus,
+      table.updatedAt,
+    ),
   ],
 );
 
@@ -291,6 +314,9 @@ export type ProspectFollowUp = typeof prospectFollowUps.$inferSelect;
 export type NewProspectFollowUp = typeof prospectFollowUps.$inferInsert;
 
 export type ProspectFollowUpStatus = (typeof prospectFollowUpStatusEnum.enumValues)[number];
+
+export type ProspectFollowUpReviewStatus =
+  (typeof prospectFollowUpReviewStatusEnum.enumValues)[number];
 
 export type ProspectFollowUpCategory = (typeof prospectFollowUpCategoryEnum.enumValues)[number];
 

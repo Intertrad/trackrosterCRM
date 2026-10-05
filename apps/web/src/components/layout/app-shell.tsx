@@ -45,6 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [mobileQuery, setMobileQuery] = useState('');
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   /* Per-viewer convenience only; never a source of truth for access. */
@@ -119,6 +120,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     });
   }
 
+  function submitMobileSearch(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const value = mobileQuery.trim();
+    if (!value) return;
+    router.push(`/search?q=${encodeURIComponent(value)}`);
+  }
+
   if (status === 'loading') {
     return <ShellSkeleton />;
   }
@@ -171,20 +179,36 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-canvas lg:flex-row">
       {/* Mobile top bar — the sidebar is replaced by a bottom bar below lg. */}
-      <header className="flex items-center justify-between gap-3 bg-navy px-4 py-3 lg:hidden">
-        <BrandLockup className="[&_span:last-child]:text-[18px]" />
+      <header className="flex flex-wrap items-center gap-3 bg-navy px-4 py-3 lg:hidden">
+        <div className="flex w-full items-center justify-between gap-3">
+          <BrandLockup className="[&_span:last-child]:text-[18px]" />
 
-        <div className="flex items-center gap-2">
-          <NotificationBell />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
 
-          <ProfileMenu
-            displayName={user.displayName}
-            email={user.email}
-            roleLabel={roleLabel}
-            collapsed
-            placement="down"
-          />
+            <ProfileMenu
+              displayName={user.displayName}
+              email={user.email}
+              roleLabel={roleLabel}
+              collapsed
+              placement="down"
+            />
+          </div>
         </div>
+
+        <form onSubmit={submitMobileSearch} role="search" className="relative w-full">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+          />
+          <input
+            aria-label={isProspector ? 'Search my assigned prospects' : 'Search workspace'}
+            value={mobileQuery}
+            onChange={(event) => setMobileQuery(event.target.value)}
+            placeholder={isProspector ? 'Search my assigned prospects…' : 'Search workspace…'}
+            className="h-10 w-full rounded-lg border border-white/15 bg-white px-9 text-[14px] text-ink outline-none placeholder:text-ink-muted focus:border-brand"
+          />
+        </form>
       </header>
 
       <aside

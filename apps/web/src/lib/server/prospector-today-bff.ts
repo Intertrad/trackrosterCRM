@@ -3,6 +3,7 @@ import type {
   ProspectorTodayChannel,
   ProspectorTodayResponse,
 } from '@/lib/api/prospector-today-types';
+import type { WorkQueueLifecycleStage } from '@/lib/api/work-queue-types';
 
 export interface BackendProspectorTodayResponse {
   generatedAt: string;
@@ -47,6 +48,8 @@ export interface BackendProspectorTodayResponse {
     category: ProspectorTodayCategory;
 
     channel: ProspectorTodayChannel | null;
+
+    lifecycleStage?: WorkQueueLifecycleStage;
 
     establishment: {
       id: string;
@@ -93,6 +96,7 @@ export function toBrowserProspectorTodayResponse(
       isOverdue: priority.isOverdue,
       category: priority.category,
       channel: priority.channel,
+      lifecycleStage: priority.lifecycleStage,
       establishment: {
         id: priority.establishment.id,
         name: priority.establishment.name,

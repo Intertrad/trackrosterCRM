@@ -45,6 +45,8 @@ export interface ManagerDashboardProspectorFollowUpRow {
   pendingFollowUps: number;
 
   overdueFollowUps: number;
+
+  lateCompletedFollowUps: number;
 }
 
 @Injectable()
@@ -290,6 +292,20 @@ export class ManagerDashboardRepository {
               )
             `.mapWith(Number),
 
+        lateCompletedInRange: sql<number>`
+              count(*)
+              filter (
+                where
+                  ${and(
+                    eq(prospectFollowUps.status, 'completed'),
+                    eq(prospectFollowUps.completedLate, true),
+                    isNotNull(prospectFollowUps.completedAt),
+                    gte(prospectFollowUps.completedAt, input.range.from),
+                    lt(prospectFollowUps.completedAt, input.range.to),
+                  )}
+              )
+            `.mapWith(Number),
+
         cancelledInRange: sql<number>`
               count(*)
               filter (
@@ -343,6 +359,8 @@ export class ManagerDashboardRepository {
       dueInRange: result?.dueInRange ?? 0,
 
       completedInRange: result?.completedInRange ?? 0,
+
+      lateCompletedInRange: result?.lateCompletedInRange ?? 0,
 
       cancelledInRange: result?.cancelledInRange ?? 0,
     };
@@ -455,31 +473,43 @@ export class ManagerDashboardRepository {
   ): Promise<ManagerDashboardProspectorFollowUpRow[]> {
     const conditions = [
       ...this.buildFollowUpScopeConditions(input),
-
-      eq(prospectFollowUps.status, 'pending'),
-
-      isNull(campaignProspectAssignments.endedAt),
-
-      eq(campaignProspects.status, 'active'),
-
-      eq(campaigns.status, 'active'),
-
       isNotNull(prospectFollowUps.assignedUserId),
     ];
+
+    const pendingCondition = and(
+      eq(prospectFollowUps.status, 'pending'),
+      isNull(campaignProspectAssignments.endedAt),
+      eq(campaignProspects.status, 'active'),
+      eq(campaigns.status, 'active'),
+    );
 
     const rows = await this.database
       .select({
         userId: prospectFollowUps.assignedUserId,
 
-        pendingFollowUps: count(),
+        pendingFollowUps: sql<number>`
+          count(*) filter (where ${pendingCondition})
+        `.mapWith(Number),
 
         overdueFollowUps: sql<number>`
               count(*)
               filter (
                 where
-                  ${lt(prospectFollowUps.dueAt, input.generatedAt)}
+                  ${and(pendingCondition, sql`${lt(prospectFollowUps.dueAt, input.generatedAt)}`)}
               )
             `.mapWith(Number),
+
+        lateCompletedFollowUps: sql<number>`
+          count(*) filter (
+            where ${and(
+              eq(prospectFollowUps.status, 'completed'),
+              eq(prospectFollowUps.completedLate, true),
+              isNotNull(prospectFollowUps.completedAt),
+              gte(prospectFollowUps.completedAt, input.range.from),
+              lt(prospectFollowUps.completedAt, input.range.to),
+            )}
+          )
+        `.mapWith(Number),
       })
       .from(prospectFollowUps)
       .innerJoin(
@@ -524,6 +554,8 @@ export class ManagerDashboardRepository {
         pendingFollowUps: row.pendingFollowUps,
 
         overdueFollowUps: row.overdueFollowUps,
+
+        lateCompletedFollowUps: row.lateCompletedFollowUps,
       });
     }
 

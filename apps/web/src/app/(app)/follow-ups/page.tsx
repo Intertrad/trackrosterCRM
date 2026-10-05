@@ -22,6 +22,7 @@ import {
   listFollowUpQueue,
   rescheduleProspectFollowUp,
 } from '@/lib/api/follow-up-client';
+import { requestFollowUpReview } from '@/lib/api/follow-up-review-client';
 import type { FollowUpQueueItem } from '@/lib/api/follow-up-types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { classifyFollowUp, compareByDue, endOfLocalDay, isAppointment } from '@/lib/follow-ups/due';
@@ -33,7 +34,7 @@ import { cn } from '@/lib/ui/cn';
  * They are derived from one classified dataset rather than fetched per tab, so a
  * count and the list beneath it cannot come from different conditions.
  */
-type TabId = 'overdue' | 'today' | 'upcoming' | 'completed';
+type TabId = 'review' | 'overdue' | 'today' | 'upcoming' | 'completed';
 
 export default function ActionsPage() {
   const { activeWorkspace } = useAuth();
@@ -143,6 +144,7 @@ export default function ActionsPage() {
 
   const counts = useMemo(
     () => ({
+      review: classified.filter((row) => row.state === 'review').length,
       overdue: classified.filter((row) => row.state === 'overdue').length,
       today: classified.filter((row) => row.state === 'today').length,
       upcoming: classified.filter((row) => row.state === 'upcoming').length,
@@ -278,6 +280,7 @@ export default function ActionsPage() {
       <div className="flex flex-wrap gap-2">
         {(
           [
+            { id: 'review', label: 'actions.tab.review' },
             { id: 'overdue', label: 'actions.tab.overdue' },
             { id: 'today', label: 'actions.tab.today' },
             { id: 'upcoming', label: 'actions.tab.upcoming' },
@@ -301,11 +304,13 @@ export default function ActionsPage() {
             <span
               className={cn(
                 'rounded-full px-1.5 py-0.5 text-[12px] font-bold',
-                item.id === 'overdue' && counts.overdue > 0
-                  ? 'bg-danger text-white'
-                  : tab === item.id
-                    ? 'bg-brand text-white'
-                    : 'bg-line-soft text-ink-soft',
+                item.id === 'review' && counts.review > 0
+                  ? 'bg-warning text-white'
+                  : item.id === 'overdue' && counts.overdue > 0
+                    ? 'bg-danger text-white'
+                    : tab === item.id
+                      ? 'bg-brand text-white'
+                      : 'bg-line-soft text-ink-soft',
               )}
             >
               {counts[item.id]}
@@ -332,13 +337,15 @@ export default function ActionsPage() {
             <p className="mt-1 text-[14px] text-ink-muted">
               {/* Each group says what is empty; one generic line would not. */}
               {t(
-                tab === 'overdue'
-                  ? 'actions.empty.overdue'
-                  : tab === 'today'
-                    ? 'actions.empty.today'
-                    : tab === 'upcoming'
-                      ? 'actions.empty.upcoming'
-                      : 'actions.emptyBody',
+                tab === 'review'
+                  ? 'actions.empty.review'
+                  : tab === 'overdue'
+                    ? 'actions.empty.overdue'
+                    : tab === 'today'
+                      ? 'actions.empty.today'
+                      : tab === 'upcoming'
+                        ? 'actions.empty.upcoming'
+                        : 'actions.emptyBody',
               )}
             </p>
           </div>
@@ -415,6 +422,11 @@ export default function ActionsPage() {
           /* Server truth, so the card moves group because the server says so. */
           void load();
         }}
+        onReviewRequested={() => {
+          setRescheduling(null);
+          setNotice(t('actions.reschedule.reviewRequested'));
+          void load();
+        }}
       />
     </div>
   );
@@ -433,16 +445,19 @@ function RescheduleDialog({
   teamId,
   onClose,
   onRescheduled,
+  onReviewRequested,
 }: {
   followUp: FollowUpQueueItem | null;
   teamId: string;
   onClose: () => void;
   onRescheduled: () => void;
+  onReviewRequested: () => void;
 }) {
   const { t } = useTranslation();
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
+  const [reason, setReason] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -458,8 +473,11 @@ function RescheduleDialog({
 
     setDate(Number.isNaN(due.getTime()) ? '' : toDateInput(due));
     setTime(Number.isNaN(due.getTime()) ? '10:00' : toTimeInput(due));
+    setReason('');
     setError(null);
   }, [followUp]);
+
+  const overdue = followUp ? classifyFollowUp(followUp) === 'overdue' : false;
 
   async function confirm(): Promise<void> {
     if (!followUp || !date) {
@@ -470,17 +488,37 @@ function RescheduleDialog({
     setError(null);
 
     try {
-      await rescheduleProspectFollowUp({
-        campaignId: followUp.campaignId,
-        prospectId: followUp.prospectId,
-        followUpId: followUp.id,
-        teamId,
-        /* Local wall time to an instant, once. */
-        dueAt: new Date(`${date}T${time}`).toISOString(),
-        idempotencyKey,
-      });
+      const dueAt = new Date(`${date}T${time}`).toISOString();
 
-      onRescheduled();
+      if (overdue) {
+        if (reason.trim().length < 10) {
+          setError(t('actions.reschedule.reasonRequired'));
+          return;
+        }
+
+        await requestFollowUpReview({
+          campaignId: followUp.campaignId,
+          prospectId: followUp.prospectId,
+          followUpId: followUp.id,
+          dueAt,
+          reason,
+          idempotencyKey,
+        });
+
+        onReviewRequested();
+      } else {
+        await rescheduleProspectFollowUp({
+          campaignId: followUp.campaignId,
+          prospectId: followUp.prospectId,
+          followUpId: followUp.id,
+          teamId,
+          /* Local wall time to an instant, once. */
+          dueAt,
+          idempotencyKey,
+        });
+
+        onRescheduled();
+      }
     } catch {
       /*
        * The dialog stays open and the follow-up keeps its current date. Nothing was
@@ -497,6 +535,7 @@ function RescheduleDialog({
       open={followUp !== null}
       title={t('actions.reschedule.title')}
       description={followUp ? followUp.establishmentName : undefined}
+      tone={overdue ? 'danger' : 'default'}
       onClose={onClose}
       footer={
         <>
@@ -505,14 +544,24 @@ function RescheduleDialog({
           </Button>
 
           {/* Disabled while in flight, so repeated taps cannot send two PATCHes. */}
-          <Button loading={pending} disabled={pending || !date} onClick={() => void confirm()}>
-            {t('actions.reschedule.confirm')}
+          <Button
+            loading={pending}
+            disabled={pending || !date || (overdue && reason.trim().length < 10)}
+            onClick={() => void confirm()}
+          >
+            {t(overdue ? 'actions.reschedule.requestReview' : 'actions.reschedule.confirm')}
           </Button>
         </>
       }
     >
       {followUp ? (
         <div className="flex flex-col gap-4">
+          {overdue ? (
+            <Alert tone="danger" title={t('actions.status.overdue')}>
+              {t('actions.reschedule.overdueWarning')}
+            </Alert>
+          ) : null}
+
           <p className="text-[14px] text-ink-muted">
             {t('actions.reschedule.current')}: {formatDate(followUp.dueAt)}{' '}
             {formatTime(followUp.dueAt)}
@@ -533,6 +582,24 @@ function RescheduleDialog({
               onChange={(event) => setTime(event.target.value)}
             />
           </div>
+
+          {overdue ? (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="follow-up-missed-reason" className="text-[13px] font-bold text-ink">
+                {t('actions.reschedule.missedReason')}
+              </label>
+              <textarea
+                id="follow-up-missed-reason"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder={t('actions.reschedule.missedReasonHint')}
+                rows={4}
+                maxLength={2000}
+                className="w-full resize-y rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14.4px] text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
+              />
+              <p className="text-[12px] text-ink-muted">{reason.length}/2000</p>
+            </div>
+          ) : null}
 
           {error ? <Alert tone="danger">{error}</Alert> : null}
         </div>
@@ -568,7 +635,9 @@ function ActionRow({
   const { t } = useTranslation();
 
   /* The shared classifier, so this row and the counts above cannot disagree. */
-  const overdue = classifyFollowUp(item) === 'overdue';
+  const state = classifyFollowUp(item);
+  const overdue = state === 'overdue';
+  const underReview = state === 'review';
 
   return (
     <li className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3">
@@ -586,7 +655,11 @@ function ActionRow({
         {formatDate(item.dueAt)}
 
         <span className="block text-[13px] font-medium text-ink-muted">
-          {overdue ? t('actions.status.overdue') : formatTime(item.dueAt)}
+          {underReview
+            ? t('actions.status.review')
+            : overdue
+              ? t('actions.status.overdue')
+              : formatTime(item.dueAt)}
         </span>
       </span>
 
@@ -621,13 +694,25 @@ function ActionRow({
         <span className="shrink-0 text-[13px] text-ink-muted capitalize">{item.channel}</span>
       ) : null}
 
-      <Badge tone={overdue ? 'danger' : item.status === 'completed' ? 'success' : 'neutral'}>
-        {t(
-          item.status === 'completed'
-            ? 'actions.status.completed'
+      <Badge
+        tone={
+          underReview
+            ? 'warning'
             : overdue
-              ? 'actions.status.overdue'
-              : 'actions.status.open',
+              ? 'danger'
+              : item.status === 'completed'
+                ? 'success'
+                : 'neutral'
+        }
+      >
+        {t(
+          underReview
+            ? 'actions.status.review'
+            : item.status === 'completed'
+              ? 'actions.status.completed'
+              : overdue
+                ? 'actions.status.overdue'
+                : 'actions.status.open',
         )}
       </Badge>
 
@@ -635,7 +720,7 @@ function ActionRow({
        * Only a pending follow-up can be moved. A completed or cancelled one is
        * settled, and the API offers no reopening.
        */}
-      {item.status === 'pending' ? (
+      {item.status === 'pending' && !underReview ? (
         <Button variant="secondary" className="shrink-0" onClick={onReschedule}>
           {t('actions.reschedule')}
         </Button>

@@ -5,6 +5,7 @@ import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
 import { campaignProspectAssignments } from '../database/schema/campaign-prospect-assignments.js';
 import { campaignProspects } from '../database/schema/campaign-prospects.js';
+import type { CampaignProspect } from '../database/schema/campaign-prospects.js';
 import { campaigns } from '../database/schema/campaigns.js';
 import { establishments } from '../database/schema/establishments.js';
 import {
@@ -45,6 +46,8 @@ export interface ProspectorTodayRepositoryPriority {
   category: ProspectFollowUpCategory;
 
   channel: ProspectFollowUpChannel | null;
+
+  lifecycleStage: CampaignProspect['lifecycleStage'];
 
   establishment: {
     id: string;
@@ -163,6 +166,8 @@ export class ProspectorTodayRepository {
 
         channel: prospectFollowUps.channel,
 
+        lifecycleStage: campaignProspects.lifecycleStage,
+
         establishment: {
           id: establishments.id,
 
@@ -242,7 +247,8 @@ export class ProspectorTodayRepository {
           lt(prospectFollowUps.completedAt, input.endsAt),
           eq(campaignProspectAssignments.organizationId, input.organizationId),
           eq(campaignProspectAssignments.teamId, input.teamId),
-          isNull(campaignProspectAssignments.endedAt),
+          // Completed work remains part of today's history even if the
+          // assignment was ended or reassigned later in the day.
           or(
             eq(prospectFollowUps.assignedUserId, input.userId),
             isNull(prospectFollowUps.assignedUserId),

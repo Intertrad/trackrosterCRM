@@ -46,7 +46,7 @@ class TestDto extends PreviewDto {
 }
 
 @Controller('scripts')
-@UseGuards(AuthGuard, ClientAdminGuard)
+@UseGuards(AuthGuard)
 export class ScriptController {
   constructor(private readonly scripts: ScriptService) {}
   @Get() list(@CurrentAuth() auth: AuthenticatedPrincipal, @Query() query: ScriptQuery) {
@@ -58,33 +58,33 @@ export class ScriptController {
   ) {
     return this.scripts.get(auth, id);
   }
-  @Post() @Idempotent('script.create') create(
+  @Post() @UseGuards(ClientAdminGuard) @Idempotent('script.create') create(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Body() input: ScriptDto,
   ) {
     return this.scripts.create(auth, input);
   }
-  @Patch(':scriptId') @Idempotent('script.update') update(
+  @Patch(':scriptId') @UseGuards(ClientAdminGuard) @Idempotent('script.update') update(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Param('scriptId', ParseUUIDPipe) id: string,
     @Body() input: Partial<ScriptDto>,
   ) {
     return this.scripts.update(auth, id, input);
   }
-  @Delete(':scriptId') @Idempotent('script.delete') remove(
+  @Delete(':scriptId') @UseGuards(ClientAdminGuard) @Idempotent('script.delete') remove(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Param('scriptId', ParseUUIDPipe) id: string,
   ) {
     return this.scripts.remove(auth, id);
   }
-  @Post(':scriptId/preview') preview(
+  @Post(':scriptId/preview') @UseGuards(ClientAdminGuard) preview(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Param('scriptId', ParseUUIDPipe) id: string,
     @Body() input: PreviewDto,
   ) {
     return this.scripts.preview(auth, id, input.values ?? {});
   }
-  @Post(':scriptId/test') @Idempotent('script.test') test(
+  @Post(':scriptId/test') @UseGuards(ClientAdminGuard) @Idempotent('script.test') test(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Param('scriptId', ParseUUIDPipe) id: string,
     @Body() input: TestDto,

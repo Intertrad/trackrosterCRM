@@ -1,4 +1,5 @@
 export type ProspectFollowUpStatus = 'pending' | 'completed' | 'cancelled';
+export type ProspectFollowUpReviewStatus = 'none' | 'pending';
 
 export type ProspectFollowUpOwnership = 'user' | 'team';
 
@@ -36,6 +37,12 @@ export interface ProspectFollowUp {
   dueAt: string;
 
   status: ProspectFollowUpStatus;
+
+  /** Awaiting manager review after an overdue reschedule request. */
+  reviewStatus?: ProspectFollowUpReviewStatus;
+
+  /** True when a manager recorded completion after the original due date. */
+  completedLate?: boolean;
 
   /* Both are returned by the API and were missing from this type. */
   category: ProspectFollowUpCategory;

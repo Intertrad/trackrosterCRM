@@ -19,6 +19,12 @@ vi.mock('@/lib/api/prospector-today-client', () => ({
   getProspectorToday: getProspectorTodayMock,
 }));
 
+vi.mock('@/components/prospector/prospect-detail', () => ({
+  ProspectDetail: ({ prospectId }: { prospectId: string }) => (
+    <div data-testid="today-prospect-detail">Prospect detail {prospectId}</div>
+  ),
+}));
+
 import { I18nProvider } from '@/lib/i18n/i18n-context';
 
 import TodayPage from './page';
@@ -173,8 +179,8 @@ describe('TodayPage', () => {
     expect(await screen.findByRole('heading', { name: 'Today' })).toBeInTheDocument();
 
     /* The date follows the viewer's locale, so assert the parts, not an order. */
-    expect(screen.getByText(/Sunday/)).toBeInTheDocument();
-    expect(screen.getByText(/September/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Sunday/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/September/).length).toBeGreaterThan(0);
     /* The name appears twice by design: once as a next action and once as a
      * numbered stop in the day's visits. */
     expect(screen.getAllByText('Nancy central police station')).toHaveLength(2);
@@ -188,6 +194,24 @@ describe('TodayPage', () => {
       timeZone: 'Europe/Paris',
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('opens a priority prospect in a side panel without leaving My Day', async () => {
+    render(<TodayPage />);
+
+    const prospects = await screen.findAllByRole('link', {
+      name: 'Nancy central police station',
+    });
+    const prospect = prospects[0]!;
+
+    expect(prospect).toHaveAttribute('href', `/work-queue/${campaignId}/${campaignProspectId}`);
+
+    fireEvent.click(prospect);
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Nancy central police station' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('today-prospect-detail')).toHaveTextContent(campaignProspectId);
   });
 
   it('renders in French for a French membership, with no message keys left over', async () => {

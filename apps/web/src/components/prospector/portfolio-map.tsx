@@ -11,6 +11,7 @@ import {
 } from '@/components/prospector/lifecycle-badge';
 import { ProspectMap, toMapPoint, type MapPoint } from '@/components/prospector/prospect-map';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 import { LinkButton } from '@/components/ui/link-button';
 import { listNearbyProspects } from '@/lib/api/nearby-client';
@@ -30,9 +31,11 @@ const NEARBY_RADIUS_METERS = 10_000;
 export function PortfolioMap({
   items,
   blockedProspectIds,
+  onOpenProspect,
 }: {
   items: WorkQueueItem[];
   blockedProspectIds: ReadonlySet<string>;
+  onOpenProspect?: (item: WorkQueueItem) => void;
 }) {
   const { t } = useTranslation();
 
@@ -98,6 +101,7 @@ export function PortfolioMap({
             item={selected}
             blocked={blockedProspectIds.has(selected.campaignProspectId)}
             onDismiss={() => setSelectedId(null)}
+            onOpenProspect={onOpenProspect}
           />
         ) : null}
 
@@ -135,10 +139,12 @@ function SelectedProspect({
   item,
   blocked,
   onDismiss,
+  onOpenProspect,
 }: {
   item: WorkQueueItem;
   blocked: boolean;
   onDismiss: () => void;
+  onOpenProspect?: (item: WorkQueueItem) => void;
 }) {
   const { t } = useTranslation();
 
@@ -169,12 +175,18 @@ function SelectedProspect({
       {/* Reserving a prospect runs a collision check, an override path and a
           heartbeat; it lives on the prospect itself rather than being
           reimplemented in a map callout. */}
-      <LinkButton
-        variant="primary"
-        href={`/work-queue/${item.campaign.id}/${item.campaignProspectId}`}
-      >
-        {t('portfolio.openProspect')}
-      </LinkButton>
+      {onOpenProspect ? (
+        <Button variant="primary" onClick={() => onOpenProspect(item)}>
+          {t('portfolio.openProspect')}
+        </Button>
+      ) : (
+        <LinkButton
+          variant="primary"
+          href={`/work-queue/${item.campaign.id}/${item.campaignProspectId}`}
+        >
+          {t('portfolio.openProspect')}
+        </LinkButton>
+      )}
 
       <button
         type="button"

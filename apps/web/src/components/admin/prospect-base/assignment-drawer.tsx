@@ -392,6 +392,14 @@ export function ProspectAssignmentDrawer({
                 <p className="text-sm">
                   {campaign.name} · {team.name} · {member.name}
                 </p>
+                {preview.decisions.some((d) => d.outcome === 'ineligible_target') && (
+                  <Alert tone="warning">
+                    {l(
+                      'This prospector is no longer eligible for the selected team. Choose another active prospector and preview again.',
+                      'Ce prospecteur n’est plus éligible pour l’équipe sélectionnée. Choisissez un autre prospecteur actif et actualisez l’aperçu.',
+                    )}
+                  </Alert>
+                )}
                 {preview.decisions
                   .filter((d) => d.outcome !== 'proposed')
                   .map((d) => (
@@ -407,6 +415,18 @@ export function ProspectAssignmentDrawer({
                       'Aucune attribution tant que des conflits subsistent. Fermez pour ajuster la sélection, ou actualisez après leur résolution.',
                     )}
                   </Alert>
+                )}
+                {preview.decisions.some((d) => d.outcome === 'ineligible_target') && (
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setMember({ id: '', name: '' });
+                      reset();
+                    }}
+                  >
+                    {l('Choose another prospector', 'Choisir un autre prospecteur')}
+                  </Button>
                 )}
               </section>
             )}

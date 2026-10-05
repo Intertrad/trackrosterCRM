@@ -146,6 +146,10 @@ export class ProspectFollowUpService {
 
         status: 'pending',
 
+        reviewStatus: 'none',
+
+        completedLate: false,
+
         completedAt: null,
 
         cancelledAt: null,
@@ -169,6 +173,10 @@ export class ProspectFollowUpService {
     this.requireFutureDueAt(input.dueAt);
 
     const followUp = await this.requireMutableFollowUp(input);
+
+    if (followUp.dueAt.getTime() <= Date.now()) {
+      throw new ConflictException('Overdue follow-ups require manager review');
+    }
 
     /*
      * Queue the new schedule before modifying the
@@ -239,8 +247,22 @@ export class ProspectFollowUpService {
     return toPublicProspectFollowUp(updated);
   }
 
+  /**
+   * Validate a caller-owned pending follow-up without changing it.
+   *
+   * Overdue work uses the manager-review workflow, so the review service needs
+   * the same ownership and assignment checks as an ordinary mutation.
+   */
+  async getMutablePending(input: FollowUpCommandInput): Promise<ProspectFollowUp> {
+    return this.requireMutableFollowUp(input);
+  }
+
   async complete(input: FollowUpCommandInput): Promise<PublicProspectFollowUp> {
     const followUp = await this.requireMutableFollowUp(input);
+
+    if (followUp.reviewStatus === 'pending') {
+      throw new ConflictException('Follow-up requires manager review before completion');
+    }
 
     const completedAt = new Date();
 

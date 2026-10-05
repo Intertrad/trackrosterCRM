@@ -312,6 +312,10 @@ export class ManagerDashboardService {
       row.pendingFollowUps = followUp.pendingFollowUps;
 
       row.overdueFollowUps = followUp.overdueFollowUps;
+
+      if (followUp.lateCompletedFollowUps !== undefined) {
+        row.lateCompletedFollowUps = followUp.lateCompletedFollowUps;
+      }
     }
 
     /*

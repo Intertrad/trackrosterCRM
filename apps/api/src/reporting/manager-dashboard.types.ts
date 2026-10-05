@@ -116,6 +116,9 @@ export interface ManagerDashboardFollowUpSummary {
    */
   completedInRange: number;
 
+  /** Completed after an overdue manager review in the reporting window. */
+  lateCompletedInRange?: number;
+
   /*
    * Period metric:
    *
@@ -135,6 +138,8 @@ export interface ManagerDashboardProspectorRow {
   pendingFollowUps: number;
 
   overdueFollowUps: number;
+
+  lateCompletedFollowUps?: number;
 }
 
 export interface ManagerDashboardResponse {

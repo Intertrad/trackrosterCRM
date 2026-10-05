@@ -14,6 +14,12 @@ const member = (id: string) => ({
   eligible: true,
   available: 8,
 });
+const ineligibleMember = (id: string) => ({
+  ...member(id),
+  identityStatus: 'suspended',
+  eligible: false,
+  available: 0,
+});
 const capacity = (...ids: string[]) => ({
   paused: 0,
   teamOwned: 0,
@@ -53,6 +59,16 @@ describe('authorized management directory', () => {
     );
     expect(result.items.map((person) => person.id)).toEqual(['b', 'c']);
     expect(result.nextCursor).toBe('c');
+  });
+  it('does not expose members that the assignment preview would reject', async () => {
+    vi.mocked(getTeamCapacity).mockResolvedValue({
+      ...capacity('eligible'),
+      members: { truncated: false, items: [member('eligible'), ineligibleMember('stale')] },
+    });
+
+    const result = await listScopedMemberships({ teamId: 'team-a', status: 'active' });
+
+    expect(result.items.map((person) => person.id)).toEqual(['eligible']);
   });
   it('propagates a denied scope instead of displaying it as an empty team', async () => {
     vi.mocked(getTeamCapacity).mockRejectedValue(new Error('Forbidden'));

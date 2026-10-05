@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { applyAssignment, listUnassignedProspects, previewAssignment } from './assignment-client';
+import { listAllAssignments } from './assignment-lifecycle-client';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -77,5 +78,21 @@ describe('assignment client', () => {
     await expect(
       applyAssignment({ campaignId: 'c1', prospectIds: ['p1'], teamId: 't1' }, 'k'),
     ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it('follows assignment cursors so lifecycle totals include every page', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ items: [{ id: 'a1' }], nextCursor: 'next-page' }))
+      .mockResolvedValueOnce(jsonResponse({ items: [{ id: 'a2' }], nextCursor: null }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(listAllAssignments({ teamId: 't1' })).resolves.toEqual([
+      { id: 'a1' },
+      { id: 'a2' },
+    ]);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('limit=100');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('cursor=next-page');
   });
 });

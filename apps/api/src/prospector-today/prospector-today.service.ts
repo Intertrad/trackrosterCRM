@@ -86,6 +86,7 @@ export class ProspectorTodayService {
         isOverdue: priority.dueAt.getTime() < generatedAt.getTime(),
         category: priority.category,
         channel: priority.channel,
+        lifecycleStage: priority.lifecycleStage,
         establishment: {
           id: priority.establishment.id,
           name: priority.establishment.name,

@@ -21,7 +21,6 @@ import {
   Paperclip,
   Pencil,
   Plus,
-  Phone,
   Reply,
   Search,
   Send,
@@ -29,7 +28,6 @@ import {
   Trash2,
   Users,
   UserRound,
-  Video,
   X,
 } from 'lucide-react';
 
@@ -732,32 +730,6 @@ export default function MessagesPage() {
                     <BellOff aria-hidden="true" className="size-4" />
                   </button>
                   <div className="hidden items-center gap-1 border-l border-line pl-2 sm:flex">
-                    <button
-                      type="button"
-                      disabled
-                      aria-label={text('Start audio call', 'Démarrer un appel audio', language)}
-                      title={text(
-                        'Calling is not configured',
-                        'Les appels ne sont pas configurés',
-                        language,
-                      )}
-                      className="rounded-full p-2 text-brand opacity-80 hover:bg-brand-wash disabled:cursor-not-allowed"
-                    >
-                      <Phone aria-hidden="true" className="size-5" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      aria-label={text('Start video call', 'Démarrer un appel vidéo', language)}
-                      title={text(
-                        'Calling is not configured',
-                        'Les appels ne sont pas configurés',
-                        language,
-                      )}
-                      className="rounded-full p-2 text-brand opacity-80 hover:bg-brand-wash disabled:cursor-not-allowed"
-                    >
-                      <Video aria-hidden="true" className="size-5" />
-                    </button>
                     <button
                       type="button"
                       aria-label={text(

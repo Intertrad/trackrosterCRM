@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, FieldRow } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/api-error';
+import { browserJson } from '@/lib/api/browser-json';
 import { listProspectFollowUps } from '@/lib/api/follow-up-client';
 import type { ProspectFollowUp } from '@/lib/api/follow-up-types';
 import {
@@ -46,14 +47,26 @@ import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
 import { cn } from '@/lib/ui/cn';
 
-type TabId = 'overview' | 'timeline' | 'actions' | 'data';
+type TabId = 'overview' | 'timeline' | 'actions' | 'scripts' | 'data';
 
 const TABS: Array<{ id: TabId; label: string; fr: string }> = [
   { id: 'overview', label: 'Overview', fr: 'Informations' },
   { id: 'timeline', label: 'Timeline', fr: 'Historique' },
   { id: 'actions', label: 'Actions', fr: 'Relances' },
+  { id: 'scripts', label: 'Scripts & email', fr: 'Scripts et e-mail' },
   { id: 'data', label: 'Data', fr: 'Données' },
 ];
+
+type ScriptTemplate = {
+  id: string;
+  name: string;
+  channel: 'call' | 'visit' | 'email';
+  sector: string | null;
+  subject: string | null;
+  body: string;
+  variables: string[];
+  enabled: boolean;
+};
 
 export function ProspectDetail({
   campaignId,
@@ -82,6 +95,7 @@ export function ProspectDetail({
   const [collision, setCollision] = useState<ProspectCollisionDecision | null>(null);
   const [reservation, setReservation] = useState<ProspectReservationState | null>(null);
   const [followUps, setFollowUps] = useState<ProspectFollowUp[] | null>(null);
+  const [scripts, setScripts] = useState<ScriptTemplate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [followUpsError, setFollowUpsError] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -100,12 +114,13 @@ export function ProspectDetail({
 
     async function load(): Promise<void> {
       try {
-        const [detailResult, collisionResult, reservationResult, followUpResult] =
+        const [detailResult, collisionResult, reservationResult, followUpResult, scriptResult] =
           await Promise.all([
             getWorkQueueProspectDetail(request),
             getProspectCollisionDecision(request),
             getProspectReservation(request),
             listProspectFollowUps(request).catch(() => null),
+            browserJson<ScriptTemplate[]>('/api/scripts').catch(() => null),
           ]);
 
         if (controller.signal.aborted) {
@@ -117,6 +132,7 @@ export function ProspectDetail({
         setReservation(reservationResult);
         setFollowUps(followUpResult?.items ?? null);
         setFollowUpsError(followUpResult === null);
+        setScripts(scriptResult);
         setError(null);
       } catch (caught) {
         if (controller.signal.aborted) {
@@ -374,6 +390,7 @@ export function ProspectDetail({
         className={cn(
           'grid gap-5',
           !embedded && 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start',
+          embedded && 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)] lg:items-start',
           embedded && 'pt-4',
         )}
       >
@@ -479,6 +496,8 @@ export function ProspectDetail({
             </Card>
           ) : null}
 
+          {tab === 'scripts' ? <ScriptLibrary scripts={scripts} /> : null}
+
           {tab === 'data' ? <DataCompleteness detail={detail} /> : null}
         </div>
 
@@ -523,6 +542,69 @@ export function ProspectDetail({
         onCompleted={refresh}
       />
     </div>
+  );
+}
+
+function ScriptLibrary({ scripts }: { scripts: ScriptTemplate[] | null }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const available = (scripts ?? []).filter((script) => script.enabled);
+
+  if (scripts === null) {
+    return <div className="h-32 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />;
+  }
+
+  if (available.length === 0) {
+    return (
+      <Card>
+        <CardHeader title={l('Scripts & email', 'Scripts et e-mail')} />
+        <p className="py-6 text-center text-[15px] text-ink-muted">
+          {l(
+            'No enabled scripts are available for this workspace yet.',
+            'Aucun script actif n’est encore disponible pour cet espace.',
+          )}
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title={l('Scripts & email', 'Scripts et e-mail')}
+        action={
+          <span className="text-[12px] text-ink-muted">
+            {l('Read-only for prospectors', 'Lecture seule pour les prospecteurs')}
+          </span>
+        }
+      />
+      <div className="space-y-3">
+        {available.map((script) => (
+          <details
+            key={script.id}
+            className="rounded-lg border border-line-soft bg-surface-muted/40 p-3"
+          >
+            <summary className="cursor-pointer list-none text-[14px] font-bold text-navy">
+              <span className="mr-2 rounded-full bg-brand-tint px-2 py-1 text-[11px] font-semibold text-brand">
+                {script.channel}
+              </span>
+              {script.name}
+            </summary>
+            {script.subject ? (
+              <p className="mt-3 text-[13px] font-semibold text-ink-soft">{script.subject}</p>
+            ) : null}
+            <p className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-ink">{script.body}</p>
+            <button
+              type="button"
+              className="mt-3 text-[13px] font-semibold text-brand hover:text-brand-hover"
+              onClick={() => void navigator.clipboard?.writeText(script.body)}
+            >
+              {l('Copy script', 'Copier le script')}
+            </button>
+          </details>
+        ))}
+      </div>
+    </Card>
   );
 }
 

@@ -2,6 +2,7 @@ import type {
   ProspectFollowUpCategory,
   ProspectFollowUpChannel,
 } from '../database/schema/prospect-follow-ups.js';
+import type { CampaignProspectLifecycleStage } from '../database/schema/campaign-prospects.js';
 
 export interface ProspectorTodaySummary {
   actionsLeft: number;
@@ -32,6 +33,9 @@ export interface ProspectorTodayPriority {
   category: ProspectFollowUpCategory;
 
   channel: ProspectFollowUpChannel | null;
+
+  /** Current prospect lifecycle, shown as the work-list Status column. */
+  lifecycleStage: CampaignProspectLifecycleStage;
 
   establishment: {
     id: string;

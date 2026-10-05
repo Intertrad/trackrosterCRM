@@ -99,6 +99,8 @@ export interface ManagerDashboardFollowUpSummary {
 
   completedInRange: number;
 
+  lateCompletedInRange?: number;
+
   cancelledInRange: number;
 }
 
@@ -112,6 +114,8 @@ export interface ManagerDashboardProspectorRow {
   pendingFollowUps: number;
 
   overdueFollowUps: number;
+
+  lateCompletedFollowUps?: number;
 }
 
 export interface ManagerDashboardResponse {

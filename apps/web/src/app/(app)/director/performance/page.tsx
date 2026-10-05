@@ -94,6 +94,7 @@ export default function DirectorPerformancePage() {
                   <th className="px-3 py-3">Actions</th>
                   <th className="px-3 py-3">Open follow-ups</th>
                   <th className="px-3 py-3">Overdue</th>
+                  <th className="px-3 py-3">Late completed</th>
                   <th className="px-5 py-3 text-right">Status</th>
                 </tr>
               </thead>
@@ -111,6 +112,9 @@ export default function DirectorPerformancePage() {
                       <td className="px-3 py-3.5 tabular-nums text-ink">{row.activities}</td>
                       <td className="px-3 py-3.5 tabular-nums text-ink">{row.pendingFollowUps}</td>
                       <td className="px-3 py-3.5 tabular-nums text-ink">{row.overdueFollowUps}</td>
+                      <td className="px-3 py-3.5 tabular-nums text-ink">
+                        {row.lateCompletedFollowUps ?? 0}
+                      </td>
                       <td className="px-5 py-3.5 text-right">
                         <Badge tone={row.overdueFollowUps > 0 ? 'warning' : 'success'} dot>
                           {row.overdueFollowUps > 0 ? 'Needs attention' : 'On track'}

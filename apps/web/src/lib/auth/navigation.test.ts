@@ -52,10 +52,8 @@ describe('workspace navigation', () => {
     expect(labelKeys(getNavigationForWorkspace('prospector'))).toEqual([
       'nav.today',
       'nav.prospects',
-      'nav.map',
       'nav.followUps',
       'nav.actionsHistory',
-      'nav.performance',
       'nav.messages',
     ]);
   });
@@ -99,10 +97,9 @@ describe('workspace navigation', () => {
       'nav.objectives',
       'nav.prospects',
       'nav.team',
-      'nav.campaigns',
       'nav.assignments',
-      'nav.territories',
       'nav.approvals',
+      'nav.followUpReviews',
       'nav.reports',
       'nav.messages',
       'nav.collisions',
@@ -188,10 +185,9 @@ describe('workspace navigation', () => {
       '/manager/objectives',
       '/work-queue',
       '/manager/team',
-      '/manager/campaigns',
       '/manager/assignments',
-      '/manager/territories',
       '/manager/approvals',
+      '/manager/follow-up-reviews',
       '/manager/reports',
       '/messages',
       '/manager/collisions',
@@ -219,10 +215,8 @@ describe('workspace navigation', () => {
     expect(getNavigationForWorkspace('prospector').map((item) => item.href)).toEqual([
       '/',
       '/work-queue',
-      '/map',
       '/follow-ups',
       '/actions',
-      '/performance',
       '/messages',
     ]);
 

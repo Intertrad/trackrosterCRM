@@ -44,6 +44,32 @@ export function listAssignments(
   });
 }
 
+/**
+ * Load the complete authorized assignment set for aggregate counters.
+ *
+ * The API caps one page at 100 rows. Using the first page for Active/Paused/
+ * Completed totals silently under-counts larger teams, so summary consumers
+ * must follow the cursor until the server says the result is complete.
+ */
+export async function listAllAssignments(
+  query: Omit<ListAssignmentsQuery, 'cursor' | 'limit'> = {},
+  signal?: AbortSignal,
+): Promise<Assignment[]> {
+  const items: Assignment[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await listAssignments(
+      { ...query, limit: 100, ...(cursor ? { cursor } : {}) },
+      signal,
+    );
+    items.push(...page.items);
+    cursor = page.nextCursor ?? undefined;
+  } while (cursor && !signal?.aborted);
+
+  return items;
+}
+
 export function getAssignment(assignmentId: string, signal?: AbortSignal): Promise<Assignment> {
   return browserJson<Assignment>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
     cache: 'no-store',

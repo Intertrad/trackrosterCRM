@@ -8,6 +8,7 @@ import type { Assignment } from '@/lib/api/assignment-lifecycle-types';
 
 const {
   listAssignmentsMock,
+  listAllAssignmentsMock,
   updateAssignmentMock,
   reassignAssignmentMock,
   completeAssignmentMock,
@@ -15,6 +16,7 @@ const {
   listMembershipsMock,
 } = vi.hoisted(() => ({
   listAssignmentsMock: vi.fn(),
+  listAllAssignmentsMock: vi.fn(),
   updateAssignmentMock: vi.fn(),
   reassignAssignmentMock: vi.fn(),
   completeAssignmentMock: vi.fn(),
@@ -24,6 +26,7 @@ const {
 
 vi.mock('@/lib/api/assignment-lifecycle-client', () => ({
   listAssignments: listAssignmentsMock,
+  listAllAssignments: listAllAssignmentsMock,
   updateAssignment: updateAssignmentMock,
   reassignAssignment: reassignAssignmentMock,
   completeAssignment: completeAssignmentMock,
@@ -66,6 +69,7 @@ describe('active assignment lifecycle controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listAssignmentsMock.mockResolvedValue({ items: [assignment], nextCursor: null });
+    listAllAssignmentsMock.mockResolvedValue([assignment]);
     listMembershipsMock.mockResolvedValue({
       items: [
         {
@@ -131,6 +135,7 @@ describe('active assignment lifecycle controls', () => {
         nextCursor: null,
       }),
     );
+    listAllAssignmentsMock.mockResolvedValue([assignment, paused, completed]);
 
     renderPage();
 
@@ -166,16 +171,10 @@ describe('active assignment lifecycle controls', () => {
         return Promise.resolve({ items: [assignment], nextCursor: null });
       }
 
-      if (request === 2) {
-        return Promise.resolve({ items: [assignment], nextCursor: null });
-      }
-
-      if (request === 3) {
-        return Promise.resolve({ items: [], nextCursor: null });
-      }
-
-      return Promise.resolve({ items: [paused], nextCursor: null });
+      return Promise.resolve({ items: [], nextCursor: null });
     });
+
+    listAllAssignmentsMock.mockResolvedValueOnce([assignment]).mockResolvedValueOnce([paused]);
 
     renderPage();
     await screen.findByText('Nancy Central Police Station');
@@ -229,6 +228,7 @@ describe('active assignment recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listMembershipsMock.mockResolvedValue({ items: [], nextCursor: null });
+    listAllAssignmentsMock.mockResolvedValue([assignment]);
   });
 
   afterEach(cleanup);
@@ -236,9 +236,7 @@ describe('active assignment recovery', () => {
   it('keeps the last list visible and offers retry after a refresh failure', async () => {
     listAssignmentsMock
       .mockResolvedValueOnce({ items: [assignment], nextCursor: null })
-      .mockResolvedValueOnce({ items: [assignment], nextCursor: null })
       .mockRejectedValueOnce(new Error('network'))
-      .mockResolvedValueOnce({ items: [assignment], nextCursor: null })
       .mockResolvedValueOnce({ items: [assignment], nextCursor: null });
 
     renderPage();
