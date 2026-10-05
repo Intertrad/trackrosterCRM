@@ -519,12 +519,16 @@ function RescheduleDialog({
 
         onRescheduled();
       }
-    } catch {
+    } catch (caught) {
       /*
        * The dialog stays open and the follow-up keeps its current date. Nothing was
        * moved locally, so there is no optimistic state to unwind.
        */
-      setError(t('actions.reschedule.failed'));
+      setError(
+        caught instanceof ApiError && caught.messages.length > 0 && caught.messages[0]
+          ? caught.messages[0]
+          : t('actions.reschedule.failed'),
+      );
     } finally {
       setPending(false);
     }

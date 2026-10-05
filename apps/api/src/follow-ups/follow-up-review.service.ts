@@ -111,6 +111,18 @@ export class FollowUpReviewService {
     `);
 
     if (duplicate.rows[0]) {
+      /*
+       * A client can retry after a network timeout or an interrupted response.
+       * Return the existing request for its author instead of turning a durable
+       * pending review into a dead end. Requests from another actor still get
+       * the normal conflict response.
+       */
+      const [existing] = await this.queryRequestById(auth, duplicate.rows[0].id, auth.membershipId);
+
+      if (existing) {
+        return this.toSummary(existing);
+      }
+
       throw new ConflictException('A manager review is already pending for this follow-up');
     }
 
@@ -165,7 +177,13 @@ export class FollowUpReviewService {
      * newly-created request is still safe to return to its author, so the
      * single-row lookup explicitly permits the matching actor.
      */
-    const [summary] = await this.queryReviews(auth, created.id, true);
+    /*
+     * The requester must receive the durable review even though manager review
+     * listings use stricter assignment-scope authorization. Keep this lookup
+     * independent from manager listing joins so an ended/missing assignment
+     * cannot turn a successful write into a misleading 502.
+     */
+    const [summary] = await this.queryRequestById(auth, created.id, auth.membershipId);
 
     if (!summary) {
       throw new ServiceUnavailableException('Follow-up review could not be loaded');
@@ -380,6 +398,45 @@ export class FollowUpReviewService {
         )
       ORDER BY request.occurred_at DESC, request.id DESC
       LIMIT 100
+    `);
+
+    return result.rows;
+  }
+
+  private async queryRequestById(
+    auth: AuthenticatedPrincipal,
+    reviewId: string,
+    requestedBy?: string,
+  ): Promise<ReviewRow[]> {
+    const result = await this.database.execute<ReviewRow>(sql`
+      SELECT
+        request.id::text AS "id",
+        (request.metadata->>'followUpId')::text AS "followUpId",
+        f.campaign_id::text AS "campaignId",
+        f.campaign_prospect_id::text AS "prospectId",
+        COALESCE(e.name, 'Unknown establishment') AS "establishmentName",
+        COALESCE(c.name, 'Unknown campaign') AS "campaignName",
+        request.actor_user_id::text AS "requestedBy",
+        request.metadata->>'reason' AS "reason",
+        request.metadata->>'previousDueAt' AS "previousDueAt",
+        request.metadata->>'requestedDueAt' AS "requestedDueAt",
+        request.occurred_at::text AS "createdAt",
+        f.assignment_id::text AS "assignmentId"
+      FROM audit_events request
+      JOIN prospect_follow_ups f
+        ON f.tenant_id = request.tenant_id
+       AND f.id = (request.metadata->>'followUpId')::uuid
+      LEFT JOIN establishments e
+        ON e.tenant_id = f.tenant_id AND e.id = f.establishment_id
+      LEFT JOIN campaigns c
+        ON c.tenant_id = f.tenant_id AND c.id = f.campaign_id
+      WHERE request.tenant_id = ${auth.tenantId}
+        AND request.id = ${reviewId}::uuid
+        AND request.resource_type = 'follow_up_review'
+        AND request.action = 'follow_up.reschedule_requested'
+        AND f.review_status = 'pending'
+        ${requestedBy ? sql`AND request.actor_user_id = ${requestedBy}` : sql``}
+      LIMIT 1
     `);
 
     return result.rows;
