@@ -97,6 +97,8 @@ export function ProspectDetail({
   const [followUps, setFollowUps] = useState<ProspectFollowUp[] | null>(null);
   const [scripts, setScripts] = useState<ScriptTemplate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [collisionError, setCollisionError] = useState<string | null>(null);
+  const [reservationError, setReservationError] = useState<string | null>(null);
   const [followUpsError, setFollowUpsError] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -113,44 +115,84 @@ export function ProspectDetail({
     const request = { campaignId, prospectId, teamId };
 
     async function load(): Promise<void> {
-      try {
-        const [detailResult, collisionResult, reservationResult, followUpResult, scriptResult] =
-          await Promise.all([
-            getWorkQueueProspectDetail(request),
-            getProspectCollisionDecision(request),
-            getProspectReservation(request),
-            listProspectFollowUps(request).catch(() => null),
-            browserJson<ScriptTemplate[]>('/api/scripts').catch(() => null),
-          ]);
+      const [detailResult, collisionResult, reservationResult, followUpResult, scriptResult] =
+        await Promise.allSettled([
+          getWorkQueueProspectDetail(request),
+          getProspectCollisionDecision(request),
+          getProspectReservation(request),
+          listProspectFollowUps(request),
+          browserJson<ScriptTemplate[]>('/api/scripts'),
+        ]);
 
-        if (controller.signal.aborted) {
-          return;
-        }
+      if (controller.signal.aborted) {
+        return;
+      }
 
-        setDetail(detailResult);
-        setCollision(collisionResult);
-        setReservation(reservationResult);
-        setFollowUps(followUpResult?.items ?? null);
-        setFollowUpsError(followUpResult === null);
-        setScripts(scriptResult);
-        setError(null);
-      } catch (caught) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
+      if (detailResult.status === 'rejected') {
         setError(
-          caught instanceof ApiError && caught.statusCode === 404
+          detailResult.reason instanceof ApiError && detailResult.reason.statusCode === 404
             ? l(
                 'This prospect is not in your portfolio.',
                 'Cet établissement ne fait pas partie de votre portefeuille.',
               )
-            : l(
-                'We could not load this prospect. Please try again.',
-                'Impossible de charger cet établissement. Réessayez.',
+            : describeProspectError(
+                detailResult.reason,
+                l(
+                  'We could not load this prospect. Please try again.',
+                  'Impossible de charger cet établissement. Réessayez.',
+                ),
+                l,
               ),
         );
+        return;
       }
+
+      setDetail(detailResult.value);
+      setError(null);
+
+      if (collisionResult.status === 'fulfilled') {
+        setCollision(collisionResult.value);
+        setCollisionError(null);
+      } else {
+        setCollision(null);
+        setCollisionError(
+          describeProspectError(
+            collisionResult.reason,
+            l(
+              'Contact authorization could not be checked. Retry before contacting.',
+              'Les autorisations de contact n’ont pas pu être vérifiées. Réessayez avant de contacter.',
+            ),
+            l,
+          ),
+        );
+      }
+
+      if (reservationResult.status === 'fulfilled') {
+        setReservation(reservationResult.value);
+        setReservationError(null);
+      } else {
+        setReservation(null);
+        setReservationError(
+          describeProspectError(
+            reservationResult.reason,
+            l(
+              'Reservation status could not be loaded. Retry before reserving.',
+              'Le statut de réservation n’a pas pu être chargé. Réessayez avant de réserver.',
+            ),
+            l,
+          ),
+        );
+      }
+
+      if (followUpResult.status === 'fulfilled') {
+        setFollowUps(followUpResult.value.items);
+        setFollowUpsError(false);
+      } else {
+        setFollowUps(null);
+        setFollowUpsError(true);
+      }
+
+      setScripts(scriptResult.status === 'fulfilled' ? scriptResult.value : null);
     }
 
     void load();
@@ -201,7 +243,7 @@ export function ProspectDetail({
     .filter(Boolean)
     .join(', ');
 
-  const blocked = collision?.decision === 'block';
+  const blocked = collisionError !== null || collision?.decision === 'block';
   const contactAllowed = collision?.decision === 'allow' || collision?.decision === 'warn';
   const hasScheduledFollowUp = pendingFollowUps.length > 0;
 
@@ -346,6 +388,15 @@ export function ProspectDetail({
             />
           ) : null}
         </div>
+      ) : null}
+
+      {collisionError ? (
+        <Alert tone="warning">
+          {collisionError}{' '}
+          <button className="underline" onClick={refresh}>
+            {l('Retry', 'Réessayer')}
+          </button>
+        </Alert>
       ) : null}
 
       <nav
@@ -507,6 +558,7 @@ export function ProspectDetail({
             prospectId={prospectId}
             teamId={teamId}
             reservation={reservation}
+            reservationError={reservationError}
             onChanged={refresh}
           />
 
@@ -543,6 +595,30 @@ export function ProspectDetail({
       />
     </div>
   );
+}
+
+function describeProspectError(
+  error: unknown,
+  fallback: string,
+  l: (en: string, fr: string) => string,
+): string {
+  if (error instanceof ApiError) {
+    if (error.statusCode === 0) {
+      return l(
+        'TrackRoster could not reach the API. Confirm the backend is running and try again.',
+        'TrackRoster ne peut pas joindre l’API. Vérifiez que le backend est démarré puis réessayez.',
+      );
+    }
+    if (error.statusCode === 502 || error.statusCode === 503) {
+      return l(
+        'The backend service is unavailable. Start the API service and try again.',
+        'Le service backend est indisponible. Démarrez l’API puis réessayez.',
+      );
+    }
+    return error.requestId ? `${error.message} (request ${error.requestId})` : error.message;
+  }
+
+  return fallback;
 }
 
 function ScriptLibrary({ scripts }: { scripts: ScriptTemplate[] | null }) {
