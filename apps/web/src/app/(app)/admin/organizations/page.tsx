@@ -4,6 +4,7 @@ import { Plus, ArrowUpRight } from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { ActionEditor } from '@/components/workspace/action-editor';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -80,21 +81,21 @@ function Companies() {
         {rows?.map((r) => (
           <Card
             key={String(r.id)}
-            className="overflow-hidden border border-white/15 bg-[#0d1938] text-white shadow-card"
+            className="overflow-hidden border border-line bg-surface text-ink shadow-card"
             style={{ borderLeftColor: String(r.color ?? '#2F61E6'), borderLeftWidth: 4 }}
           >
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-extrabold text-white">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-line-soft pb-4">
+              <h2 className="min-w-0 text-lg font-extrabold text-navy">
                 {String(r.shortName ?? r.name)}{' '}
-                <span className="text-xs font-semibold text-slate-300">
+                <span className="text-xs font-semibold text-ink-muted">
                   {r.shortName ? `(${String(r.name)})` : `(${String(r.slug ?? '')})`}
                 </span>
               </h2>
-              <span className="rounded-full bg-[#123b2b] px-3 py-1 text-xs font-bold text-[#55d68a]">
+              <Badge tone={r.status === 'active' ? 'success' : 'neutral'} dot>
                 {r.status === 'active' ? l('Active', 'Active') : l('Inactive', 'Inactive')}
-              </span>
+              </Badge>
             </div>
-            <dl className="grid gap-4 sm:grid-cols-3">
+            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 [l('Short name', 'Nom court'), r.shortName ?? r.slug],
                 [l('Full name', 'Nom complet'), r.name],
@@ -111,13 +112,13 @@ function Companies() {
                     : l('All sectors', 'Tous les secteurs'),
                 ],
               ].map(([label, value]) => (
-                <div key={String(label)}>
-                  <dt className="mb-1.5 text-[13px] font-bold text-slate-200">{String(label)}</dt>
-                  <dd className="rounded-[9px] border border-white/15 bg-white/[0.03] px-3 py-2 text-sm text-slate-100">
+                <div key={String(label)} className="min-w-0">
+                  <dt className="mb-1.5 text-[13px] font-bold text-ink-muted">{String(label)}</dt>
+                  <dd className="min-h-10 truncate rounded-[9px] border border-line-soft bg-surface-muted px-3 py-2 text-sm font-medium text-ink">
                     {typeof value === 'string' && /^#[0-9A-F]{6}$/i.test(value) ? (
                       <span
                         aria-hidden="true"
-                        className="mr-2 inline-block size-3 rounded-full align-[-1px] ring-1 ring-white/30"
+                        className="mr-2 inline-block size-3 rounded-full align-[-1px] ring-1 ring-black/10"
                         style={{ backgroundColor: String(value) }}
                       />
                     ) : null}
@@ -128,10 +129,10 @@ function Companies() {
             </dl>
             {r.argumentaire ? (
               <div className="mt-4">
-                <p className="mb-1.5 text-[13px] font-bold text-slate-200">
+                <p className="mb-1.5 text-[13px] font-bold text-ink-muted">
                   {l('Company argumentaire', 'Argumentaire propre à l’entreprise')}
                 </p>
-                <p className="rounded-[9px] border border-white/15 bg-white/[0.03] px-3 py-2 text-sm whitespace-pre-wrap text-slate-100">
+                <p className="rounded-[9px] border border-line-soft bg-surface-muted px-3 py-2 text-sm whitespace-pre-wrap text-ink">
                   {String(r.argumentaire)}
                 </p>
               </div>
