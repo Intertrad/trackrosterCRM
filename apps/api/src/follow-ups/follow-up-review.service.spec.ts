@@ -108,4 +108,22 @@ describe('FollowUpReviewService', () => {
     );
     expect(scheduler.schedule).not.toHaveBeenCalled();
   });
+
+  it('returns an existing pending request when the prospector retries', async () => {
+    database.execute.mockReset().mockResolvedValueOnce({
+      rows: [{ id: summaryRow.id }],
+    });
+    database.execute.mockResolvedValueOnce({ rows: [summaryRow] });
+
+    const result = await service.request(auth, {
+      campaignId: followUp.campaignId,
+      prospectId: followUp.campaignProspectId,
+      followUpId: followUp.id,
+      dueAt: new Date(summaryRow.requestedDueAt),
+      reason: summaryRow.reason,
+    });
+
+    expect(result).toMatchObject({ id: summaryRow.id });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
 });
