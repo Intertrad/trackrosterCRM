@@ -93,8 +93,8 @@ services:
   # Object storage for controlled exports, behind a profile.
   #
   # The development stack declares MinIO too and it is not running there either:
-  # minio/minio is not anonymously pullable from this host, and the R2_* settings
-  # are blank in .env.example, so neither environment has object storage today.
+  # The pinned image is a public, unmodified release mirror for local testing.
+  # Production should use an approved private registry or a built/pinned image.
   # Keeping it behind a profile means the beta stack comes up without it and
   # nothing pretends otherwise — export download coverage is explicitly out of
   # scope for this certification until storage is provisioned.
@@ -102,13 +102,14 @@ services:
   #   docker compose -p trackroster-beta -f docker-compose.beta.yml --profile storage up -d
   minio:
     profiles: ['storage']
-    image: minio/minio:latest
+    image: dappros/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: trackroster-beta-minio
     restart: unless-stopped
 
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio-development-only
+      MINIO_API_CORS_ALLOW_ORIGIN: 'http://localhost:3100,http://127.0.0.1:3100'
 
     command: server /data --console-address ':9001'
 

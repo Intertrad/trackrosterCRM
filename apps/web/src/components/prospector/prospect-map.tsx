@@ -131,6 +131,7 @@ export function ProspectMap({
 
   /** Detaches the viewport listener when the points or the map change. */
   const cleanupRef = useRef<(() => void) | null>(null);
+  const lastFitSignatureRef = useRef<string | null>(null);
 
   const [failed, setFailed] = useState(false);
 
@@ -472,8 +473,21 @@ export function ProspectMap({
         }
       }
 
-      if (markersRef.current.length > 0) {
+      const fitSignature = points
+        .filter(
+          (point) =>
+            Number.isFinite(point.latitude) &&
+            Number.isFinite(point.longitude) &&
+            Math.abs(point.latitude) <= 90 &&
+            Math.abs(point.longitude) <= 180,
+        )
+        .map((point) => `${point.id}:${point.longitude}:${point.latitude}`)
+        .join('|');
+
+      /* Re-rendering to highlight a marker must not reset a user's camera. */
+      if (markersRef.current.length > 0 && lastFitSignatureRef.current !== fitSignature) {
         mapRef.current.fitBounds(bounds, { padding: 56, maxZoom: 14, duration: 0 });
+        lastFitSignatureRef.current = fitSignature;
       }
 
       if (onVisibleChange) {

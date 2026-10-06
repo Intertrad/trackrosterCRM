@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { browserJson } from '@/lib/api/browser-json';
+import { browserResource } from '@/lib/api/browser-resource';
 import { CalendarClock, Info, LockKeyhole, Mail, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import {
   listCoordinationPolicies,
@@ -76,12 +77,23 @@ function SettingsHeader({ language, activeId }: { language: string; activeId: st
 type Organization = { id: string; name: string; shortName?: string | null; color?: string | null };
 type ReservationRule = {
   id: string;
+  etag?: string;
   durationMinutes: number;
   cooldownMinutes: number;
   maxHoldMinutes: number;
   allowHeartbeat: boolean;
   allowExtension: boolean;
   allowManagerOverride: boolean;
+};
+
+const DEFAULT_RESERVATION_RULE: ReservationRule = {
+  id: '',
+  durationMinutes: 20,
+  cooldownMinutes: 60,
+  maxHoldMinutes: 120,
+  allowHeartbeat: true,
+  allowExtension: true,
+  allowManagerOverride: true,
 };
 
 function ReservationSettings({ language }: { language: string }) {
@@ -98,6 +110,7 @@ function ReservationSettings({ language }: { language: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mirrorDirections, setMirrorDirections] = useState(true);
+  const [saveError, setSaveError] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
@@ -112,7 +125,10 @@ function ReservationSettings({ language }: { language: string }) {
       ]);
       setOrganizations(orgPage.items ?? []);
       setPolicies(policyRows);
-      setRule(rulePage.items?.find((item) => item.id) ?? null);
+      setRule({
+        ...DEFAULT_RESERVATION_RULE,
+        ...(rulePage.items?.find((item) => item.id) ?? {}),
+      });
       const next: Record<string, number> = {};
       const nextPolicies: Record<string, CoordinationPolicy['policy']> = {};
       for (const a of orgPage.items ?? [])
@@ -132,6 +148,7 @@ function ReservationSettings({ language }: { language: string }) {
       setMatrix(next);
       setPolicyMatrix(nextPolicies);
       setError(false);
+      setSaveError(false);
     } catch {
       setError(true);
     } finally {
@@ -175,6 +192,7 @@ function ReservationSettings({ language }: { language: string }) {
   const save = async () => {
     if (!rule || saving) return;
     setSaving(true);
+    setSaveError(false);
     try {
       const existing = new Map(
         policies.map((p) => {
@@ -205,15 +223,33 @@ function ReservationSettings({ language }: { language: string }) {
               ...input,
             });
         }
-      if (rule)
-        await browserJson(`/api/workspace/reservation-rules/${encodeURIComponent(rule.id)}`, {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
-          body: JSON.stringify(rule),
-        });
+      const rulePayload = {
+        durationMinutes: rule.durationMinutes,
+        cooldownMinutes: rule.cooldownMinutes,
+        maxHoldMinutes: rule.maxHoldMinutes,
+        allowHeartbeat: rule.allowHeartbeat,
+        allowExtension: rule.allowExtension,
+        allowManagerOverride: rule.allowManagerOverride,
+      };
+      const ruleResponse = await browserJson<ReservationRule>(
+        rule.id
+          ? `/api/workspace/reservation-rules/${encodeURIComponent(rule.id)}`
+          : '/api/workspace/reservation-rules',
+        {
+          method: rule.id ? 'PATCH' : 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'idempotency-key': crypto.randomUUID(),
+            ...(rule.id && rule.etag ? { 'if-match': rule.etag } : {}),
+          },
+          body: JSON.stringify(rulePayload),
+        },
+      );
+      setRule(ruleResponse);
       setSaved(true);
       await load();
     } catch {
+      setSaveError(true);
       setError(true);
     } finally {
       setSaving(false);
@@ -239,7 +275,12 @@ function ReservationSettings({ language }: { language: string }) {
       <SettingsHeader language={language} activeId="reservation-rules" />
       {error && (
         <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
-          {l('Unable to load settings.', 'Impossible de charger les réglages.')}{' '}
+          {saveError
+            ? l(
+                'Unable to save settings. Please try again.',
+                'Impossible d’enregistrer les réglages. Réessayez.',
+              )
+            : l('Unable to load settings.', 'Impossible de charger les réglages.')}{' '}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
           </button>
@@ -698,6 +739,7 @@ function ObjectivesSettings({ language }: { language: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
@@ -716,6 +758,7 @@ function ObjectivesSettings({ language }: { language: string }) {
         organizationId: current.organizationId || orgs.items?.[0]?.id || '',
       }));
       setError(false);
+      setSaveError(false);
     } catch {
       setError(true);
     } finally {
@@ -728,6 +771,7 @@ function ObjectivesSettings({ language }: { language: string }) {
   const create = async () => {
     if (saving || !form.organizationId || !form.name.trim()) return;
     setSaving(true);
+    setSaveError(false);
     try {
       await browserJson('/api/workspace/objectives', {
         method: 'POST',
@@ -745,6 +789,7 @@ function ObjectivesSettings({ language }: { language: string }) {
       setSaved(true);
       await load();
     } catch {
+      setSaveError(true);
       setError(true);
     } finally {
       setSaving(false);
@@ -755,7 +800,12 @@ function ObjectivesSettings({ language }: { language: string }) {
       <SettingsHeader language={language} activeId="objectives" />
       {error && (
         <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
-          {l('Unable to load objectives.', 'Impossible de charger les objectifs.')}
+          {saveError
+            ? l(
+                'Unable to save objective. Please try again.',
+                'Impossible d’enregistrer l’objectif. Réessayez.',
+              )
+            : l('Unable to load objectives.', 'Impossible de charger les objectifs.')}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
           </button>
@@ -924,8 +974,13 @@ function ObjectivesSettings({ language }: { language: string }) {
   );
 }
 
-type TenantSettings = { id: string; name: string; locale: string; timezone: string };
-type SecuritySettings = { requireMfa: boolean; sessionMaxHours: number; sso?: { mode?: string } };
+type TenantSettings = { id: string; name: string; locale: string; timezone: string; etag?: string };
+type SecuritySettings = {
+  requireMfa: boolean;
+  sessionMaxHours: number;
+  sso?: { mode?: string };
+  etag?: string;
+};
 
 function WorkspaceSettings({ language }: { language: string }) {
   const l = (en: string, fr: string) => text(en, fr, language) ?? en;
@@ -935,16 +990,20 @@ function WorkspaceSettings({ language }: { language: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const load = async () => {
     setLoading(true);
     try {
       const [nextTenant, nextSecurity] = await Promise.all([
-        browserJson<TenantSettings>('/api/workspace/tenant', { cache: 'no-store' }),
-        browserJson<SecuritySettings>('/api/workspace/settings/security', { cache: 'no-store' }),
+        browserResource<TenantSettings>('/api/workspace/tenant', { cache: 'no-store' }),
+        browserResource<SecuritySettings>('/api/workspace/settings/security', {
+          cache: 'no-store',
+        }),
       ]);
-      setTenant(nextTenant);
-      setSecurity(nextSecurity);
+      setTenant({ ...nextTenant.resource, etag: nextTenant.etag ?? undefined });
+      setSecurity({ ...nextSecurity.resource, etag: nextSecurity.etag ?? undefined });
       setError(false);
+      setSaveError(false);
     } catch {
       setError(true);
     } finally {
@@ -957,11 +1016,16 @@ function WorkspaceSettings({ language }: { language: string }) {
   const save = async () => {
     if (!tenant || !security || saving) return;
     setSaving(true);
+    setSaveError(false);
     try {
       await Promise.all([
         browserJson('/api/workspace/tenant', {
           method: 'PATCH',
-          headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+          headers: {
+            'content-type': 'application/json',
+            'idempotency-key': crypto.randomUUID(),
+            ...(tenant.etag ? { 'if-match': tenant.etag } : {}),
+          },
           body: JSON.stringify({
             name: tenant.name,
             locale: tenant.locale,
@@ -970,7 +1034,11 @@ function WorkspaceSettings({ language }: { language: string }) {
         }),
         browserJson('/api/workspace/settings/security', {
           method: 'PATCH',
-          headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+          headers: {
+            'content-type': 'application/json',
+            'idempotency-key': crypto.randomUUID(),
+            ...(security.etag ? { 'if-match': security.etag } : {}),
+          },
           body: JSON.stringify({
             requireMfa: security.requireMfa,
             sessionMaxHours: security.sessionMaxHours,
@@ -980,6 +1048,7 @@ function WorkspaceSettings({ language }: { language: string }) {
       setSaved(true);
       await load();
     } catch {
+      setSaveError(true);
       setError(true);
     } finally {
       setSaving(false);
@@ -991,8 +1060,12 @@ function WorkspaceSettings({ language }: { language: string }) {
       {error && (
         <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
           {l(
-            'Unable to load workspace settings.',
-            'Impossible de charger les réglages de l’espace.',
+            saveError
+              ? 'Unable to save workspace settings. Please try again.'
+              : 'Unable to load workspace settings.',
+            saveError
+              ? 'Impossible d’enregistrer les réglages de l’espace. Réessayez.'
+              : 'Impossible de charger les réglages de l’espace.',
           )}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
