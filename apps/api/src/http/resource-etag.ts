@@ -24,10 +24,30 @@ export function resourceETag(resource: unknown): string {
   return `"${createHash('sha256').update(canonical(normalized)).digest('hex')}"`;
 }
 
+/**
+ * Responses may carry a validator for the mutable resource while also
+ * including derived data (for example an organization summary). Prefer that
+ * explicit validator for the HTTP header so changing derived data does not
+ * invalidate an otherwise safe edit.
+ */
+export function responseETag(resource: unknown): string {
+  if (
+    typeof resource === 'object' &&
+    resource !== null &&
+    !Array.isArray(resource) &&
+    'etag' in resource &&
+    typeof resource.etag === 'string' &&
+    resource.etag.length > 0
+  ) {
+    return resource.etag;
+  }
+  return resourceETag(resource);
+}
+
 /** Call only after locking the mutable resource in its write transaction. */
 export function assertResourceMatches(ifMatch: string | undefined, resource: unknown): void {
   if (ifMatch === undefined || ifMatch === '*') return;
-  const currentETag = resourceETag(resource);
+  const currentETag = responseETag(resource);
   if (
     !ifMatch
       .split(',')
@@ -50,7 +70,7 @@ export class ResourceETagInterceptor implements NestInterceptor {
         context
           .switchToHttp()
           .getResponse<{ header(name: string, value: string): unknown }>()
-          .header('ETag', resourceETag(resource));
+          .header('ETag', responseETag(resource));
         return resource;
       }),
     );

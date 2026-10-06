@@ -25,7 +25,7 @@ import {
 import { IdempotencyService } from './idempotency.service.js';
 
 import type { IdempotencyLifecycleIdentity } from './idempotency.types.js';
-import { resourceETag } from '../http/resource-etag.js';
+import { responseETag } from '../http/resource-etag.js';
 
 interface IdempotencyHttpRequest extends AuthenticatedRequest {
   method: string;
@@ -126,7 +126,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       reply.status(decision.responseStatus);
 
       reply.header(IDEMPOTENCY_REPLAY_HEADER, 'true');
-      reply.header('ETag', resourceETag(decision.responseBody));
+      reply.header('ETag', responseETag(decision.responseBody));
 
       return of(decision.responseBody);
     }
