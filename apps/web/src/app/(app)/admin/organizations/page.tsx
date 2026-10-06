@@ -607,7 +607,15 @@ function Companies() {
           etag={editor.etag}
           reloadKey={editor.record ? definition.detail : undefined}
           onClose={() => setEditor(null)}
-          onSaved={() => {
+          onSaved={(response) => {
+            if (isRecord(response.resource)) {
+              const updated = response.resource as DataRecord;
+              setSelected(updated);
+              setDetail(updated);
+              setDetailEtag(response.etag);
+            }
+            // Refresh the list and derived summary data in the background;
+            // the saved response keeps the visible detail current immediately.
             void load();
           }}
         />

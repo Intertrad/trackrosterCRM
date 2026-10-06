@@ -7,6 +7,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Drawer } from '@/components/ui/drawer';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api/api-error';
+import type { BrowserResource } from '@/lib/api/browser-resource';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import {
   initialValues,
@@ -39,7 +40,7 @@ export function ActionEditor({
   etag?: string | null;
   reloadKey?: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (result: BrowserResource<unknown>) => void;
 }) {
   const { language } = useTranslation();
   const operation = getOperation(action.operation);
@@ -142,7 +143,7 @@ export function ActionEditor({
       );
       setResult(response.resource);
       setSaved(true);
-      onSaved();
+      onSaved(response);
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('Request failed'));
     } finally {
