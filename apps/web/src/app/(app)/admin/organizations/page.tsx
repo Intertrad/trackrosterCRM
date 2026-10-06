@@ -12,7 +12,7 @@ import { Drawer } from '@/components/ui/drawer';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { useLivePages } from '@/lib/live/use-live-pages';
-import { readOperation, rowsOf } from '@/lib/workspace/client';
+import { isRecord, readOperation, rowsOf } from '@/lib/workspace/client';
 import { text } from '@/lib/workspace/copy';
 import { WORKSPACE_MODULES } from '@/lib/workspace/modules';
 import type { Action, DataRecord } from '@/lib/workspace/types';
@@ -98,6 +98,7 @@ function Companies() {
     record?: DataRecord;
     etag?: string | null;
   } | null>(null);
+  const [editorLoading, setEditorLoading] = useState(false);
   const read = useCallback(async (cursor: string | undefined, signal: AbortSignal) => {
     const { resource } = await readOperation(definition.read, {}, { limit: 100, cursor }, signal);
     return {
@@ -155,13 +156,35 @@ function Companies() {
     }
   }
 
-  function openEditor(record?: DataRecord, etag?: string | null) {
+  async function openEditor(record?: DataRecord, etag?: string | null) {
     setSelected(null);
     setDetail(null);
-    setEditor({
-      action: record ? definition.actions[1]! : definition.actions[0]!,
-      ...(record ? { record, etag } : {}),
-    });
+    if (!record) {
+      setEditor({ action: definition.actions[0]! });
+      return;
+    }
+
+    // Render can take long enough for a company to change between opening its
+    // detail drawer and clicking Edit. Read the mutable record immediately
+    // before opening the form so the first save uses the current validator.
+    setEditorLoading(true);
+    try {
+      const latest = await readOperation(definition.detail!, { organizationId: record.id });
+      if (isRecord(latest.resource)) {
+        setEditor({
+          action: definition.actions[1]!,
+          record: latest.resource,
+          etag: latest.etag ?? etag,
+        });
+        return;
+      }
+    } catch {
+      // Keep the existing record as a fallback; ActionEditor can still load
+      // the latest version through its conflict recovery action.
+    } finally {
+      setEditorLoading(false);
+    }
+    setEditor({ action: definition.actions[1]!, record, etag });
   }
 
   const activeRecord = detail ?? selected;
@@ -402,7 +425,10 @@ function Companies() {
               <span className="text-[13px] font-semibold text-ink-muted">
                 {progress?.complete} / {progress?.total} {l('fields complete', 'champs complétés')}
               </span>
-              <Button onClick={() => openEditor(activeRecord, detailEtag)}>
+              <Button
+                loading={editorLoading}
+                onClick={() => void openEditor(activeRecord, detailEtag)}
+              >
                 {l('Edit company', 'Modifier l’entreprise')} <ArrowUpRight className="size-4" />
               </Button>
             </div>
