@@ -66,6 +66,7 @@ export function ActionEditor({
   const form = useRef<HTMLFormElement>(null);
   const inFlight = useRef(false);
   const attempt = useRef<{ body: string; key: string } | null>(null);
+  const autoRecovered = useRef(false);
   const dirty =
     !saved &&
     (JSON.stringify(values) !== JSON.stringify(initial.current) ||
@@ -145,14 +146,24 @@ export function ActionEditor({
       setSaved(true);
       onSaved(response);
     } catch (caught) {
+      if (
+        caught instanceof ApiError &&
+        caught.statusCode === 412 &&
+        reloadKey &&
+        !autoRecovered.current
+      ) {
+        autoRecovered.current = true;
+        const recovered = await compareLatest();
+        if (recovered) return;
+      }
       setError(caught instanceof Error ? caught : new Error('Request failed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
     }
   }
-  async function compareLatest() {
-    if (!reloadKey) return;
+  async function compareLatest(): Promise<boolean> {
+    if (!reloadKey) return false;
     setBusy(true);
     try {
       const fresh = await readOperation(reloadKey, context);
@@ -174,8 +185,10 @@ export function ActionEditor({
       setError(null);
       setCompared(true);
       attempt.current = null;
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('Request failed'));
+      return false;
     } finally {
       setBusy(false);
     }
