@@ -47,7 +47,7 @@ export function responseETag(resource: unknown): string {
 /** Call only after locking the mutable resource in its write transaction. */
 export function assertResourceMatches(ifMatch: string | undefined, resource: unknown): void {
   if (ifMatch === undefined || ifMatch === '*') return;
-  const currentETag = resourceETag(resource);
+  const currentETag = responseETag(resource);
   if (
     !ifMatch
       .split(',')
