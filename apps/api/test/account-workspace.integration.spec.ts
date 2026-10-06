@@ -413,6 +413,10 @@ describe('Account and native workspace authentication', () => {
   it('rejects stale account edits without changing the stored profile', async () => {
     const tokens = await login();
     const before = await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(tokens) });
+    await database
+      .update(tenants)
+      .set({ name: 'Workspace changed elsewhere' })
+      .where(eq(tenants.id, tenantA));
     const changed = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me',
