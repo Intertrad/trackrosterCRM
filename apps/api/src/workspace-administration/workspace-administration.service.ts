@@ -138,7 +138,24 @@ export class WorkspaceAdministrationService {
       summary: { ...summary.rows[0], scope: 'authorized_teams_and_assignments' },
       // Keep the validator tied to the stored organization row. The summary
       // is derived from assignments and can change while this form is open.
-      etag: resourceETag(row),
+      // Timestamps are also excluded because they are bookkeeping fields,
+      // rather than values this editor can change.
+      etag: resourceETag({
+        id: row.id,
+        tenantId: row.tenantId,
+        name: row.name,
+        slug: row.slug,
+        shortName: row.shortName,
+        phone: row.phone,
+        email: row.email,
+        website: row.website,
+        address: row.address,
+        color: row.color,
+        currency: row.currency,
+        argumentaire: row.argumentaire,
+        prospectedSectors: row.prospectedSectors,
+        status: row.status,
+      }),
     };
   }
 
