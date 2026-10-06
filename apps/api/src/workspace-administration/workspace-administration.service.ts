@@ -1,5 +1,5 @@
 import { activeRoster } from '../organization-structure/structure-access.js';
-import { assertResourceMatches } from '../http/resource-etag.js';
+import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import {
   BadRequestException,
   ConflictException,
@@ -133,7 +133,13 @@ export class WorkspaceAdministrationService {
     (SELECT count(*)::int FROM visible_assignments WHERE status='paused') AS "pausedAssignments",
     (SELECT count(DISTINCT campaign_id)::int FROM visible_assignments) AS "campaignsWithAssignments",
     (SELECT count(DISTINCT assigned_user_id)::int FROM visible_assignments) AS "assignedMembers"`);
-    return { ...row, summary: { ...summary.rows[0], scope: 'authorized_teams_and_assignments' } };
+    return {
+      ...row,
+      summary: { ...summary.rows[0], scope: 'authorized_teams_and_assignments' },
+      // Keep the validator tied to the stored organization row. The summary
+      // is derived from assignments and can change while this form is open.
+      etag: resourceETag(row),
+    };
   }
 
   async createOrganization(auth: AuthenticatedPrincipal, input: CreateOrganizationDto) {

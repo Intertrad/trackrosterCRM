@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { assertResourceMatches, resourceETag } from './resource-etag.js';
+import { assertResourceMatches, resourceETag, responseETag } from './resource-etag.js';
 
 describe('Resource ETags', () => {
+  it('prefers an explicit validator when a response contains derived data', () => {
+    const stored = { id: 'organization-1', updatedAt: new Date('2026-10-06T12:00:00Z') };
+    const response = { ...stored, summary: { activeAssignments: 1 }, etag: resourceETag(stored) };
+
+    expect(responseETag(response)).toBe(resourceETag(stored));
+    expect(responseETag({ ...response, summary: { activeAssignments: 2 } })).toBe(
+      resourceETag(stored),
+    );
+  });
+
   it('survives JSONB field reordering and Date serialization', () => {
     const timestamp = new Date('2026-09-22T10:00:00.000Z');
     expect(resourceETag({ z: timestamp, a: { y: 1, x: 2 } })).toBe(
