@@ -55,7 +55,7 @@ export function FilterSelect({
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         className={cn(
-          'h-10 w-full appearance-none rounded-[9px] border pr-10 text-[14px] font-semibold',
+          'h-10 min-w-[9.5rem] w-full appearance-none rounded-[9px] border pr-10 text-left text-[14px] font-semibold',
           'transition-colors duration-150',
           'disabled:cursor-not-allowed disabled:opacity-60',
           tone === 'brand'

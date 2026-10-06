@@ -97,6 +97,7 @@ export default function MessagesPage() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const conversationSearchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'waiting' | 'closed'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const draft = activeId ? (drafts[activeId] ?? '') : '';
   const setDraft = (value: string) => {
@@ -111,6 +112,7 @@ export default function MessagesPage() {
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [composerFile, setComposerFile] = useState<File | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [pendingAttachmentMessageId, setPendingAttachmentMessageId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const composerFileId = useId();
@@ -299,7 +301,7 @@ export default function MessagesPage() {
 
     const query = search.trim().toLowerCase();
 
-    return conversations.filter((conversation) => {
+    const filtered = conversations.filter((conversation) => {
       const sender = conversation.latestMessage?.sender;
       const haystack = [
         conversationName(conversation, t, sender ? [membershipName(sender)] : []),
@@ -319,7 +321,13 @@ export default function MessagesPage() {
         (filter === 'closed' && conversation.status === 'archived');
       return matchesFilter && haystack.includes(query);
     });
-  }, [conversations, search, filter, t, me]);
+
+    return [...filtered].sort((left, right) => {
+      const leftTime = Date.parse(left.latestMessage?.createdAt ?? left.updatedAt);
+      const rightTime = Date.parse(right.latestMessage?.createdAt ?? right.updatedAt);
+      return sortOrder === 'newest' ? rightTime - leftTime : leftTime - rightTime;
+    });
+  }, [conversations, search, filter, t, me, sortOrder]);
 
   const filterCounts = useMemo(() => {
     const items = conversations ?? [];
@@ -427,7 +435,7 @@ export default function MessagesPage() {
       <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
         <div
           className={cn(
-            'min-h-[min(760px,calc(100dvh-180px))] max-lg:flex max-lg:min-h-[calc(100dvh-148px)]',
+            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[calc(100dvh-148px)]',
             active
               ? 'grid lg:grid-cols-[348px_minmax(0,1fr)_294px]'
               : 'grid lg:grid-cols-[348px_minmax(0,1fr)]',
@@ -435,7 +443,7 @@ export default function MessagesPage() {
         >
           <aside
             className={cn(
-              'border-b border-line lg:border-r lg:border-b-0',
+              'min-h-0 border-b border-line lg:border-r lg:border-b-0',
               active && 'max-lg:hidden',
             )}
           >
@@ -492,8 +500,17 @@ export default function MessagesPage() {
                   ? text('CONVERSATIONS', 'CONVERSATIONS', language)
                   : text('INBOX', 'BOÎTE DE RÉCEPTION', language)}
               </p>
-              <button type="button" className="text-[12px] font-bold text-brand hover:underline">
-                {text('Sort: newest', 'Tri : récent', language)}
+              <button
+                type="button"
+                aria-pressed={sortOrder === 'oldest'}
+                onClick={() =>
+                  setSortOrder((current) => (current === 'newest' ? 'oldest' : 'newest'))
+                }
+                className="text-[12px] font-bold text-brand hover:underline"
+              >
+                {sortOrder === 'newest'
+                  ? text('Sort: newest', 'Tri : récent', language)
+                  : text('Sort: oldest', 'Tri : ancien', language)}
               </button>
             </div>
 
@@ -608,7 +625,10 @@ export default function MessagesPage() {
           </aside>
 
           <section
-            className={cn('flex min-w-0 flex-col bg-surface text-ink', !active && 'max-lg:hidden')}
+            className={cn(
+              'flex min-h-0 min-w-0 flex-col bg-surface text-ink',
+              !active && 'max-lg:hidden',
+            )}
           >
             {!active ? (
               <div className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-20 text-center">
@@ -983,18 +1003,17 @@ export default function MessagesPage() {
                                   <div className="mb-7 hidden items-center gap-0.5 text-ink-muted group-hover:flex sm:flex">
                                     <button
                                       type="button"
-                                      disabled
                                       aria-label={text(
                                         'React to message',
                                         'Réagir au message',
                                         language,
                                       )}
-                                      title={text(
-                                        'Reactions are not configured',
-                                        'Les réactions ne sont pas configurées',
-                                        language,
-                                      )}
-                                      className="rounded-full p-1.5 text-ink-muted opacity-50"
+                                      title={text('Insert a smile', 'Insérer un sourire', language)}
+                                      className="rounded-full p-1.5 text-ink-muted hover:bg-surface-muted hover:text-ink"
+                                      onClick={() => {
+                                        setDraft(`${draft}🙂`);
+                                        requestAnimationFrame(() => composerInput.current?.focus());
+                                      }}
                                     >
                                       <Smile aria-hidden="true" className="size-4" />
                                     </button>
@@ -1134,6 +1153,41 @@ export default function MessagesPage() {
                             {text('Add attachment', 'Ajouter une pièce jointe', language)}
                           </span>
                         </label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            aria-label={text('Insert emoji', 'Insérer un emoji', language)}
+                            aria-expanded={emojiOpen}
+                            onClick={() => setEmojiOpen((current) => !current)}
+                            disabled={busy}
+                            className="flex size-8 items-center justify-center rounded-md hover:bg-surface-muted hover:text-ink disabled:opacity-50"
+                          >
+                            <Smile aria-hidden="true" className="size-[17px]" />
+                          </button>
+                          {emojiOpen ? (
+                            <div
+                              role="toolbar"
+                              aria-label={text('Emoji', 'Emojis', language)}
+                              className="absolute bottom-10 left-0 z-30 flex gap-1 rounded-xl border border-line bg-surface p-2 shadow-lg"
+                            >
+                              {['🙂', '👍', '❤️', '🎉', '😂', '😮', '😢'].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className="rounded-lg p-1.5 text-lg hover:bg-surface-muted"
+                                  onClick={() => {
+                                    setDraft(`${draft}${emoji}`);
+                                    setEmojiOpen(false);
+                                    requestAnimationFrame(() => composerInput.current?.focus());
+                                  }}
+                                >
+                                  <span aria-hidden="true">{emoji}</span>
+                                  <span className="sr-only">{emoji}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
                         <button
                           type="button"
                           disabled

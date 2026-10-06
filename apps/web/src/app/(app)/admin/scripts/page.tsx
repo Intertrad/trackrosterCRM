@@ -61,13 +61,18 @@ export default function ScriptsPage() {
   useEffect(() => {
     void load();
   }, []);
-  const selectedVariables = useMemo(
-    () => selected?.variables ?? draft.variables,
-    [selected, draft.variables],
-  );
+  const selectedVariables = useMemo(() => draft.variables, [draft.variables]);
   function edit(script: Script) {
     setSelected(script);
-    setDraft({ ...script });
+    setDraft({
+      name: script.name,
+      channel: script.channel,
+      sector: script.sector,
+      subject: script.subject,
+      body: script.body,
+      variables: script.variables ?? [],
+      enabled: script.enabled,
+    });
     setPreview(null);
     setNotice(null);
   }
@@ -84,17 +89,24 @@ export default function ScriptsPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await browserResource<Script>(
-        selected ? `/api/scripts/${selected.id}` : '/api/scripts',
-        {
-          method: selected ? 'PATCH' : 'POST',
-          headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
-          body: JSON.stringify({ ...draft, variables: draft.variables }),
-        },
-      );
+      await browserResource<Script>(selected ? `/api/scripts/${selected.id}` : '/api/scripts', {
+        method: selected ? 'PATCH' : 'POST',
+        headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+        body: JSON.stringify({
+          name: draft.name,
+          channel: draft.channel,
+          sector: draft.sector,
+          subject: draft.subject,
+          body: draft.body,
+          variables: draft.variables,
+          enabled: draft.enabled,
+        }),
+      });
       setNotice(isFrench ? 'Modèle enregistré.' : 'Template saved.');
       await load();
-      edit(result.resource);
+      setSelected(null);
+      setDraft({ ...blank });
+      setPreview(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to save script');
     } finally {
@@ -120,7 +132,33 @@ export default function ScriptsPage() {
     }
   }
   async function renderPreview() {
-    if (!selected) return;
+    const values = Object.fromEntries(selectedVariables.map((key) => [key, `[${key}]`])) as Record<
+      string,
+      string
+    >;
+
+    /* Preview the current draft, including unsaved edits. The old flow sent
+     * only the persisted template id, so the button was absent for new
+     * templates and stale while editing an existing one. */
+    const render = (value: string | null | undefined) =>
+      (value ?? '').replace(
+        /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi,
+        (_, key: string) => values[key] ?? '',
+      );
+    if (!selected) {
+      const missingVariables = [
+        ...new Set(
+          [...draft.body.matchAll(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi)].map((match) => match[1]!),
+        ),
+      ].filter((key) => !values[key]);
+      setPreview({
+        subject: render(draft.subject),
+        body: render(draft.body),
+        missingVariables,
+      });
+      return;
+    }
+
     try {
       const result = await browserResource<{
         subject: string;
@@ -130,7 +168,7 @@ export default function ScriptsPage() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          values: Object.fromEntries(selectedVariables.map((key) => [key, `[${key}]`])),
+          values,
         }),
       });
       setPreview(result.resource);
@@ -307,30 +345,18 @@ export default function ScriptsPage() {
                 {key}
               </button>
             ))}
-            <button
-              type="button"
-              className="rounded-full border border-dashed border-line px-3 py-1.5 text-xs font-semibold text-ink-muted transition hover:border-brand hover:text-brand"
-              onClick={() => {
-                const key = window.prompt('Variable name');
-                if (key) update('variables', [...new Set([...draft.variables, key.trim()])]);
-              }}
-            >
-              + variable
-            </button>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button onClick={save} loading={busy}>
               {isFrench ? 'Enregistrer' : 'Save template'}
             </Button>
-            {selected ? (
-              <Button
-                variant="secondary"
-                onClick={renderPreview}
-                leadingIcon={<Sparkles size={15} />}
-              >
-                {isFrench ? 'Aperçu' : 'Preview'}
-              </Button>
-            ) : null}
+            <Button
+              variant="secondary"
+              onClick={renderPreview}
+              leadingIcon={<Sparkles size={15} />}
+            >
+              {isFrench ? 'Aperçu' : 'Preview'}
+            </Button>
           </div>
           {preview ? (
             <div className="mt-5 rounded-lg border border-line bg-surface-muted p-4">

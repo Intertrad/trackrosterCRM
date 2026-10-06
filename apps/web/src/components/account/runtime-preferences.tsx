@@ -31,18 +31,28 @@ export function RuntimePreferences() {
   }, [load, user?.tenantId, user?.userId]);
   useLiveRefresh(load, { enabled, interval: 60_000 });
   useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener('trackroster:preferences-changed', refresh);
+    return () => window.removeEventListener('trackroster:preferences-changed', refresh);
+  }, [load]);
+  useEffect(() => {
     const root = document.documentElement;
     const apply = () => {
-      // Keep the product surface light unless the account explicitly opts into
-      // dark mode. Following the operating-system preference made a dark OS
-      // setting unexpectedly restyle the entire workspace.
-      root.dataset.theme = preferences?.theme === 'dark' ? 'dark' : 'light';
+      const theme = preferences?.theme ?? 'light';
+      const systemDark =
+        theme === 'system' &&
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = theme === 'dark' || systemDark ? 'dark' : 'light';
       root.dataset.density = preferences?.density ?? 'comfortable';
       root.dataset.reducedMotion = String(preferences?.reducedMotion ?? false);
       root.dataset.highContrast = String(preferences?.highContrast ?? false);
     };
     apply();
-    return undefined;
+    if (preferences?.theme !== 'system') return undefined;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
   }, [preferences]);
   return null;
 }

@@ -36,11 +36,7 @@ export default function FollowUpReviewsPage() {
     } catch (caught) {
       if (signal?.aborted) return;
 
-      setError(
-        caught instanceof ApiError && caught.statusCode === 403
-          ? 'You do not have manager approval authority for these follow-ups.'
-          : 'We could not load follow-up reviews. Please try again.',
-      );
+      setError(describeLoadError(caught));
     }
   }, []);
 
@@ -99,12 +95,22 @@ export default function FollowUpReviewsPage() {
       ) : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      {items === null ? (
+      {items === null && !error ? (
         <Card>
           <div className="flex flex-col gap-3" aria-busy="true">
             {[0, 1, 2].map((row) => (
               <div key={row} className="h-28 animate-pulse rounded-lg bg-line-soft" />
             ))}
+          </div>
+        </Card>
+      ) : items === null ? (
+        <Card>
+          <div className="py-12 text-center">
+            <Clock3 aria-hidden="true" className="mx-auto size-9 text-warning" />
+            <p className="mt-3 text-[17px] font-bold text-navy">Review queue unavailable</p>
+            <p className="mt-1 text-[14px] text-ink-muted">
+              The review list could not be loaded. Retry after the backend service is available.
+            </p>
           </div>
         </Card>
       ) : items.length === 0 ? (
@@ -205,6 +211,24 @@ export default function FollowUpReviewsPage() {
       )}
     </div>
   );
+}
+
+function describeLoadError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.statusCode === 403) {
+      return 'You do not have manager approval authority for these follow-ups.';
+    }
+    if (error.statusCode === 0) {
+      return 'TrackRoster could not reach the API. Confirm the backend is running and try again.';
+    }
+    if (error.statusCode === 502 || error.statusCode === 503) {
+      return 'The backend service is unavailable. Start the API service and try again.';
+    }
+
+    return error.requestId ? `${error.message} (request ${error.requestId})` : error.message;
+  }
+
+  return 'We could not load follow-up reviews. Please try again.';
 }
 
 function formatDate(value: string): string {

@@ -159,9 +159,15 @@ export class ScriptService {
     const tx = currentTenantExecutor()!;
     const current = await this.get(auth, id, tx);
     const value = clean({
-      ...current,
-      ...input,
+      name: input.name ?? current.name,
       channel: (input.channel ?? current.channel) as ScriptChannel,
+      sector: input.sector !== undefined ? input.sector : current.sector,
+      organizationId:
+        input.organizationId !== undefined ? input.organizationId : current.organizationId,
+      subject: input.subject !== undefined ? input.subject : current.subject,
+      body: input.body ?? current.body,
+      variables: input.variables !== undefined ? input.variables : current.variables,
+      enabled: input.enabled !== undefined ? input.enabled : current.enabled,
     });
     return (async () => {
       await this.ensureOrganization(tx, auth.tenantId, value.organizationId);
@@ -223,7 +229,7 @@ export class ScriptService {
       return withTenantContext(this.db, auth.tenantId, () => this.preview(auth, id, values));
     }
 
-    const script = await this.get(auth, id);
+    const script = await this.get(auth, id, currentTenantExecutor() ?? this.db);
     return {
       id: script.id,
       channel: script.channel as ScriptChannel,

@@ -46,37 +46,59 @@ export default function TeamOverviewPage() {
   const [memberships, setMemberships] = useState<MembershipSummary[] | null>(null);
   const [requests, setRequests] = useState<OverrideRequestSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [membershipError, setMembershipError] = useState<string | null>(null);
 
   const load = useCallback(
     async (signal?: AbortSignal): Promise<void> => {
-      try {
-        const teamId = activeWorkspace?.teamId ?? undefined;
+      const teamId = activeWorkspace?.teamId ?? undefined;
 
-        const [response, membershipPage, requestPage] = await Promise.all([
-          getManagerDashboard({ ...resolvePeriod(period), ...(teamId ? { teamId } : {}) }, signal),
-          listMemberships({ ...(teamId ? { teamId } : {}), status: 'active', limit: 100 }, signal),
-          /* The queue is advisory here; a failure must not blank the screen. */
-          listPendingOverrideRequests(signal).catch(() => []),
-        ]);
+      /*
+       * The dashboard aggregate is the primary view. Membership capacity and
+       * the override queue are supporting panels, so a failure in either must
+       * not hide the live figures that did load successfully.
+       */
+      const [dashboardResult, membershipResult, requestResult] = await Promise.allSettled([
+        getManagerDashboard({ ...resolvePeriod(period), ...(teamId ? { teamId } : {}) }, signal),
+        listMemberships({ ...(teamId ? { teamId } : {}), status: 'active', limit: 100 }, signal),
+        listPendingOverrideRequests(signal),
+      ]);
 
-        if (signal?.aborted) {
-          return;
-        }
+      if (signal?.aborted) {
+        return;
+      }
 
-        setData(response);
-        setMemberships(membershipPage.items);
-        setRequests(requestPage);
+      if (dashboardResult.status === 'fulfilled') {
+        setData(dashboardResult.value);
         setError(null);
-      } catch (caught) {
-        if (signal?.aborted) {
-          return;
-        }
-
+      } else {
         setError(
-          caught instanceof ApiError && caught.statusCode === 403
-            ? 'You do not have reporting access for this scope.'
-            : 'We could not load the team overview. Please try again.',
+          describeLoadError(
+            dashboardResult.reason,
+            'We could not load the team overview. Please try again.',
+            'You do not have reporting access for this scope.',
+          ),
         );
+      }
+
+      if (membershipResult.status === 'fulfilled') {
+        setMemberships(membershipResult.value.items);
+        setMembershipError(null);
+      } else {
+        setMemberships([]);
+        setMembershipError(
+          describeLoadError(
+            membershipResult.reason,
+            'The team roster is temporarily unavailable. Live figures are still shown.',
+            'You do not have access to the team roster for this scope.',
+          ),
+        );
+      }
+
+      if (requestResult.status === 'fulfilled') {
+        setRequests(requestResult.value);
+      } else {
+        /* The queue is advisory; keep the dashboard usable if it is down. */
+        setRequests([]);
       }
     },
     [activeWorkspace?.teamId, period],
@@ -157,6 +179,15 @@ export default function TeamOverviewPage() {
           {error}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
             Try again
+          </Button>
+        </Alert>
+      ) : null}
+
+      {membershipError && !error ? (
+        <Alert tone="warning" title="Team roster is unavailable">
+          {membershipError}
+          <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
+            Retry roster
           </Button>
         </Alert>
       ) : null}
@@ -552,6 +583,22 @@ function donutGradient(series: Array<{ label: string; value: number }>): string 
     return `${colors[index]} ${start}deg ${cursor}deg`;
   });
   return `conic-gradient(${stops.join(', ')})`;
+}
+
+function describeLoadError(error: unknown, fallback: string, forbidden: string): string {
+  if (error instanceof ApiError) {
+    if (error.statusCode === 403) return forbidden;
+    if (error.statusCode === 0) {
+      return 'TrackRoster could not reach the API. Confirm the backend is running and try again.';
+    }
+    if (error.statusCode === 502 || error.statusCode === 503) {
+      return 'The backend service is unavailable. Start the API service and try again.';
+    }
+
+    return error.requestId ? `${error.message} (request ${error.requestId})` : error.message;
+  }
+
+  return fallback;
 }
 
 function MemberStatus({ member }: { member: TeamRosterRow }) {

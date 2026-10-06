@@ -23,12 +23,16 @@ export function ReservationPanel({
   prospectId,
   teamId,
   reservation,
+  reservationError,
+  acquireDisabled = false,
   onChanged,
 }: {
   campaignId: string;
   prospectId: string;
   teamId: string;
   reservation: ProspectReservationState | null;
+  reservationError?: string | null;
+  acquireDisabled?: boolean;
   onChanged: () => void;
 }) {
   const { language, locale } = useTranslation();
@@ -131,7 +135,16 @@ export function ReservationPanel({
       <CardHeader title={l('Reservation', 'Réservation')} />
 
       {reservation === null ? (
-        <div className="h-20 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />
+        reservationError ? (
+          <Alert tone="warning">
+            {reservationError}
+            <button className="ml-2 underline" onClick={onChanged}>
+              {l('Retry', 'Réessayer')}
+            </button>
+          </Alert>
+        ) : (
+          <div className="h-20 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />
+        )
       ) : (
         <div className="flex items-start gap-4">
           <span
@@ -202,7 +215,13 @@ export function ReservationPanel({
       ) : null}
 
       {reservation?.state === 'none' ? (
-        <Button fullWidth className="mt-4" loading={pending} onClick={() => void run('acquire')}>
+        <Button
+          fullWidth
+          className="mt-4"
+          loading={pending}
+          disabled={acquireDisabled}
+          onClick={() => void run('acquire')}
+        >
           {l('Reserve', 'Réserver')}
         </Button>
       ) : null}

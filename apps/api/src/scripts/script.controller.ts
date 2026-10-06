@@ -10,7 +10,16 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsArray, IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsArray,
+  IsEmail,
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { AuthGuard } from '../auth/auth.guard.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
@@ -39,7 +48,7 @@ class ScriptQuery {
   @IsOptional() @IsString() sector?: string;
 }
 class PreviewDto {
-  values!: Record<string, string>;
+  @IsOptional() @IsObject() values?: Record<string, string>;
 }
 class TestDto extends PreviewDto {
   @IsEmail() to!: string;

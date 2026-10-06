@@ -187,6 +187,27 @@ describe('TeamOverviewPage', () => {
     expect(await screen.findByText('684')).toBeInTheDocument();
   });
 
+  it('keeps live figures visible when the roster endpoint is unavailable', async () => {
+    const { ApiError } = await import('@/lib/api/api-error');
+
+    listMembershipsMock.mockRejectedValue(
+      new ApiError({
+        statusCode: 503,
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'capacity service unavailable',
+        error: 'Service Unavailable',
+      }),
+    );
+
+    render(<TeamOverviewPage />);
+
+    expect(await screen.findByText('684')).toBeInTheDocument();
+    expect(screen.getByText('Team roster is unavailable')).toBeInTheDocument();
+    expect(
+      screen.getByText('The backend service is unavailable. Start the API service and try again.'),
+    ).toBeInTheDocument();
+  });
+
   it('keeps the screen usable but flags that live figures failed', async () => {
     const { ApiError } = await import('@/lib/api/api-error');
 

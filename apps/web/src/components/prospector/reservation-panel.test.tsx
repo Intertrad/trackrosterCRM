@@ -27,8 +27,12 @@ const campaignId = '11111111-1111-4111-8111-111111111111';
 const prospectId = '22222222-2222-4222-8222-222222222222';
 const teamId = '33333333-3333-4333-8333-333333333333';
 
-function props(reservation: ProspectReservationState | null, onChanged = vi.fn()) {
-  return { campaignId, prospectId, teamId, reservation, onChanged };
+function props(
+  reservation: ProspectReservationState | null,
+  onChanged = vi.fn(),
+  reservationError?: string,
+) {
+  return { campaignId, prospectId, teamId, reservation, reservationError, onChanged };
 }
 
 describe('reservation claim', () => {
@@ -130,6 +134,19 @@ describe('reservation claim', () => {
     /* Unknown is not free: no claim action is offered yet. */
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
+  });
+
+  it('fails closed when reservation state cannot be loaded', () => {
+    render(<ReservationPanel {...props(null, vi.fn(), 'Reservation status unavailable.')} />);
+
+    expect(screen.getByText('Reservation status unavailable.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reserve' })).not.toBeInTheDocument();
+  });
+
+  it('does not acquire while collision authorization is unknown', () => {
+    render(<ReservationPanel {...props({ state: 'none' })} acquireDisabled />);
+
+    expect(screen.getByRole('button', { name: 'Reserve' })).toBeDisabled();
   });
 
   it('offers no claim when another user already holds it', () => {

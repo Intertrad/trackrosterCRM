@@ -294,7 +294,7 @@ export default function TodayPage() {
         <EmptyState filter={filter} totalToday={0} />
       ) : (
         <>
-          <Card className="overflow-hidden p-0 sm:p-0">
+          <Card className="overflow-visible p-0 sm:p-0">
             <div className="flex flex-col gap-3 border-b border-line-soft px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-5">
               <div>
                 <h2 className="text-[15px] font-extrabold tracking-[-0.015em] text-navy">

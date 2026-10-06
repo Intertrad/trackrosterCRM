@@ -60,6 +60,7 @@ export function PreferencesTab() {
       setDraft(result.resource);
       setEtag(result.etag);
       setSaved(true);
+      window.dispatchEvent(new Event('trackroster:preferences-changed'));
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.statusCode === 412
