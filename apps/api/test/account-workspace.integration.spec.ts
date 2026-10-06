@@ -4,7 +4,7 @@ import { RedisService } from '../src/redis/redis.service.js';
 import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/auth/password.service.js';
@@ -413,6 +413,10 @@ describe('Account and native workspace authentication', () => {
   it('rejects stale account edits without changing the stored profile', async () => {
     const tokens = await login();
     const before = await app.inject({ method: 'GET', url: '/api/v1/me', headers: headers(tokens) });
+    await database
+      .update(userAccessGrants)
+      .set({ role: 'manager' })
+      .where(and(eq(userAccessGrants.tenantId, tenantA), eq(userAccessGrants.userId, memberA)));
     const changed = await app.inject({
       method: 'PATCH',
       url: '/api/v1/me',

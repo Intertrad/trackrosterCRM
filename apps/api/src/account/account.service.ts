@@ -1,5 +1,5 @@
 import { membershipResourceScopes } from '../database/schema/resource-scopes.js';
-import { assertResourceMatches } from '../http/resource-etag.js';
+import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { publicTenantRoles } from '../authorization/public-roles.js';
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
@@ -64,6 +64,18 @@ export class AccountService {
       ...account,
       userId: account.membershipId,
       grants: await this.permissions(auth, executor),
+      // Keep profile writes conditional on fields this endpoint can edit. The
+      // grants and workspace labels are derived access data and may change
+      // while the profile form is open without changing the profile itself.
+      etag: resourceETag({
+        identityId: account.identityId,
+        membershipId: account.membershipId,
+        displayName: account.displayName,
+        phone: account.phone,
+        avatar: account.avatar,
+        locale: account.locale,
+        timezone: account.timezone,
+      }),
     };
   }
 
