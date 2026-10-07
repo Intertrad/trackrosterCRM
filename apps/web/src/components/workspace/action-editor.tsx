@@ -223,7 +223,7 @@ export function ActionEditor({
       // Carry only the person's changed fields over the latest record.
       for (const [name, value] of Object.entries(values))
         if (JSON.stringify(value) !== JSON.stringify(initial.current[name])) {
-          if (JSON.stringify(fresh.resource[name]) !== JSON.stringify(initial.current[name]))
+          if (JSON.stringify(latestInitial[name]) !== JSON.stringify(initial.current[name]))
             overlap.push(name);
           next[name] = value;
         }
