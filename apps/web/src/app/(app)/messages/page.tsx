@@ -17,11 +17,9 @@ import {
   LockKeyhole,
   MessageCircle,
   MessagesSquare,
-  MoreHorizontal,
   Paperclip,
   Pencil,
   Plus,
-  Reply,
   Search,
   Send,
   Smile,
@@ -116,7 +114,6 @@ export default function MessagesPage() {
   const [busy, setBusy] = useState(false);
   const [composerFile, setComposerFile] = useState<File | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [reactionOpenFor, setReactionOpenFor] = useState<string | null>(null);
   const [reactionBusy, setReactionBusy] = useState<string | null>(null);
   const [pendingAttachmentMessageId, setPendingAttachmentMessageId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -430,7 +427,6 @@ export default function MessagesPage() {
             message.id === messageId ? { ...message, reactions: result.reactions } : message,
           ) ?? current,
       );
-      setReactionOpenFor(null);
     } catch (caught) {
       setActionError(describeMessagingError(caught, t));
     } finally {
@@ -750,14 +746,6 @@ export default function MessagesPage() {
                   </button>
                   <button
                     type="button"
-                    aria-label={text('More conversation actions', 'Plus d’actions', language)}
-                    onClick={() => setSettingsOpen(true)}
-                    className="rounded-md p-2 text-ink-muted hover:bg-surface-muted hover:text-ink"
-                  >
-                    <MoreHorizontal aria-hidden="true" className="size-4" />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setMembersOpen(true)}
                     className="hidden items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] font-bold text-ink-soft hover:border-brand-pale hover:bg-brand-wash sm:flex"
                   >
@@ -1003,30 +991,6 @@ export default function MessagesPage() {
                                       ))}
                                     </div>
                                   ) : null}
-                                  {reactionOpenFor === message.id ? (
-                                    <div
-                                      role="toolbar"
-                                      aria-label={text(
-                                        'React to message',
-                                        'Réagir au message',
-                                        language,
-                                      )}
-                                      className={`mt-1 flex w-fit gap-1 rounded-xl border border-line bg-surface p-1.5 shadow-lg ${mine ? 'ml-auto' : ''}`}
-                                    >
-                                      {REACTION_EMOJIS.map((emoji) => (
-                                        <button
-                                          key={emoji}
-                                          type="button"
-                                          disabled={reactionBusy === message.id}
-                                          aria-label={emoji}
-                                          className="rounded-lg p-1 text-base hover:bg-surface-muted disabled:opacity-50"
-                                          onClick={() => void toggleReaction(message.id, emoji)}
-                                        >
-                                          {emoji}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  ) : null}
                                   <p
                                     className={`mt-1 flex items-center gap-1 px-1 text-[11px] text-ink-muted ${mine ? 'justify-end' : ''}`}
                                   >
@@ -1054,23 +1018,6 @@ export default function MessagesPage() {
                                 </div>
                                 {mine ? (
                                   <div className="flex items-center gap-0.5 pb-7 text-ink-muted">
-                                    <button
-                                      type="button"
-                                      aria-label={text(
-                                        'React to message',
-                                        'Réagir au message',
-                                        language,
-                                      )}
-                                      title={text('Add reaction', 'Ajouter une réaction', language)}
-                                      className="rounded-full p-1.5 text-ink-muted hover:bg-surface-muted hover:text-ink"
-                                      onClick={() =>
-                                        setReactionOpenFor((current) =>
-                                          current === message.id ? null : message.id,
-                                        )
-                                      }
-                                    >
-                                      <Smile aria-hidden="true" className="size-4" />
-                                    </button>
                                     {message.status === 'sent' &&
                                     participantsLoaded &&
                                     !readByOther ? (
@@ -1103,63 +1050,6 @@ export default function MessagesPage() {
                                         <Trash2 aria-hidden="true" className="size-3.5" />
                                       </button>
                                     ) : null}
-                                  </div>
-                                ) : null}
-                                {!mine ? (
-                                  <div className="mb-7 flex items-center gap-0.5 text-ink-muted">
-                                    <button
-                                      type="button"
-                                      aria-label={text(
-                                        'React to message',
-                                        'Réagir au message',
-                                        language,
-                                      )}
-                                      title={text('Add reaction', 'Ajouter une réaction', language)}
-                                      className="rounded-full p-1.5 text-ink-muted hover:bg-surface-muted hover:text-ink"
-                                      onClick={() =>
-                                        setReactionOpenFor((current) =>
-                                          current === message.id ? null : message.id,
-                                        )
-                                      }
-                                    >
-                                      <Smile aria-hidden="true" className="size-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      aria-label={text(
-                                        'Reply to message',
-                                        'Répondre au message',
-                                        language,
-                                      )}
-                                      className="rounded-full p-1.5 hover:bg-surface-muted hover:text-ink"
-                                      onClick={() => {
-                                        setDraft(
-                                          draft
-                                            ? `${draft}\n\n> ${message.body}`
-                                            : `> ${message.body}\n\n`,
-                                        );
-                                        requestAnimationFrame(() => composerInput.current?.focus());
-                                      }}
-                                    >
-                                      <Reply aria-hidden="true" className="size-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled
-                                      aria-label={text(
-                                        'More message actions',
-                                        'Plus d’actions sur le message',
-                                        language,
-                                      )}
-                                      title={text(
-                                        'More message actions are not configured',
-                                        'Les autres actions ne sont pas configurées',
-                                        language,
-                                      )}
-                                      className="rounded-full p-1.5 text-ink-muted opacity-50"
-                                    >
-                                      <MoreHorizontal aria-hidden="true" className="size-4" />
-                                    </button>
                                   </div>
                                 ) : null}
                               </div>
