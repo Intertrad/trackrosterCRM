@@ -206,6 +206,9 @@ export function ActionEditor({
     overlap: string[];
   } | null> {
     if (!reloadKey) return null;
+    // A manual reload starts a new recovery opportunity. Do not leave a
+    // previous failed automatic retry blocking the reviewed save.
+    autoRecovered.current = false;
     setBusy(true);
     try {
       const fresh = await readOperation(reloadKey, context);

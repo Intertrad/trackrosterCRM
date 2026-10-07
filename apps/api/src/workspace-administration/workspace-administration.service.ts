@@ -140,22 +140,7 @@ export class WorkspaceAdministrationService {
       // is derived from assignments and can change while this form is open.
       // Timestamps are also excluded because they are bookkeeping fields,
       // rather than values this editor can change.
-      etag: resourceETag({
-        id: row.id,
-        tenantId: row.tenantId,
-        name: row.name,
-        slug: row.slug,
-        shortName: row.shortName,
-        phone: row.phone,
-        email: row.email,
-        website: row.website,
-        address: row.address,
-        color: row.color,
-        currency: row.currency,
-        argumentaire: row.argumentaire,
-        prospectedSectors: row.prospectedSectors,
-        status: row.status,
-      }),
+      etag: this.organizationETag(row),
     };
   }
 
@@ -186,7 +171,10 @@ export class WorkspaceAdministrationService {
         .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.id, id)))
         .for('update');
       if (!before) throw new NotFoundException('Organization not found');
-      assertResourceMatches(ifMatch, await this.organization(auth, id, transaction));
+      // Compare against the row locked above. The enriched organization read
+      // also contains derived summary data, which can change independently
+      // while an edit form is open and must not affect this validator.
+      assertResourceMatches(ifMatch, { etag: this.organizationETag(before) });
       if (input.status === 'inactive') {
         const participation = await transaction.execute(
           sql`SELECT id FROM campaign_organizations WHERE tenant_id = ${auth.tenantId} AND organization_id = ${id} AND ended_at IS NULL LIMIT 1`,
@@ -622,6 +610,25 @@ export class WorkspaceAdministrationService {
   private requireFields(input: object) {
     if (!Object.values(input).some((value) => value !== undefined))
       throw new BadRequestException('At least one update field is required');
+  }
+
+  private organizationETag(row: typeof organizations.$inferSelect): string {
+    return resourceETag({
+      id: row.id,
+      tenantId: row.tenantId,
+      name: row.name,
+      slug: row.slug,
+      shortName: row.shortName,
+      phone: row.phone,
+      email: row.email,
+      website: row.website,
+      address: row.address,
+      color: row.color,
+      currency: row.currency,
+      argumentaire: row.argumentaire,
+      prospectedSectors: row.prospectedSectors,
+      status: row.status,
+    });
   }
 
   private searchPattern(search: string) {
