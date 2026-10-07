@@ -105,6 +105,20 @@ export function ActionEditor({
     if (dirty) setDiscard(true);
     else onClose();
   };
+
+  function bodyFor(nextValues: DataRecord, baseline: DataRecord) {
+    const body = serializeFields(operation.fields, nextValues);
+    if (operation.method === 'PATCH')
+      for (const field of operation.fields) {
+        if (
+          field.optional &&
+          JSON.stringify(nextValues[field.name]) === JSON.stringify(baseline[field.name])
+        )
+          delete body[field.name];
+      }
+    return body;
+  }
+
   async function save() {
     if (inFlight.current) return;
     const found = {
@@ -119,15 +133,7 @@ export function ActionEditor({
       );
       return;
     }
-    const body = serializeFields(operation.fields, values);
-    if (operation.method === 'PATCH')
-      for (const field of operation.fields) {
-        if (
-          field.optional &&
-          JSON.stringify(values[field.name]) === JSON.stringify(initial.current[field.name])
-        )
-          delete body[field.name];
-      }
+    const body = bodyFor(values, initial.current);
     const params = { ...context, ...parameters };
     const fingerprint = JSON.stringify({ operation: action.operation, params, body, etag });
     if (attempt.current?.body !== fingerprint)
@@ -154,7 +160,38 @@ export function ActionEditor({
       ) {
         autoRecovered.current = true;
         const recovered = await compareLatest();
-        if (recovered) return;
+        if (recovered) {
+          if (recovered.overlap.length > 0) {
+            setError(caught);
+            return;
+          }
+          const retryParams = { ...context, ...parameters };
+          const retryBody = bodyFor(recovered.values, recovered.initial);
+          const retryKey = crypto.randomUUID();
+          const retryFingerprint = JSON.stringify({
+            operation: action.operation,
+            params: retryParams,
+            body: retryBody,
+            etag: recovered.etag,
+          });
+          attempt.current = { body: retryFingerprint, key: retryKey };
+          try {
+            const response = await writeOperation(
+              action.operation,
+              retryParams,
+              retryBody,
+              retryKey,
+              recovered.etag,
+            );
+            setResult(response.resource);
+            setSaved(true);
+            onSaved(response);
+            return;
+          } catch (retryCaught) {
+            setError(retryCaught instanceof Error ? retryCaught : new Error('Request failed'));
+            return;
+          }
+        }
       }
       setError(caught instanceof Error ? caught : new Error('Request failed'));
     } finally {
@@ -162,8 +199,13 @@ export function ActionEditor({
       setBusy(false);
     }
   }
-  async function compareLatest(): Promise<boolean> {
-    if (!reloadKey) return false;
+  async function compareLatest(): Promise<{
+    values: DataRecord;
+    initial: DataRecord;
+    etag: string | null;
+    overlap: string[];
+  } | null> {
+    if (!reloadKey) return null;
     setBusy(true);
     try {
       const fresh = await readOperation(reloadKey, context);
@@ -175,20 +217,26 @@ export function ActionEditor({
             language,
           ),
         );
-      const next = initialValues(operation.fields, fresh.resource);
+      const latestInitial = initialValues(operation.fields, fresh.resource);
+      const next = { ...latestInitial };
+      const overlap: string[] = [];
       // Carry only the person's changed fields over the latest record.
       for (const [name, value] of Object.entries(values))
-        if (JSON.stringify(value) !== JSON.stringify(initial.current[name])) next[name] = value;
-      initial.current = initialValues(operation.fields, fresh.resource);
+        if (JSON.stringify(value) !== JSON.stringify(initial.current[name])) {
+          if (JSON.stringify(fresh.resource[name]) !== JSON.stringify(initial.current[name]))
+            overlap.push(name);
+          next[name] = value;
+        }
+      initial.current = latestInitial;
       setValues(next);
       setEtag(fresh.etag);
       setError(null);
       setCompared(true);
       attempt.current = null;
-      return true;
+      return { values: next, initial: latestInitial, etag: fresh.etag, overlap };
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('Request failed'));
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
