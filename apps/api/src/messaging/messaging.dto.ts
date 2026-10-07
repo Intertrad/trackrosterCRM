@@ -63,6 +63,10 @@ export class SendMessageDto {
   @IsString() @MinLength(1) @MaxLength(MAX_MESSAGE_BODY) body!: string;
 }
 
+export class ToggleMessageReactionDto {
+  @IsString() @MinLength(1) @MaxLength(32) emoji!: string;
+}
+
 export class MuteConversationDto {
   /*
    * null clears the mute. An unparseable string previously reached

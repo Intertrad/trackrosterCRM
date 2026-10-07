@@ -52,6 +52,7 @@ import {
   muteConversation,
   removeParticipant,
   sendMessage,
+  toggleMessageReaction,
   updateConversation,
 } from '@/lib/api/messaging-client';
 import { uploadMessageAttachment } from '@/lib/api/message-attachment-client';
@@ -71,6 +72,8 @@ import {
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation, type Translate } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
+
+const REACTION_EMOJIS = ['🙂', '👍', '❤️', '🎉', '😂', '😮', '😢'] as const;
 
 export default function MessagesPage() {
   const { user } = useAuth();
@@ -113,6 +116,8 @@ export default function MessagesPage() {
   const [busy, setBusy] = useState(false);
   const [composerFile, setComposerFile] = useState<File | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [reactionOpenFor, setReactionOpenFor] = useState<string | null>(null);
+  const [reactionBusy, setReactionBusy] = useState<string | null>(null);
   const [pendingAttachmentMessageId, setPendingAttachmentMessageId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const composerFileId = useId();
@@ -284,14 +289,33 @@ export default function MessagesPage() {
     [me, participants],
   );
 
-  function nameFor(conversation: Conversation, members: ConversationParticipant[]): string {
-    const others = members
+  function participantContacts(
+    conversation: Conversation,
+    members?: ConversationParticipant[],
+  ): MessagingMember[] {
+    const listedContacts = (conversation.participants ?? []).filter(
+      (participant) => participant.membershipId !== me,
+    );
+    if (listedContacts.length > 0) {
+      return listedContacts;
+    }
+
+    /* Keep the selected thread usable while an older API build is rolling out. */
+    const fallbackMembers = members ?? (conversation.id === activeId ? participants : []);
+    return fallbackMembers
       .filter((participant) => participant.membershipId !== me)
       .map((participant) => people.get(participant.membershipId))
-      .filter((person): person is MessagingMember => Boolean(person))
-      .map((person) => membershipName(person));
+      .filter((person): person is MessagingMember => Boolean(person));
+  }
 
-    return conversationName(conversation, t, others);
+  function nameFor(conversation: Conversation, members?: ConversationParticipant[]): string {
+    const contacts = participantContacts(conversation, members);
+
+    return conversationName(
+      conversation,
+      t,
+      contacts.map((person) => membershipName(person)),
+    );
   }
 
   const visible = useMemo(() => {
@@ -304,7 +328,7 @@ export default function MessagesPage() {
     const filtered = conversations.filter((conversation) => {
       const sender = conversation.latestMessage?.sender;
       const haystack = [
-        conversationName(conversation, t, sender ? [membershipName(sender)] : []),
+        nameFor(conversation),
         conversation.latestMessage?.body,
         sender ? membershipName(sender) : undefined,
         sender?.designation,
@@ -327,7 +351,7 @@ export default function MessagesPage() {
       const rightTime = Date.parse(right.latestMessage?.createdAt ?? right.updatedAt);
       return sortOrder === 'newest' ? rightTime - leftTime : leftTime - rightTime;
     });
-  }, [conversations, search, filter, t, me, sortOrder]);
+  }, [conversations, search, filter, t, me, sortOrder, participants, people, activeId]);
 
   const filterCounts = useMemo(() => {
     const items = conversations ?? [];
@@ -391,6 +415,26 @@ export default function MessagesPage() {
       setActionError(describeMessagingError(caught, t));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function toggleReaction(messageId: string, emoji: string): Promise<void> {
+    if (reactionBusy) return;
+    setReactionBusy(messageId);
+    setActionError(null);
+    try {
+      const result = await toggleMessageReaction(messageId, emoji);
+      setMessages(
+        (current) =>
+          current?.map((message) =>
+            message.id === messageId ? { ...message, reactions: result.reactions } : message,
+          ) ?? current,
+      );
+      setReactionOpenFor(null);
+    } catch (caught) {
+      setActionError(describeMessagingError(caught, t));
+    } finally {
+      setReactionBusy(null);
     }
   }
 
@@ -535,12 +579,8 @@ export default function MessagesPage() {
                 <ul>
                   {visible.map((conversation, index) => {
                     const latest = conversation.latestMessage;
-                    const latestSender = latest?.sender ?? null;
-                    const subject = conversationName(
-                      conversation,
-                      t,
-                      latestSender ? [membershipName(latestSender)] : [],
-                    );
+                    const contacts = participantContacts(conversation);
+                    const subject = nameFor(conversation);
                     const unread = latest?.sender?.membershipId !== me;
                     const waiting = latest?.sender?.membershipId === me;
                     const isOverdue = waiting && isOlderThan(latest?.createdAt, 48);
@@ -575,8 +615,8 @@ export default function MessagesPage() {
                           <span
                             className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-[12px] font-extrabold ${unread ? 'bg-brand-tint text-brand' : 'bg-surface-muted text-ink-muted'}`}
                           >
-                            {latestSender ? (
-                              initials(latestSender)
+                            {contacts[0] ? (
+                              initials(contacts[0])
                             ) : (
                               <MessageCircle aria-hidden="true" className="size-4" />
                             )}
@@ -593,8 +633,8 @@ export default function MessagesPage() {
                               </span>
                             </span>
                             <span className="mt-0.5 block truncate text-[12px] text-ink-muted">
-                              {latestSender
-                                ? `${membershipName(latestSender)} · ${formatDesignation(latestSender.designation)}`
+                              {contacts[0]
+                                ? `${membershipName(contacts[0])} · ${formatDesignation(contacts[0].designation)}`
                                 : t(conversationKindLabelKey(conversation.kind))}
                             </span>
                             <span className="mt-1 flex items-center gap-2">
@@ -938,6 +978,55 @@ export default function MessagesPage() {
                                       />
                                     ) : null}
                                   </div>
+                                  {message.reactions?.length ? (
+                                    <div
+                                      className={`mt-1 flex flex-wrap gap-1 ${mine ? 'justify-end' : ''}`}
+                                    >
+                                      {message.reactions.map((reaction) => (
+                                        <button
+                                          key={reaction.emoji}
+                                          type="button"
+                                          disabled={reactionBusy === message.id}
+                                          aria-pressed={reaction.reacted}
+                                          aria-label={text(
+                                            `${reaction.emoji} reaction, ${reaction.count}`,
+                                            `Réaction ${reaction.emoji}, ${reaction.count}`,
+                                            language,
+                                          )}
+                                          className={`rounded-full border px-2 py-0.5 text-[12px] shadow-sm transition ${reaction.reacted ? 'border-brand bg-brand-wash text-brand' : 'border-line bg-surface text-ink-soft'} disabled:opacity-50`}
+                                          onClick={() =>
+                                            void toggleReaction(message.id, reaction.emoji)
+                                          }
+                                        >
+                                          {reaction.emoji} {reaction.count}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {reactionOpenFor === message.id ? (
+                                    <div
+                                      role="toolbar"
+                                      aria-label={text(
+                                        'React to message',
+                                        'Réagir au message',
+                                        language,
+                                      )}
+                                      className={`mt-1 flex w-fit gap-1 rounded-xl border border-line bg-surface p-1.5 shadow-lg ${mine ? 'ml-auto' : ''}`}
+                                    >
+                                      {REACTION_EMOJIS.map((emoji) => (
+                                        <button
+                                          key={emoji}
+                                          type="button"
+                                          disabled={reactionBusy === message.id}
+                                          aria-label={emoji}
+                                          className="rounded-lg p-1 text-base hover:bg-surface-muted disabled:opacity-50"
+                                          onClick={() => void toggleReaction(message.id, emoji)}
+                                        >
+                                          {emoji}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                   <p
                                     className={`mt-1 flex items-center gap-1 px-1 text-[11px] text-ink-muted ${mine ? 'justify-end' : ''}`}
                                   >
@@ -964,7 +1053,24 @@ export default function MessagesPage() {
                                   </p>
                                 </div>
                                 {mine ? (
-                                  <div className="hidden items-center gap-0.5 pb-7 text-ink-muted group-hover:flex sm:flex">
+                                  <div className="flex items-center gap-0.5 pb-7 text-ink-muted">
+                                    <button
+                                      type="button"
+                                      aria-label={text(
+                                        'React to message',
+                                        'Réagir au message',
+                                        language,
+                                      )}
+                                      title={text('Add reaction', 'Ajouter une réaction', language)}
+                                      className="rounded-full p-1.5 text-ink-muted hover:bg-surface-muted hover:text-ink"
+                                      onClick={() =>
+                                        setReactionOpenFor((current) =>
+                                          current === message.id ? null : message.id,
+                                        )
+                                      }
+                                    >
+                                      <Smile aria-hidden="true" className="size-4" />
+                                    </button>
                                     {message.status === 'sent' &&
                                     participantsLoaded &&
                                     !readByOther ? (
@@ -1000,7 +1106,7 @@ export default function MessagesPage() {
                                   </div>
                                 ) : null}
                                 {!mine ? (
-                                  <div className="mb-7 hidden items-center gap-0.5 text-ink-muted group-hover:flex sm:flex">
+                                  <div className="mb-7 flex items-center gap-0.5 text-ink-muted">
                                     <button
                                       type="button"
                                       aria-label={text(
@@ -1008,12 +1114,13 @@ export default function MessagesPage() {
                                         'Réagir au message',
                                         language,
                                       )}
-                                      title={text('Insert a smile', 'Insérer un sourire', language)}
+                                      title={text('Add reaction', 'Ajouter une réaction', language)}
                                       className="rounded-full p-1.5 text-ink-muted hover:bg-surface-muted hover:text-ink"
-                                      onClick={() => {
-                                        setDraft(`${draft}🙂`);
-                                        requestAnimationFrame(() => composerInput.current?.focus());
-                                      }}
+                                      onClick={() =>
+                                        setReactionOpenFor((current) =>
+                                          current === message.id ? null : message.id,
+                                        )
+                                      }
                                     >
                                       <Smile aria-hidden="true" className="size-4" />
                                     </button>
@@ -1170,7 +1277,7 @@ export default function MessagesPage() {
                               aria-label={text('Emoji', 'Emojis', language)}
                               className="absolute bottom-10 left-0 z-30 flex gap-1 rounded-xl border border-line bg-surface p-2 shadow-lg"
                             >
-                              {['🙂', '👍', '❤️', '🎉', '😂', '😮', '😢'].map((emoji) => (
+                              {REACTION_EMOJIS.map((emoji) => (
                                 <button
                                   key={emoji}
                                   type="button"

@@ -16,6 +16,9 @@ export interface Conversation {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  /** Participants are included in inbox listings so contact identity does
+   * not change when the latest message was sent by the viewer. */
+  participants?: MessagingMember[];
   latestMessage?: {
     id: string;
     body: string;
@@ -59,6 +62,11 @@ export interface MessageAttachment {
   contentType: string;
   byteSize: number;
 }
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+}
 export interface Message {
   attachments?: MessageAttachment[];
   id: string;
@@ -70,6 +78,7 @@ export interface Message {
   createdAt: string;
   updatedAt: string;
   sender?: MessagingMember | null;
+  reactions?: MessageReaction[];
 }
 
 /**

@@ -88,3 +88,28 @@ export const messages = pgTable(
     index('messages_conversation_created_idx').on(t.tenantId, t.conversationId, t.createdAt),
   ],
 );
+
+export const messageReactions = pgTable(
+  'message_reactions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tenantId: uuid('tenant_id').notNull(),
+    messageId: uuid('message_id').notNull(),
+    membershipId: uuid('membership_id').notNull(),
+    emoji: varchar('emoji', { length: 32 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
+  },
+  (t) => [
+    unique('message_reactions_member_emoji_unique').on(
+      t.tenantId,
+      t.messageId,
+      t.membershipId,
+      t.emoji,
+    ),
+    foreignKey({
+      columns: [t.tenantId, t.membershipId],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
+    }),
+    index('message_reactions_message_idx').on(t.tenantId, t.messageId),
+  ],
+);

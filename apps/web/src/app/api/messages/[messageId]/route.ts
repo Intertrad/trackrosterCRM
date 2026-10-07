@@ -44,3 +44,25 @@ export async function DELETE(
     return apiErrorResponse(error);
   }
 }
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ messageId: string }> },
+): Promise<Response> {
+  try {
+    const { messageId } = await context.params;
+    const result = await authenticatedBackendJson<{
+      messageId: string;
+      reactions: Array<{ emoji: string; count: number; reacted: boolean }>;
+    }>(`/messages/${encodeURIComponent(messageId)}/reactions`, {
+      method: 'POST',
+      headers: writeHeaders(request),
+      body: await request.text(),
+    });
+
+    if (!result) return unauthenticatedResponse();
+    return Response.json(result, { headers: { 'cache-control': 'no-store' } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}

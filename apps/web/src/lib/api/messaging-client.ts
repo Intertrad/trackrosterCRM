@@ -5,6 +5,7 @@ import type {
   ConversationPage,
   ConversationParticipant,
   Message,
+  MessageReaction,
   MessagePage,
   MessagingMember,
 } from './messaging-types';
@@ -146,6 +147,20 @@ export function deleteMessage(messageId: string): Promise<void> {
     method: 'DELETE',
     headers: writeHeaders(),
   });
+}
+
+export function toggleMessageReaction(
+  messageId: string,
+  emoji: string,
+): Promise<{ messageId: string; reactions: MessageReaction[] }> {
+  return browserJson<{ messageId: string; reactions: MessageReaction[] }>(
+    `/api/messages/${encodeURIComponent(messageId)}/reactions`,
+    {
+      method: 'POST',
+      headers: writeHeaders(),
+      body: JSON.stringify({ emoji }),
+    },
+  );
 }
 
 export function markConversationRead(conversationId: string): Promise<unknown> {

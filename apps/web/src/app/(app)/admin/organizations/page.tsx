@@ -87,6 +87,7 @@ function Companies() {
   const l = (en: string, fr: string) => text(en, fr, language);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'incomplete'>('all');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [detailError, setDetailError] = useState(false);
   const [selected, setSelected] = useState<DataRecord | null>(null);
   const [detail, setDetail] = useState<DataRecord | null>(null);
@@ -110,7 +111,7 @@ function Companies() {
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return (rows ?? []).filter((row) => {
+    const filtered = (rows ?? []).filter((row) => {
       const progress = profileProgress(row);
       const matchesFilter =
         filter === 'all' ||
@@ -126,7 +127,16 @@ function Companies() {
         );
       return matchesFilter && matchesSearch;
     });
-  }, [filter, rows, search]);
+    const collator = new Intl.Collator(language, { numeric: true, sensitivity: 'base' });
+    return filtered.sort((left, right) => {
+      const leftName = String(left.shortName ?? left.name ?? left.slug ?? '');
+      const rightName = String(right.shortName ?? right.name ?? right.slug ?? '');
+      const byName = collator.compare(leftName, rightName);
+      const byId = String(left.id).localeCompare(String(right.id));
+      const result = byName || byId;
+      return sortDirection === 'asc' ? result : -result;
+    });
+  }, [filter, language, rows, search, sortDirection]);
 
   const counts = useMemo(() => {
     const all = rows ?? [];
@@ -253,9 +263,16 @@ function Companies() {
           ))}
           <button
             type="button"
-            className="ml-auto flex items-center gap-1 text-sm font-semibold text-ink-muted"
+            aria-label={l('Sort companies by name', 'Trier les entreprises par nom')}
+            aria-pressed="true"
+            onClick={() => setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))}
+            className="ml-auto flex items-center gap-1 text-sm font-semibold text-ink-muted hover:text-brand"
           >
-            {l('Name A–Z', 'Nom A–Z')} <ChevronDown aria-hidden="true" className="size-4" />
+            {sortDirection === 'asc' ? l('Name A–Z', 'Nom A–Z') : l('Name Z–A', 'Nom Z–A')}{' '}
+            <ChevronDown
+              aria-hidden="true"
+              className={`size-4 transition-transform ${sortDirection === 'desc' ? 'rotate-180' : ''}`}
+            />
           </button>
         </div>
       </div>

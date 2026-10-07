@@ -33,7 +33,7 @@ import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import { EstablishmentService } from '../establishments/establishment.service.js';
 import { normalizeEstablishmentName } from '../establishments/establishment.utils.js';
-import { assertResourceMatches } from '../http/resource-etag.js';
+import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { masterAccess, ProspectAccessService } from './prospect-access.service.js';
 import {
   AddressDto,
@@ -85,6 +85,30 @@ export class ProspectMasterService {
       throw e;
     }
   }
+
+  private prospectETag(row: unknown): string {
+    const value = row as Record<string, unknown>;
+    return resourceETag({
+      id: value.id,
+      tenantId: value.tenantId,
+      regionId: value.regionId,
+      externalReference: value.externalReference,
+      name: value.name,
+      normalizedName: value.normalizedName,
+      addressLine1: value.addressLine1,
+      postalCode: value.postalCode,
+      city: value.city,
+      countryCode: value.countryCode,
+      phone: value.phone,
+      website: value.website,
+      latitude: value.latitude,
+      longitude: value.longitude,
+      status: value.status,
+      source: value.source,
+      category: value.category,
+    });
+  }
+
   async list(a: AuthenticatedPrincipal, q: ListProspectsDto) {
     const scope = and(
       eq(establishments.tenantId, a.tenantId),
@@ -199,6 +223,10 @@ export class ProspectMasterService {
         .filter((r) => r.targetId === id)
         .map((r) => r.sourceId)
         .sort(),
+      // Keep the validator tied to the stored prospect row. Tags, custom
+      // fields, merge metadata, and generated geometry are enriched reads and
+      // must not make an otherwise unchanged edit appear stale.
+      etag: this.prospectETag(record),
     };
   }
   /*
@@ -261,7 +289,10 @@ export class ProspectMasterService {
         .where(and(eq(establishments.tenantId, a.tenantId), eq(establishments.id, id)))
         .for('update');
       const current = await this.access.prospect(a, id, true, tx);
-      assertResourceMatches(version, await this.get(a, id, tx));
+      // `current` is read after the row lock, so it is the authoritative
+      // version to compare against. The enriched GET contains derived data
+      // that is intentionally excluded from this validator.
+      assertResourceMatches(version, { etag: this.prospectETag(current) });
       if (!transition && input.status !== undefined)
         throw new BadRequestException('Use archive or restore for prospect status changes');
       if (!transition && current.status === 'archived')

@@ -26,6 +26,7 @@ import {
   conversations,
   conversationParticipants,
   messages,
+  messageReactions,
   messageAttachments,
   identities,
   tenantMemberships,
@@ -40,10 +41,13 @@ import {
   CreateConversationDto,
   MuteConversationDto,
   SendMessageDto,
+  ToggleMessageReactionDto,
   UpdateConversationDto,
 } from './messaging.dto.js';
 
 type Auth = AuthenticatedPrincipal;
+
+const REACTION_EMOJIS = new Set(['🙂', '👍', '❤️', '🎉', '😂', '😮', '😢']);
 
 const page = (n?: number) => Math.min(Math.max(n ?? 50, 1), 100);
 
@@ -217,10 +221,47 @@ export class MessagingService {
     const latestSenderByMembership = new Map(
       latestSenders.map((profile) => [profile.membershipId, profile]),
     );
+    /*
+     * The inbox needs the conversation participant independently from the
+     * latest message author. If the current user sent the latest reply, the
+     * contact must still be shown in the list. Load the participant profiles
+     * in one batch so the list does not make one request per conversation.
+     */
+    const participantRows = items.length
+      ? await this.db
+          .select({
+            conversationId: conversationParticipants.conversationId,
+            membershipId: conversationParticipants.membershipId,
+          })
+          .from(conversationParticipants)
+          .where(
+            and(
+              eq(conversationParticipants.tenantId, a.tenantId),
+              inArray(
+                conversationParticipants.conversationId,
+                items.map((conversation) => conversation.id),
+              ),
+            ),
+          )
+      : [];
+    const participantIds = [...new Set(participantRows.map((row) => row.membershipId))];
+    const participantProfiles = participantIds.length ? await this.profiles(a, participantIds) : [];
+    const participantByMembership = new Map(
+      participantProfiles.map((profile) => [profile.membershipId, profile]),
+    );
+    const participantsByConversation = new Map<string, typeof participantProfiles>();
+    for (const row of participantRows) {
+      const profile = participantByMembership.get(row.membershipId);
+      if (!profile) continue;
+      const current = participantsByConversation.get(row.conversationId) ?? [];
+      current.push(profile);
+      participantsByConversation.set(row.conversationId, current);
+    }
     const inboxItems = items.map((conversation) => {
       const latest = latestByConversation.get(conversation.id);
       return {
         ...conversation,
+        participants: participantsByConversation.get(conversation.id) ?? [],
         latestMessage: latest
           ? {
               id: latest.id,
@@ -434,15 +475,99 @@ export class MessagingService {
             ),
           )
       : [];
+    const reactionRows = visibleIds.length
+      ? await this.db
+          .select({
+            messageId: messageReactions.messageId,
+            membershipId: messageReactions.membershipId,
+            emoji: messageReactions.emoji,
+          })
+          .from(messageReactions)
+          .where(
+            and(
+              eq(messageReactions.tenantId, a.tenantId),
+              inArray(messageReactions.messageId, visibleIds),
+            ),
+          )
+      : [];
+    const reactionsByMessage = this.groupReactions(reactionRows, a.membershipId);
     const last = items.at(-1);
     return {
       items: items.map((message) => ({
         ...message,
         sender: profileByMembership.get(message.senderId) ?? null,
         attachments: attachments.filter((attachment) => attachment.messageId === message.id),
+        reactions: reactionsByMessage.get(message.id) ?? [],
       })),
       nextCursor: rows.length > limit && last ? encodeCursor(last.createdAt, last.id) : null,
     };
+  }
+
+  private groupReactions(
+    rows: Array<{ messageId: string; membershipId: string; emoji: string }>,
+    membershipId: string,
+  ) {
+    const grouped = new Map<string, Map<string, { count: number; reacted: boolean }>>();
+    for (const row of rows) {
+      const byEmoji = grouped.get(row.messageId) ?? new Map();
+      const current = byEmoji.get(row.emoji) ?? { count: 0, reacted: false };
+      current.count += 1;
+      current.reacted ||= row.membershipId === membershipId;
+      byEmoji.set(row.emoji, current);
+      grouped.set(row.messageId, byEmoji);
+    }
+    return new Map(
+      [...grouped].map(([messageId, byEmoji]) => [
+        messageId,
+        [...byEmoji].map(([emoji, value]) => ({ emoji, ...value })),
+      ]),
+    );
+  }
+
+  async toggleReaction(a: Auth, id: string, emoji: string) {
+    if (!REACTION_EMOJIS.has(emoji)) throw new BadRequestException('Unsupported reaction');
+    const [message] = await this.db
+      .select({ conversationId: messages.conversationId, status: messages.status })
+      .from(messages)
+      .where(and(eq(messages.tenantId, a.tenantId), eq(messages.id, id)));
+    if (!message) throw new NotFoundException('Message not found');
+    if (message.status === 'deleted')
+      throw new BadRequestException('Deleted messages cannot be reacted to');
+    await this.member(a, message.conversationId);
+
+    const [existing] = await this.db
+      .select({ id: messageReactions.id })
+      .from(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.tenantId, a.tenantId),
+          eq(messageReactions.messageId, id),
+          eq(messageReactions.membershipId, a.membershipId),
+          eq(messageReactions.emoji, emoji),
+        ),
+      );
+    if (existing) {
+      await this.db.delete(messageReactions).where(eq(messageReactions.id, existing.id));
+    } else {
+      await this.db
+        .insert(messageReactions)
+        .values({
+          tenantId: a.tenantId,
+          messageId: id,
+          membershipId: a.membershipId,
+          emoji,
+        })
+        .onConflictDoNothing();
+    }
+    const rows = await this.db
+      .select({
+        messageId: messageReactions.messageId,
+        membershipId: messageReactions.membershipId,
+        emoji: messageReactions.emoji,
+      })
+      .from(messageReactions)
+      .where(and(eq(messageReactions.tenantId, a.tenantId), eq(messageReactions.messageId, id)));
+    return { messageId: id, reactions: this.groupReactions(rows, a.membershipId).get(id) ?? [] };
   }
   async send(a: Auth, id: string, body: string) {
     await this.member(a, id);
@@ -635,6 +760,13 @@ export class MessageController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.s.remove(a, id);
+  }
+  @Post(':id/reactions') toggleReaction(
+    @CurrentAuth() a: Auth,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() d: ToggleMessageReactionDto,
+  ) {
+    return this.s.toggleReaction(a, id, d.emoji);
   }
 }
 @Module({

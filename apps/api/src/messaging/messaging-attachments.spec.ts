@@ -6,6 +6,7 @@ import type { Database } from '../database/database.types.js';
 import {
   conversationParticipants,
   messages,
+  messageReactions,
   messageAttachments,
   tenantMemberships,
 } from '../database/schema/index.js';
@@ -22,11 +23,17 @@ function fixture(member = true) {
       byteSize: 120,
     },
   ]);
+  const reactionsWhere = vi.fn().mockResolvedValue([]);
+  let attachmentsProjection: unknown;
   const select = vi.fn((projection?: unknown) => ({
     from: (table: unknown) => {
       if (table === conversationParticipants)
         return { where: vi.fn().mockResolvedValue(member ? [{ id: 'participant' }] : []) };
-      if (table === messageAttachments) return { where: attachmentsWhere };
+      if (table === messageAttachments) {
+        attachmentsProjection = projection;
+        return { where: attachmentsWhere };
+      }
+      if (table === messageReactions) return { where: reactionsWhere };
       if (table === messages)
         return {
           where: () => ({
@@ -68,19 +75,19 @@ function fixture(member = true) {
     service: new MessagingService({ select } as unknown as Database),
     select,
     attachmentsWhere,
+    attachmentsProjection: () => attachmentsProjection,
   };
 }
 
 describe('message attachment metadata', () => {
   it('batches only visible message attachments within the caller tenant and hides storage keys', async () => {
-    const { service, select, attachmentsWhere } = fixture();
+    const { service, attachmentsWhere, attachmentsProjection } = fixture();
     const result = await service.listMessages(auth, 'conversation', { limit: 100 });
     expect(result.items[0]?.attachments).toHaveLength(1);
     expect(result.items[1]?.attachments).toEqual([]);
     const query = new PgDialect().sqlToQuery(attachmentsWhere.mock.calls[0]![0]);
     expect(query.params).toEqual(['tenant-a', 'message']);
-    const projection = select.mock.calls.at(-1)![0];
-    expect(Object.keys(projection as object)).toEqual([
+    expect(Object.keys(attachmentsProjection() as object)).toEqual([
       'id',
       'messageId',
       'filename',

@@ -617,6 +617,13 @@
       "when": 1791195996241,
       "tag": "0087_mixed_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1791365781819,
+      "tag": "0088_cloudy_guardsmen",
+      "breakpoints": true
     }
   ]
 }
