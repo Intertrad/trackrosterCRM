@@ -1,6 +1,8 @@
 import { browserJson } from './browser-json';
 import type {
   AuthConfig,
+  InvitationAcceptance,
+  InvitationPreview,
   LoginOutcome,
   MfaEnrollment,
   MfaRecoveryCodes,
@@ -78,6 +80,24 @@ export function resetPassword(token: string, password: string): Promise<void> {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ token, password }),
+  });
+}
+
+export function previewInvitation(token: string, signal?: AbortSignal): Promise<InvitationPreview> {
+  return browserJson<InvitationPreview>(`/api/invitations/${encodeURIComponent(token)}`, {
+    signal,
+  });
+}
+
+export function acceptInvitation(
+  token: string,
+  password: string,
+  mfaCode?: string,
+): Promise<InvitationAcceptance> {
+  return browserJson<InvitationAcceptance>(`/api/invitations/${encodeURIComponent(token)}/accept`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ password, ...(mfaCode ? { mfaCode } : {}) }),
   });
 }
 

@@ -138,6 +138,20 @@ export interface PasswordResetTokenStatus {
   expiresAt?: string;
 }
 
+export interface InvitationPreview {
+  workspaceName: string;
+  emailHint: string;
+  expiresAt: string;
+  existingAccount: boolean;
+  mfaRequired: boolean;
+}
+
+export interface InvitationAcceptance {
+  accepted: true;
+  membershipId: string;
+  signInRequired: true;
+}
+
 /**
  * POST /auth/mfa/enroll
  *
