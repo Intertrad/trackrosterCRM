@@ -1,20 +1,24 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { and, eq, getTableColumns, gt, sql, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, gt, isNull, sql, type SQL } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
+import { AuthorizationService } from '../authorization/authorization.service.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   prospectFollowUps as f,
   campaignProspectAssignments as assignments,
+  campaignProspects,
   campaigns,
   establishments,
+  teams,
   tenants,
   auditEvents,
 } from '../database/schema/index.js';
@@ -27,6 +31,7 @@ export class CanonicalFollowUpService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly scheduler: FollowUpReminderSchedulerService,
+    private readonly authorizationService: AuthorizationService,
   ) {}
   private scope(a: AuthenticatedPrincipal, write = false): SQL {
     return sql`EXISTS(SELECT 1 FROM campaign_prospect_assignments ca JOIN user_access_grants g ON g.tenant_id=ca.tenant_id AND g.user_id=${a.membershipId} JOIN tenant_memberships m ON m.tenant_id=g.tenant_id AND m.id=g.user_id JOIN identities i ON i.id=m.identity_id WHERE ca.tenant_id=${a.tenantId} AND ca.id=${f.assignmentId} AND m.status='active' AND i.status='active' AND (
@@ -43,6 +48,38 @@ export class CanonicalFollowUpService {
     return row;
   }
   async list(a: AuthenticatedPrincipal, q: ListFollowUpQueueQueryDto) {
+    if (q.teamId) {
+      const [team] = await this.db
+        .select({ organizationId: teams.organizationId })
+        .from(teams)
+        .where(and(eq(teams.tenantId, a.tenantId), eq(teams.id, q.teamId)))
+        .limit(1);
+
+      const grants = team
+        ? await this.authorizationService.getUserGrants(a.tenantId, a.membershipId)
+        : [];
+      const canViewTeam = Boolean(
+        team &&
+        grants.some(
+          (grant) =>
+            (grant.scopeType === 'tenant' &&
+              (grant.role === 'client_admin' || grant.role === 'observer')) ||
+            (grant.scopeType === 'organization' &&
+              grant.organizationId === team.organizationId &&
+              (grant.role === 'director' || grant.role === 'observer')) ||
+            (grant.scopeType === 'team' &&
+              grant.teamId === q.teamId &&
+              (grant.role === 'manager' ||
+                grant.role === 'prospector' ||
+                grant.role === 'observer')),
+        ),
+      );
+
+      if (!canViewTeam) {
+        throw new ForbiddenException('User does not have access to this team');
+      }
+    }
+
     const status = q.status ?? 'pending';
     const where = [eq(f.tenantId, a.tenantId), this.scope(a)];
     if (status !== 'all')
@@ -72,12 +109,31 @@ export class CanonicalFollowUpService {
         establishmentName: establishments.name,
       })
       .from(f)
+      .innerJoin(
+        assignments,
+        and(eq(assignments.tenantId, f.tenantId), eq(assignments.id, f.assignmentId)),
+      )
+      .innerJoin(
+        campaignProspects,
+        and(
+          eq(campaignProspects.tenantId, f.tenantId),
+          eq(campaignProspects.id, f.campaignProspectId),
+          eq(campaignProspects.campaignId, f.campaignId),
+        ),
+      )
       .innerJoin(campaigns, and(eq(campaigns.tenantId, f.tenantId), eq(campaigns.id, f.campaignId)))
       .innerJoin(
         establishments,
         and(eq(establishments.tenantId, f.tenantId), eq(establishments.id, f.establishmentId)),
       )
-      .where(and(...where))
+      .where(
+        and(
+          ...where,
+          isNull(assignments.endedAt),
+          eq(campaignProspects.status, 'active'),
+          eq(campaigns.status, 'active'),
+        ),
+      )
       .orderBy(f.id)
       .limit(q.limit + 1);
     return {
