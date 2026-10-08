@@ -198,6 +198,7 @@ export function MessageAttachments({
           )}
           {mine && (
             <form
+              noValidate
               className="space-y-3 border-t border-line pt-5"
               onSubmit={(e) => {
                 e.preventDefault();

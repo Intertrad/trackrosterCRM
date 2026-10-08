@@ -174,7 +174,7 @@ export default function FollowUpReviewsPage() {
                   rows={2}
                   maxLength={1000}
                   placeholder="Explain the approval or rejection for the performance record."
-                  className="w-full resize-y rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14px] font-normal text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
+                  className="w-full resize-none rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14px] font-normal text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
                 />
               </label>
 

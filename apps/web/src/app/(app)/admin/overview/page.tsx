@@ -241,11 +241,12 @@ function Overview() {
             <Download className="size-4" />
             {l('Export', 'Exporter')}
           </Button>
-          <Link href="/admin/users">
-            <Button>
-              <UserPlus className="size-4" />
-              {l('Invite a user', 'Inviter un utilisateur')}
-            </Button>
+          <Link
+            href="/admin/users"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-[14.4px] font-bold text-white transition-colors duration-150 hover:bg-brand-hover active:bg-brand-active sm:min-h-10"
+          >
+            <UserPlus className="size-4" />
+            {l('Invite a user', 'Inviter un utilisateur')}
           </Link>
         </div>
       </header>
@@ -284,8 +285,11 @@ function Overview() {
               ))}
             </div>
           </div>
-          <Link href={blockers[0]?.href ?? '/admin/settings'}>
-            <Button>{l('Continue setup', 'Continuer la configuration')}</Button>
+          <Link
+            href={blockers[0]?.href ?? '/admin/settings'}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-[14.4px] font-bold text-white transition-colors duration-150 hover:bg-brand-hover active:bg-brand-active sm:min-h-10"
+          >
+            {l('Continue setup', 'Continuer la configuration')}
           </Link>
         </div>
       </Card>

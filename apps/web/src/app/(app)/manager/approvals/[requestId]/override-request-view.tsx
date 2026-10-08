@@ -404,7 +404,7 @@ export function OverrideRequestView({ requestId }: { requestId: string }) {
                 aria-invalid={reasonError ? true : undefined}
                 placeholder="Explain why this exception is justified..."
                 className={cn(
-                  'w-full rounded-lg border bg-surface px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-muted',
+                  'w-full resize-none rounded-lg border bg-surface px-3.5 py-3 text-[15px] text-ink placeholder:text-ink-muted',
                   reasonError ? 'border-danger' : 'border-line hover:border-brand-pale',
                 )}
               />

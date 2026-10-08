@@ -206,6 +206,7 @@ export function MfaChallengeForm() {
           </div>
 
           <form
+            noValidate
             onSubmit={submitRecovery}
             className="mt-5 rounded-xl border border-line-soft bg-surface-muted p-5"
           >
