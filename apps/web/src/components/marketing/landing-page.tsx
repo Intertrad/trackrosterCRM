@@ -221,7 +221,9 @@ function SectionKicker({ children }: { children: ReactNode }) {
 
 function AnimatedNumber({ value, duration = 1100 }: { value: number; duration?: number }) {
   const numberRef = useRef<HTMLSpanElement>(null);
-  const [displayValue, setDisplayValue] = useState(0);
+  // Render the real value on the first paint so the stat never flashes a
+  // misleading zero while the section is waiting to enter the viewport.
+  const [displayValue, setDisplayValue] = useState(value);
 
   useEffect(() => {
     const target = numberRef.current;
@@ -240,6 +242,7 @@ function AnimatedNumber({ value, duration = 1100 }: { value: number; duration?: 
         return;
       }
 
+      setDisplayValue(0);
       const startedAt = performance.now();
       const tick = (now: number) => {
         const progress = Math.min((now - startedAt) / duration, 1);
@@ -274,7 +277,7 @@ function AnimatedNumber({ value, duration = 1100 }: { value: number; duration?: 
 
   return (
     <>
-      <span ref={numberRef} aria-hidden="true">
+      <span ref={numberRef} className="marketing-stat-number" aria-hidden="true">
         {displayValue.toLocaleString('en-US')}
       </span>
       <span className="sr-only">{value.toLocaleString('en-US')}</span>
@@ -528,31 +531,31 @@ export function LandingPage() {
             <strong>
               <AnimatedNumber value={14237} />
             </strong>
-            <span>establishments coordinated</span>
+            <span className="marketing-stat-label">establishments coordinated</span>
           </div>
           <div>
             <strong>
               <AnimatedNumber value={5} />
             </strong>
-            <span>companies on one base</span>
+            <span className="marketing-stat-label">companies on one base</span>
           </div>
           <div>
             <strong>
               <AnimatedNumber value={86} />
             </strong>
-            <span>users organised</span>
+            <span className="marketing-stat-label">users organised</span>
           </div>
           <div>
             <strong>
               <AnimatedNumber value={41} />
             </strong>
-            <span>collisions avoided last month</span>
+            <span className="marketing-stat-label">collisions avoided last month</span>
           </div>
           <div>
             <strong>
               <AnimatedNumber value={0} />
             </strong>
-            <span>actions ever overwritten</span>
+            <span className="marketing-stat-label">actions ever overwritten</span>
           </div>
         </div>
       </section>

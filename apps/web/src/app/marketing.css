@@ -704,8 +704,16 @@
 .marketing-stat-grid strong {
   font-size: clamp(23px, 3vw, 33px);
   letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.marketing-stat-grid span {
+.marketing-stat-grid .marketing-stat-number {
+  display: inline-block;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.marketing-stat-grid .marketing-stat-label {
   color: #a9badf;
   font-size: 9px;
   line-height: 1.3;
