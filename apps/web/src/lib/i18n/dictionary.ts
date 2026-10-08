@@ -66,6 +66,23 @@ export const DICTIONARY = {
   'nav.more': { en: 'More', fr: 'Plus' },
   'nav.expand': { en: 'Expand sidebar', fr: 'Déplier le menu' },
   'nav.collapse': { en: 'Collapse sidebar', fr: 'Replier le menu' },
+  'nav.searchAssignedProspects': {
+    en: 'Search my assigned prospects',
+    fr: 'Rechercher mes prospects attribués',
+  },
+  'nav.searchWorkspace': {
+    en: 'Search workspace',
+    fr: 'Rechercher dans l’espace de travail',
+  },
+  'nav.helpWorkspaceTools': {
+    en: 'Help and workspace tools',
+    fr: 'Aide et outils de l’espace de travail',
+  },
+  'nav.assignedWorkspace': { en: 'Assigned workspace', fr: 'Espace attribué' },
+  'nav.currentWorkspace': { en: 'Current workspace', fr: 'Espace de travail actuel' },
+  'nav.organizationScope': { en: 'Organization scope', fr: 'Périmètre de l’organisation' },
+  'nav.workspaceScope': { en: 'Workspace scope', fr: 'Périmètre de l’espace de travail' },
+  'nav.teamScope': { en: 'Team', fr: 'Équipe' },
   'nav.unavailable': {
     en: '{label} is not available yet',
     fr: '{label} n’est pas encore disponible',
@@ -97,6 +114,61 @@ export const DICTIONARY = {
   'common.retry': { en: 'Try again', fr: 'Réessayer' },
   'common.loading': { en: 'Loading…', fr: 'Chargement…' },
   'common.notifications': { en: 'Notifications', fr: 'Notifications' },
+  'common.unreadMessages': { en: '{count} unread messages', fr: '{count} messages non lus' },
+  'common.accountMenu': { en: 'Account menu', fr: 'Menu du compte' },
+  'common.account': { en: 'Account', fr: 'Compte' },
+  'common.availableWorkspaces': {
+    en: 'Available workspaces',
+    fr: 'Espaces de travail disponibles',
+  },
+  'common.loadingWorkspace': {
+    en: 'Loading your workspace…',
+    fr: 'Chargement de votre espace de travail…',
+  },
+  'common.loadingWorkspaces': {
+    en: 'Loading workspaces…',
+    fr: 'Chargement des espaces de travail…',
+  },
+  'common.current': { en: 'Current', fr: 'Actuel' },
+  'common.open': { en: 'Open', fr: 'Ouvrir' },
+  'common.noActiveWorkspaces': {
+    en: 'No active workspaces are available.',
+    fr: 'Aucun espace de travail actif n’est disponible.',
+  },
+  'common.notificationsUnread': {
+    en: 'Notifications, {count} unread',
+    fr: 'Notifications, {count} non lues',
+  },
+  'common.closeNotifications': {
+    en: 'Close notifications',
+    fr: 'Fermer les notifications',
+  },
+  'common.markAllRead': { en: 'Mark all read', fr: 'Tout marquer comme lu' },
+  'common.viewAll': { en: 'View all', fr: 'Tout afficher' },
+  'common.nothingToCatchUp': {
+    en: 'Nothing to catch up on.',
+    fr: 'Aucune notification à rattraper.',
+  },
+  'common.sessionExpired': {
+    en: 'Your session has expired. Please sign in again.',
+    fr: 'Votre session a expiré. Veuillez vous reconnecter.',
+  },
+  'common.loadWorkspacesError': {
+    en: 'We could not load your workspaces. Please try again.',
+    fr: 'Impossible de charger vos espaces de travail. Veuillez réessayer.',
+  },
+  'common.switchWorkspaceError': {
+    en: 'We could not switch workspace. Please try again.',
+    fr: 'Impossible de changer d’espace de travail. Veuillez réessayer.',
+  },
+  'common.sessionRestoreError': {
+    en: 'We could not restore your session.',
+    fr: 'Impossible de restaurer votre session.',
+  },
+  'common.connectionRetry': {
+    en: 'Check your connection and try again.',
+    fr: 'Vérifiez votre connexion et réessayez.',
+  },
 
   /* ---------- today ---------- */
   'today.title': { en: 'Today', fr: "Aujourd'hui" },

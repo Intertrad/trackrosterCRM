@@ -12,6 +12,7 @@ import {
   markNotificationRead,
 } from '@/lib/api/notification-client';
 import { SEVERITY_TONE, type NotificationItem } from '@/lib/api/notification-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import { cn } from '@/lib/ui/cn';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -22,6 +23,7 @@ const POLL_INTERVAL_MS = 60_000;
  * exists. Polling is deliberately slow — this is an awareness cue, not a feed.
  */
 export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' } = {}) {
+  const { t } = useTranslation();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
@@ -114,7 +116,9 @@ export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' }
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        aria-label={count > 0 ? `Notifications, ${count} unread` : 'Notifications'}
+        aria-label={
+          count > 0 ? t('common.notificationsUnread', { count }) : t('common.notifications')
+        }
         className={cn(
           'relative flex size-9 items-center justify-center rounded-full transition-colors',
           tone === 'light'
@@ -135,14 +139,14 @@ export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' }
         <>
           <button
             type="button"
-            aria-label="Close notifications"
+            aria-label={t('common.closeNotifications')}
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-40 cursor-default"
           />
 
           <div className="absolute right-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-line-soft bg-surface shadow-overlay">
             <div className="flex items-center justify-between gap-3 border-b border-line-soft px-4 py-3">
-              <p className="text-[15px] font-bold text-navy">Notifications</p>
+              <p className="text-[15px] font-bold text-navy">{t('common.notifications')}</p>
 
               <div className="flex items-center gap-3">
                 {count > 0 ? (
@@ -152,7 +156,7 @@ export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' }
                     className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand hover:text-brand-hover"
                   >
                     <Check aria-hidden="true" className="size-4" />
-                    Mark all read
+                    {t('common.markAllRead')}
                   </button>
                 ) : null}
                 <Link
@@ -160,7 +164,7 @@ export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' }
                   onClick={() => setOpen(false)}
                   className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-brand hover:text-brand-hover"
                 >
-                  View all <ExternalLink aria-hidden="true" className="size-3.5" />
+                  {t('common.viewAll')} <ExternalLink aria-hidden="true" className="size-3.5" />
                 </Link>
               </div>
             </div>
@@ -173,7 +177,7 @@ export function NotificationBell({ tone = 'light' }: { tone?: 'light' | 'dark' }
               </div>
             ) : items.length === 0 ? (
               <p className="px-4 py-8 text-center text-[14px] text-ink-muted">
-                Nothing to catch up on.
+                {t('common.nothingToCatchUp')}
               </p>
             ) : (
               <ul className="max-h-[22rem] divide-y divide-line-soft overflow-y-auto">
