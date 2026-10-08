@@ -23,7 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
-import { createElement, type ReactNode, useState } from 'react';
+import { createElement, type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { BrandLockup } from '@/components/ui/brand-mark';
 
@@ -217,6 +217,69 @@ const navItems = [
 
 function SectionKicker({ children }: { children: ReactNode }) {
   return <p className="marketing-kicker">{children}</p>;
+}
+
+function AnimatedNumber({ value, duration = 1100 }: { value: number; duration?: number }) {
+  const numberRef = useRef<HTMLSpanElement>(null);
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    const target = numberRef.current;
+    if (!target) return;
+
+    let frame = 0;
+    let observer: IntersectionObserver | null = null;
+    let started = false;
+
+    const animate = () => {
+      if (started) return;
+      started = true;
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setDisplayValue(value);
+        return;
+      }
+
+      const startedAt = performance.now();
+      const tick = (now: number) => {
+        const progress = Math.min((now - startedAt) / duration, 1);
+        const easedProgress = 1 - (1 - progress) ** 3;
+        setDisplayValue(Math.round(value * easedProgress));
+        if (progress < 1) frame = window.requestAnimationFrame(tick);
+      };
+
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry?.isIntersecting) {
+            animate();
+            observer?.disconnect();
+          }
+        },
+        { threshold: 0.35 },
+      );
+      observer.observe(target);
+    } else {
+      animate();
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [duration, value]);
+
+  return (
+    <>
+      <span ref={numberRef} aria-hidden="true">
+        {displayValue.toLocaleString('en-US')}
+      </span>
+      <span className="sr-only">{value.toLocaleString('en-US')}</span>
+    </>
+  );
 }
 
 function HeroPreview() {
@@ -462,23 +525,33 @@ export function LandingPage() {
       <section className="marketing-stat-band" aria-label="TrackRoster at a glance">
         <div className="marketing-container marketing-stat-grid">
           <div>
-            <strong>14,237</strong>
+            <strong>
+              <AnimatedNumber value={14237} />
+            </strong>
             <span>establishments coordinated</span>
           </div>
           <div>
-            <strong>5</strong>
+            <strong>
+              <AnimatedNumber value={5} />
+            </strong>
             <span>companies on one base</span>
           </div>
           <div>
-            <strong>86</strong>
+            <strong>
+              <AnimatedNumber value={86} />
+            </strong>
             <span>users organised</span>
           </div>
           <div>
-            <strong>41</strong>
+            <strong>
+              <AnimatedNumber value={41} />
+            </strong>
             <span>collisions avoided last month</span>
           </div>
           <div>
-            <strong>0</strong>
+            <strong>
+              <AnimatedNumber value={0} />
+            </strong>
             <span>actions ever overwritten</span>
           </div>
         </div>
