@@ -33,8 +33,9 @@ import {
   type EvidenceExport,
 } from '@/lib/api/observer-client';
 import { getWorkspaceScopeLabel } from '@/lib/auth/workspace';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
-const formatDate = (value: string | null | undefined, locale = 'en-US') =>
+const formatDate = (value: string | null | undefined, locale = 'fr-FR') =>
   value
     ? new Intl.DateTimeFormat(locale, {
         day: 'numeric',
@@ -59,17 +60,22 @@ function ScopeBanner({ children }: { children: React.ReactNode }) {
 
 function ObserverLayout({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const scope = activeWorkspace
     ? getWorkspaceScopeLabel(activeWorkspace.scopeType)
-    : 'Authorized scope';
+    : l('Authorized scope', 'Périmètre autorisé');
   const identifiers = [activeWorkspace?.organizationId, activeWorkspace?.teamId].filter(Boolean);
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
       <ScopeBanner>
-        Read-only observer scope · {scope}
-        {identifiers.length ? ` · ${identifiers.join(' · ')}` : ''}. Contact details are masked and
-        every export is logged.
+        {l('Read-only observer scope', 'Périmètre observateur en lecture seule')} · {scope}
+        {identifiers.length ? ` · ${identifiers.join(' · ')}` : ''}.{' '}
+        {l(
+          'Contact details are masked and every export is logged.',
+          'Les coordonnées sont masquées et chaque export est journalisé.',
+        )}
       </ScopeBanner>
       {children}
     </div>
@@ -87,6 +93,8 @@ function ObserverExportButton({
   reason: string;
   label?: string;
 }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +121,14 @@ function ObserverExportButton({
         loading={loading}
         leadingIcon={done ? <Check className="size-4" /> : <Download className="size-4" />}
       >
-        {done ? 'Export requested' : label}
+        {done
+          ? l('Export requested', 'Export demandé')
+          : language === 'fr'
+            ? ({
+                'Export the scope': 'Exporter le périmètre',
+                'Export this event': 'Exporter cet événement',
+              }[label] ?? label)
+            : label}
       </Button>
       {error ? <span className="max-w-[240px] text-right text-xs text-danger">{error}</span> : null}
     </div>
@@ -122,6 +137,8 @@ function ObserverExportButton({
 
 export function ObserverAuditPage() {
   const { user } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [selected, setSelected] = useState<AuditEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,8 +170,8 @@ export function ObserverAuditPage() {
   return (
     <ObserverLayout>
       <PageHeader
-        title="Audit log"
-        subtitle={`${events.length || '—'} events in your authorized scope · read-only`}
+        title={l('Audit log', 'Journal d’audit')}
+        subtitle={`${events.length || '—'} ${l('events in your authorized scope · read-only', 'événements dans votre périmètre autorisé · lecture seule')}`}
         action={
           <div className="flex gap-2">
             <Button
@@ -162,7 +179,7 @@ export function ObserverAuditPage() {
               leadingIcon={<RefreshCw className="size-4" />}
               onClick={() => void load()}
             >
-              Refresh
+              {l('Refresh', 'Actualiser')}
             </Button>
             <ObserverExportButton resourceTypes={['export']} reason="Observer audit scope export" />
           </div>
@@ -172,16 +189,22 @@ export function ObserverAuditPage() {
         <Card padding="none" className="overflow-hidden">
           <div className="border-b border-line-soft p-4">
             <SearchInput
-              label="Search audit events"
+              label={l('Search audit events', 'Rechercher dans les événements')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onClear={() => setQuery('')}
-              placeholder="Search actor, event or object…"
+              placeholder={l(
+                'Search actor, event or object…',
+                'Rechercher un auteur, événement ou objet…',
+              )}
             />
           </div>
           {error ? (
             <div className="p-4">
-              <Alert tone="danger" title="Audit log unavailable">
+              <Alert
+                tone="danger"
+                title={l('Audit log unavailable', 'Journal d’audit indisponible')}
+              >
                 {error}
               </Alert>
             </div>
@@ -190,32 +213,37 @@ export function ObserverAuditPage() {
             <table className="w-full min-w-[760px] text-left text-[13px]">
               <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                 <tr>
-                  <th className="px-4 py-3">Timestamp</th>
-                  <th className="px-4 py-3">Actor</th>
-                  <th className="px-4 py-3">Event</th>
-                  <th className="px-4 py-3">Object</th>
-                  <th className="px-4 py-3">Proof</th>
+                  <th className="px-4 py-3">{l('Timestamp', 'Horodatage')}</th>
+                  <th className="px-4 py-3">{l('Actor', 'Auteur')}</th>
+                  <th className="px-4 py-3">{l('Event', 'Événement')}</th>
+                  <th className="px-4 py-3">{l('Object', 'Objet')}</th>
+                  <th className="px-4 py-3">{l('Proof', 'Preuve')}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-ink-muted">
-                      Loading scoped events…
+                      {l('Loading scoped events…', 'Chargement des événements…')}
                     </td>
                   </tr>
                 ) : (
                   filtered.map((event) => (
-                    <tr
-                      key={event.id}
-                      className="cursor-pointer border-t border-line-soft hover:bg-surface-muted"
-                      onClick={() => setSelected(event)}
-                    >
+                    <tr key={event.id} className="border-t border-line-soft hover:bg-surface-muted">
                       <td className="px-4 py-3 font-semibold text-navy">
-                        {formatDate(event.occurredAt, user?.locale)}
+                        <button
+                          type="button"
+                          className="rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          onClick={() => setSelected(event)}
+                          aria-label={`Open event ${event.id}`}
+                        >
+                          {formatDate(event.occurredAt, user?.locale)}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
-                        {event.actorType === 'system' ? 'Engine' : 'Scoped member'}
+                        {event.actorType === 'system'
+                          ? l('Engine', 'Moteur')
+                          : l('Scoped member', 'Membre du périmètre')}
                       </td>
                       <td className="px-4 py-3">
                         <Badge tone="brand">{event.action}</Badge>
@@ -225,7 +253,7 @@ export function ObserverAuditPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Badge tone="success" dot>
-                          Recorded
+                          {l('Recorded', 'Enregistré')}
                         </Badge>
                       </td>
                     </tr>
@@ -236,16 +264,20 @@ export function ObserverAuditPage() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="Integrity" />
+          <CardHeader title={l('Integrity', 'Intégrité')} />
           <dl className="divide-y divide-line-soft">
-            <FieldRow label="Visible events">{events.length}</FieldRow>
-            <FieldRow label="Scope">Read-only</FieldRow>
-            <FieldRow label="Contact data">Masked</FieldRow>
-            <FieldRow label="Proof">Immutable record</FieldRow>
+            <FieldRow label={l('Visible events', 'Événements visibles')}>{events.length}</FieldRow>
+            <FieldRow label={l('Scope', 'Périmètre')}>{l('Read-only', 'Lecture seule')}</FieldRow>
+            <FieldRow label={l('Contact data', 'Coordonnées')}>{l('Masked', 'Masquées')}</FieldRow>
+            <FieldRow label={l('Proof', 'Preuve')}>
+              {l('Immutable record', 'Enregistrement immuable')}
+            </FieldRow>
           </dl>
           <p className="mt-4 text-[12px] leading-relaxed text-ink-muted">
-            Opening an event is itself a read operation. The API keeps the original event and its
-            identifier available for evidence export.
+            {l(
+              'Opening an event is itself a read operation. The API keeps the original event and its identifier available for evidence export.',
+              'L’ouverture d’un événement est une opération de lecture. L’API conserve l’événement original et son identifiant pour l’export de preuve.',
+            )}
           </p>
         </Card>
       </div>
@@ -263,6 +295,8 @@ function AuditDrawer({
   onClose: () => void;
   locale?: string;
 }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [detail, setDetail] = useState<AuditEvent | null>(event);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -278,7 +312,7 @@ function AuditDrawer({
   return (
     <Drawer
       open={Boolean(event)}
-      title={detail ? auditActionLabel(detail.action) : 'Event detail'}
+      title={detail ? auditActionLabel(detail.action) : l('Event detail', 'Détail de l’événement')}
       onClose={onClose}
       footer={
         detail ? (
@@ -286,58 +320,66 @@ function AuditDrawer({
             <ObserverExportButton
               resourceTypes={['export']}
               reason={`Evidence for audit event ${detail.id}`}
-              label="Export this event"
+              label={l('Export this event', 'Exporter cet événement')}
             />
             <Button
               variant="secondary"
               leadingIcon={<Clipboard className="size-4" />}
               onClick={() => void navigator.clipboard?.writeText(detail.id)}
             >
-              Copy reference
+              {l('Copy reference', 'Copier la référence')}
             </Button>
           </div>
         ) : null
       }
     >
       {loading ? (
-        <p className="text-sm text-ink-muted">Loading event detail…</p>
+        <p className="text-sm text-ink-muted">
+          {l('Loading event detail…', 'Chargement du détail…')}
+        </p>
       ) : detail ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-ink-muted">
               Event {detail.id} · {formatDate(detail.occurredAt, locale)}
             </p>
-            <Badge tone="success">PROOF OK</Badge>
+            <Badge tone="success">{l('PROOF OK', 'PREUVE OK')}</Badge>
           </div>
           <Card>
-            <CardHeader title="Who and what" />
+            <CardHeader title={l('Who and what', 'Qui et quoi')} />
             <dl className="divide-y divide-line-soft">
-              <FieldRow label="Actor">
-                {detail.actorType === 'system' ? 'Engine' : 'Scoped member'}
+              <FieldRow label={l('Actor', 'Auteur')}>
+                {detail.actorType === 'system'
+                  ? l('Engine', 'Moteur')
+                  : l('Scoped member', 'Membre du périmètre')}
               </FieldRow>
-              <FieldRow label="Object">{auditResourceLabel(detail.resourceType)}</FieldRow>
-              <FieldRow label="Reference">{detail.resourceId}</FieldRow>
-              <FieldRow label="Decision">
+              <FieldRow label={l('Object', 'Objet')}>
+                {auditResourceLabel(detail.resourceType)}
+              </FieldRow>
+              <FieldRow label={l('Reference', 'Référence')}>{detail.resourceId}</FieldRow>
+              <FieldRow label={l('Decision', 'Décision')}>
                 {value('decision') ?? auditActionLabel(detail.action)}
               </FieldRow>
             </dl>
           </Card>
           {value('reason') || value('summary') ? (
             <Card>
-              <CardHeader title="Stated reason" />
+              <CardHeader title={l('Stated reason', 'Motif indiqué')} />
               <p className="rounded-lg border border-line-soft bg-surface-muted p-3 text-sm text-ink">
                 {value('reason') ?? value('summary')}
               </p>
             </Card>
           ) : null}
           <Card>
-            <CardHeader title="Integrity" />
+            <CardHeader title={l('Integrity', 'Intégrité')} />
             <p className="text-sm leading-relaxed text-ink-muted">
-              Immutable audit record. Contact names, phone numbers and e-mail addresses remain
-              masked in this role.
+              {l(
+                'Immutable audit record. Contact names, phone numbers and e-mail addresses remain masked in this role.',
+                'Enregistrement d’audit immuable. Les noms, téléphones et e-mails restent masqués pour ce rôle.',
+              )}
             </p>
             <p className="mt-3 break-all font-mono text-xs text-ink-muted">
-              Reference: {detail.id}
+              {l('Reference', 'Référence')}: {detail.id}
             </p>
           </Card>
         </div>
@@ -355,6 +397,8 @@ const outcomeTone = (outcome: string | null) =>
 
 export function ObserverActionsPage() {
   const { user } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [actions, setActions] = useState<ActionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -384,8 +428,8 @@ export function ObserverActionsPage() {
   return (
     <ObserverLayout>
       <PageHeader
-        title="Actions"
-        subtitle={`${actions.length || '—'} actions in your scope · summaries visible, contact details masked`}
+        title={l('Actions', 'Actions')}
+        subtitle={`${actions.length || '—'} ${l('actions in your scope · summaries visible, contact details masked', 'actions dans votre périmètre · résumés visibles, coordonnées masquées')}`}
         action={
           <ObserverExportButton
             resourceTypes={[]}
@@ -399,20 +443,20 @@ export function ObserverActionsPage() {
           <Card className="mb-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <SelectField
-                label="Outcome"
+                label={l('Outcome', 'Résultat')}
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value)}
                 options={[
-                  { value: 'all', label: 'All outcomes' },
+                  { value: 'all', label: l('All outcomes', 'Tous les résultats') },
                   ...Object.entries(OUTCOME_LABELS).map(([value, label]) => ({ value, label })),
                 ]}
               />
               <SelectField
-                label="Channel"
+                label={l('Channel', 'Canal')}
                 value={channel}
                 onChange={(e) => setChannel(e.target.value)}
                 options={[
-                  { value: 'all', label: 'All channels' },
+                  { value: 'all', label: l('All channels', 'Tous les canaux') },
                   ...(['call', 'email', 'message', 'visit'] as ActionType[]).map((value) => ({
                     value,
                     label: actionTypeLabel(value),
@@ -420,10 +464,10 @@ export function ObserverActionsPage() {
                 ]}
               />
               <SelectField
-                label="Period"
+                label={l('Period', 'Période')}
                 value="30"
                 disabled
-                options={[{ value: '30', label: 'Last 30 days' }]}
+                options={[{ value: '30', label: l('Last 30 days', '30 derniers jours') }]}
               />
             </div>
           </Card>
@@ -432,19 +476,19 @@ export function ObserverActionsPage() {
               <table className="w-full min-w-[760px] text-left text-[13px]">
                 <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                   <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Establishment</th>
-                    <th className="px-4 py-3">Channel</th>
-                    <th className="px-4 py-3">Outcome</th>
-                    <th className="px-4 py-3">Author</th>
-                    <th className="px-4 py-3">Proof</th>
+                    <th className="px-4 py-3">{l('Date', 'Date')}</th>
+                    <th className="px-4 py-3">{l('Establishment', 'Établissement')}</th>
+                    <th className="px-4 py-3">{l('Channel', 'Canal')}</th>
+                    <th className="px-4 py-3">{l('Outcome', 'Résultat')}</th>
+                    <th className="px-4 py-3">{l('Author', 'Auteur')}</th>
+                    <th className="px-4 py-3">{l('Proof', 'Preuve')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-ink-muted">
-                        Loading scoped actions…
+                        {l('Loading scoped actions…', 'Chargement des actions…')}
                       </td>
                     </tr>
                   ) : (
@@ -470,7 +514,7 @@ export function ObserverActionsPage() {
                         </td>
                         <td className="px-4 py-3">
                           <Badge tone="success" dot>
-                            Recorded
+                            {l('Recorded', 'Enregistré')}
                           </Badge>
                         </td>
                       </tr>
@@ -483,7 +527,7 @@ export function ObserverActionsPage() {
         </div>
         <div className="space-y-5">
           <Card>
-            <CardHeader title="Outcomes in the period" />
+            <CardHeader title={l('Outcomes in the period', 'Résultats sur la période')} />
             {Object.entries(OUTCOME_LABELS)
               .slice(0, 5)
               .map(([code, label]) => (
@@ -499,19 +543,27 @@ export function ObserverActionsPage() {
               ))}
           </Card>
           <Card>
-            <CardHeader title="Compliance checks" />
+            <CardHeader title={l('Compliance checks', 'Contrôles de conformité')} />
             <dl className="divide-y divide-line-soft">
-              <FieldRow label="Actions with a summary">Recorded in API</FieldRow>
-              <FieldRow label="Scoped visibility">Enforced</FieldRow>
-              <FieldRow label="Contact details">Masked</FieldRow>
-              <FieldRow label="Writes from observer">Blocked</FieldRow>
+              <FieldRow label={l('Actions with a summary', 'Actions avec un résumé')}>
+                {l('Recorded in API', 'Enregistrées dans l’API')}
+              </FieldRow>
+              <FieldRow label={l('Scoped visibility', 'Visibilité du périmètre')}>
+                {l('Enforced', 'Appliquée')}
+              </FieldRow>
+              <FieldRow label={l('Contact details', 'Coordonnées')}>
+                {l('Masked', 'Masquées')}
+              </FieldRow>
+              <FieldRow label={l('Writes from observer', 'Écritures observateur')}>
+                {l('Blocked', 'Bloquées')}
+              </FieldRow>
             </dl>
           </Card>
         </div>
       </div>
       {error ? (
         <div className="mt-4">
-          <Alert tone="danger" title="Actions unavailable">
+          <Alert tone="danger" title={l('Actions unavailable', 'Actions indisponibles')}>
             {error}
           </Alert>
         </div>
@@ -530,6 +582,8 @@ function observerOwner(prospect: Prospect, index: number) {
 }
 
 export function ObserverProspectsPage() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -558,8 +612,8 @@ export function ObserverProspectsPage() {
   return (
     <ObserverLayout>
       <PageHeader
-        title="Prospects"
-        subtitle={`${prospects.length || '—'} establishments in your scope · contact details are masked`}
+        title={l('Prospects', 'Prospects')}
+        subtitle={`${prospects.length || '—'} ${l('establishments in your scope · contact details are masked', 'établissements dans votre périmètre · coordonnées masquées')}`}
         action={
           <ObserverExportButton
             resourceTypes={['prospect']}
@@ -572,21 +626,24 @@ export function ObserverProspectsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0 flex-1">
               <SearchInput
-                label="Search scoped prospects"
+                label={l('Search scoped prospects', 'Rechercher dans les prospects')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onClear={() => setQuery('')}
-                placeholder="Search establishment or city…"
+                placeholder={l(
+                  'Search establishment or city…',
+                  'Rechercher un établissement ou une ville…',
+                )}
               />
             </div>
             <p className="flex items-center gap-2 text-xs text-ink-muted">
               <ShieldCheck className="size-4 text-success" /> Names, statuses and action counts
-              visible
+              {l('visible', 'visibles')}
             </p>
           </div>
         </Card>
         {error ? (
-          <Alert tone="danger" title="Prospects unavailable">
+          <Alert tone="danger" title={l('Prospects unavailable', 'Prospects indisponibles')}>
             {error}
           </Alert>
         ) : null}
@@ -596,19 +653,19 @@ export function ObserverProspectsPage() {
               <table className="w-full min-w-[720px] text-left text-[13px]">
                 <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                   <tr>
-                    <th className="px-4 py-3">Establishment</th>
-                    <th className="px-4 py-3">City</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="px-4 py-3">Owner</th>
-                    <th className="px-4 py-3">Actions</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">{l('Establishment', 'Établissement')}</th>
+                    <th className="px-4 py-3">{l('City', 'Ville')}</th>
+                    <th className="px-4 py-3">{l('Phone', 'Téléphone')}</th>
+                    <th className="px-4 py-3">{l('Owner', 'Responsable')}</th>
+                    <th className="px-4 py-3">{l('Actions', 'Actions')}</th>
+                    <th className="px-4 py-3">{l('Status', 'Statut')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-ink-muted">
-                        Loading scoped prospects…
+                        {l('Loading scoped prospects…', 'Chargement des prospects…')}
                       </td>
                     </tr>
                   ) : (
@@ -636,25 +693,25 @@ export function ObserverProspectsPage() {
             </div>
           </Card>
           <Card>
-            <CardHeader title="What is masked" />
+            <CardHeader title={l('What is masked', 'Ce qui est masqué')} />
             <p className="mb-3 text-sm text-ink-muted">
               Observers can verify activity and decisions without reusing the contact base.
             </p>
             <dl className="divide-y divide-line-soft">
-              <FieldRow label="Contact person">
-                <span className="text-danger">Masked</span>
+              <FieldRow label={l('Contact person', 'Contact')}>
+                <span className="text-danger">{l('Masked', 'Masqué')}</span>
               </FieldRow>
-              <FieldRow label="Phone / e-mail">
-                <span className="text-danger">Masked</span>
+              <FieldRow label={l('Phone / e-mail', 'Téléphone / e-mail')}>
+                <span className="text-danger">{l('Masked', 'Masqué')}</span>
               </FieldRow>
-              <FieldRow label="Owner">
-                <span className="text-warning">Pseudonymised</span>
+              <FieldRow label={l('Owner', 'Responsable')}>
+                <span className="text-warning">{l('Pseudonymised', 'Pseudonymisé')}</span>
               </FieldRow>
-              <FieldRow label="Actions and outcomes">
-                <span className="text-success">Visible</span>
+              <FieldRow label={l('Actions and outcomes', 'Actions et résultats')}>
+                <span className="text-success">{l('Visible', 'Visibles')}</span>
               </FieldRow>
-              <FieldRow label="Decisions and authors">
-                <span className="text-success">Visible</span>
+              <FieldRow label={l('Decisions and authors', 'Décisions et auteurs')}>
+                <span className="text-success">{l('Visible', 'Visibles')}</span>
               </FieldRow>
             </dl>
           </Card>
@@ -665,6 +722,8 @@ export function ObserverProspectsPage() {
 }
 
 export function ObserverExportsPage() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -711,15 +770,18 @@ export function ObserverExportsPage() {
   return (
     <ObserverLayout>
       <PageHeader
-        title="Exports"
-        subtitle="Evidence exports in your scope · each request is logged and expires after 24 hours"
+        title={l('Exports', 'Exports')}
+        subtitle={l(
+          'Evidence exports in your scope · each request is logged and expires after 24 hours',
+          'Exports de preuve dans votre périmètre · chaque demande est journalisée et expire après 24 heures',
+        )}
         action={
           <Button
             variant="secondary"
             leadingIcon={<RefreshCw className="size-4" />}
             onClick={() => void load()}
           >
-            Refresh
+            {l('Refresh', 'Actualiser')}
           </Button>
         }
       />
@@ -732,17 +794,17 @@ export function ObserverExportsPage() {
             <table className="w-full min-w-[680px] text-left text-[13px]">
               <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                 <tr>
-                  <th className="px-4 py-3">Export event</th>
-                  <th className="px-4 py-3">Scope</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">{l('Export event', 'Événement d’export')}</th>
+                  <th className="px-4 py-3">{l('Scope', 'Périmètre')}</th>
+                  <th className="px-4 py-3">{l('Created', 'Créé')}</th>
+                  <th className="px-4 py-3">{l('Status', 'Statut')}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan={4} className="p-8 text-center text-ink-muted">
-                      Loading export history…
+                      {l('Loading export history…', 'Chargement de l’historique des exports…')}
                     </td>
                   </tr>
                 ) : (
@@ -754,7 +816,7 @@ export function ObserverExportsPage() {
                       <td className="px-4 py-3">{auditResourceLabel(event.resourceType)}</td>
                       <td className="px-4 py-3">{formatDate(event.occurredAt)}</td>
                       <td className="px-4 py-3">
-                        <Badge tone="success">Recorded</Badge>
+                        <Badge tone="success">{l('Recorded', 'Enregistré')}</Badge>
                       </td>
                     </tr>
                   ))

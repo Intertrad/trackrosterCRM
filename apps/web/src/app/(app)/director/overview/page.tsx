@@ -24,12 +24,8 @@ import {
   type CoverageReport,
   type ReportEnvelope,
 } from '@/lib/api/report-types';
-
-const PERIODS = [
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '180', label: 'Last 6 months' },
-];
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 interface ExecutiveData {
   dashboard: DirectorDashboard;
@@ -39,6 +35,8 @@ interface ExecutiveData {
 }
 
 export default function DirectorOverviewPage() {
+  const { language } = useTranslation();
+  const l = useCallback((en: string, fr: string) => text(en, fr, language), [language]);
   const [days, setDays] = useState('30');
   const [data, setData] = useState<ExecutiveData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +59,10 @@ export default function DirectorOverviewPage() {
         setData({ dashboard, conversions, coverage, actions });
         setError(null);
       } catch (caught) {
-        if (!signal?.aborted) setError(describeError(caught));
+        if (!signal?.aborted) setError(describeError(caught, language));
       }
     },
-    [days],
+    [days, language],
   );
 
   useLiveRefresh(load);
@@ -78,36 +76,55 @@ export default function DirectorOverviewPage() {
   const channels = useMemo(
     () =>
       Object.entries(data?.actions.data.byType ?? {})
-        .map(([label, value]) => ({ label: label.replace(/_/g, ' '), value }))
+        .map(([label, value]) => ({ label: channelLabel(label, language), value }))
         .sort((left, right) => right.value - left.value),
-    [data],
+    [data, language],
   );
   const maxChannel = Math.max(...channels.map((channel) => channel.value), 1);
   const risks = data?.dashboard.objectiveRisks?.items ?? [];
+  const periods = [
+    { value: '30', label: l('Last 30 days', '30 derniers jours') },
+    { value: '90', label: l('Last 90 days', '90 derniers jours') },
+    { value: '180', label: l('Last 6 months', '6 derniers mois') },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Executive Dashboard"
-        subtitle="Group Arcadia · organization-wide operational read"
+        title={l('Executive Dashboard', 'Tableau de bord exécutif')}
+        subtitle={l(
+          'Group Arcadia · organization-wide operational read',
+          'Groupe Arcadia · vue opérationnelle de l’organisation',
+        )}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect label="Period" value={days} options={PERIODS} onChange={setDays} />
+            <FilterSelect
+              label={l('Period', 'Période')}
+              value={days}
+              options={periods}
+              onChange={setDays}
+            />
             <Link
               href="/director/exports"
               className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-bold text-ink hover:border-brand hover:text-brand"
             >
-              <Download aria-hidden="true" className="size-4" /> Export
+              <Download aria-hidden="true" className="size-4" /> {l('Export', 'Exporter')}
             </Link>
           </div>
         }
       />
 
       {error ? (
-        <Alert tone="danger" title="We could not load the executive rollup.">
+        <Alert
+          tone="danger"
+          title={l(
+            'We could not load the executive rollup.',
+            'Impossible de charger la synthèse exécutive.',
+          )}
+        >
           {error}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
-            Try again
+            {l('Try again', 'Réessayer')}
           </Button>
         </Alert>
       ) : null}
@@ -117,35 +134,43 @@ export default function DirectorOverviewPage() {
           icon={<Building2 aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={data?.coverage.data.establishments ?? null}
-          label="Establishments"
-          delta="Scoped reporting base"
+          label={l('Establishments', 'Établissements')}
+          delta={l('Scoped reporting base', 'Base de reporting du périmètre')}
         />
         <StatTile
           icon={<UserRound aria-hidden="true" className="size-5" />}
           tone="brand"
           value={data?.dashboard.activities.activeProspectors ?? null}
-          label="Active users"
-          delta="Users with activity in range"
+          label={l('Active users', 'Utilisateurs actifs')}
+          delta={l('Users with activity in range', 'Utilisateurs actifs sur la période')}
         />
         <StatTile
           icon={<Target aria-hidden="true" className="size-5" />}
           tone="brand"
           value={data?.coverage.data.prospects ?? null}
-          label="Active prospects"
-          delta={data ? `${formatRate(data.coverage.data.coverageRate)} coverage` : undefined}
+          label={l('Active prospects', 'Prospects actifs')}
+          delta={
+            data
+              ? `${formatRate(data.coverage.data.coverageRate)} ${l('coverage', 'de couverture')}`
+              : undefined
+          }
         />
         <StatTile
           icon={<Activity aria-hidden="true" className="size-5" />}
           tone="success"
           value={data?.conversions.data.contacted ?? null}
-          label="Contacts made"
-          delta={data ? `${data.actions.data.total} actions logged` : undefined}
+          label={l('Contacts made', 'Contacts établis')}
+          delta={
+            data
+              ? `${data.actions.data.total} ${l('actions logged', 'actions enregistrées')}`
+              : undefined
+          }
         />
         <StatTile
           icon={<TrendingUp aria-hidden="true" className="size-5" />}
           tone="success"
           value={data?.conversions.data.qualified ?? null}
-          label="Qualified opportunities"
+          label={l('Qualified opportunities', 'Opportunités qualifiées')}
           delta={data ? formatRate(data.conversions.data.conversionRate) : undefined}
         />
       </div>
@@ -153,8 +178,11 @@ export default function DirectorOverviewPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,1fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
           <DashboardCardHeader
-            title="Activity trend"
-            subtitle="Actions by channel · selected period"
+            title={l('Activity trend', 'Tendance de l’activité')}
+            subtitle={l(
+              'Actions by channel · selected period',
+              'Actions par canal · période sélectionnée',
+            )}
           />
           <div className="flex min-h-[236px] items-end gap-4 px-6 pb-6 pt-7 sm:gap-7">
             {channels.length ? (
@@ -182,18 +210,23 @@ export default function DirectorOverviewPage() {
               ))
             ) : (
               <p className="w-full self-center text-center text-[13px] text-ink-muted">
-                No actions were returned for this period.
+                {l(
+                  'No actions were returned for this period.',
+                  'Aucune action n’a été renvoyée pour cette période.',
+                )}
               </p>
             )}
           </div>
           <p className="border-t border-line-soft px-6 py-3 text-[12px] text-ink-muted">
-            The reporting API currently returns period totals by channel. A month-by-month series is
-            not exposed yet.
+            {l(
+              'The reporting API currently returns period totals by channel. A month-by-month series is not exposed yet.',
+              'L’API de reporting renvoie actuellement les totaux par canal. La série mensuelle n’est pas encore disponible.',
+            )}
           </p>
         </Card>
 
         <Card padding="none" className="overflow-hidden">
-          <CardHeader title="Results by channel" />
+          <CardHeader title={l('Results by channel', 'Résultats par canal')} />
           <div className="space-y-4 px-5 pb-5">
             {channels.length ? (
               channels.slice(0, 6).map((channel) => (
@@ -214,7 +247,7 @@ export default function DirectorOverviewPage() {
               ))
             ) : (
               <p className="py-8 text-center text-[14px] text-ink-muted">
-                No channel results in scope.
+                {l('No channel results in scope.', 'Aucun résultat de canal dans ce périmètre.')}
               </p>
             )}
           </div>
@@ -224,11 +257,11 @@ export default function DirectorOverviewPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
           <DashboardCardHeader
-            title="Attention points"
-            subtitle="Director-scoped risks"
+            title={l('Attention points', 'Points d’attention')}
+            subtitle={l('Director-scoped risks', 'Risques du périmètre directeur')}
             action={
               <Link href="/director/reports" className="text-[12px] font-bold text-brand">
-                View reports
+                {l('View reports', 'Voir les rapports')}
               </Link>
             }
           />
@@ -244,26 +277,30 @@ export default function DirectorOverviewPage() {
             </ul>
           ) : (
             <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
-              No objective risks were returned.
+              {l('No objective risks were returned.', 'Aucun risque d’objectif n’a été renvoyé.')}
             </p>
           )}
         </Card>
 
         <Card>
-          <CardHeader title="Campaign comparison" />
+          <CardHeader title={l('Campaign comparison', 'Comparaison des campagnes')} />
           <Alert
             tone="info"
-            title="Campaign comparison is not available from the reporting API yet."
+            title={l(
+              'Campaign comparison is not available from the reporting API yet.',
+              'La comparaison des campagnes n’est pas encore disponible via l’API de reporting.',
+            )}
           >
-            Campaign list and lifecycle actions are connected on the Campaigns page. The backend
-            does not currently return a single organization-wide campaign comparison with remaining
-            prospects and progress targets.
+            {l(
+              'Campaign list and lifecycle actions are connected on the Campaigns page. The backend does not currently return a single organization-wide campaign comparison with remaining prospects and progress targets.',
+              'La liste des campagnes et leurs actions de cycle de vie sont disponibles sur la page Campagnes. Le backend ne renvoie pas encore une comparaison globale avec les prospects restants et les objectifs de progression.',
+            )}
           </Alert>
           <Link
             href="/director/campaigns"
             className="mt-4 inline-flex text-[14px] font-bold text-brand hover:text-brand-hover"
           >
-            Open campaigns →
+            {l('Open campaigns →', 'Ouvrir les campagnes →')}
           </Link>
         </Card>
       </div>
@@ -291,10 +328,31 @@ function DashboardCardHeader({
   );
 }
 
-function describeError(error: unknown): string {
-  if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.';
+function describeError(error: unknown, language: string): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
+  if (!(error instanceof ApiError))
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   if (error.statusCode === 403)
-    return 'You do not hold director reporting authority for this scope.';
+    return l(
+      'You do not hold director reporting authority for this scope.',
+      'Vous n’avez pas les droits de reporting directeur pour ce périmètre.',
+    );
   if (error.statusCode === 400) return error.messages.join(' ');
-  return 'We could not reach the reporting service. Please try again.';
+  return l(
+    'We could not reach the reporting service. Please try again.',
+    'Impossible de joindre le service de reporting. Réessayez.',
+  );
+}
+
+function channelLabel(value: string, language: string): string {
+  const labels: Record<string, [string, string]> = {
+    call: ['call', 'appel'],
+    email: ['email', 'e-mail'],
+    e_mail: ['email', 'e-mail'],
+    message: ['message', 'message'],
+    visit: ['visit', 'visite'],
+    letter: ['letter', 'courrier'],
+  };
+  const [en, fr] = labels[value] ?? [value.replace(/_/g, ' '), value.replace(/_/g, ' ')];
+  return text(en, fr, language);
 }

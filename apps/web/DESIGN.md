@@ -44,6 +44,16 @@ Lists scroll horizontally inside their own positioned container. Detail/edit dra
 
 Shared owners are listed in UX-CONTRACT.md. Preserve semantic button intent, status text with color, focus outlines, loading dimensions, empty-state instructions, persistent inline errors and server conflict recovery. Native single-select/date popups are an explicit platform-owned choice. Do not recreate ARIA comboboxes or calendars at screen level. Use record pickers for available relations; backend authority remains definitive.
 
+## Localization, accessibility and responsive QA
+
+French is the default interface language. User-facing copy in role-specific pages must be selected
+through `useTranslation`/`text`, and dates and numbers must use the active account locale; never
+rely on the browser default locale. A row that opens a detail panel owns a native button or link
+inside a table cell so keyboard and assistive-technology users have an equivalent path. Horizontal
+data tables keep a visible, token-based scrollbar on narrow screens. Global scrollbar styling is
+owned by `globals.css` and uses the same light/dark surface and line tokens. Marketing styles may
+alias the canonical tokens but must not introduce a second brand palette.
+
 ## Verification and limits
 
 See `../../docs/frontend/INTEGRATION.md` and `../../output/frontend-integration-qa/` for actual checks and deployment dependencies. Generated form metadata is maintained from registered Nest DTOs; server validation is authoritative. Free-form provider configuration, GeoJSON boundaries and filter dictionaries are advanced structured inputs because their backend contracts are open-ended. This is not a claim that third-party delivery or production readiness is certified.
