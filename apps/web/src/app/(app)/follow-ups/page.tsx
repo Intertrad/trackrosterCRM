@@ -599,7 +599,7 @@ function RescheduleDialog({
                 placeholder={t('actions.reschedule.missedReasonHint')}
                 rows={4}
                 maxLength={2000}
-                className="w-full resize-y rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14.4px] text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
+                className="w-full resize-none rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14.4px] text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
               />
               <p className="text-[12px] text-ink-muted">{reason.length}/2000</p>
             </div>

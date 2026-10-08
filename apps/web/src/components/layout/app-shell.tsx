@@ -201,7 +201,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <form onSubmit={submitMobileSearch} role="search" className="relative w-full">
+        <form noValidate onSubmit={submitMobileSearch} role="search" className="relative w-full">
           <Search
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
@@ -383,7 +383,7 @@ function WorkspaceTopbar({
 
   return (
     <header className="hidden h-[58px] items-center gap-4 border-b border-line-soft bg-surface px-6 lg:flex">
-      <form onSubmit={submit} role="search" className="relative w-full max-w-[320px]">
+      <form noValidate onSubmit={submit} role="search" className="relative w-full max-w-[320px]">
         <Search
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"

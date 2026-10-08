@@ -1113,7 +1113,7 @@ export default function MessagesPage() {
                       maxLength={MAX_MESSAGE_BODY}
                       disabled={busy}
                       rows={2}
-                      className="min-h-14 w-full resize-y border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted"
+                      className="min-h-14 w-full resize-none border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted"
                     />
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1 text-ink-muted">
@@ -1661,6 +1661,7 @@ function ConversationSettingsDrawer({
       }}
     >
       <form
+        noValidate
         className="space-y-5"
         onSubmit={(event) => {
           event.preventDefault();
