@@ -21,7 +21,7 @@ describe('AuthMailService configuration', () => {
     ).toThrow('external HTTPS origin');
   });
 
-  it('accepts the public HTTPS origin and keeps invitation tokens in fragments', () => {
+  it('canonicalizes the production host and keeps invitation tokens in fragments', () => {
     const mail = service({
       ...base,
       NODE_ENV: 'production',
@@ -29,10 +29,10 @@ describe('AuthMailService configuration', () => {
     });
 
     expect(mail.publicLink('/accept-invitation', 'token-value')).toBe(
-      'https://trackroaster.com/accept-invitation#token=token-value',
+      'https://www.trackroster.com/accept-invitation#token=token-value',
     );
     expect(mail.publicAsset('/trackroster-logo.png')).toBe(
-      'https://trackroaster.com/trackroster-logo.png',
+      'https://www.trackroster.com/trackroster-logo.png',
     );
   });
 });

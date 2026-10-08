@@ -8,15 +8,15 @@ describe('invitation email', () => {
       workspaceName: 'Groupe <Intertrad>',
       roleDisplayName: 'Manager',
       inviterName: 'Samir & team',
-      invitationUrl: 'https://trackroaster.com/accept-invitation#token=abc',
+      invitationUrl: 'https://www.trackroster.com/accept-invitation#token=abc',
       expirationDate: 'October 15, 2026',
       roleDescription: 'Management within assigned teams',
       roleCapabilities: ['Assign and reassign work within your scope'],
-      logoUrl: 'https://trackroaster.com/trackroster-logo.png',
+      logoUrl: 'https://www.trackroster.com/trackroster-logo.png',
     });
 
     expect(result.subject).toContain('Groupe <Intertrad>');
-    expect(result.text).toContain('https://trackroaster.com/accept-invitation#token=abc');
+    expect(result.text).toContain('https://www.trackroster.com/accept-invitation#token=abc');
     expect(result.html).toContain('Accept invitation');
     expect(result.html).toContain('Groupe &lt;Intertrad&gt;');
     expect(result.html).toContain('Samir &amp; team');
@@ -40,11 +40,11 @@ describe('invitation email', () => {
     const result = renderInvitationEmail({
       workspaceName: 'Intertrad',
       roleDisplayName: 'Observer',
-      invitationUrl: 'https://trackroaster.com/accept-invitation#token=abc',
+      invitationUrl: 'https://www.trackroster.com/accept-invitation#token=abc',
       expirationDate: 'October 15, 2026',
       roleDescription: 'Read-only access',
       roleCapabilities: [],
-      logoUrl: 'https://trackroaster.com/trackroster-logo.png',
+      logoUrl: 'https://www.trackroster.com/trackroster-logo.png',
     });
 
     expect(result.text).toContain('Hi there,');

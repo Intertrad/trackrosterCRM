@@ -15,6 +15,21 @@ import { authMailOutbox } from '../database/schema/auth-recovery.js';
 import { openSecret, sealSecret } from './mfa-crypto.js';
 
 export type MailMessage = { to: string; subject: string; text: string; html?: string };
+
+function canonicalProductionOrigin(publicUrl: URL, production: boolean): string {
+  if (
+    production &&
+    ['trackroaster.com', 'trackroster.com', 'www.trackroster.com'].includes(
+      publicUrl.hostname.toLowerCase(),
+    )
+  ) {
+    // The apex redirects to this host and the historical `trackroaster.com`
+    // typo has no DNS record. Keep invitation links on the verified host.
+    return 'https://www.trackroster.com';
+  }
+  return publicUrl.origin;
+}
+
 @Injectable()
 export class AuthMailService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -59,7 +74,7 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
       endpoint: url?.origin,
       brevoKey,
       key: Buffer.from(key, 'hex'),
-      origin: publicUrl.origin,
+      origin: canonicalProductionOrigin(publicUrl, production),
     };
   }
   assertConfigured() {

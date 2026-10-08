@@ -19,7 +19,7 @@ AUTH_PUBLIC_ORIGIN=http://localhost:3000
 
 Apply migrations through 0031 to that development database before starting the updated API. Only the isolated database was migrated during implementation. `scripts/backend-test.mjs` supplies synthetic test configuration automatically.
 
-The local email adapter deliberately refuses production mode and non-local mailbox hosts. In production, `AUTH_PUBLIC_ORIGIN` must be the public HTTPS frontend origin (for example `https://trackroaster.com`); startup rejects localhost origins so invitations cannot contain unreachable links. Never deploy the synthetic test key.
+The local email adapter deliberately refuses production mode and non-local mailbox hosts. In production, `AUTH_PUBLIC_ORIGIN` must be the public HTTPS frontend origin (use `https://www.trackroster.com`; the misspelled `trackroaster.com` has no DNS record). Known TrackRoster apex/typo values are canonicalized to the verified `www` host, while localhost origins are rejected. Never deploy the synthetic test key.
 
 ## Contracts
 
