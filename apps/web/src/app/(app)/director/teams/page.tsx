@@ -1,4 +1,4 @@
-import { RoleModulePage } from '@/components/workspace/role-module-page';
+import { DirectorTeamsPage } from '@/components/director/director-workspace';
 export default function Page() {
-  return <RoleModulePage moduleId="teams" />;
+  return <DirectorTeamsPage />;
 }

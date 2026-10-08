@@ -204,12 +204,21 @@ describe('workspace navigation', () => {
 
     expect(items.map((item) => item.href)).toEqual([
       '/director/overview',
-      '/director/reports',
+      '/director/companies',
       '/director/campaigns',
-      '/director/territories',
+      '/director/teams',
       '/director/performance',
+      '/director/reports',
+      '/director/territories',
       '/director/exports',
       '/workspace',
+    ]);
+
+    expect(items.filter((item) => item.primary).map((item) => item.href)).toEqual([
+      '/director/overview',
+      '/director/companies',
+      '/director/campaigns',
+      '/director/performance',
     ]);
   });
 

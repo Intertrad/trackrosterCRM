@@ -32,6 +32,31 @@ mobile.
 
 Manager/director roster reads use `listScopedMemberships` over the authorized team capacity endpoint. Do not replace this with the administrator-only `/memberships` directory or the prospector-only work queue. `GET /assignments` returns an additive `prospectName` field and retains the assignment's own ETag.
 
+## Director organization workspace
+
+The director shell now exposes organization-wide, read-only destinations that match
+the supplied Director designs:
+
+- `/director/companies` lists companies from `GET /organizations` and enriches the
+  selected company with `GET /organizations/:organizationId` through the workspace
+  proxy. Campaign counts come from the scoped `GET /campaigns` response.
+- `/director/companies/:organizationId` shows the selected organization profile and
+  its campaigns using the same two read contracts. It intentionally has no edit,
+  invite or coordination controls; those remain administrator capabilities.
+- `/director/teams` loads `GET /teams` and each team's `GET /teams/:teamId/capacity`
+  read to show live membership, assigned and paused totals. Team membership and
+  assignment mutations remain outside the director grant.
+- `/director/campaigns`, `/director/performance`, `/director/reports` and
+  `/director/exports` continue to use their existing scoped campaign, dashboard,
+  report and controlled-export clients. The navigation order keeps companies,
+  campaigns and performance in the mobile primary bar while reports, teams and
+  exports remain reachable from the full navigation.
+
+Every request is made through the authenticated browser API clients, so tenant and
+organization scope is enforced by Nest guards rather than by client-side filtering.
+Forbidden responses are shown as inline scope errors and all director pages remain
+responsive with horizontally scrollable data tables on narrow screens.
+
 Local demo data is opt-in: `node scripts/seed-beta-demo.mjs` describes the operation; `--apply` writes only to the expected local Beta database. It preserves the imported base and existing account passwords. New examples use deterministic IDs and are visibly labelled.
 
 Frontend capabilities still depend on registered server contracts. Do not represent session planning, template authoring or company cooldown configuration as working before those backend contracts exist.
