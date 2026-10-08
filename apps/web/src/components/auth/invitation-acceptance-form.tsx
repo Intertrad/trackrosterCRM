@@ -87,7 +87,7 @@ export function InvitationAcceptanceForm() {
     return (
       <InvitationState
         title="This invitation is no longer valid."
-        message="Ask your workspace administrator to send a fresh invitation."
+        message="This link may have expired or been replaced by a newer invitation. Open the most recent email; requesting a resend invalidates previous links."
       />
     );
   }
