@@ -11,7 +11,7 @@ export type UiLanguage = 'en' | 'fr';
 
 export const UI_LANGUAGES: UiLanguage[] = ['en', 'fr'];
 
-export const DEFAULT_LANGUAGE: UiLanguage = 'en';
+export const DEFAULT_LANGUAGE: UiLanguage = 'fr';
 
 /** Written in its own language, as a language list should be. */
 export const LANGUAGE_LABELS: Record<UiLanguage, string> = {

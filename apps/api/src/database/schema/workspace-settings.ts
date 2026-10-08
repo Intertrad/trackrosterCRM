@@ -8,7 +8,7 @@ export const tenantSettings = pgTable('tenant_settings', {
   tenantId: uuid('tenant_id')
     .primaryKey()
     .references(() => tenants.id, { onDelete: 'cascade' }),
-  locale: varchar('locale', { length: 35 }).default('en').notNull(),
+  locale: varchar('locale', { length: 35 }).default('fr').notNull(),
   timezone: varchar('timezone', { length: 100 }).default('UTC').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

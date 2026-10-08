@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveLanguage } from '@/lib/i18n/languages';
+import { DEFAULT_LANGUAGE, resolveLanguage } from '@/lib/i18n/languages';
 
 import { LOCALE_OPTIONS, withCurrentValue } from './locales';
 
@@ -13,6 +13,6 @@ describe('language locale options', () => {
     const options = withCurrentValue(LOCALE_OPTIONS, 'de-DE');
 
     expect(options[0]).toEqual({ value: 'de-DE', label: 'de-DE' });
-    expect(resolveLanguage(options[0]!.value)).toBe('en');
+    expect(resolveLanguage(options[0]!.value)).toBe(DEFAULT_LANGUAGE);
   });
 });

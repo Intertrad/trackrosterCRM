@@ -28,7 +28,7 @@ components:
 
 The user-selected GitHub frontend at `libehon/TrackRoster`, revision `a8a5455`, is the current visual authority. The earlier product dossier and HTML walkthrough provide workflow context. Together they establish a navy coordination workspace, blue primary actions, lime confirmation accents and Inter typography. The operational signature is a clear availability/ownership decision before contacting a prospect. Additional administration screens preserve that identity and use quiet, readable tables and right-side editing panels. This implementation extends the existing app; the offline design ZIP remains a separate reference artifact.
 
-Audience: French field and desk teams, managers, directors, tenant administrators, scoped auditors and separately authorized platform administrators. Desktop supports setup/comparison; mobile supports daily action. UI language follows the authenticated membership's English/French locale. Identifiers and provider settings are shown only where needed for administration. No sample records or invented metrics are included in the connected screens.
+Audience: French field and desk teams, managers, directors, tenant administrators, scoped auditors and separately authorized platform administrators. Desktop supports setup/comparison; mobile supports daily action. French is the default interface language; an authenticated member or workspace administrator can switch to English from the language dropdown, and the choice persists through the account API. Identifiers and provider settings are shown only where needed for administration. No sample records or invented metrics are included in the connected screens.
 
 ## Token ownership
 
