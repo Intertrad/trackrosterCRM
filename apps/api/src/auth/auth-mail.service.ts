@@ -14,7 +14,22 @@ import { Database, DatabaseExecutor } from '../database/database.types.js';
 import { authMailOutbox } from '../database/schema/auth-recovery.js';
 import { openSecret, sealSecret } from './mfa-crypto.js';
 
-type MailMessage = { to: string; subject: string; text: string };
+export type MailMessage = { to: string; subject: string; text: string; html?: string };
+
+function canonicalProductionOrigin(publicUrl: URL, production: boolean): string {
+  if (
+    production &&
+    ['trackroaster.com', 'trackroster.com', 'www.trackroster.com'].includes(
+      publicUrl.hostname.toLowerCase(),
+    )
+  ) {
+    // The apex redirects to this host and the historical `trackroaster.com`
+    // typo has no DNS record. Keep invitation links on the verified host.
+    return 'https://www.trackroster.com';
+  }
+  return publicUrl.origin;
+}
+
 @Injectable()
 export class AuthMailService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -34,6 +49,10 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException('Account email is not configured');
     const url = endpoint ? new URL(endpoint) : undefined,
       publicUrl = new URL(origin);
+    const production = this.config.get('NODE_ENV') === 'production';
+    const localPublicHost = ['127.0.0.1', 'localhost', '::1', 'mailpit'].includes(
+      publicUrl.hostname,
+    );
     if (
       (endpoint &&
         (this.config.get('NODE_ENV') === 'production' ||
@@ -43,14 +62,19 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
           url!.password)) ||
       !['http:', 'https:'].includes(publicUrl.protocol) ||
       publicUrl.username ||
-      publicUrl.password
+      publicUrl.password ||
+      (production && (publicUrl.protocol !== 'https:' || localPublicHost))
     )
-      throw new ServiceUnavailableException('Local mailbox configuration is invalid');
+      throw new ServiceUnavailableException(
+        production
+          ? 'Production email links require AUTH_PUBLIC_ORIGIN to be an external HTTPS origin'
+          : 'Local mailbox configuration is invalid',
+      );
     return {
       endpoint: url?.origin,
       brevoKey,
       key: Buffer.from(key, 'hex'),
-      origin: publicUrl.origin,
+      origin: canonicalProductionOrigin(publicUrl, production),
     };
   }
   assertConfigured() {
@@ -59,6 +83,9 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
   publicLink(path: string, token: string) {
     // Fragment keeps the bearer secret out of HTTP request URLs and referrers.
     return `${this.settings().origin}${path}#token=${encodeURIComponent(token)}`;
+  }
+  publicAsset(path: string) {
+    return new URL(path, `${this.settings().origin}/`).toString();
   }
   async enqueue(message: MailMessage, expiresAt: Date, executor: DatabaseExecutor) {
     const id = randomUUID();
@@ -163,11 +190,17 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
                     },
                   }),
               ...(useLocalMailbox
-                ? { To: [{ Email: payload.to }], Subject: payload.subject, Text: payload.text }
+                ? {
+                    To: [{ Email: payload.to }],
+                    Subject: payload.subject,
+                    Text: payload.text,
+                    ...(payload.html ? { HTML: payload.html } : {}),
+                  }
                 : {
                     to: [{ email: payload.to }],
                     subject: payload.subject,
                     textContent: payload.text,
+                    ...(payload.html ? { htmlContent: payload.html } : {}),
                   }),
             }),
           },
