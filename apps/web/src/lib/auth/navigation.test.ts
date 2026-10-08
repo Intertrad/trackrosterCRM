@@ -53,7 +53,7 @@ describe('workspace navigation', () => {
       'nav.today',
       'nav.prospects',
       'nav.followUps',
-      'nav.actionsHistory',
+      'nav.actions',
       'nav.messages',
     ]);
   });
@@ -116,9 +116,11 @@ describe('workspace navigation', () => {
     expect(labelKeys(items)).toEqual([
       'nav.overview',
       'nav.audit',
+      'nav.prospects',
+      'nav.actions',
+      'nav.exports',
       'nav.security',
       'nav.assignments',
-      'nav.exports',
       'nav.workspaceTools',
     ]);
   });
