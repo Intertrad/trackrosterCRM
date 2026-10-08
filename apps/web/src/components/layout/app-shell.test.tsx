@@ -93,6 +93,32 @@ describe('AppShell', () => {
     expect(within(sidebar).queryByRole('link', { name: 'Today' })).not.toBeInTheDocument();
   });
 
+  it('translates the complete shell when the account language changes', () => {
+    authenticated();
+
+    const { rerender } = render(
+      <I18nProvider locale="fr-FR">
+        <AppShell>content</AppShell>
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByPlaceholderText('Rechercher mes prospects attribués…')).toHaveLength(2);
+    expect(screen.getByText('Espace attribué')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Menu du compte' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
+
+    rerender(
+      <I18nProvider locale="en-US">
+        <AppShell>content</AppShell>
+      </I18nProvider>,
+    );
+
+    expect(screen.getAllByPlaceholderText('Search my assigned prospects…')).toHaveLength(2);
+    expect(screen.getByText('Assigned workspace')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Account menu' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
+  });
+
   it('connects administrator overrides to the shared approval workflow', () => {
     authenticated('admin');
 

@@ -99,8 +99,8 @@ export function ProfileMenu({
         if (!controller.signal.aborted) {
           setWorkspaceError(
             error instanceof ApiError && error.statusCode === 401
-              ? 'Your session has expired. Please sign in again.'
-              : 'We could not load your workspaces. Please try again.',
+              ? t('common.sessionExpired')
+              : t('common.loadWorkspacesError'),
           );
         }
       })
@@ -159,8 +159,8 @@ export function ProfileMenu({
     } catch (error) {
       setWorkspaceError(
         error instanceof ApiError && error.statusCode === 401
-          ? 'Your session has expired. Please sign in again.'
-          : 'We could not switch workspace. Please try again.',
+          ? t('common.sessionExpired')
+          : t('common.switchWorkspaceError'),
       );
     } finally {
       setSwitchingId(null);
@@ -174,7 +174,7 @@ export function ProfileMenu({
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Account menu"
+        aria-label={t('common.accountMenu')}
         className={cn(
           'flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/8',
           collapsed && 'justify-center',
@@ -214,7 +214,7 @@ export function ProfileMenu({
       {open ? (
         <div
           role="menu"
-          aria-label="Account"
+          aria-label={t('common.account')}
           className={cn(
             'absolute z-50 overflow-hidden rounded-xl border border-line-soft bg-surface shadow-overlay',
             placement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2',
@@ -258,12 +258,12 @@ export function ProfileMenu({
               {workspaceLoading ? (
                 <div className="flex items-center gap-2 px-4 pb-3 text-[13px] text-ink-muted">
                   <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                  Loading workspaces…
+                  {t('common.loadingWorkspaces')}
                 </div>
               ) : memberships && memberships.length > 0 ? (
                 <ul
                   className="max-h-56 overflow-y-auto px-2 pb-2"
-                  aria-label="Available workspaces"
+                  aria-label={t('common.availableWorkspaces')}
                 >
                   {memberships.map((membership) => (
                     <li key={membership.membershipId}>
@@ -298,11 +298,11 @@ export function ProfileMenu({
 
                         {membership.current ? (
                           <span className="shrink-0 text-[11px] font-semibold text-success">
-                            Current
+                            {t('common.current')}
                           </span>
                         ) : (
                           <span className="shrink-0 text-[11px] font-semibold text-brand">
-                            Open
+                            {t('common.open')}
                           </span>
                         )}
                       </button>
@@ -311,7 +311,7 @@ export function ProfileMenu({
                 </ul>
               ) : memberships ? (
                 <p className="px-4 pb-3 text-[12px] text-ink-muted">
-                  No active workspaces are available.
+                  {t('common.noActiveWorkspaces')}
                 </p>
               ) : null}
             </div>

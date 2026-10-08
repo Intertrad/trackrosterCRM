@@ -17,7 +17,11 @@ import {
   switchActiveMembership,
   updateAccountProfile,
 } from '@/lib/api/account-client';
-import type { AccountMembership, AccountProfile } from '@/lib/api/account-types';
+import type {
+  AccountMembership,
+  AccountProfile,
+  UpdateAccountInput,
+} from '@/lib/api/account-types';
 import { clearChallenges } from '@/lib/auth/auth-challenge';
 import { useAuth } from '@/lib/auth/auth-context';
 import { getInitials } from '@/lib/ui/initials';
@@ -35,6 +39,15 @@ type SaveState =
   | { kind: 'saved' }
   | { kind: 'conflict' }
   | { kind: 'error'; message: string };
+
+type EditableProfileField = 'displayName' | 'phone' | 'locale' | 'timezone';
+
+const EDITABLE_PROFILE_FIELDS: EditableProfileField[] = [
+  'displayName',
+  'phone',
+  'locale',
+  'timezone',
+];
 
 export function ProfileTab() {
   const router = useRouter();
@@ -115,22 +128,12 @@ export function ProfileTab() {
 
     setSave({ kind: 'saving' });
 
+    /* Send only what changed, so an untouched field cannot overwrite a value
+     * someone else updated between read and write. */
+    const input = buildProfileUpdate(profile, { displayName, phone, locale, timezone });
+
     try {
-      /* Send only what changed, so an untouched field cannot overwrite a
-       * value someone else updated between read and write. */
-      const result = await updateAccountProfile(
-        {
-          ...(displayName.trim() !== (profile.displayName ?? '')
-            ? { displayName: displayName.trim() }
-            : {}),
-          ...(phone.trim() !== (profile.phone ?? '')
-            ? { phone: phone.trim() === '' ? null : phone.trim() }
-            : {}),
-          ...(locale !== profile.locale ? { locale } : {}),
-          ...(timezone !== profile.timezone ? { timezone } : {}),
-        },
-        etag,
-      );
+      const result = await updateAccountProfile(input, etag);
 
       applyProfile(result.resource, result.etag);
       setSave({ kind: 'saved' });
@@ -139,6 +142,38 @@ export function ProfileTab() {
       await refreshSession();
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 412) {
+        /* A session refresh, a second tab, or an administrator edit can make
+         * the form's validator stale. Re-read once and retry only when the
+         * server changed fields other than the ones this form is saving. This
+         * preserves optimistic concurrency while making a language-only change
+         * reliable after a production session refresh. */
+        try {
+          const latest = await getAccountProfile();
+
+          if (hasConcurrentProfileConflict(profile, latest.resource, input)) {
+            setSave({ kind: 'conflict' });
+
+            return;
+          }
+
+          const result = await updateAccountProfile(input, latest.etag);
+
+          applyProfile(result.resource, result.etag);
+          setSave({ kind: 'saved' });
+          await refreshSession();
+
+          return;
+        } catch (retryError) {
+          if (retryError instanceof ApiError && retryError.statusCode !== 412) {
+            setSave({
+              kind: 'error',
+              message: 'We could not save your changes. Please try again.',
+            });
+
+            return;
+          }
+        }
+
         setSave({ kind: 'conflict' });
 
         return;
@@ -411,6 +446,48 @@ export function ProfileTab() {
       </div>
     </div>
   );
+}
+
+function buildProfileUpdate(
+  profile: AccountProfile,
+  values: Pick<ProfileFormValues, EditableProfileField>,
+): UpdateAccountInput {
+  return {
+    ...(values.displayName.trim() !== (profile.displayName ?? '')
+      ? { displayName: values.displayName.trim() }
+      : {}),
+    ...(values.phone.trim() !== (profile.phone ?? '')
+      ? { phone: values.phone.trim() === '' ? null : values.phone.trim() }
+      : {}),
+    ...(values.locale !== profile.locale ? { locale: values.locale } : {}),
+    ...(values.timezone !== profile.timezone ? { timezone: values.timezone } : {}),
+  };
+}
+
+function hasConcurrentProfileConflict(
+  original: AccountProfile,
+  latest: AccountProfile,
+  input: UpdateAccountInput,
+): boolean {
+  return EDITABLE_PROFILE_FIELDS.some((field) => {
+    const desired = input[field];
+
+    if (desired === undefined) {
+      return false;
+    }
+
+    const originalValue = original[field] ?? null;
+    const latestValue = latest[field] ?? null;
+
+    return latestValue !== originalValue && latestValue !== desired;
+  });
+}
+
+interface ProfileFormValues {
+  displayName: string;
+  phone: string;
+  locale: string;
+  timezone: string;
 }
 
 function ProfileSkeleton() {

@@ -136,12 +136,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-canvas px-6">
         <div className="w-full max-w-md">
-          <Alert tone="danger" title="We could not restore your session.">
-            {sessionError ?? 'Check your connection and try again.'}
+          <Alert tone="danger" title={t('common.sessionRestoreError')}>
+            {sessionError ?? t('common.connectionRetry')}
           </Alert>
 
           <Button fullWidth className="mt-5" onClick={() => void refreshSession()}>
-            Try again
+            {t('common.retry')}
           </Button>
         </div>
       </main>
@@ -207,10 +207,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
           />
           <input
-            aria-label={isProspector ? 'Search my assigned prospects' : 'Search workspace'}
+            aria-label={t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}
             value={mobileQuery}
             onChange={(event) => setMobileQuery(event.target.value)}
-            placeholder={isProspector ? 'Search my assigned prospects…' : 'Search workspace…'}
+            placeholder={`${t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}…`}
             className="h-10 w-full rounded-lg border border-white/15 bg-white px-9 text-[14px] text-ink outline-none placeholder:text-ink-muted focus:border-brand"
           />
         </form>
@@ -342,15 +342,17 @@ function WorkspaceScopeCard({
   activeWorkspace: { organizationId: string | null; teamId: string | null } | null;
   isProspector: boolean;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="px-3 pb-4">
       <div className="rounded-xl border border-white/12 bg-white/6 px-3 py-3">
         <p className="truncate text-[12px] font-bold text-white">
-          {isProspector ? 'Assigned workspace' : 'Current workspace'}
+          {t(isProspector ? 'nav.assignedWorkspace' : 'nav.currentWorkspace')}
         </p>
         <p className="mt-0.5 truncate text-[11px] text-ink-onDark-soft">
-          {activeWorkspace?.organizationId ? 'Organization scope' : 'Workspace scope'}
-          {activeWorkspace?.teamId ? ' · Team' : ''}
+          {t(activeWorkspace?.organizationId ? 'nav.organizationScope' : 'nav.workspaceScope')}
+          {activeWorkspace?.teamId ? ` · ${t('nav.teamScope')}` : ''}
         </p>
       </div>
     </div>
@@ -369,6 +371,7 @@ function WorkspaceTopbar({
   email: string;
 }) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -386,10 +389,10 @@ function WorkspaceTopbar({
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
         />
         <input
-          aria-label={isProspector ? 'Search my assigned prospects' : 'Search workspace'}
+          aria-label={t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={isProspector ? 'Search my assigned prospects…' : 'Search workspace…'}
+          placeholder={`${t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}…`}
           className="h-9 w-full rounded-lg border border-line-soft bg-canvas px-9 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-brand focus:bg-surface"
         />
       </form>
@@ -401,7 +404,7 @@ function WorkspaceTopbar({
         <NotificationBell tone="dark" />
         <Link
           href="/workspace"
-          aria-label="Help and workspace tools"
+          aria-label={t('nav.helpWorkspaceTools')}
           className="flex size-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-surface-muted hover:text-navy"
         >
           <CircleHelp aria-hidden="true" className="size-[17px]" />
@@ -476,7 +479,7 @@ function SidebarItem({
           <span className="truncate">{t(item.label)}</span>
           {unreadCount > 0 ? (
             <span
-              aria-label={`${unreadCount} unread messages`}
+              aria-label={t('common.unreadMessages', { count: unreadCount })}
               className="flex size-6 shrink-0 items-center justify-center rounded-full bg-lime text-[12px] font-bold leading-none text-navy"
             >
               {unreadCount > 99 ? '99+' : unreadCount}
@@ -629,9 +632,11 @@ function MobileMoreItem({ item }: { item: WorkspaceNavigationItem }) {
 }
 
 function ShellSkeleton() {
+  const { t } = useTranslation();
+
   return (
     <div className="flex min-h-dvh bg-canvas" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your workspace…</span>
+      <span className="sr-only">{t('common.loadingWorkspace')}</span>
 
       <div className="hidden w-[220px] shrink-0 bg-navy lg:block" />
 
