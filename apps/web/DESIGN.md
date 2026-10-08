@@ -76,6 +76,20 @@ Messages initially show the full conversation list. Opening a conversation chang
 
 The reference uses browser-local demo workflow models. The connected app retains real authentication, scoped server reads, editable forms, permission checks and protected drafts. Unsupported session controls, template editing and company cooldown policies are not rendered as working controls. This adoption is not pixel-identical parity for those screens or workflows.
 
+## Public marketing surface
+
+The public product introduction lives at `/landing` and is also rendered for
+anonymous visitors at `/`. Its composition is owned by
+`components/marketing/landing-page.tsx`; its responsive styling and motion are kept
+in `app/marketing.css`. It uses the same TrackRoster brand mark and color direction,
+but its preview rows, pricing examples and metrics are static explanatory content,
+not tenant data. Authenticated visitors retain the role-home redirect from `/`.
+
+The landing page uses short staggered entrances, a restrained preview float and
+pointer hover lifts. `prefers-reduced-motion: reduce` disables those animations and
+shortens transitions. Keep public marketing effects CSS-only and lightweight; do not
+introduce API reads, customer data or a second token palette into this surface.
+
 ## Role completion and opt-in Beta samples — 29 September 2026
 
 Manager and director pages extend the same GitHub-derived shell and canonical controls. Dedicated destinations expose objectives, territories and director teams/campaigns. Observer and platform now have their own overview, navigation and detail destinations. Observer audit remains read-only. Platform authority alone does not grant a tenant workspace or observer access. Team/territory creation is offered only to tenant administrators, matching the server guards.

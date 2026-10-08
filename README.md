@@ -17,6 +17,10 @@ territories, and organizations.
 TrackRoster is not intended to be a generic CRM. Its core purpose is to coordinate
 prospecting work safely and clearly before, during, and after each commercial action.
 
+The anonymous product introduction is available at `/landing` and at the anonymous
+root route `/`. It is a responsive, static marketing surface; authenticated users
+continue to enter the role-aware application from `/`.
+
 ---
 
 ## Product goals
@@ -288,6 +292,8 @@ Start here:
 - [Testing Strategy](./docs/engineering/TESTING_STRATEGY.md)
 - [Collision Rules](./docs/product/COLLISION_RULES.md)
 - [API Specification](./docs/api/API_SPEC.md)
+- [Public marketing landing page](./docs/design/MARKETING_LANDING_PAGE.md)
+- [Landing page visual QA](./design-qa.md)
 
 Major technical choices are documented under:
 

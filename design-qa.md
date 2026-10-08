@@ -22,6 +22,8 @@
 - Mobile navigation menu opened and displayed Product, Anti-collision, Roles, Security, Pricing, Sign in and Book a demo actions.
 - FAQ accordion opened for “Is this a CRM?” and displayed its answer.
 - Anonymous root rendered the landing page while authenticated app routes remain owned by the existing app shell.
+- Hero entrance, product-preview float, preview pulse and card hover effects were added and remained subtle at desktop and mobile widths.
+- Reduced-motion behavior is implemented in `marketing.css` and disables the landing-page animations.
 - Browser console checked after navigation: no errors or warnings captured.
 
 ## Comparison
@@ -34,6 +36,9 @@ No actionable P0, P1 or P2 visual findings remain.
 
 - P3: The hero product preview is implemented as responsive HTML so it can scale on small screens; it is intentionally not a static raster of the supplied desktop mockup.
 - P3: “Book a demo” currently opens the existing mail client via `mailto:`; a connected lead form can replace it when a public marketing endpoint is available.
+
+The implementation approach and route/authentication contract are documented in
+[Public marketing landing page](docs/design/MARKETING_LANDING_PAGE.md).
 
 ## Final result
 
