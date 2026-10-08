@@ -88,6 +88,35 @@ html {
   /* Keep native controls aligned with the light product surface unless the
      account explicitly opts into dark mode below. */
   color-scheme: light;
+  scrollbar-color: var(--color-line) var(--color-surface-muted);
+  scrollbar-width: thin;
+}
+
+/* Keep scroll surfaces usable and visible at every viewport size. This is
+   intentionally token-based so the thumb remains legible in dark mode. */
+* {
+  scrollbar-color: var(--color-line) var(--color-surface-muted);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-surface-muted);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid var(--color-surface-muted);
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-muted);
 }
 
 body {

@@ -1,16 +1,16 @@
 /* Public TrackRoster marketing page. The page intentionally uses the same
    navy, blue and lime tokens as the authenticated product shell. */
 .marketing-page {
-  --marketing-navy: #05124a;
-  --marketing-navy-deep: #030c33;
-  --marketing-blue: #0f59fa;
-  --marketing-blue-soft: #e3ecff;
-  --marketing-lime: #a7dc41;
-  --marketing-ink: #05124a;
-  --marketing-muted: #5d6f93;
-  --marketing-line: #dbe3f0;
-  --marketing-tint: #f4f7fb;
-  background: #fff;
+  --marketing-navy: var(--color-navy);
+  --marketing-navy-deep: var(--color-navy-950);
+  --marketing-blue: var(--color-brand);
+  --marketing-blue-soft: var(--color-brand-tint);
+  --marketing-lime: var(--color-lime);
+  --marketing-ink: var(--color-ink);
+  --marketing-muted: var(--color-ink-muted);
+  --marketing-line: var(--color-line);
+  --marketing-tint: var(--color-canvas);
+  background: var(--color-surface);
   color: var(--marketing-ink);
   overflow: clip;
 }

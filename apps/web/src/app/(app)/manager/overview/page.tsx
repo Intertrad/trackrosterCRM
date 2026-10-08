@@ -36,10 +36,14 @@ import { listOverrideRequests } from '@/lib/api/override-client';
 import type { OverrideRequestSummary } from '@/lib/api/override-types';
 import { buildTeamRoster, rosterStatus, type TeamRosterRow } from '@/lib/manager/team-roster';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { cn } from '@/lib/ui/cn';
 
 export default function TeamOverviewPage() {
   const { activeWorkspace } = useAuth();
+  const { language, locale } = useTranslation();
+  const l = useCallback((en: string, fr: string) => text(en, fr, language), [language]);
 
   const [period, setPeriod] = useState<ManagerPeriod>('this_week');
   const [data, setData] = useState<ManagerDashboardResponse | null>(null);
@@ -74,8 +78,15 @@ export default function TeamOverviewPage() {
         setError(
           describeLoadError(
             dashboardResult.reason,
-            'We could not load the team overview. Please try again.',
-            'You do not have reporting access for this scope.',
+            l(
+              'We could not load the team overview. Please try again.',
+              'Impossible de charger la vue d’équipe. Réessayez.',
+            ),
+            l(
+              'You do not have reporting access for this scope.',
+              'Vous n’avez pas accès aux rapports de ce périmètre.',
+            ),
+            language,
           ),
         );
       }
@@ -88,8 +99,15 @@ export default function TeamOverviewPage() {
         setMembershipError(
           describeLoadError(
             membershipResult.reason,
-            'The team roster is temporarily unavailable. Live figures are still shown.',
-            'You do not have access to the team roster for this scope.',
+            l(
+              'The team roster is temporarily unavailable. Live figures are still shown.',
+              'La liste de l’équipe est momentanément indisponible. Les chiffres restent visibles.',
+            ),
+            l(
+              'You do not have access to the team roster for this scope.',
+              'Vous n’avez pas accès à la liste de l’équipe pour ce périmètre.',
+            ),
+            language,
           ),
         );
       }
@@ -101,7 +119,7 @@ export default function TeamOverviewPage() {
         setRequests([]);
       }
     },
-    [activeWorkspace?.teamId, period],
+    [activeWorkspace?.teamId, language, l, period],
   );
 
   useLiveRefresh(load);
@@ -159,8 +177,8 @@ export default function TeamOverviewPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Team Dashboard"
-        subtitle={`Team ${activeWorkspace?.teamId ? '· ' : ''}${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · 30-second operational read`}
+        title={l('Team Dashboard', 'Tableau de bord de l’équipe')}
+        subtitle={`${l('Team', 'Équipe')} ${activeWorkspace?.teamId ? '· ' : ''}${new Date().toLocaleDateString(locale ?? 'fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · ${l('30-second operational read', 'vue opérationnelle en 30 secondes')}`}
         action={
           <div className="flex flex-wrap items-center gap-2.5">
             <PeriodFilter value={period} onChange={setPeriod} />
@@ -168,26 +186,32 @@ export default function TeamOverviewPage() {
               href="/manager/exports"
               className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-bold text-ink hover:border-brand hover:text-brand"
             >
-              <Download aria-hidden="true" className="size-4" /> Export
+              <Download aria-hidden="true" className="size-4" /> {l('Export', 'Exporter')}
             </Link>
           </div>
         }
       />
 
       {error ? (
-        <Alert tone="warning" title="Live figures are unavailable">
+        <Alert
+          tone="warning"
+          title={l('Live figures are unavailable', 'Les chiffres en direct sont indisponibles')}
+        >
           {error}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
-            Try again
+            {l('Try again', 'Réessayer')}
           </Button>
         </Alert>
       ) : null}
 
       {membershipError && !error ? (
-        <Alert tone="warning" title="Team roster is unavailable">
+        <Alert
+          tone="warning"
+          title={l('Team roster is unavailable', 'La liste de l’équipe est indisponible')}
+        >
           {membershipError}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
-            Retry roster
+            {l('Retry roster', 'Réessayer la liste')}
           </Button>
         </Alert>
       ) : null}
@@ -196,36 +220,48 @@ export default function TeamOverviewPage() {
         <DashboardMetric
           icon={<Target aria-hidden="true" className="size-5" />}
           value={data ? totals.openAssignments : '—'}
-          label="Active assignments"
-          detail="Current team portfolio"
+          label={l('Active assignments', 'Attributions actives')}
+          detail={l('Current team portfolio', 'Portefeuille actuel de l’équipe')}
           tone="blue"
         />
         <DashboardMetric
           icon={<CalendarDays aria-hidden="true" className="size-5" />}
           value={data ? totals.pendingFollowUps : '—'}
-          label="Follow-ups due"
-          detail={data ? `${totals.followUpsCompleted} completed in range` : 'Waiting for API'}
+          label={l('Follow-ups due', 'Relances à traiter')}
+          detail={
+            data
+              ? `${totals.followUpsCompleted} ${l('completed in range', 'terminées sur la période')}`
+              : l('Waiting for API', 'En attente de l’API')
+          }
           tone="indigo"
         />
         <DashboardMetric
           icon={<CircleAlert aria-hidden="true" className="size-5" />}
           value={data ? totals.overdue : '—'}
-          label="Overdue"
-          detail={data ? 'Needs attention' : 'Waiting for API'}
+          label={l('Overdue', 'En retard')}
+          detail={
+            data
+              ? l('Needs attention', 'Nécessite votre attention')
+              : l('Waiting for API', 'En attente de l’API')
+          }
           tone="red"
         />
         <DashboardMetric
           icon={<ShieldAlert aria-hidden="true" className="size-5" />}
           value={data ? requests.length : '—'}
-          label="Collisions / overrides"
-          detail="Pending manager decision"
+          label={l('Collisions / overrides', 'Conflits / dérogations')}
+          detail={l('Pending manager decision', 'Décision du responsable en attente')}
           tone="amber"
         />
         <DashboardMetric
           icon={<TrendingUp aria-hidden="true" className="size-5" />}
           value={onTrack === null ? '—' : `${onTrack}%`}
-          label="On track"
-          detail={data ? `${totals.activeProspectors} active prospectors` : 'Waiting for API'}
+          label={l('On track', 'Dans les temps')}
+          detail={
+            data
+              ? `${totals.activeProspectors} ${l('active prospectors', 'prospecteurs actifs')}`
+              : l('Waiting for API', 'En attente de l’API')
+          }
           tone="green"
         />
       </div>
@@ -233,9 +269,16 @@ export default function TeamOverviewPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
           <DashboardCardHeader
-            title="Activity over time"
-            subtitle="Actions logged · selected period"
-            value={data ? `${totals.activitiesInPeriod} actions` : 'Waiting for API'}
+            title={l('Activity over time', 'Activité dans le temps')}
+            subtitle={l(
+              'Actions logged · selected period',
+              'Actions enregistrées · période sélectionnée',
+            )}
+            value={
+              data
+                ? `${totals.activitiesInPeriod} ${l('actions', 'actions')}`
+                : l('Waiting for API', 'En attente de l’API')
+            }
           />
           <div className="flex min-h-[220px] items-end gap-4 px-6 pb-5 pt-8 sm:gap-7">
             {activitySeries.length ? (
@@ -259,14 +302,20 @@ export default function TeamOverviewPage() {
               ))
             ) : (
               <p className="w-full self-center text-center text-[13px] text-ink-muted">
-                Activity bars appear when the manager API returns team members.
+                {l(
+                  'Activity bars appear when the manager API returns team members.',
+                  'Les barres d’activité apparaîtront lorsque l’API du responsable renverra les membres de l’équipe.',
+                )}
               </p>
             )}
           </div>
         </Card>
 
         <Card padding="none" className="overflow-hidden">
-          <DashboardCardHeader title="Activity by channel" subtitle="Selected period" />
+          <DashboardCardHeader
+            title={l('Activity by channel', 'Activité par canal')}
+            subtitle={l('Selected period', 'Période sélectionnée')}
+          />
           <div className="flex min-h-[220px] items-center gap-6 px-6 py-6">
             <div
               className="flex size-36 shrink-0 items-center justify-center rounded-full"
@@ -278,7 +327,7 @@ export default function TeamOverviewPage() {
                 <span className="text-[22px] font-extrabold text-navy">
                   {data ? totals.activitiesInPeriod : '—'}
                 </span>
-                <span className="text-[11px] text-ink-muted">complete</span>
+                <span className="text-[11px] text-ink-muted">{l('complete', 'total')}</span>
               </div>
             </div>
             <ul className="min-w-0 flex-1 space-y-3">
@@ -293,7 +342,9 @@ export default function TeamOverviewPage() {
                   </li>
                 ))
               ) : (
-                <li className="text-[13px] text-ink-muted">No channel data returned.</li>
+                <li className="text-[13px] text-ink-muted">
+                  {l('No channel data returned.', 'Aucune donnée de canal reçue.')}
+                </li>
               )}
             </ul>
           </div>
@@ -306,14 +357,14 @@ export default function TeamOverviewPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
           <DashboardCardHeader
-            title="Team performance"
-            subtitle="This week"
+            title={l('Team performance', 'Performance de l’équipe')}
+            subtitle={l('This week', 'Cette semaine')}
             action={
               <Link
                 href="/manager/reports"
                 className="text-[12px] font-bold text-brand hover:text-brand-hover"
               >
-                View all
+                {l('View all', 'Tout afficher')}
               </Link>
             }
           />
@@ -321,10 +372,10 @@ export default function TeamOverviewPage() {
             <table className="w-full min-w-[520px] border-collapse">
               <thead>
                 <tr className="border-y border-line-soft text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-                  <th className="px-5 py-3">Prospector</th>
-                  <th className="px-3 py-3 text-center">Actions</th>
-                  <th className="px-3 py-3 text-center">Follow-ups</th>
-                  <th className="px-5 py-3 text-right">On track</th>
+                  <th className="px-5 py-3">{l('Prospector', 'Prospecteur')}</th>
+                  <th className="px-3 py-3 text-center">{l('Actions', 'Actions')}</th>
+                  <th className="px-3 py-3 text-center">{l('Follow-ups', 'Relances')}</th>
+                  <th className="px-5 py-3 text-right">{l('On track', 'Dans les temps')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-soft">
@@ -356,38 +407,53 @@ export default function TeamOverviewPage() {
           </div>
           {!roster.length ? (
             <p className="px-5 py-6 text-[13px] text-ink-muted">
-              Team members appear after the scoped membership API loads.
+              {l(
+                'Team members appear after the scoped membership API loads.',
+                'Les membres de l’équipe apparaîtront après le chargement de l’API des membres du périmètre.',
+              )}
             </p>
           ) : null}
         </Card>
 
         <Card padding="none" className="overflow-hidden">
-          <DashboardCardHeader title="Current risks" subtitle="Needs attention" />
+          <DashboardCardHeader
+            title={l('Current risks', 'Risques actuels')}
+            subtitle={l('Needs attention', 'Nécessite votre attention')}
+          />
           <div className="space-y-2 px-5 pb-5">
             {totals.overdue > 0 ? (
               <RiskRow tone="danger" icon={<CircleAlert aria-hidden="true" className="size-4" />}>
-                <strong>{totals.overdue} overdue follow-ups</strong> need attention.
+                <strong>
+                  {totals.overdue} {l('overdue follow-ups', 'relances en retard')}
+                </strong>{' '}
+                {l('need attention.', 'nécessitent votre attention.')}
               </RiskRow>
             ) : null}
             {requests.length > 0 ? (
               <RiskRow tone="warning" icon={<ShieldAlert aria-hidden="true" className="size-4" />}>
                 <strong>
-                  {requests.length} pending override request{requests.length === 1 ? '' : 's'}
+                  {requests.length}{' '}
+                  {l('pending override request', 'demande de dérogation en attente')}
+                  {requests.length === 1 ? '' : l('s', 's')}
                 </strong>{' '}
-                awaiting manager decision.
+                {l('awaiting manager decision.', 'en attente d’une décision.')}
               </RiskRow>
             ) : null}
             {inactiveCount > 0 ? (
               <RiskRow tone="warning" icon={<UserRound aria-hidden="true" className="size-4" />}>
                 <strong>
-                  {inactiveCount} inactive member{inactiveCount === 1 ? '' : 's'}
+                  {inactiveCount} {l('inactive member', 'membre inactif')}
+                  {inactiveCount === 1 ? '' : l('s', 's')}
                 </strong>{' '}
-                have no recent activity.
+                {l('have no recent activity.', 'sans activité récente.')}
               </RiskRow>
             ) : null}
             {!totals.overdue && !requests.length && !inactiveCount ? (
               <RiskRow tone="success" icon={<TrendingUp aria-hidden="true" className="size-4" />}>
-                No active risks in the current scope.
+                {l(
+                  'No active risks in the current scope.',
+                  'Aucun risque actif dans ce périmètre.',
+                )}
               </RiskRow>
             ) : null}
             {requests.length > 0 ? (
@@ -405,8 +471,9 @@ export default function TeamOverviewPage() {
                 ))}
                 {requests.length > 5 ? (
                   <li className="px-2 pt-1 text-[11px] text-ink-muted">
-                    + {requests.length - 5} more pending request
-                    {requests.length - 5 === 1 ? '' : 's'}
+                    + {requests.length - 5}{' '}
+                    {l('more pending request', 'demande en attente supplémentaire')}
+                    {requests.length - 5 === 1 ? '' : l('s', 's')}
                   </li>
                 ) : null}
               </ul>
@@ -417,14 +484,17 @@ export default function TeamOverviewPage() {
 
       <Card padding="none" className="overflow-hidden">
         <DashboardCardHeader
-          title="Overdue follow-ups"
-          subtitle="From the same scoped dashboard aggregate"
+          title={l('Overdue follow-ups', 'Relances en retard')}
+          subtitle={l(
+            'From the same scoped dashboard aggregate',
+            'Depuis le même agrégat du tableau de bord',
+          )}
           action={
             <Link
               href="/follow-ups"
               className="text-[12px] font-bold text-brand hover:text-brand-hover"
             >
-              All {totals.overdue}
+              {l('All', 'Toutes')} {totals.overdue}
             </Link>
           }
         />
@@ -434,19 +504,27 @@ export default function TeamOverviewPage() {
               <div className="flex min-w-0 items-center gap-3">
                 <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-danger" />
                 <span className="truncate font-semibold text-navy">
-                  {totals.overdue} follow-ups require manager attention
+                  {totals.overdue}{' '}
+                  {l(
+                    'follow-ups require manager attention',
+                    'relances nécessitent l’attention du responsable',
+                  )}
                 </span>
               </div>
               <Link
                 href="/follow-ups?overdue=true"
                 className="shrink-0 text-brand hover:text-brand-hover"
               >
-                Open queue <ChevronRight aria-hidden="true" className="inline size-4" />
+                {l('Open queue', 'Ouvrir la file')}{' '}
+                <ChevronRight aria-hidden="true" className="inline size-4" />
               </Link>
             </div>
           ) : (
             <p className="px-5 py-5 text-[13px] text-ink-muted">
-              No overdue follow-ups in this scope.
+              {l(
+                'No overdue follow-ups in this scope.',
+                'Aucune relance en retard dans ce périmètre.',
+              )}
             </p>
           )}
         </div>
@@ -585,14 +663,26 @@ function donutGradient(series: Array<{ label: string; value: number }>): string 
   return `conic-gradient(${stops.join(', ')})`;
 }
 
-function describeLoadError(error: unknown, fallback: string, forbidden: string): string {
+function describeLoadError(
+  error: unknown,
+  fallback: string,
+  forbidden: string,
+  language: string,
+): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (error instanceof ApiError) {
     if (error.statusCode === 403) return forbidden;
     if (error.statusCode === 0) {
-      return 'TrackRoster could not reach the API. Confirm the backend is running and try again.';
+      return l(
+        'TrackRoster could not reach the API. Confirm the backend is running and try again.',
+        'TrackRoster ne peut pas joindre l’API. Vérifiez que le backend fonctionne puis réessayez.',
+      );
     }
     if (error.statusCode === 502 || error.statusCode === 503) {
-      return 'The backend service is unavailable. Start the API service and try again.';
+      return l(
+        'The backend service is unavailable. Start the API service and try again.',
+        'Le service backend est indisponible. Démarrez l’API puis réessayez.',
+      );
     }
 
     return error.requestId ? `${error.message} (request ${error.requestId})` : error.message;

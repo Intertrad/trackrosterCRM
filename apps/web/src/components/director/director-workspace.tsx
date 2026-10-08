@@ -176,16 +176,19 @@ export function DirectorCompaniesPage() {
               </thead>
               <tbody className="divide-y divide-line-soft">
                 {visible.map((organization) => (
-                  <tr
-                    key={organization.id}
-                    className="cursor-pointer hover:bg-surface-muted"
-                    onClick={() => setSelected(organization)}
-                  >
+                  <tr key={organization.id} className="hover:bg-surface-muted">
                     <td className="px-3 py-3.5">
-                      <span className="block font-semibold text-navy">
-                        {organization.shortName ?? organization.name}
-                      </span>
-                      <span className="text-xs text-ink-muted">{organization.slug}</span>
+                      <button
+                        type="button"
+                        className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        onClick={() => setSelected(organization)}
+                        aria-label={`Open ${organization.shortName ?? organization.name}`}
+                      >
+                        <span className="block font-semibold text-navy">
+                          {organization.shortName ?? organization.name}
+                        </span>
+                        <span className="text-xs text-ink-muted">{organization.slug}</span>
+                      </button>
                     </td>
                     <td className="px-3 py-3.5">
                       <Badge tone={statusTone(organization.status)} dot>
@@ -195,7 +198,17 @@ export function DirectorCompaniesPage() {
                     <td className="px-3 py-3.5 tabular-nums">{campaignCount(organization.id)}</td>
                     <td className="px-3 py-3.5 text-ink-muted">{organization.website ?? '—'}</td>
                     <td className="px-3 py-3.5 text-right">
-                      <ChevronRight className="ml-auto size-4 text-ink-muted" />
+                      <button
+                        type="button"
+                        onClick={() => setSelected(organization)}
+                        className="rounded p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        aria-label={`Open ${organization.shortName ?? organization.name}`}
+                      >
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="ml-auto size-4 text-ink-muted"
+                        />
+                      </button>
                     </td>
                   </tr>
                 ))}
