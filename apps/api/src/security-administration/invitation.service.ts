@@ -29,10 +29,30 @@ import { MfaService } from '../auth/mfa.service.js';
 import { withTenantContext } from '../database/tenant-context.js';
 import { tokenHash } from '../auth/mfa-crypto.js';
 import {
+  getInvitationRoleContent,
+  renderInvitationEmail,
+  type InvitationEmailRole,
+} from '../auth/invitation-email.js';
+import {
   AcceptInvitationDto,
   CreateInvitationDto,
   CreatePlatformInvitationDto,
 } from './invitation.dto.js';
+
+function toInvitationEmailRole(
+  role: CreateInvitationDto['role'],
+): Exclude<InvitationEmailRole, 'super_admin'> {
+  if (role === 'tenant_admin') return 'client_admin';
+  if (role === 'auditor') return 'observer';
+  return role;
+}
+
+function formatInvitationExpiry(expiresAt: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(expiresAt);
+}
 
 @Injectable()
 export class InvitationService {
@@ -61,6 +81,8 @@ export class InvitationService {
         (input.teamId && !input.organizationId)
       )
         throw new BadRequestException('Role and initial scope do not match');
+      const emailRole = toInvitationEmailRole(input.role);
+      const sender = await this.senderContext(tx, auth);
       if (input.organizationId) {
         const [org] = await tx
           .select()
@@ -133,7 +155,12 @@ export class InvitationService {
         organizationId: input.organizationId,
         teamId: input.teamId,
       });
-      await this.issue(membership!.id, auth.tenantId, identity.email, tx);
+      await this.issue(membership!.id, auth.tenantId, identity.email, tx, {
+        recipientName: input.displayName,
+        workspaceName: sender.workspaceName,
+        inviterName: sender.inviterName,
+        role: emailRole,
+      });
       await this.audit(
         auth,
         membership!.id,
@@ -181,11 +208,25 @@ export class InvitationService {
         .limit(1);
       if (previous && previous.createdAt > new Date(Date.now() - 60_000))
         throw new ConflictException('Wait one minute before resending');
+      const [grant] = await tx
+        .select({ role: userAccessGrants.role })
+        .from(userAccessGrants)
+        .where(
+          and(eq(userAccessGrants.tenantId, auth.tenantId), eq(userAccessGrants.userId, member.id)),
+        )
+        .limit(1);
+      const sender = await this.senderContext(tx, auth);
       await this.issue(
         member.id,
         auth.tenantId,
         identity.email,
         tx,
+        {
+          recipientName: member.displayName,
+          workspaceName: sender.workspaceName,
+          inviterName: sender.inviterName,
+          role: previous?.platformRole ?? grant?.role ?? 'observer',
+        },
         previous?.platformRole
           ? {
               platformRole: previous.platformRole,
@@ -246,6 +287,7 @@ export class InvitationService {
         .limit(1);
       if (existingMembership)
         throw new ConflictException('This identity already has a membership in this workspace');
+      const sender = await this.senderContext(tx, auth);
 
       const [membership] = await tx
         .insert(tenantMemberships)
@@ -263,11 +305,23 @@ export class InvitationService {
         role: 'observer',
         scopeType: 'tenant',
       });
-      await this.issue(membership!.id, auth.tenantId, identity.email, tx, {
-        platformRole: 'super_admin',
-        platformGrantReason: input.reason,
-        platformGrantedByIdentityId: auth.identityId,
-      });
+      await this.issue(
+        membership!.id,
+        auth.tenantId,
+        identity.email,
+        tx,
+        {
+          recipientName: input.displayName,
+          workspaceName: sender.workspaceName,
+          inviterName: sender.inviterName,
+          role: 'super_admin',
+        },
+        {
+          platformRole: 'super_admin',
+          platformGrantReason: input.reason,
+          platformGrantedByIdentityId: auth.identityId,
+        },
+      );
       await this.audit(
         auth,
         membership!.id,
@@ -290,6 +344,12 @@ export class InvitationService {
     tenantId: string,
     email: string,
     executor: DatabaseExecutor,
+    emailDetails: {
+      recipientName?: string | null;
+      workspaceName: string;
+      inviterName?: string | null;
+      role: InvitationEmailRole;
+    },
     platform?: {
       platformRole: 'super_admin' | 'support_operator';
       platformGrantReason: string;
@@ -316,15 +376,49 @@ export class InvitationService {
       platformGrantReason: platform?.platformGrantReason,
       platformGrantedByIdentityId: platform?.platformGrantedByIdentityId,
     });
+    const roleContent = getInvitationRoleContent(emailDetails.role);
+    const rendered = renderInvitationEmail({
+      recipientName: emailDetails.recipientName,
+      workspaceName: emailDetails.workspaceName,
+      roleDisplayName: roleContent.roleDisplayName,
+      inviterName: emailDetails.inviterName,
+      invitationUrl: this.mail.publicLink('/accept-invitation', token),
+      expirationDate: formatInvitationExpiry(expiresAt),
+      roleDescription: roleContent.roleDescription,
+      roleCapabilities: roleContent.roleCapabilities,
+      logoUrl: this.mail.publicAsset('/trackroster-logo.png'),
+    });
     await this.mail.enqueue(
       {
         to: email,
-        subject: 'Your TrackRoster workspace invitation',
-        text: `You have been invited to a TrackRoster workspace. Accept within seven days:\n\n${this.mail.publicLink('/accept-invitation', token)}\n\nExisting accounts must confirm their current password and authenticator code when MFA is enabled.`,
+        subject: rendered.subject,
+        text: rendered.text,
+        html: rendered.html,
       },
       expiresAt,
       executor,
     );
+  }
+
+  private async senderContext(executor: DatabaseExecutor, auth: AuthenticatedPrincipal) {
+    const [workspace] = await executor
+      .select({ name: tenants.name })
+      .from(tenants)
+      .where(eq(tenants.id, auth.tenantId));
+    const [inviter] = await executor
+      .select({ displayName: tenantMemberships.displayName, email: identities.email })
+      .from(tenantMemberships)
+      .innerJoin(identities, eq(identities.id, tenantMemberships.identityId))
+      .where(
+        and(
+          eq(tenantMemberships.tenantId, auth.tenantId),
+          eq(tenantMemberships.id, auth.membershipId),
+        ),
+      );
+    return {
+      workspaceName: workspace?.name ?? 'your TrackRoster workspace',
+      inviterName: inviter?.displayName ?? inviter?.email ?? null,
+    };
   }
 
   private valid(hash: string) {

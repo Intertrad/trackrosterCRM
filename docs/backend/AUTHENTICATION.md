@@ -19,7 +19,7 @@ AUTH_PUBLIC_ORIGIN=http://localhost:3000
 
 Apply migrations through 0031 to that development database before starting the updated API. Only the isolated database was migrated during implementation. `scripts/backend-test.mjs` supplies synthetic test configuration automatically.
 
-The local email adapter deliberately refuses production mode and non-local mailbox hosts. Production email delivery, secret-manager provisioning/key rotation, SSO, and frontend screens remain separate work. Never deploy the synthetic test key.
+The local email adapter deliberately refuses production mode and non-local mailbox hosts. In production, `AUTH_PUBLIC_ORIGIN` must be the public HTTPS frontend origin (for example `https://trackroaster.com`); startup rejects localhost origins so invitations cannot contain unreachable links. Never deploy the synthetic test key.
 
 ## Contracts
 
@@ -58,7 +58,9 @@ Reset tokens have 256 bits of randomness, expire after 30 minutes, and can be co
 
 Invitation tokens have 256 bits of randomness, expire after seven days, and allow ten credential attempts. Resending invalidates the previous token. Acceptance is serialized with identity/membership changes. Existing identities retain their password and other workspaces. Acceptance never issues a session, so enforced MFA still applies at login.
 
-Emails use a fragment token, such as `/reset-password#token=...`, to keep the secret out of page request URLs. The frontend must extract it and send it in the appropriate API request; these frontend pages are not implemented by this stage. The required token-status/invitation API paths themselves contain tokens, so infrastructure access logs must redact those paths before production use.
+Invitation email uses a responsive, table-based TrackRoster template with inline-compatible styles, the workspace name, inviter, actual role, permission-backed capabilities, expiry date, HTTPS logo asset, and a prominent accept button. The encrypted outbox stores both the HTML body and the plain-text fallback; Brevo receives `htmlContent` plus `textContent`, while local Mailpit receives `HTML` plus `Text`. Password-reset and other existing messages remain plain text.
+
+Emails use a fragment token, such as `/reset-password#token=...`, to keep the secret out of page request URLs. The frontend must extract it and send it in the appropriate API request; these frontend pages are not implemented by this stage. The required token-status/invitation API paths themselves contain tokens, so infrastructure access logs must redact those paths before production use. The HTML template does not add analytics parameters or third-party tracking URLs.
 
 ## Delivery and operations
 
