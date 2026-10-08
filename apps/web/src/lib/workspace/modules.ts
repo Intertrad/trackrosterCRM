@@ -1431,6 +1431,18 @@ export const WORKSPACE_MODULES: WorkspaceModule[] = [
         scope: 'collection',
       },
       {
+        operation: 'POST /platform/invitations',
+        label: {
+          en: 'Invite super administrator',
+          fr: 'Inviter un super administrateur',
+        },
+        scope: 'collection',
+        description: {
+          en: 'Send a single-use invitation. Platform access activates after acceptance.',
+          fr: 'Envoyer une invitation à usage unique. L’accès plateforme est activé après acceptation.',
+        },
+      },
+      {
         operation: 'POST /platform/users/:identityId/grants/:grantId/revoke',
         label: {
           en: 'Revoke grant',

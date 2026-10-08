@@ -34,3 +34,24 @@ export class AcceptInvitationDto {
 export class InvitationTokenDto {
   @IsString() @Matches(/^[A-Za-z0-9_-]{43}$/) token!: string;
 }
+
+export class CreatePlatformInvitationDto {
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(320)
+  email!: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  displayName?: string;
+
+  @IsString()
+  @MinLength(10)
+  @MaxLength(1000)
+  reason!: string;
+}
