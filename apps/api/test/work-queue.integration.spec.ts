@@ -436,7 +436,7 @@ describe('Work Queue HTTP integration', () => {
 
       /*
        * One assignment belongs to our test
-       * Prospector. The other belongs to another
+       * Prospector and is managed by the team manager. The other belongs to another
        * Prospector in the same team.
        *
        * The queue must return only the first.
@@ -453,6 +453,8 @@ describe('Work Queue HTTP integration', () => {
           organizationId,
 
           teamId,
+
+          managerId: manager.id,
 
           assignedUserId: prospector.id,
 
@@ -545,7 +547,7 @@ describe('Work Queue HTTP integration', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('rejects a manager who does not have a prospector grant', async () => {
+  it('allows a team manager to open the team work queue', async () => {
     const response = await getApp().inject({
       method: 'GET',
 
@@ -556,7 +558,8 @@ describe('Work Queue HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.payload).items).toHaveLength(1);
   });
 
   it('rejects a prospector requesting a different team workspace', async () => {
@@ -645,12 +648,15 @@ describe('Work Queue HTTP integration', () => {
     expect(body.items.some((item) => item.campaignProspectId === otherProspectId)).toBe(false);
 
     /*
-     * Internal authorization / persistence
-     * fields are deliberately absent.
+     * Tenant internals stay private while assignment ownership is explicit
+     * so the UI can show who is responsible for the work.
      */
     expect(body.items[0]).not.toHaveProperty('tenantId');
 
-    expect(body.items[0]?.assignment).not.toHaveProperty('assignedUserId');
+    expect(body.items[0]?.assignment).toMatchObject({
+      managerId: expect.any(String),
+      assignedUserId: expect.any(String),
+    });
   });
 
   it('filters assigned prospects by lifecycle stage without escaping ownership', async () => {
@@ -767,7 +773,7 @@ describe('Work Queue HTTP integration', () => {
     expect(response.statusCode).toBe(400);
   });
 
-  it('rejects a manager from the prospect detail route when they lack a prospector grant', async () => {
+  it('allows a team manager to open a prospect assigned to their team', async () => {
     const response = await getApp().inject({
       method: 'GET',
 
@@ -778,7 +784,7 @@ describe('Work Queue HTTP integration', () => {
       },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(200);
   });
 
   it('rejects a prospector requesting prospect detail through a different team workspace', async () => {
@@ -895,13 +901,15 @@ describe('Work Queue HTTP integration', () => {
     });
 
     /*
-     * Internal authorization / persistence fields
-     * must never become part of the public detail
-     * contract.
+     * Tenant internals stay private while assignment ownership remains
+     * available to the work queue UI.
      */
     expect(body).not.toHaveProperty('tenantId');
 
-    expect(body.assignment).not.toHaveProperty('assignedUserId');
+    expect(body.assignment).toMatchObject({
+      managerId: expect.any(String),
+      assignedUserId: expect.any(String),
+    });
 
     expect(body.establishment).not.toHaveProperty('normalizedName');
   });

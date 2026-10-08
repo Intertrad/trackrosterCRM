@@ -267,7 +267,10 @@ export class AssignmentLifecycleService {
   ): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.mutate(a, id, op, b, version));
-    if (Object.values(b).some((v) => v === null) && !('teamId' in b) && !('deadlineAt' in b))
+    if (
+      Object.entries(b).some(([key, value]) => value === null && key !== 'deadlineAt') &&
+      !('teamId' in b)
+    )
       throw new BadRequestException('Fields cannot be null');
     if (op === 'update' && !Object.values(b).some((v) => v !== undefined))
       throw new BadRequestException('At least one change required');
