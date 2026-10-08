@@ -144,6 +144,7 @@ export interface InvitationPreview {
   expiresAt: string;
   existingAccount: boolean;
   mfaRequired: boolean;
+  platformRole?: 'super_admin' | 'support_operator' | null;
 }
 
 export interface InvitationAcceptance {

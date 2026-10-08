@@ -1,4 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TrackRoster web application
+
+The web app contains the authenticated TrackRoster workspace and the public
+marketing landing page. It uses Next.js App Router, React, TypeScript, the shared
+TrackRoster brand tokens and a same-origin API proxy for authenticated workspace
+operations.
+
+## Public landing page
+
+- `/landing` always renders the public product introduction.
+- Anonymous `/` renders the same page through the app shell.
+- Authenticated `/` redirects to the signed-in user's role home.
+
+The landing page is static by design: its preview rows and pricing examples are
+illustrative, and the demo CTA currently opens the configured `mailto:` handoff. It
+does not use tenant data or require an API session. See
+[`docs/design/MARKETING_LANDING_PAGE.md`](../../docs/design/MARKETING_LANDING_PAGE.md)
+for the responsive and motion approach.
 
 ## Getting Started
 
@@ -14,11 +31,27 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser. Use
+`http://localhost:3000/landing` to inspect the public page directly.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The authenticated workspace is composed from route groups under `src/app` and
+feature components under `src/components`. The anonymous root behavior is owned by
+`src/components/layout/app-shell.tsx`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Checks
+
+From `apps/web`:
+
+```bash
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+```
+
+The landing-page visual QA record is maintained in
+[`design-qa.md`](../../design-qa.md).
 
 ## Learn More
 

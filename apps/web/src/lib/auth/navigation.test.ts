@@ -53,7 +53,7 @@ describe('workspace navigation', () => {
       'nav.today',
       'nav.prospects',
       'nav.followUps',
-      'nav.actionsHistory',
+      'nav.actions',
       'nav.messages',
     ]);
   });
@@ -116,9 +116,11 @@ describe('workspace navigation', () => {
     expect(labelKeys(items)).toEqual([
       'nav.overview',
       'nav.audit',
+      'nav.prospects',
+      'nav.actions',
+      'nav.exports',
       'nav.security',
       'nav.assignments',
-      'nav.exports',
       'nav.workspaceTools',
     ]);
   });
@@ -202,12 +204,21 @@ describe('workspace navigation', () => {
 
     expect(items.map((item) => item.href)).toEqual([
       '/director/overview',
-      '/director/reports',
+      '/director/companies',
       '/director/campaigns',
-      '/director/territories',
+      '/director/teams',
       '/director/performance',
+      '/director/reports',
+      '/director/territories',
       '/director/exports',
       '/workspace',
+    ]);
+
+    expect(items.filter((item) => item.primary).map((item) => item.href)).toEqual([
+      '/director/overview',
+      '/director/companies',
+      '/director/campaigns',
+      '/director/performance',
     ]);
   });
 

@@ -8,6 +8,12 @@ Earlier extension: the Beta admin base now supports explicit selection, campaign
 
 The real Next.js application in `apps/web` now includes a role-aware `/workspace` tools directory and 55 domain screens backed by 189 allowlisted API operations. Existing operational pages remain the primary entry points for daily work, campaigns, assignments, imports, exports, reporting, routes, account management and messaging. The offline design ZIP is a reference artifact; the running application uses authenticated backend responses, not its sample records.
 
+The public marketing surface is intentionally separate from that API-backed area:
+`/landing` and anonymous `/` render the static TrackRoster product introduction,
+while authenticated `/` keeps the existing role-home redirect. The page has no tenant
+reads or write operations. Its responsive behavior, CSS motion and reduced-motion
+contract are documented in [Public marketing landing page](../design/MARKETING_LANDING_PAGE.md).
+
 ## Run and inspect
 
 Use the existing project development commands in the root README. The active development frontend is `http://localhost:3000` and the API is `http://localhost:3001`. `apps/web/.env.local` supplies the API origin. Keep credentials in environment files; do not copy them into a frontend bundle. Sign in with an existing account and open **Workspace tools**. Tenant and identity permissions continue to be enforced by NestJS.
@@ -23,7 +29,7 @@ Use the existing project development commands in the root README. The active dev
 - Added same-origin `/api/workspace/[...segments]` handlers with an explicit operation allowlist. Browser tokens and tenant headers are not forwarded. Existing HTTP-only session handling authenticates upstream requests. Errors, ETags, idempotency keys and 204 responses are preserved.
 - Added validation, retry/error states, destructive confirmations, unsaved-edit protection for drawer close/link navigation, and 412 conflict handling. Editable data is kept separate from background reads. Browser back/forward does not yet offer a full application-wide draft guard.
 - Added conversation settings/member management, message editing/deletion confirmation, older-message paging and attachment upload/download controls. Attachment metadata is returned in authorized message lists, without object storage keys. Upload retries keep a stable attachment request key. Files require configured, reachable object storage and browser CORS.
-- Account appearance preferences now affect the application. English/French labels, mobile layouts, reduced motion, density and contrast settings use the shared components. Some pre-existing operational screens retain English copy.
+- Account appearance preferences now affect the application. French is the default interface language; English/French labels, mobile layouts, reduced motion, density and contrast settings use the shared components. The language dropdown persists an English override through `PATCH /me`. Some pre-existing operational screens retain English copy.
 - Fixed empty DELETE requests being advertised as JSON, which Fastify rejected. Added platform administration visibility based on an active identity-level grant; tenant administration alone cannot enable it.
 - Use the bundled Inter font locally. Restrict Tailwind class discovery to application source so parallel Next build caches are not scanned as CSS classes.
 

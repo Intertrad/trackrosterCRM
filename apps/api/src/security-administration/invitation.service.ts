@@ -7,7 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
@@ -15,6 +15,7 @@ import {
   identities,
   membershipInvitations,
   organizations,
+  platformAccessGrants,
   teams,
   tenantMemberships,
   tenants,
@@ -27,7 +28,11 @@ import { SecurityPolicyService } from '../auth/security-policy.service.js';
 import { MfaService } from '../auth/mfa.service.js';
 import { withTenantContext } from '../database/tenant-context.js';
 import { tokenHash } from '../auth/mfa-crypto.js';
-import { AcceptInvitationDto, CreateInvitationDto } from './invitation.dto.js';
+import {
+  AcceptInvitationDto,
+  CreateInvitationDto,
+  CreatePlatformInvitationDto,
+} from './invitation.dto.js';
 
 @Injectable()
 export class InvitationService {
@@ -168,20 +173,115 @@ export class InvitationService {
         .where(eq(identities.id, member.identityId));
       if (!identity || identity.status !== 'active')
         throw new ConflictException('This invitation cannot be sent');
-      const [recent] = await tx
+      const [previous] = await tx
         .select()
         .from(membershipInvitations)
+        .where(eq(membershipInvitations.membershipId, member.id))
+        .orderBy(desc(membershipInvitations.createdAt))
+        .limit(1);
+      if (previous && previous.createdAt > new Date(Date.now() - 60_000))
+        throw new ConflictException('Wait one minute before resending');
+      await this.issue(
+        member.id,
+        auth.tenantId,
+        identity.email,
+        tx,
+        previous?.platformRole
+          ? {
+              platformRole: previous.platformRole,
+              platformGrantReason: previous.platformGrantReason!,
+              platformGrantedByIdentityId: previous.platformGrantedByIdentityId!,
+            }
+          : undefined,
+      );
+      await this.audit(auth, member.id, 'membership.invitation_resent', {}, tx);
+      return { membershipId: member.id, status: 'invited' };
+    });
+  }
+
+  /**
+   * Platform invitations deliberately use a separate endpoint and a minimal
+   * tenant observer membership. The membership is only the login anchor; the
+   * platform grant is activated atomically when the invitee accepts.
+   */
+  async invitePlatformAdmin(auth: AuthenticatedPrincipal, input: CreatePlatformInvitationDto) {
+    this.mail.assertConfigured();
+    return this.db.transaction(async (tx) => {
+      const email = input.email.trim().toLowerCase();
+      await tx
+        .insert(identities)
+        .values({ email })
+        .onConflictDoNothing({ target: identities.email });
+      const [identity] = await tx
+        .select()
+        .from(identities)
+        .where(eq(identities.email, email))
+        .for('update');
+      if (!identity || identity.status !== 'active')
+        throw new ConflictException('This invitation cannot be created');
+
+      const [existingGrant] = await tx
+        .select({ id: platformAccessGrants.id })
+        .from(platformAccessGrants)
         .where(
           and(
-            eq(membershipInvitations.membershipId, member.id),
-            sql`${membershipInvitations.createdAt} > clock_timestamp() - interval '1 minute'`,
+            eq(platformAccessGrants.identityId, identity.id),
+            eq(platformAccessGrants.role, 'super_admin'),
+            isNull(platformAccessGrants.revokedAt),
           ),
         )
         .limit(1);
-      if (recent) throw new ConflictException('Wait one minute before resending');
-      await this.issue(member.id, auth.tenantId, identity.email, tx);
-      await this.audit(auth, member.id, 'membership.invitation_resent', {}, tx);
-      return { membershipId: member.id, status: 'invited' };
+      if (existingGrant)
+        throw new ConflictException('This identity is already a super administrator');
+
+      const [existingMembership] = await tx
+        .select({ id: tenantMemberships.id })
+        .from(tenantMemberships)
+        .where(
+          and(
+            eq(tenantMemberships.tenantId, auth.tenantId),
+            eq(tenantMemberships.identityId, identity.id),
+          ),
+        )
+        .limit(1);
+      if (existingMembership)
+        throw new ConflictException('This identity already has a membership in this workspace');
+
+      const [membership] = await tx
+        .insert(tenantMemberships)
+        .values({
+          tenantId: auth.tenantId,
+          identityId: identity.id,
+          status: 'invited',
+          invitedAt: sql`clock_timestamp()`,
+          displayName: input.displayName,
+        })
+        .returning();
+      await tx.insert(userAccessGrants).values({
+        tenantId: auth.tenantId,
+        userId: membership!.id,
+        role: 'observer',
+        scopeType: 'tenant',
+      });
+      await this.issue(membership!.id, auth.tenantId, identity.email, tx, {
+        platformRole: 'super_admin',
+        platformGrantReason: input.reason,
+        platformGrantedByIdentityId: auth.identityId,
+      });
+      await this.audit(
+        auth,
+        membership!.id,
+        'platform.user_invited',
+        { email, role: 'super_admin', reason: input.reason },
+        tx,
+      );
+      return {
+        membershipId: membership!.id,
+        tenantId: auth.tenantId,
+        email,
+        status: 'invited',
+        role: 'super_admin',
+      };
     });
   }
 
@@ -190,6 +290,11 @@ export class InvitationService {
     tenantId: string,
     email: string,
     executor: DatabaseExecutor,
+    platform?: {
+      platformRole: 'super_admin' | 'support_operator';
+      platformGrantReason: string;
+      platformGrantedByIdentityId: string;
+    },
   ) {
     const token = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + 7 * 86400000);
@@ -202,9 +307,15 @@ export class InvitationService {
           isNull(membershipInvitations.consumedAt),
         ),
       );
-    await executor
-      .insert(membershipInvitations)
-      .values({ tokenHash: tokenHash(token), membershipId, tenantId, expiresAt });
+    await executor.insert(membershipInvitations).values({
+      tokenHash: tokenHash(token),
+      membershipId,
+      tenantId,
+      expiresAt,
+      platformRole: platform?.platformRole,
+      platformGrantReason: platform?.platformGrantReason,
+      platformGrantedByIdentityId: platform?.platformGrantedByIdentityId,
+    });
     await this.mail.enqueue(
       {
         to: email,
@@ -276,6 +387,7 @@ export class InvitationService {
       expiresAt: row.invitation.expiresAt,
       existingAccount: !!row.identity.passwordHash,
       mfaRequired: !!row.identity.mfaEnrolledAt,
+      platformRole: row.invitation.platformRole ?? null,
     };
   }
   async accept(token: string, input: AcceptInvitationDto) {
@@ -347,6 +459,25 @@ export class InvitationService {
         .update(membershipInvitations)
         .set({ consumedAt: sql`clock_timestamp()` })
         .where(eq(membershipInvitations.tokenHash, hash));
+      if (current.invitation.platformRole) {
+        await tx.insert(platformAccessGrants).values({
+          identityId: current.identity.id,
+          role: current.invitation.platformRole,
+          grantSource: 'platform_admin',
+          grantedByIdentityId: current.invitation.platformGrantedByIdentityId!,
+          grantReason: current.invitation.platformGrantReason!,
+          externalReference: `invitation:${current.invitation.membershipId}`,
+        });
+        await tx.insert(auditEvents).values({
+          tenantId: current.invitation.tenantId,
+          actorType: 'user',
+          actorUserId: current.invitation.membershipId,
+          action: 'platform.user_granted',
+          resourceType: 'identity',
+          resourceId: current.identity.id,
+          metadata: { role: current.invitation.platformRole, source: 'invitation' },
+        });
+      }
       await tx.insert(auditEvents).values({
         tenantId: current.invitation.tenantId,
         actorType: 'user',

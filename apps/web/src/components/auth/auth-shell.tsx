@@ -4,7 +4,7 @@ import { BrandLockup } from '@/components/ui/brand-mark';
 export type AuthHeadline = 'prospect' | 'territory';
 export function AuthShell({
   children,
-  language = 'en',
+  language = 'fr',
 }: {
   children: ReactNode;
   headline?: AuthHeadline;

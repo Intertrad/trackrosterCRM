@@ -28,7 +28,7 @@ components:
 
 The user-selected GitHub frontend at `libehon/TrackRoster`, revision `a8a5455`, is the current visual authority. The earlier product dossier and HTML walkthrough provide workflow context. Together they establish a navy coordination workspace, blue primary actions, lime confirmation accents and Inter typography. The operational signature is a clear availability/ownership decision before contacting a prospect. Additional administration screens preserve that identity and use quiet, readable tables and right-side editing panels. This implementation extends the existing app; the offline design ZIP remains a separate reference artifact.
 
-Audience: French field and desk teams, managers, directors, tenant administrators, scoped auditors and separately authorized platform administrators. Desktop supports setup/comparison; mobile supports daily action. UI language follows the authenticated membership's English/French locale. Identifiers and provider settings are shown only where needed for administration. No sample records or invented metrics are included in the connected screens.
+Audience: French field and desk teams, managers, directors, tenant administrators, scoped auditors and separately authorized platform administrators. Desktop supports setup/comparison; mobile supports daily action. French is the default interface language; an authenticated member or workspace administrator can switch to English from the language dropdown, and the choice persists through the account API. Identifiers and provider settings are shown only where needed for administration. No sample records or invented metrics are included in the connected screens.
 
 ## Token ownership
 
@@ -76,8 +76,22 @@ Messages initially show the full conversation list. Opening a conversation chang
 
 The reference uses browser-local demo workflow models. The connected app retains real authentication, scoped server reads, editable forms, permission checks and protected drafts. Unsupported session controls, template editing and company cooldown policies are not rendered as working controls. This adoption is not pixel-identical parity for those screens or workflows.
 
+## Public marketing surface
+
+The public product introduction lives at `/landing` and is also rendered for
+anonymous visitors at `/`. Its composition is owned by
+`components/marketing/landing-page.tsx`; its responsive styling and motion are kept
+in `app/marketing.css`. It uses the same TrackRoster brand mark and color direction,
+but its preview rows, pricing examples and metrics are static explanatory content,
+not tenant data. Authenticated visitors retain the role-home redirect from `/`.
+
+The landing page uses short staggered entrances, a restrained preview float and
+pointer hover lifts. `prefers-reduced-motion: reduce` disables those animations and
+shortens transitions. Keep public marketing effects CSS-only and lightweight; do not
+introduce API reads, customer data or a second token palette into this surface.
+
 ## Role completion and opt-in Beta samples — 29 September 2026
 
-Manager and director pages extend the same GitHub-derived shell and canonical controls. Dedicated destinations expose objectives, territories and director teams/campaigns. Observer and platform now have their own overview, navigation and detail destinations. Observer audit remains read-only. Platform authority alone does not grant a tenant workspace or observer access. Team/territory creation is offered only to tenant administrators, matching the server guards.
+Manager and director pages extend the same GitHub-derived shell and canonical controls. Dedicated destinations expose objectives, territories, director companies, company detail, teams, campaigns and performance. Director organization and team views are read-only and use the authenticated organization, campaign and team-capacity APIs; organization and coordination mutations remain administrator-only. Observer and platform now have their own overview, navigation and detail destinations. Observer audit remains read-only. The observer shell also has dedicated audit, masked prospects, action summaries and evidence-export pages backed by the scoped audit, prospect and action reads. Platform authority alone does not grant a tenant workspace or observer access. Team/territory creation is offered only to tenant administrators, matching the server guards.
 
 The requested local Beta examples live in PostgreSQL and are explicitly prefixed `[DÉMO]`. Their source is `scripts/seed-beta-demo.mjs`, an opt-in, idempotent transaction restricted to the local Beta database. It adds 16 fictional prospects, follow-ups, action history, routes and objectives; it does not replace imported records. Sample contact addresses use the reserved `.invalid` domain. No outreach is performed. Empty states in other datasets remain truthful.

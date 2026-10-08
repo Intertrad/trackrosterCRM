@@ -6,6 +6,15 @@ export interface OrganizationSummary {
   name: string;
   slug: string;
   status: 'active' | 'inactive' | string;
+  shortName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+  color?: string | null;
+  currency?: string | null;
+  argumentaire?: string | null;
+  prospectedSectors?: string[];
 }
 
 export interface OrganizationPage {
@@ -14,7 +23,12 @@ export interface OrganizationPage {
 }
 
 export function listOrganizations(
-  query: { status?: 'active' | 'inactive'; cursor?: string; limit?: number } = {},
+  query: {
+    status?: 'active' | 'inactive';
+    search?: string;
+    cursor?: string;
+    limit?: number;
+  } = {},
   signal?: AbortSignal,
 ): Promise<OrganizationPage> {
   const params = new URLSearchParams();

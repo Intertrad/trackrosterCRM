@@ -31,6 +31,15 @@ Business requirements and product behavior.
 - [Prospect Lifecycle](./product/PROSPECT_LIFECYCLE.md)
 - [Collision Rules](./product/COLLISION_RULES.md)
 
+### Design and frontend
+
+Visual references and the connected frontend approach live here:
+
+- [Public marketing landing page](./design/MARKETING_LANDING_PAGE.md)
+- [Attached admin and prospector reference status](./design/ATTACHED_REFERENCE_STATUS.md)
+- [Application design system](../apps/web/DESIGN.md)
+- [Landing page visual QA](../design-qa.md)
+
 ---
 
 ## Architecture

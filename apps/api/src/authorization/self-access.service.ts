@@ -39,7 +39,7 @@ export class SelfAccessService {
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
     /* A membership that has never opened its settings has no row yet; the
-     * column default is the same 'en' the account endpoints fall back to. */
+     * column default is the same French locale the account endpoints use. */
     const [settings] = await this.database
       .select({ locale: accountSettings.locale })
       .from(accountSettings)
@@ -96,7 +96,7 @@ export class SelfAccessService {
 
       displayName: user.displayName,
 
-      locale: settings?.locale ?? 'en',
+      locale: settings?.locale ?? 'fr-FR',
 
       grants: responseGrants,
     };

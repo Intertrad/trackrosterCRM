@@ -120,6 +120,11 @@ export function InvitationAcceptanceForm() {
         <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden="true" />
         Your secure invitation link is valid for seven days.
       </div>
+      {preview.platformRole === 'super_admin' ? (
+        <div className="mb-6 rounded-lg border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-navy">
+          This invitation also grants platform administrator access after you accept it.
+        </div>
+      ) : null}
       <form onSubmit={submit} noValidate className="flex flex-col gap-5">
         <TextField
           label={preview.existingAccount ? 'Current password' : 'Create a password'}

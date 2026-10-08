@@ -131,7 +131,7 @@ describe('SelfAccessService', () => {
     ).resolves.toEqual({
       userId,
 
-      locale: 'en',
+      locale: 'fr-FR',
 
       tenantId,
 
@@ -186,7 +186,7 @@ describe('SelfAccessService', () => {
     ).resolves.toEqual({
       userId,
 
-      locale: 'en',
+      locale: 'fr-FR',
 
       tenantId,
 

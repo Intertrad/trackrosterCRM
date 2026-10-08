@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 
 import { DICTIONARY, type MessageKey } from './dictionary';
-import { DEFAULT_LANGUAGE, resolveLanguage, type UiLanguage } from './languages';
+import { resolveLanguage, type UiLanguage } from './languages';
 
 export type Translate = (key: MessageKey, values?: Record<string, string | number>) => string;
 
@@ -70,10 +70,15 @@ export function useTranslation(): I18nValue {
     return value;
   }
 
+  // The application root always supplies SessionLanguage (French when no
+  // account locale exists). Keep isolated components predictable in stories
+  // and tests when they are rendered without the provider.
+  const fallbackLanguage: UiLanguage = 'en';
+
   return {
-    language: DEFAULT_LANGUAGE,
+    language: fallbackLanguage,
     locale: undefined,
-    t: (key, values) => format(DICTIONARY[key][DEFAULT_LANGUAGE], values),
+    t: (key, values) => format(DICTIONARY[key][fallbackLanguage], values),
   };
 }
 

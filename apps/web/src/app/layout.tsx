@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import './marketing.css';
 import { RuntimePreferences } from '@/components/account/runtime-preferences';
 import { AuthProvider } from '@/lib/auth/auth-context';
 import { SessionLanguage } from '@/lib/i18n/session-language';
@@ -36,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="fr" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <SessionLanguage>

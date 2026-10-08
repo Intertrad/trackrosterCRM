@@ -29,7 +29,7 @@ const FALLBACK_CONFIG: AuthConfig = {
   sso: { enabled: false },
 };
 
-export function LoginForm({ language = 'en' }: { language?: 'en' | 'fr' }) {
+export function LoginForm({ language = 'fr' }: { language?: 'en' | 'fr' }) {
   const l = (en: string, fr: string) => (language === 'fr' ? fr : en);
   const router = useRouter();
   const { refreshSession, status } = useAuth();

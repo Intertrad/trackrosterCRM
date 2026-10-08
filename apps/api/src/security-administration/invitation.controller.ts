@@ -15,8 +15,14 @@ import { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { CurrentAuth } from '../auth/current-auth.decorator.js';
 import { ClientAdminGuard } from '../authorization/client-admin.guard.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
-import { AcceptInvitationDto, CreateInvitationDto, InvitationTokenDto } from './invitation.dto.js';
+import {
+  AcceptInvitationDto,
+  CreateInvitationDto,
+  CreatePlatformInvitationDto,
+  InvitationTokenDto,
+} from './invitation.dto.js';
 import { InvitationService } from './invitation.service.js';
+import { PlatformAdminGuard } from '../authorization/platform-admin.guard.js';
 @Controller('memberships')
 @UseGuards(AuthGuard, ClientAdminGuard)
 export class MembershipInvitationController {
@@ -34,6 +40,21 @@ export class MembershipInvitationController {
     @Param('membershipId', new ParseUUIDPipe()) id: string,
   ) {
     return this.invitations.resend(auth, id);
+  }
+}
+
+@Controller('platform/invitations')
+@UseGuards(AuthGuard, PlatformAdminGuard)
+export class PlatformInvitationController {
+  constructor(private readonly invitations: InvitationService) {}
+
+  @Post()
+  @Idempotent('platform.super_admin_invite')
+  invitePlatformAdmin(
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+    @Body() input: CreatePlatformInvitationDto,
+  ) {
+    return this.invitations.invitePlatformAdmin(auth, input);
   }
 }
 @Controller('invitations')

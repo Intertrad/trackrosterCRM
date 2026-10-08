@@ -1127,8 +1127,8 @@ function WorkspaceSettings({ language }: { language: string }) {
                 value={tenant.locale}
                 onChange={(e) => setTenant({ ...tenant, locale: e.target.value })}
               >
-                <option value="en">English</option>
-                <option value="fr">Français</option>
+                <option value="en-GB">English</option>
+                <option value="fr-FR">Français</option>
               </select>
             </label>
             <label className="text-sm font-semibold text-ink">

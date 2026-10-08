@@ -52,7 +52,7 @@ export class WorkspaceAdministrationService {
         name: tenants.name,
         slug: tenants.slug,
         status: tenants.status,
-        locale: sql<string>`coalesce(${tenantSettings.locale}, 'en')`,
+        locale: sql<string>`coalesce(${tenantSettings.locale}, 'fr')`,
         timezone: sql<string>`coalesce(${tenantSettings.timezone}, 'UTC')`,
       })
       .from(tenants)

@@ -631,6 +631,20 @@
       "when": 1791411668588,
       "tag": "0089_nebulous_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791459118790,
+      "tag": "0090_fat_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791463542477,
+      "tag": "0091_cynical_juggernaut",
+      "breakpoints": true
     }
   ]
 }

@@ -34,7 +34,7 @@ describe('language resolution', () => {
     /*
      * `PATCH /me` validates with IsLocale, so a membership can legitimately
      * store Arabic or German for date formatting long before the interface is
-     * translated. That must read as English words, never as raw message keys.
+     * translated. That must read as French words, never as raw message keys.
      */
     expect(resolveLanguage('ar')).toBe(DEFAULT_LANGUAGE);
     expect(resolveLanguage('de-DE')).toBe(DEFAULT_LANGUAGE);
@@ -105,7 +105,7 @@ describe('I18nProvider', () => {
   });
 
   it('keeps formatting locale and wording separate', () => {
-    /* German formats dates its own way; the interface stays English until a
+    /* German formats dates its own way; the interface stays French until a
      * German catalogue exists. */
     render(
       <I18nProvider locale="de-DE">
@@ -113,7 +113,7 @@ describe('I18nProvider', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId('nav')).toHaveTextContent('My day');
+    expect(screen.getByTestId('nav')).toHaveTextContent('Ma journée');
     expect(document.documentElement.lang).toBe('de-DE');
   });
 

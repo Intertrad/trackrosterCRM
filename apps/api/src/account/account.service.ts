@@ -33,7 +33,7 @@ export class AccountService {
         displayName: tenantMemberships.displayName,
         phone: accountSettings.phone,
         avatar: accountSettings.avatar,
-        locale: sql<string>`coalesce(${accountSettings.locale}, 'en')`,
+        locale: sql<string>`coalesce(${accountSettings.locale}, 'fr-FR')`,
         timezone: sql<string>`coalesce(${accountSettings.timezone}, 'UTC')`,
         /*
          * Whether a second factor is enrolled, as a boolean only. The

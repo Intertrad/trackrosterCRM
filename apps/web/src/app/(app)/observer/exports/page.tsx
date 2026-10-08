@@ -1,4 +1,4 @@
-import { RoleModulePage } from '@/components/workspace/role-module-page';
+import { ObserverExportsPage } from '@/components/observer/observer-workspace';
 export default function Page() {
-  return <RoleModulePage moduleId="audit-exports" />;
+  return <ObserverExportsPage />;
 }
