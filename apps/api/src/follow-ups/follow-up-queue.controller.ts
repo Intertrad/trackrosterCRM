@@ -29,8 +29,14 @@ export class FollowUpQueueController {
     @Query()
     query: ListFollowUpQueueQueryDto,
   ) {
-    if (this.canonical && (!query.teamId || query.status || query.cursor || query.campaignId))
-      return this.canonical.list(auth as AuthenticatedPrincipal, query);
+    /*
+     * The canonical queue is the authoritative implementation.  The legacy
+     * query service is prospector-only and rejects managers even when they
+     * have a valid team grant.  In particular, the manager dashboard sends a
+     * teamId while opening overdue follow-ups, so routing that request through
+     * the legacy branch made the dashboard link fail with 403.
+     */
+    if (this.canonical) return this.canonical.list(auth as AuthenticatedPrincipal, query);
     return this.followUpQueryService.listQueue({
       tenantId: auth.tenantId,
 

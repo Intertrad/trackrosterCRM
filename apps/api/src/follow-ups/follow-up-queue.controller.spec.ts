@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FollowUpQueueController } from './follow-up-queue.controller.js';
 import { ProspectFollowUpQueryService } from './prospect-follow-up-query.service.js';
+import type { CanonicalFollowUpService } from './canonical-follow-up.service.js';
 
 describe('FollowUpQueueController', () => {
   let queryService: {
@@ -84,5 +85,22 @@ describe('FollowUpQueueController', () => {
 
       limit: 50,
     });
+  });
+
+  it('uses the canonical queue for a selected team when it is available', async () => {
+    const canonical = {
+      list: vi.fn().mockResolvedValue({ items: [] }),
+    };
+    const canonicalController = new FollowUpQueueController(
+      queryService as unknown as ProspectFollowUpQueryService,
+      canonical as unknown as CanonicalFollowUpService,
+    );
+
+    const query = { teamId, overdue: true, limit: 25 };
+
+    await canonicalController.list({ tenantId, userId }, query);
+
+    expect(canonical.list).toHaveBeenCalledWith({ tenantId, userId }, query);
+    expect(queryService.listQueue).not.toHaveBeenCalled();
   });
 });

@@ -6,13 +6,15 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { and, eq, gt, sql, type SQL } from 'drizzle-orm';
+import { and, eq, getTableColumns, gt, sql, type SQL } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
   prospectFollowUps as f,
   campaignProspectAssignments as assignments,
+  campaigns,
+  establishments,
   tenants,
   auditEvents,
 } from '../database/schema/index.js';
@@ -64,8 +66,17 @@ export class CanonicalFollowUpService {
     if (q.campaignId) where.push(eq(f.campaignId, q.campaignId));
     if (q.cursor) where.push(gt(f.id, q.cursor));
     const rows = await this.db
-      .select()
+      .select({
+        ...getTableColumns(f),
+        campaignName: campaigns.name,
+        establishmentName: establishments.name,
+      })
       .from(f)
+      .innerJoin(campaigns, and(eq(campaigns.tenantId, f.tenantId), eq(campaigns.id, f.campaignId)))
+      .innerJoin(
+        establishments,
+        and(eq(establishments.tenantId, f.tenantId), eq(establishments.id, f.establishmentId)),
+      )
       .where(and(...where))
       .orderBy(f.id)
       .limit(q.limit + 1);
