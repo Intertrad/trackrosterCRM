@@ -1,5 +1,6 @@
 'use client';
 import { LiveStatus } from './live-status';
+import { LandingPage } from '@/components/marketing/landing-page';
 
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -58,10 +59,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (status === 'unauthenticated' && pathname !== '/') {
       router.replace('/login');
     }
-  }, [router, status]);
+  }, [pathname, router, status]);
 
   useEffect(() => {
     const home = getRoleHome(activeWorkspace?.mode, user?.platformAdmin);
@@ -148,6 +149,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   if (status === 'unauthenticated' || !user) {
+    if (status === 'unauthenticated' && pathname === '/') {
+      return <LandingPage />;
+    }
+
     return <ShellSkeleton />;
   }
 

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import './marketing.css';
 import { RuntimePreferences } from '@/components/account/runtime-preferences';
 import { AuthProvider } from '@/lib/auth/auth-context';
 import { SessionLanguage } from '@/lib/i18n/session-language';
