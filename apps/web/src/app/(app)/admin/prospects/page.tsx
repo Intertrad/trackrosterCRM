@@ -509,7 +509,7 @@ function Referential() {
                     setMapSelectedId(p.id);
                     setDetail(null);
                   }}
-                  className="h-[520px]"
+                  className="h-[360px] sm:h-[440px] lg:h-[520px]"
                 />
               ) : (
                 <Alert tone="info" className="flex min-h-[260px] items-center">
@@ -519,7 +519,7 @@ function Referential() {
                   )}
                 </Alert>
               )}
-              <aside className="max-h-[520px] overflow-y-auto rounded-xl border border-line-soft bg-surface-muted/50">
+              <aside className="max-h-[360px] overflow-y-auto rounded-xl border border-line-soft bg-surface-muted/50 sm:max-h-[440px] lg:max-h-[520px]">
                 <div className="sticky top-0 z-10 border-b border-line-soft bg-surface px-4 py-3">
                   <p className="text-sm font-bold text-navy">
                     {mapSelected

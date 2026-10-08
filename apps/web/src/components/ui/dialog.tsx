@@ -65,7 +65,7 @@ export function Dialog({
         aria-describedby={description ? 'trackroster-dialog-description' : undefined}
         tabIndex={-1}
         className={cn(
-          'relative flex w-full max-w-[460px] flex-col gap-4 bg-surface outline-none shadow-overlay',
+          'relative flex max-h-[calc(100dvh-1rem)] w-full max-w-[460px] flex-col gap-4 overflow-y-auto overscroll-contain bg-surface outline-none shadow-overlay',
           'rounded-t-2xl px-5 pt-5 sm:rounded-2xl sm:px-6 sm:pt-6',
         )}
         style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom, 0px))' }}

@@ -333,7 +333,9 @@ html[data-reduced-motion='true'] *::after {
 }
 @media (max-width: 1023px) {
   .reference-main {
-    padding: 24px 20px 96px;
+    /* Keep the last card above the fixed mobile navigation, including the
+       home-indicator area on modern phones. */
+    padding: 24px 20px calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
 @media (max-width: 900px) {
@@ -345,7 +347,7 @@ html[data-reduced-motion='true'] *::after {
 }
 @media (max-width: 700px) {
   .reference-main {
-    padding: 20px 16px 96px;
+    padding: 20px 16px calc(96px + env(safe-area-inset-bottom, 0px));
   }
   .reference-auth-layout {
     flex-direction: column;
