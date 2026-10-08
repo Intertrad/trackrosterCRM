@@ -120,6 +120,6 @@ describe('I18nProvider', () => {
   it('works without a provider rather than blanking the screen', () => {
     render(<Probe />);
 
-    expect(screen.getByTestId('nav')).toHaveTextContent('Ma journée');
+    expect(screen.getByTestId('nav')).toHaveTextContent('My day');
   });
 });

@@ -3,24 +3,19 @@
 import {
   ArrowRight,
   ArrowUpRight,
-  Building2,
   Check,
   CheckCircle2,
   CircleAlert,
   ChevronDown,
-  Clock3,
   FileCheck2,
   Globe2,
   LockKeyhole,
-  MapPinned,
   Menu,
-  MessageCircle,
   Network,
   Radar,
   ShieldCheck,
   Users,
   X,
-  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { createElement, type ReactNode, useEffect, useRef, useState } from 'react';
@@ -613,7 +608,11 @@ function AnimatedNumber({ value, duration = 1100 }: { value: number; duration?: 
       if (started) return;
       started = true;
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const prefersReducedMotion =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (prefersReducedMotion) {
         setDisplayValue(value);
         return;
       }
@@ -1132,20 +1131,4 @@ export function LandingPage() {
       </footer>
     </main>
   );
-}
-
-export function MarketingFeatureIcon({
-  type,
-}: {
-  type: 'building' | 'map' | 'clock' | 'message' | 'zap';
-}) {
-  const icons = {
-    building: Building2,
-    map: MapPinned,
-    clock: Clock3,
-    message: MessageCircle,
-    zap: Zap,
-  };
-  const Icon = icons[type];
-  return <Icon aria-hidden="true" />;
 }

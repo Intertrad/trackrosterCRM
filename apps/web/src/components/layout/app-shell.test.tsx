@@ -58,7 +58,7 @@ describe('AppShell', () => {
       within(sidebar)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['My day', 'Prospects', 'Follow-ups', 'Actions / History', 'Messages']);
+    ).toEqual(['My day', 'Prospects', 'Follow-ups', 'Actions', 'Messages']);
   });
 
   it('shows the unread message count on the sidebar', async () => {
@@ -196,6 +196,7 @@ describe('AppShell', () => {
   });
 
   it('sends an unauthenticated visitor to sign in instead of rendering the app', () => {
+    pathnameMock.mockReturnValue('/workspace');
     useAuthMock.mockReturnValue({
       status: 'unauthenticated',
       user: null,
