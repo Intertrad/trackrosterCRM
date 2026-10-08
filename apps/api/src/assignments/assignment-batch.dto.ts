@@ -6,6 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsInt,
   IsNumber,
   Matches,
@@ -20,6 +21,7 @@ import {
 export class AssignmentTargetDto {
   @IsUUID() teamId!: string;
   @IsOptional() @IsUUID() assignedUserId?: string | null;
+  @IsOptional() @IsUUID() managerMembershipId?: string | null;
 }
 export class DispatchLocationDto {
   @IsNumber() @Min(-180) @Max(180) longitude!: number;
@@ -46,6 +48,8 @@ export class AssignmentBatchDto extends AssignmentSelectionDto {
   @IsUUID() campaignId!: string;
   @IsOptional() @IsUUID() teamId?: string;
   @IsOptional() @IsUUID() assignedUserId?: string | null;
+  @IsOptional() @IsUUID() managerMembershipId?: string | null;
+  @IsOptional() @IsISO8601() deadlineAt?: string | null;
   @IsOptional() @IsUUID() ruleId?: string;
 }
 export class AssignmentRulePatchDto {

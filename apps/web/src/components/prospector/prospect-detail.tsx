@@ -243,6 +243,11 @@ export function ProspectDetail({
     .filter(Boolean)
     .join(', ');
 
+  const assignedTo =
+    detail.assignment.assignedUserName ??
+    detail.assignment.managerName ??
+    l('Team queue', 'File de l’équipe');
+
   const blocked = collisionError !== null || collision?.decision === 'block';
   const contactAllowed = collision?.decision === 'allow' || collision?.decision === 'warn';
   const hasScheduledFollowUp = pendingFollowUps.length > 0;
@@ -323,7 +328,7 @@ export function ProspectDetail({
 
             <span className="inline-flex items-center gap-1.5">
               <UserRound aria-hidden="true" className="size-4" />
-              {l('Assigned to you', 'Vous est attribué')} · {detail.campaign.name}
+              {l('Assigned to', 'Attribué à')} {assignedTo} · {detail.campaign.name}
             </span>
           </p>
         </div>
@@ -451,7 +456,18 @@ export function ProspectDetail({
               <CardHeader title={l('Prospect information', 'Informations')} />
 
               <dl className="divide-y divide-line-soft">
+                <FieldRow label={l('Assigned to', 'Attribué à')}>{assignedTo}</FieldRow>
+
                 <FieldRow label={l('Campaign', 'Campagne')}>{detail.campaign.name}</FieldRow>
+
+                <FieldRow label={l('Deadline', 'Échéance')}>
+                  {detail.assignment.deadlineAt
+                    ? new Intl.DateTimeFormat(locale, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(new Date(detail.assignment.deadlineAt))
+                    : '—'}
+                </FieldRow>
 
                 <FieldRow label={l('Address', 'Adresse')}>{address || '—'}</FieldRow>
 
@@ -575,7 +591,7 @@ export function ProspectDetail({
             <CardHeader title={l('Assignment', 'Attribution')} />
 
             <dl className="divide-y divide-line-soft">
-              <FieldRow label={l('Assigned to', 'Attribué à')}>{l('You', 'Vous')}</FieldRow>
+              <FieldRow label={l('Assigned to', 'Attribué à')}>{assignedTo}</FieldRow>
               <FieldRow label={l('Campaign', 'Campagne')}>{detail.campaign.name}</FieldRow>
               <FieldRow label={l('Assigned on', 'Attribué le')}>
                 {formatDateTime(detail.assignment.assignedAt, locale)}

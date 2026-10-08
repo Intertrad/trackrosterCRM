@@ -52,6 +52,19 @@ export const campaignProspectAssignments = pgTable(
      */
     assignedUserId: uuid('assigned_user_id'),
 
+    /*
+     * The manager accountable for the assignment.  Keeping this separate
+     * from assigned_user_id lets an admin dispatch to a manager's queue
+     * before the manager chooses an individual prospector.
+     */
+    managerId: uuid('manager_id'),
+
+    /* Optional due date for the current assignment. */
+    deadlineAt: timestamp('deadline_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+
     assignedAt: timestamp('assigned_at', {
       withTimezone: true,
       mode: 'date',
@@ -174,6 +187,14 @@ export const campaignProspectAssignments = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
 
+    foreignKey({
+      name: 'campaign_prospect_assignments_tenant_manager_fk',
+      columns: [table.tenantId, table.managerId],
+      foreignColumns: [tenantMemberships.tenantId, tenantMemberships.id],
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+
     /*
      * Critical ownership invariant:
      *
@@ -206,6 +227,9 @@ export const campaignProspectAssignments = pgTable(
     index('campaign_prospect_assignments_tenant_team_idx').on(table.tenantId, table.teamId),
 
     index('campaign_prospect_assignments_tenant_user_idx').on(table.tenantId, table.assignedUserId),
+
+    index('campaign_prospect_assignments_tenant_manager_idx').on(table.tenantId, table.managerId),
+    index('campaign_prospect_assignments_tenant_deadline_idx').on(table.tenantId, table.deadlineAt),
   ],
 );
 

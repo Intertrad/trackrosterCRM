@@ -42,6 +42,7 @@ type Decision = {
     | 'no_proximity_match';
   teamId?: string;
   assignedUserId?: string | null;
+  managerMembershipId?: string | null;
   assignmentId?: string;
   distanceKm?: number;
   candidates?: Array<{
@@ -97,7 +98,7 @@ export class AssignmentBatchService {
     tx: DatabaseExecutor = this.db,
   ) {
     if (input.ruleId) {
-      if (input.teamId || input.assignedUserId != null)
+      if (input.teamId || input.assignedUserId != null || input.managerMembershipId != null)
         throw new BadRequestException('Use either a rule or a manual target');
       const rule = await this.rule(a, input.ruleId, tx);
       if (rule.campaignId !== input.campaignId.toLowerCase())
@@ -111,6 +112,7 @@ export class AssignmentBatchService {
     targets: {
       teamId: string;
       assignedUserId?: string | null;
+      managerMembershipId?: string | null;
       skills?: string[];
       location?: { longitude: number; latitude: number };
     }[],
@@ -118,10 +120,14 @@ export class AssignmentBatchService {
     const normalized = targets.map((t) => ({
       teamId: t.teamId.toLowerCase(),
       assignedUserId: t.assignedUserId?.toLowerCase() ?? null,
+      managerMembershipId: t.managerMembershipId?.toLowerCase() ?? null,
       skills: [...new Set((t.skills ?? []).map((s) => s.toLowerCase()))],
       ...(t.location ? { location: t.location } : {}),
     }));
-    if (new Set(normalized.map((t) => `${t.teamId}:${t.assignedUserId}`)).size !== targets.length)
+    if (
+      new Set(normalized.map((t) => `${t.teamId}:${t.assignedUserId}:${t.managerMembershipId}`))
+        .size !== targets.length
+    )
       throw new BadRequestException('Rule targets must be unique');
     return normalized;
   }
@@ -143,7 +149,9 @@ export class AssignmentBatchService {
       )
       .orderBy(teams.id)
       .for('update');
-    const memberIds = targets.flatMap((t) => (t.assignedUserId ? [t.assignedUserId] : []));
+    const memberIds = targets.flatMap((t) =>
+      [t.assignedUserId, t.managerMembershipId].filter((id): id is string => Boolean(id)),
+    );
     if (memberIds.length)
       await tx
         .select({ id: tenantMemberships.id })
@@ -165,7 +173,15 @@ export class AssignmentBatchService {
         memberCapacity: number | null;
         memberWorkload: number;
       }>(sql`
-        SELECT t.status='active' AND o.status='active' AND (${target.assignedUserId}::uuid IS NULL OR (m.status='active' AND i.status='active' AND EXISTS(
+        SELECT t.status='active' AND o.status='active'
+          AND (${target.managerMembershipId}::uuid IS NULL OR EXISTS (
+            SELECT 1 FROM tenant_memberships mm JOIN identities mi ON mi.id=mm.identity_id
+            JOIN user_access_grants mg ON mg.tenant_id=mm.tenant_id AND mg.user_id=mm.id
+            WHERE mm.tenant_id=t.tenant_id AND mm.id=${target.managerMembershipId}::uuid
+              AND mm.status='active' AND mi.status='active' AND mg.scope_type='team'
+              AND mg.role='manager' AND mg.team_id=t.id AND mg.organization_id=t.organization_id
+          ))
+          AND (${target.assignedUserId}::uuid IS NULL OR (m.status='active' AND i.status='active' AND EXISTS(
           SELECT 1 FROM user_access_grants g WHERE g.tenant_id=t.tenant_id AND g.team_id=t.id AND g.user_id=m.id AND g.scope_type='team' AND g.role='prospector'))) AS eligible,
           COALESCE(ts.capacity,100) AS "teamCapacity", ms.capacity AS "memberCapacity",
           (SELECT count(*)::int FROM campaign_prospect_assignments a WHERE a.tenant_id=t.tenant_id AND a.team_id=t.id AND a.ended_at IS NULL) AS "teamWorkload",
@@ -199,9 +215,15 @@ export class AssignmentBatchService {
           throw new ConflictException('Campaign is no longer assignable');
         const rule = input.ruleId ? await this.rule(a, input.ruleId, tx) : null;
         if (rule && !rule.isActive) throw new ConflictException('Assignment rule is inactive');
-        const targets =
-          rule?.targets ??
-          this.normalize([{ teamId: input.teamId!, assignedUserId: input.assignedUserId }]);
+        const targets = rule
+          ? this.normalize(rule.targets)
+          : this.normalize([
+              {
+                teamId: input.teamId!,
+                assignedUserId: input.assignedUserId,
+                managerMembershipId: input.managerMembershipId,
+              },
+            ]);
         const states = await this.targets(a, authority.organization_id, targets, tx);
         const ids = input.prospectIds.map((id) => id.toLowerCase()).sort();
         const prospects = await tx.execute<{
@@ -303,6 +325,7 @@ export class AssignmentBatchService {
             outcome: 'proposed',
             teamId: chosen.teamId,
             assignedUserId: chosen.assignedUserId,
+            managerMembershipId: chosen.managerMembershipId,
             ...(rule?.strategy === 'proximity' ? { distanceKm: candidates[0]!.distance! } : {}),
             ...(includeCandidates
               ? {
@@ -345,6 +368,8 @@ export class AssignmentBatchService {
                 organizationId: authority.organization_id,
                 teamId: d.teamId!,
                 assignedUserId: d.assignedUserId,
+                managerId: d.managerMembershipId ?? null,
+                deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : null,
               })
               .returning();
             d.outcome = 'assigned';

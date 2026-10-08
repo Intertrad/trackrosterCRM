@@ -488,11 +488,11 @@ function DashboardMetric({
   tone: 'blue' | 'indigo' | 'red' | 'amber' | 'green';
 }) {
   const tones = {
-    blue: 'bg-blue-50 text-brand',
-    indigo: 'bg-indigo-50 text-indigo-500',
-    red: 'bg-red-50 text-danger',
-    amber: 'bg-amber-50 text-amber-600',
-    green: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-info-bg text-info',
+    indigo: 'bg-brand-wash text-brand',
+    red: 'bg-danger-bg text-danger',
+    amber: 'bg-warning-bg text-warning',
+    green: 'bg-success-bg text-success',
   } as const;
 
   return (
@@ -550,9 +550,9 @@ function RiskRow({
   children: ReactNode;
 }) {
   const styles = {
-    danger: 'border-red-200 bg-red-50 text-red-700',
-    warning: 'border-amber-200 bg-amber-50 text-amber-700',
-    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    danger: 'border-danger-border bg-danger-bg text-danger',
+    warning: 'border-warning-border bg-warning-bg text-warning',
+    success: 'border-success-border bg-success-bg text-success',
   } as const;
 
   return (

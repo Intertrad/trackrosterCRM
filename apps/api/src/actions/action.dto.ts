@@ -90,6 +90,17 @@ export class ListActionsDto {
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() campaignId?: string;
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() assigneeMembershipId?: string;
   @ValidateIf((_o, v) => v !== undefined)
+  @IsIn(['call', 'email', 'message', 'visit', 'task', 'note'])
+  channel?: 'call' | 'email' | 'message' | 'visit' | 'task' | 'note';
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsString()
+  @Matches(/^[a-z][a-z0-9_]{0,39}$/)
+  outcomeCode?: string;
+  @ValidateIf((_o, v) => v !== undefined)
+  @Type(() => Number)
+  @IsIn([7, 30, 90])
+  periodDays?: 7 | 30 | 90;
+  @ValidateIf((_o, v) => v !== undefined)
   @IsIn(['planned', 'started', 'completed', 'cancelled'])
   status?: 'planned' | 'started' | 'completed' | 'cancelled';
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() cursor?: string;

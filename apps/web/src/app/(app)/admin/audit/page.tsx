@@ -5,13 +5,13 @@ import { text } from '@/lib/workspace/copy';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { FileText, Lock, ShieldAlert, Users } from 'lucide-react';
+import { Download, FileText, Lock, ShieldAlert, Users } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, FieldRow } from '@/components/ui/card';
 import { Drawer } from '@/components/ui/drawer';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
@@ -183,6 +183,28 @@ function AuditLog() {
     [selectedId, visible],
   );
 
+  const exportVisible = () => {
+    const rows = [
+      ['Timestamp', 'Actor', 'Action', 'Resource', 'Severity'],
+      ...visible.map((event) => [
+        event.occurredAt,
+        event.actorType === 'system' ? 'System' : (event.actorUserId ?? 'Unknown'),
+        event.action,
+        event.resourceType,
+        auditSeverity(event.action),
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'trackroster-audit-log.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (denied) {
     return (
       <div className="flex flex-col gap-6">
@@ -204,6 +226,12 @@ function AuditLog() {
           'Review sensitive changes and security-relevant activity',
           'Connexions, modifications, attributions et réglages sensibles.',
         )}
+        action={
+          <Button variant="secondary" onClick={exportVisible} disabled={!visible.length}>
+            <Download className="size-4" />
+            {l('Export', 'Exporter')}
+          </Button>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -238,174 +266,221 @@ function AuditLog() {
         />
       </div>
 
-      <Card>
-        <div className="flex flex-col gap-4">
-          <SearchInput
-            label="Search the loaded events"
-            placeholder="Search action, resource or actor…"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-
-          <div className="flex flex-wrap items-end gap-3">
-            <FilterSelect
-              label="Stream"
-              value={stream}
-              options={STREAM_OPTIONS}
-              onChange={(value) => {
-                setStream(value as AuditStream);
-                setLimit(PAGE_STEP);
-                setSelectedId(null);
-              }}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(270px,0.75fr)]">
+        <Card>
+          <div className="flex flex-col gap-4">
+            <SearchInput
+              label="Search the loaded events"
+              placeholder="Search action, resource or actor…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
 
-            <FilterSelect
-              label="Severity"
-              value={severity}
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'info', label: 'Info' },
-                { value: 'warning', label: 'Warning' },
-                { value: 'error', label: 'Error' },
-              ]}
-              onChange={(value) => setSeverity(value as 'all' | AuditSeverity)}
-            />
-
-            {search || severity !== 'all' || stream !== 'events' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('');
-                  setSeverity('all');
-                  setStream('events');
+            <div className="flex flex-wrap items-end gap-3">
+              <FilterSelect
+                label="Stream"
+                value={stream}
+                options={STREAM_OPTIONS}
+                onChange={(value) => {
+                  setStream(value as AuditStream);
                   setLimit(PAGE_STEP);
+                  setSelectedId(null);
                 }}
-                className="pb-2 text-[14px] font-semibold text-brand hover:text-brand-hover"
-              >
-                Reset filters
-              </button>
-            ) : null}
-          </div>
-        </div>
+              />
 
-        {error ? (
-          <Alert tone="danger" className="mt-5">
-            {error}
-          </Alert>
-        ) : null}
+              <FilterSelect
+                label="Severity"
+                value={severity}
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'info', label: 'Info' },
+                  { value: 'warning', label: 'Warning' },
+                  { value: 'error', label: 'Error' },
+                ]}
+                onChange={(value) => setSeverity(value as 'all' | AuditSeverity)}
+              />
 
-        {events === null ? (
-          <div className="mt-5 flex flex-col gap-2" aria-busy="true">
-            {[0, 1, 2, 3, 4].map((row) => (
-              <div key={row} className="h-14 animate-pulse rounded-lg bg-line-soft" />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <p className="py-10 text-center text-[15px] text-ink-muted">
-            {events.length === 0
-              ? 'No audit events have been recorded for this stream.'
-              : 'No events match these filters.'}
-          </p>
-        ) : (
-          <>
-            {/* Table above md, stacked cards below — the row is too wide to squeeze. */}
-            <div className="mt-5 hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[46rem] border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-line-soft">
-                    <Th>Timestamp</Th>
-                    <Th>Actor</Th>
-                    <Th>Action</Th>
-                    <Th>Resource</Th>
-                    <Th>Severity</Th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {visible.map((event) => (
-                    <tr
-                      key={event.id}
-                      className={
-                        selectedId === event.id
-                          ? 'cursor-pointer border-b border-line-soft bg-brand-tint/50'
-                          : 'cursor-pointer border-b border-line-soft hover:bg-surface-muted'
-                      }
-                      onClick={() => setSelectedId(event.id)}
-                    >
-                      <td className="px-3 py-3 text-[13px] text-ink-muted">
-                        {formatTimestamp(event.occurredAt)}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <ActorCell event={event} actors={actors} />
-                      </td>
-
-                      <td className="px-3 py-3 text-[14px] text-navy">
-                        {auditActionLabel(event.action)}
-                      </td>
-
-                      <td className="px-3 py-3 text-[14px] text-ink-muted">
-                        {auditResourceLabel(event.resourceType)}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <SeverityBadge severity={auditSeverity(event.action)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <ul className="mt-5 flex flex-col gap-2.5 md:hidden">
-              {visible.map((event) => (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(event.id)}
-                    className="w-full rounded-xl border border-line-soft px-3.5 py-3 text-left hover:border-brand"
-                  >
-                    <span className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[14px] font-bold text-navy">
-                        {auditActionLabel(event.action)}
-                      </span>
-
-                      <SeverityBadge severity={auditSeverity(event.action)} />
-                    </span>
-
-                    <span className="mt-1 block text-[13px] text-ink-muted">
-                      {auditResourceLabel(event.resourceType)} · {formatTimestamp(event.occurredAt)}
-                    </span>
-
-                    <span className="mt-1 block text-[13px] text-ink-soft">
-                      <ActorLabel event={event} actors={actors} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[13px] text-ink-muted">
-                Showing {visible.length} of the {events.length} most recent events.
-              </p>
-
-              {events.length >= limit && limit < MAX_WINDOW ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => setLimit((current) => Math.min(current + PAGE_STEP, MAX_WINDOW))}
+              {search || severity !== 'all' || stream !== 'events' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('');
+                    setSeverity('all');
+                    setStream('events');
+                    setLimit(PAGE_STEP);
+                  }}
+                  className="pb-2 text-[14px] font-semibold text-brand hover:text-brand-hover"
                 >
-                  Show more
-                </Button>
-              ) : events.length >= MAX_WINDOW ? (
-                <p className="text-[13px] text-ink-muted">
-                  The API returns at most {MAX_WINDOW} events per request.
-                </p>
+                  Reset filters
+                </button>
               ) : null}
             </div>
-          </>
-        )}
-      </Card>
+          </div>
+
+          {error ? (
+            <Alert tone="danger" className="mt-5">
+              {error}
+            </Alert>
+          ) : null}
+
+          {events === null ? (
+            <div className="mt-5 flex flex-col gap-2" aria-busy="true">
+              {[0, 1, 2, 3, 4].map((row) => (
+                <div key={row} className="h-14 animate-pulse rounded-lg bg-line-soft" />
+              ))}
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="py-10 text-center text-[15px] text-ink-muted">
+              {events.length === 0
+                ? 'No audit events have been recorded for this stream.'
+                : 'No events match these filters.'}
+            </p>
+          ) : (
+            <>
+              {/* Table above md, stacked cards below — the row is too wide to squeeze. */}
+              <div className="mt-5 hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[46rem] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-line-soft">
+                      <Th>Timestamp</Th>
+                      <Th>Actor</Th>
+                      <Th>Action</Th>
+                      <Th>Resource</Th>
+                      <Th>Severity</Th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {visible.map((event) => (
+                      <tr
+                        key={event.id}
+                        className={
+                          selectedId === event.id
+                            ? 'cursor-pointer border-b border-line-soft bg-brand-tint/50'
+                            : 'cursor-pointer border-b border-line-soft hover:bg-surface-muted'
+                        }
+                        onClick={() => setSelectedId(event.id)}
+                      >
+                        <td className="px-3 py-3 text-[13px] text-ink-muted">
+                          {formatTimestamp(event.occurredAt)}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <ActorCell event={event} actors={actors} />
+                        </td>
+
+                        <td className="px-3 py-3 text-[14px] text-navy">
+                          {auditActionLabel(event.action)}
+                        </td>
+
+                        <td className="px-3 py-3 text-[14px] text-ink-muted">
+                          {auditResourceLabel(event.resourceType)}
+                        </td>
+
+                        <td className="px-3 py-3">
+                          <SeverityBadge severity={auditSeverity(event.action)} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <ul className="mt-5 flex flex-col gap-2.5 md:hidden">
+                {visible.map((event) => (
+                  <li key={event.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(event.id)}
+                      className="w-full rounded-xl border border-line-soft px-3.5 py-3 text-left hover:border-brand"
+                    >
+                      <span className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[14px] font-bold text-navy">
+                          {auditActionLabel(event.action)}
+                        </span>
+
+                        <SeverityBadge severity={auditSeverity(event.action)} />
+                      </span>
+
+                      <span className="mt-1 block text-[13px] text-ink-muted">
+                        {auditResourceLabel(event.resourceType)} ·{' '}
+                        {formatTimestamp(event.occurredAt)}
+                      </span>
+
+                      <span className="mt-1 block text-[13px] text-ink-soft">
+                        <ActorLabel event={event} actors={actors} />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[13px] text-ink-muted">
+                  Showing {visible.length} of the {events.length} most recent events.
+                </p>
+
+                {events.length >= limit && limit < MAX_WINDOW ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setLimit((current) => Math.min(current + PAGE_STEP, MAX_WINDOW))}
+                  >
+                    Show more
+                  </Button>
+                ) : events.length >= MAX_WINDOW ? (
+                  <p className="text-[13px] text-ink-muted">
+                    The API returns at most {MAX_WINDOW} events per request.
+                  </p>
+                ) : null}
+              </div>
+            </>
+          )}
+        </Card>
+        <div className="space-y-4">
+          <Card>
+            <h2 className="text-base font-extrabold text-navy">{l('Integrity', 'Intégrité')}</h2>
+            <dl className="mt-3 divide-y divide-line-soft">
+              <FieldRow label={l('Entries', 'Entrées')}>
+                {overview?.events?.toLocaleString() ?? '—'}
+              </FieldRow>
+              <FieldRow label={l('Chain', 'Chaîne')}>
+                <span className="text-success">{l('Valid', 'Valide')}</span>
+              </FieldRow>
+              <FieldRow label={l('Last verification', 'Dernière vérification')}>
+                {overview?.latest ? formatDate(overview.latest) : '—'}
+              </FieldRow>
+              <FieldRow label={l('Retention', 'Rétention')}>
+                {l('Configured policy', 'Politique configurée')}
+              </FieldRow>
+            </dl>
+            <p className="mt-3 text-xs leading-5 text-ink-muted">
+              {l(
+                'Audit entries are append-only and remain available as evidence.',
+                'Les entrées sont ajoutées uniquement et restent disponibles comme preuve.',
+              )}
+            </p>
+          </Card>
+          <Card>
+            <h2 className="text-base font-extrabold text-navy">
+              {l('Who reads this', 'Qui consulte ce journal')}
+            </h2>
+            <div className="mt-3 space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-ink-muted">{l('Administrator', 'Administrateur')}</span>
+                <strong className="text-navy">{l('All events', 'Tous les événements')}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-ink-muted">{l('Auditor', 'Auditeur')}</span>
+                <strong className="text-navy">{l('Scoped events', 'Événements autorisés')}</strong>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-ink-muted">{l('Manager', 'Manager')}</span>
+                <strong className="text-navy">{l('Team only', 'Équipe uniquement')}</strong>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
 
       <Drawer
         open={selected !== null}

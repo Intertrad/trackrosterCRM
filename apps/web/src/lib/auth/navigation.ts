@@ -216,6 +216,14 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
           primary: true,
         },
         {
+          id: 'assignments',
+          label: 'nav.assignments',
+          icon: 'assignments',
+          href: '/admin/assignments',
+          availability: 'ready',
+          group: 'operate',
+        },
+        {
           id: 'logged_actions',
           label: 'nav.activity',
           icon: 'activity',

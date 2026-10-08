@@ -138,6 +138,9 @@ export interface ActionPage {
 export interface ListActionsQuery {
   campaignId?: string;
   assigneeMembershipId?: string;
+  channel?: ActionType;
+  outcomeCode?: OutcomeCode;
+  periodDays?: 7 | 30 | 90;
   status?: ActionLifecycleStatus;
   cursor?: string;
   limit?: number;

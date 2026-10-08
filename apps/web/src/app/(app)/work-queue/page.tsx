@@ -551,11 +551,14 @@ function ProspectRow({
   blocked: boolean;
   onSelect: (item: WorkQueueItem) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const href = `/work-queue/${item.campaign.id}/${item.campaignProspectId}`;
 
   const nextStep = deriveNextStep(item, blocked ? new Set([item.campaignProspectId]) : new Set());
+
+  const assignedTo =
+    item.assignment.assignedUserName ?? item.assignment.managerName ?? 'Team queue';
 
   return (
     <li>
@@ -590,6 +593,10 @@ function ProspectRow({
 
           <span className="block truncate text-[14px] text-ink-muted">
             {localityLabel(item) || '—'}
+          </span>
+
+          <span className="block truncate text-[13px] text-ink-soft">
+            {text('Assigned to:', 'Attribué à :', language)} {assignedTo}
           </span>
         </span>
 

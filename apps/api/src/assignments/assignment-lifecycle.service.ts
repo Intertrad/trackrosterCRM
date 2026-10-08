@@ -68,7 +68,30 @@ export class AssignmentLifecycleService {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.list(a, q));
     const rows = await this.db
-      .select({ assignment: assignments, prospectName: establishments.name })
+      .select({
+        assignment: assignments,
+        prospectName: establishments.name,
+        campaignName: sql<string | null>`(
+          SELECT c.name FROM campaigns c
+          WHERE c.tenant_id = ${assignments.tenantId} AND c.id = ${assignments.campaignId}
+        )`,
+        teamName: sql<string | null>`(
+          SELECT t.name FROM teams t
+          WHERE t.tenant_id = ${assignments.tenantId} AND t.id = ${assignments.teamId}
+        )`,
+        managerName: sql<string | null>`(
+          SELECT COALESCE(m.display_name, i.email)
+          FROM tenant_memberships m
+          JOIN identities i ON i.id = m.identity_id
+          WHERE m.tenant_id = ${assignments.tenantId} AND m.id = ${assignments.managerId}
+        )`,
+        assignedUserName: sql<string | null>`(
+          SELECT COALESCE(m.display_name, i.email)
+          FROM tenant_memberships m
+          JOIN identities i ON i.id = m.identity_id
+          WHERE m.tenant_id = ${assignments.tenantId} AND m.id = ${assignments.assignedUserId}
+        )`,
+      })
       .from(assignments)
       .innerJoin(
         campaignProspects,
@@ -101,6 +124,10 @@ export class AssignmentLifecycleService {
       items: rows.slice(0, q.limit).map((r) => ({
         ...r.assignment,
         prospectName: r.prospectName,
+        campaignName: r.campaignName,
+        teamName: r.teamName,
+        managerName: r.managerName,
+        assignedUserName: r.assignedUserName,
         etag: resourceETag(r.assignment),
       })),
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.assignment.id : null,
@@ -224,6 +251,8 @@ export class AssignmentLifecycleService {
         prospectIds: [b.campaignProspectId],
         teamId: b.teamId,
         assignedUserId: b.assignedUserId,
+        managerMembershipId: b.managerMembershipId,
+        deadlineAt: b.deadlineAt,
       },
       true,
     );
@@ -238,7 +267,7 @@ export class AssignmentLifecycleService {
   ): Promise<unknown> {
     if (!currentTenantExecutor())
       return withTenantContext(this.db, a.tenantId, () => this.mutate(a, id, op, b, version));
-    if (Object.values(b).some((v) => v === null) && !('teamId' in b))
+    if (Object.values(b).some((v) => v === null) && !('teamId' in b) && !('deadlineAt' in b))
       throw new BadRequestException('Fields cannot be null');
     if (op === 'update' && !Object.values(b).some((v) => v !== undefined))
       throw new BadRequestException('At least one change required');
@@ -284,7 +313,11 @@ export class AssignmentLifecycleService {
         [result] = await tx
           .update(assignments)
           .set({
-            ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)),
+            ...(input.status !== undefined ? { status: input.status } : {}),
+            ...(input.priority !== undefined ? { priority: input.priority } : {}),
+            ...(input.deadlineAt !== undefined
+              ? { deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : null }
+              : {}),
             updatedAt: sql`clock_timestamp()`,
           })
           .where(eq(assignments.id, id))
@@ -294,7 +327,8 @@ export class AssignmentLifecycleService {
           const target = b as ReassignAssignmentDto;
           if (
             old.teamId === target.teamId.toLowerCase() &&
-            old.assignedUserId === (target.assignedUserId?.toLowerCase() ?? null)
+            old.assignedUserId === (target.assignedUserId?.toLowerCase() ?? null) &&
+            old.managerId === (target.managerMembershipId?.toLowerCase() ?? old.managerId)
           )
             throw new ConflictException('Select a different assignment target');
           if (
@@ -325,6 +359,16 @@ export class AssignmentLifecycleService {
               organizationId: old.organizationId,
               teamId: target.teamId,
               assignedUserId: target.assignedUserId ?? null,
+              managerId:
+                target.managerMembershipId === undefined
+                  ? old.managerId
+                  : (target.managerMembershipId ?? null),
+              deadlineAt:
+                target.deadlineAt === undefined
+                  ? old.deadlineAt
+                  : target.deadlineAt
+                    ? new Date(target.deadlineAt)
+                    : null,
               priority: old.priority,
               assignedAt: endedAt,
             })

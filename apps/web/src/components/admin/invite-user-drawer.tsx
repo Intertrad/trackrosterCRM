@@ -11,7 +11,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { inviteMembership } from '@/lib/api/membership-client';
 import { listOrganizations, type OrganizationSummary } from '@/lib/api/organization-client';
 import { roleLabel, TENANT_ROLES } from '@/lib/api/role-types';
-import { listTeams } from '@/lib/api/team-client';
+import { createTeam, listTeams } from '@/lib/api/team-client';
 import type { Team } from '@/lib/api/team-types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +41,10 @@ export function InviteUserDrawer({
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [scopeLoading, setScopeLoading] = useState(false);
+  const [creatingTeam, setCreatingTeam] = useState(false);
+  const [teamCreateBusy, setTeamCreateBusy] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [teamError, setTeamError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -61,6 +65,10 @@ export function InviteUserDrawer({
     setTeams([]);
     setEmailError(null);
     setFormError(null);
+    setCreatingTeam(false);
+    setTeamCreateBusy(false);
+    setTeamName('');
+    setTeamError(null);
     setNotice(null);
     /* One key per opened form: retrying a failed send must not create a
      * second invitation for the same person. */
@@ -104,6 +112,32 @@ export function InviteUserDrawer({
 
     return () => controller.abort();
   }, [organizationId, role]);
+
+  async function handleCreateTeam(): Promise<void> {
+    const name = teamName.trim();
+
+    if (!organizationId || !name || teamCreateBusy) return;
+
+    setTeamError(null);
+    setTeamCreateBusy(true);
+
+    try {
+      const team = await createTeam({
+        organizationId,
+        name,
+        slug: slugify(name),
+      });
+      setTeams((current) => [...current, team]);
+      setTeamId(team.id);
+      setTeamName('');
+      setFormError(null);
+      setNotice(`Team “${team.name}” created. You can now send the invitation.`);
+    } catch (caught) {
+      setTeamError(describeInviteError(caught));
+    } finally {
+      setTeamCreateBusy(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -238,27 +272,96 @@ export function InviteUserDrawer({
         ) : null}
 
         {requiresTeam(role) ? (
-          <SelectField
-            label="Team"
-            value={teamId}
-            onChange={(event) => {
-              setTeamId(event.target.value);
-              setFormError(null);
-            }}
-            disabled={busy || scopeLoading || !organizationId}
-            required
-            options={[
-              {
-                value: '',
-                label: !organizationId
-                  ? 'Choose an organization first'
-                  : scopeLoading
-                    ? 'Loading teams…'
-                    : 'Choose a team',
-              },
-              ...teams.map((team) => ({ value: team.id, label: team.name })),
-            ]}
-          />
+          <div className="flex flex-col gap-3">
+            <SelectField
+              label="Team"
+              value={teamId}
+              onChange={(event) => {
+                setTeamId(event.target.value);
+                setFormError(null);
+              }}
+              disabled={busy || scopeLoading || !organizationId || teams.length === 0}
+              required
+              options={[
+                {
+                  value: '',
+                  label: !organizationId
+                    ? 'Choose an organization first'
+                    : scopeLoading
+                      ? 'Loading teams…'
+                      : teams.length === 0
+                        ? 'No teams yet'
+                        : 'Choose a team',
+                },
+                ...teams.map((team) => ({ value: team.id, label: team.name })),
+              ]}
+            />
+
+            {organizationId && !scopeLoading && teams.length === 0 ? (
+              <div className="rounded-lg border border-brand-pale bg-brand-tint px-3 py-3">
+                <p className="text-[13px] font-bold text-navy">
+                  No team for this organization yet.
+                </p>
+                <p className="mt-1 text-[12px] text-ink-muted">
+                  Create one here, then it will be selected for this invitation.
+                </p>
+                {creatingTeam ? (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <TextField
+                      label="Team name"
+                      value={teamName}
+                      onChange={(event) => {
+                        setTeamName(event.target.value);
+                        setTeamError(null);
+                      }}
+                      placeholder="Paris prospecting"
+                      maxLength={255}
+                      disabled={busy}
+                    />
+                    {teamError ? <Alert tone="danger">{teamError}</Alert> : null}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="md"
+                        onClick={() => {
+                          setCreatingTeam(false);
+                          setTeamName('');
+                          setTeamError(null);
+                        }}
+                        variant="secondary"
+                        disabled={busy}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="md"
+                        onClick={() => void handleCreateTeam()}
+                        loading={teamCreateBusy}
+                        disabled={!teamName.trim() || busy || teamCreateBusy}
+                      >
+                        Create team
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    size="md"
+                    variant="secondary"
+                    className="mt-3"
+                    onClick={() => {
+                      setCreatingTeam(true);
+                      setTeamError(null);
+                    }}
+                    disabled={busy}
+                  >
+                    Create team
+                  </Button>
+                )}
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {formError ? <Alert tone="danger">{formError}</Alert> : null}
@@ -291,6 +394,18 @@ function requiresOrganization(role: string): boolean {
 
 function requiresTeam(role: string): boolean {
   return role === 'manager' || role === 'prospector';
+}
+
+function slugify(value: string): string {
+  const slug = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+
+  return slug || `team-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function describeRole(role: string): string {

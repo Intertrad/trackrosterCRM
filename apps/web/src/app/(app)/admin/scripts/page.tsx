@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Mail, Plus, Send, Sparkles, Trash2 } from 'lucide-react';
+import { CheckCircle2, Mail, Plus, Send, Sparkles, Trash2, WandSparkles } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
+import { StatTile } from '@/components/ui/stat-tile';
 import { PageHeader } from '@/components/ui/page-header';
 import { browserResource } from '@/lib/api/browser-resource';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -220,6 +221,44 @@ export default function ScriptsPage() {
       />
       {error ? <Alert tone="danger">{error}</Alert> : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <StatTile
+          icon={<Mail className="size-5" />}
+          value={scripts.length}
+          label={isFrench ? 'Modèles créés' : 'Templates created'}
+        />
+        <StatTile
+          icon={<CheckCircle2 className="size-5" />}
+          tone="success"
+          value={scripts.filter((script) => script.enabled).length}
+          label={isFrench ? 'Actifs' : 'Active'}
+        />
+        <StatTile
+          icon={<WandSparkles className="size-5" />}
+          tone="warning"
+          value={scripts.reduce((total, script) => total + script.variables.length, 0)}
+          label={isFrench ? 'Variables disponibles' : 'Variables available'}
+        />
+      </div>
+      {scripts.length === 0 ? (
+        <Card className="border-warning/40 bg-warning-bg/20">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-extrabold text-navy">
+                {isFrench ? 'Aucun modèle pour le moment' : 'No template yet'}
+              </h2>
+              <p className="mt-1 text-sm text-ink-muted">
+                {isFrench
+                  ? 'Créez un modèle pour garder une formulation cohérente entre les prospecteurs.'
+                  : 'Create a template to keep wording consistent across prospectors.'}
+              </p>
+            </div>
+            <Button onClick={newScript}>
+              {isFrench ? 'Commencer' : 'Start from the dossier wording'}
+            </Button>
+          </div>
+        </Card>
+      ) : null}
       <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(260px,0.78fr)_minmax(0,1.62fr)]">
         <Card padding="none" className="min-h-[620px] overflow-hidden">
           <CardHeader

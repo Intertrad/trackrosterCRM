@@ -17,6 +17,7 @@ import { campaigns } from './campaigns.js';
 export type AssignmentRuleTarget = {
   teamId: string;
   assignedUserId: string | null;
+  managerMembershipId?: string | null;
   skills?: string[];
   location?: { longitude: number; latitude: number };
 };

@@ -7,11 +7,12 @@ const api = vi.hoisted(() => ({
   invite: vi.fn(),
   organizations: vi.fn(),
   teams: vi.fn(),
+  createTeam: vi.fn(),
 }));
 
 vi.mock('@/lib/api/membership-client', () => ({ inviteMembership: api.invite }));
 vi.mock('@/lib/api/organization-client', () => ({ listOrganizations: api.organizations }));
-vi.mock('@/lib/api/team-client', () => ({ listTeams: api.teams }));
+vi.mock('@/lib/api/team-client', () => ({ listTeams: api.teams, createTeam: api.createTeam }));
 
 import { InviteUserDrawer } from './invite-user-drawer';
 
@@ -37,6 +38,13 @@ describe('invite user drawer', () => {
       nextCursor: null,
     });
     api.invite.mockResolvedValue({ membershipId: 'membership-1' });
+    api.createTeam.mockResolvedValue({
+      id: 'team-2',
+      tenantId: 'tenant-1',
+      organizationId: 'org-1',
+      name: 'New Team',
+      status: 'active',
+    });
   });
 
   afterEach(cleanup);
@@ -71,5 +79,35 @@ describe('invite user drawer', () => {
       },
       expect.any(String),
     );
+  });
+
+  it('creates and selects the first team when the organization has none', async () => {
+    api.teams.mockResolvedValue({ items: [], nextCursor: null });
+    render(<InviteUserDrawer open onClose={vi.fn()} onInvited={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'new.user@example.com' },
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Arcadia' })).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByLabelText('Organization'), { target: { value: 'org-1' } });
+
+    await waitFor(() =>
+      expect(screen.getByText('No team for this organization yet.')).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Create team' }));
+    fireEvent.change(screen.getByLabelText('Team name'), { target: { value: 'New Team' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create team' }));
+
+    await waitFor(() =>
+      expect(api.createTeam).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        name: 'New Team',
+        slug: 'new-team',
+      }),
+    );
+    expect(await screen.findByRole('option', { name: 'New Team' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Team')).toHaveValue('team-2');
   });
 });

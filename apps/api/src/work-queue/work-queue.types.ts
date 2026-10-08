@@ -44,6 +44,16 @@ export interface WorkQueueItem {
 
     teamId: string;
 
+    managerId?: string | null;
+
+    managerName?: string | null;
+
+    assignedUserId?: string | null;
+
+    assignedUserName?: string | null;
+
+    deadlineAt?: Date | null;
+
     assignedAt: Date;
   };
 
@@ -99,6 +109,16 @@ export interface WorkQueueProspectDetail {
     organizationId: string;
 
     teamId: string;
+
+    managerId?: string | null;
+
+    managerName?: string | null;
+
+    assignedUserId?: string | null;
+
+    assignedUserName?: string | null;
+
+    deadlineAt?: Date | null;
 
     assignedAt: Date;
   };

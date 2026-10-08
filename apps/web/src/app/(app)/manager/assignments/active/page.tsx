@@ -146,6 +146,10 @@ export default function ActiveAssignmentsPage() {
     }
   }
 
+  if (activeWorkspace?.mode === 'admin') {
+    return <div className="h-32" aria-busy="true" />;
+  }
+
   if (!teamId) {
     return (
       <div className="flex flex-col gap-6">
@@ -284,6 +288,20 @@ export default function ActiveAssignmentsPage() {
                       · assigned {formatDate(assignment.assignedAt)}
                       {assignment.endReason ? ` · ${assignment.endReason}` : ''}
                     </span>
+                    {assignment.deadlineAt ? (
+                      <span
+                        className={`mt-1 block text-[12px] font-semibold ${
+                          open && new Date(assignment.deadlineAt).getTime() < Date.now()
+                            ? 'text-danger'
+                            : 'text-ink-muted'
+                        }`}
+                      >
+                        {open && new Date(assignment.deadlineAt).getTime() < Date.now()
+                          ? 'Overdue · '
+                          : 'Due · '}
+                        {formatDateTime(assignment.deadlineAt)}
+                      </span>
+                    ) : null}
                   </span>
 
                   <Badge tone={priorityTone(assignment.priority)}>{assignment.priority}</Badge>
@@ -375,7 +393,12 @@ export default function ActiveAssignmentsPage() {
               () =>
                 reassignAssignment(
                   assignment.id,
-                  { teamId: target.teamId, assignedUserId: target.assignedUserId, reason },
+                  {
+                    teamId: target.teamId,
+                    assignedUserId: target.assignedUserId,
+                    deadlineAt: target.deadlineAt,
+                    reason,
+                  },
                   options,
                 ),
               'Assignment moved.',
@@ -418,17 +441,19 @@ function ActionDrawer({
     assignment: Assignment,
     action: Action,
     reason: string,
-    target: { teamId: string; assignedUserId: string | null },
+    target: { teamId: string; assignedUserId: string | null; deadlineAt: string | null },
   ) => void;
 }) {
   const [reason, setReason] = useState('');
   const [assignedUserId, setAssignedUserId] = useState('');
   const [priority, setPriority] = useState<AssignmentPriority>('normal');
+  const [deadline, setDeadline] = useState('');
 
   useEffect(() => {
     setReason('');
     setAssignedUserId(selection?.assignment.assignedUserId ?? '');
     setPriority(selection?.assignment.priority ?? 'normal');
+    setDeadline(toDateTimeLocal(selection?.assignment.deadlineAt ?? null));
   }, [selection]);
 
   if (!selection) {
@@ -437,7 +462,10 @@ function ActionDrawer({
 
   const { assignment, action } = selection;
   const selectedUserId = assignedUserId === '' ? null : assignedUserId;
-  const unchangedTarget = action === 'reassign' && assignment.assignedUserId === selectedUserId;
+  const unchangedTarget =
+    action === 'reassign' &&
+    assignment.assignedUserId === selectedUserId &&
+    (deadline ? new Date(deadline).toISOString() : null) === assignment.deadlineAt;
 
   const title =
     action === 'reassign'
@@ -476,6 +504,15 @@ function ActionDrawer({
                 ? 'Choose a different owner or leave it with the team before submitting.'
                 : 'Leaving nobody assigned keeps the prospect owned by the team so anyone on it can pick the work up.'}
             </p>
+
+            <TextField
+              type="datetime-local"
+              label="Deadline"
+              value={deadline}
+              disabled={busy}
+              onChange={(event) => setDeadline(event.target.value)}
+              hint="The deadline is kept when the prospect moves within your team."
+            />
           </>
         ) : null}
 
@@ -512,6 +549,7 @@ function ActionDrawer({
             onSubmit(assignment, action, reason.trim(), {
               teamId,
               assignedUserId: assignedUserId === '' ? null : assignedUserId,
+              deadlineAt: deadline ? new Date(deadline).toISOString() : null,
             })
           }
         >
@@ -532,6 +570,27 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime())
     ? '—'
     : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+}
+
+function toDateTimeLocal(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function describeAssignmentError(error: unknown, fallback: string): string {

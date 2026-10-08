@@ -139,6 +139,7 @@ export class ActionService {
         campaignName: campaigns.name,
         organizationId: campaigns.organizationId,
         organizationName: organizations.name,
+        outcomeCode: actionOutcomes.outcomeCode,
       })
       .from(actions)
       .leftJoin(
@@ -166,6 +167,10 @@ export class ActionService {
           eq(organizations.id, campaigns.organizationId),
         ),
       )
+      .leftJoin(
+        actionOutcomes,
+        and(eq(actionOutcomes.tenantId, actions.tenantId), eq(actionOutcomes.actionId, actions.id)),
+      )
       .where(
         and(
           eq(actions.tenantId, auth.tenantId),
@@ -173,6 +178,11 @@ export class ActionService {
           q.campaignId ? eq(actions.campaignId, q.campaignId) : undefined,
           q.assigneeMembershipId
             ? eq(actions.assigneeMembershipId, q.assigneeMembershipId)
+            : undefined,
+          q.channel ? eq(actions.type, q.channel) : undefined,
+          q.outcomeCode ? eq(actionOutcomes.outcomeCode, q.outcomeCode) : undefined,
+          q.periodDays
+            ? sql`${actions.createdAt} >= now() - make_interval(days => ${q.periodDays})`
             : undefined,
           q.status ? eq(actions.status, q.status) : undefined,
           q.cursor ? gt(actions.id, q.cursor) : undefined,
@@ -183,6 +193,7 @@ export class ActionService {
     return {
       items: rows.slice(0, q.limit).map((r) => ({
         ...r.action,
+        outcomeCode: r.outcomeCode,
 
         /* Computed over the action alone, so existing ETags do not change. */
         etag: resourceETag(r.action),

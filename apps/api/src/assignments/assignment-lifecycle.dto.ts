@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
@@ -24,17 +25,20 @@ import { AssignmentTargetDto } from './assignment-batch.dto.js';
 export class CreateAssignmentDto extends AssignmentTargetDto {
   @IsUUID() campaignId!: string;
   @IsUUID() campaignProspectId!: string;
+  @IsOptional() @IsISO8601() deadlineAt?: string | null;
 }
 export class UpdateAssignmentDto {
   @IsOptional() @IsIn(['active', 'paused']) status?: 'active' | 'paused';
   @IsOptional() @IsIn(['low', 'normal', 'high', 'critical']) priority?:
     'low' | 'normal' | 'high' | 'critical';
+  @IsOptional() @IsISO8601() deadlineAt?: string | null;
 }
 export class AssignmentEndDto {
   @IsString() @Length(3, 1000) reason!: string;
 }
 export class ReassignAssignmentDto extends AssignmentTargetDto {
   @IsString() @Length(3, 1000) reason!: string;
+  @IsOptional() @IsISO8601() deadlineAt?: string | null;
 }
 export class AssignmentListDto {
   @IsOptional() @IsUUID() campaignId?: string;

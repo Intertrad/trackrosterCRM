@@ -4,7 +4,7 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { CheckCircle2, Plus, ShieldCheck, Users, UserRound, UserRoundCog } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { InviteUserDrawer } from '@/components/admin/invite-user-drawer';
@@ -14,6 +14,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { StatTile } from '@/components/ui/stat-tile';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
 import { SearchInput } from '@/components/ui/search-input';
@@ -29,6 +30,8 @@ import {
   type MembershipSummary,
 } from '@/lib/api/membership-types';
 import { roleLabel, TENANT_ROLES } from '@/lib/api/role-types';
+import { getAdminDashboard } from '@/lib/api/admin-client';
+import type { AdminDashboard } from '@/lib/api/admin-types';
 
 /* The list is keyset-paginated upstream; one page covers every seeded tenant. */
 const PAGE_SIZE = 100;
@@ -71,6 +74,7 @@ function UsersAndRoles() {
 
   const [selected, setSelected] = useState<MembershipSummary | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
 
   const load = useCallback((signal?: AbortSignal): Promise<void> => {
     return listMemberships({ limit: PAGE_SIZE }, signal)
@@ -102,6 +106,13 @@ function UsersAndRoles() {
 
     return () => controller.abort();
   }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void getAdminDashboard(controller.signal)
+      .then(setDashboard)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   /*
    * Role and status are filtered in the browser rather than re-queried. The
@@ -182,6 +193,45 @@ function UsersAndRoles() {
           {error}
         </Alert>
       ) : null}
+
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+        <StatTile
+          icon={<Users className="size-5" />}
+          value={
+            dashboard?.metrics.activeMembers ??
+            members?.filter((member) => member.status === 'active').length ??
+            null
+          }
+          label={l('Accounts', 'Comptes')}
+        />
+        <StatTile
+          icon={<UserRound className="size-5" />}
+          tone="warning"
+          value={invitations.length || null}
+          label={l('Invitations pending', 'Invitations en attente')}
+        />
+        <StatTile
+          icon={<UserRoundCog className="size-5" />}
+          value={members?.filter((member) => member.roles.includes('manager')).length || null}
+          label={l('Managers', 'Managers')}
+        />
+        <StatTile
+          icon={<CheckCircle2 className="size-5" />}
+          tone="brand"
+          value={members?.filter((member) => member.roles.includes('prospector')).length || null}
+          label={l('Prospectors', 'Prospecteurs')}
+        />
+        <StatTile
+          icon={<ShieldCheck className="size-5" />}
+          tone="success"
+          value={
+            dashboard
+              ? `${dashboard.metrics.mfaEnrolledMembers} / ${dashboard.metrics.activeMembers}`
+              : null
+          }
+          label={l('MFA active', 'MFA active')}
+        />
+      </div>
 
       {tab === 'roles' ? (
         <Card>

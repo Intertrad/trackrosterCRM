@@ -14,10 +14,16 @@ export interface Assignment {
   campaignId: string;
   campaignProspectId: string;
   prospectName?: string;
+  campaignName?: string | null;
+  teamName?: string | null;
+  managerName?: string | null;
+  assignedUserName?: string | null;
   organizationId: string;
   teamId: string;
   assignedUserId: string | null;
+  managerId: string | null;
   assignedAt: string;
+  deadlineAt: string | null;
   endedAt: string | null;
   status: AssignmentStatus;
   priority: AssignmentPriority;

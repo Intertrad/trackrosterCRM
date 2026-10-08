@@ -4,6 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Tabs } from '@/components/ui/tabs';
 import { useTranslation } from '@/lib/i18n/i18n-context';
+import { useAuth } from '@/lib/auth/auth-context';
+import { getAccountProfile, updateAccountProfile } from '@/lib/api/account-client';
 import { text } from '@/lib/workspace/copy';
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/alert';
@@ -256,18 +258,21 @@ function ReservationSettings({ language }: { language: string }) {
     }
   };
   const policyMeta: Record<CoordinationPolicy['policy'], { label: string; tone: string }> = {
-    shared: { label: l('Shared', 'Partagé'), tone: 'border-lime-200 bg-lime-50 text-lime-800' },
+    shared: {
+      label: l('Shared', 'Partagé'),
+      tone: 'border-success-border bg-success-bg text-success',
+    },
     coordinated: {
       label: l('Coordinated', 'Coordonné'),
-      tone: 'border-amber-200 bg-amber-50 text-amber-800',
+      tone: 'border-warning-border bg-warning-bg text-warning',
     },
     delayed: {
       label: l('Deferred', 'Différé'),
-      tone: 'border-blue-200 bg-blue-50 text-blue-800',
+      tone: 'border-info-border bg-info-bg text-info',
     },
     independent: {
       label: l('Independent', 'Indépendant'),
-      tone: 'border-violet-200 bg-violet-50 text-violet-800',
+      tone: 'border-line bg-surface-muted text-ink-soft',
     },
   };
   return (
@@ -537,7 +542,7 @@ function ReservationSettings({ language }: { language: string }) {
                                   );
                                   setSaved(false);
                                 }}
-                                className="w-12 rounded border border-current/20 bg-white/60 px-1 py-0.5 text-center font-bold text-navy"
+                                className="w-12 rounded border border-current/20 bg-surface/70 px-1 py-0.5 text-center font-bold text-ink"
                               />
                               {l('days', 'jours')}
                             </label>
@@ -692,7 +697,7 @@ function ReservationSettings({ language }: { language: string }) {
       </Card>
       <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
         <span
-          className={`text-sm ${saved ? 'font-semibold text-emerald-700' : 'text-ink-muted'}`}
+          className={`text-sm ${saved ? 'font-semibold text-success' : 'text-ink-muted'}`}
           role="status"
         >
           {saved
@@ -984,8 +989,10 @@ type SecuritySettings = {
 
 function WorkspaceSettings({ language }: { language: string }) {
   const l = (en: string, fr: string) => text(en, fr, language) ?? en;
+  const { refreshSession } = useAuth();
   const [tenant, setTenant] = useState<TenantSettings | null>(null);
   const [security, setSecurity] = useState<SecuritySettings | null>(null);
+  const [initialSecurity, setInitialSecurity] = useState<SecuritySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1001,7 +1008,9 @@ function WorkspaceSettings({ language }: { language: string }) {
         }),
       ]);
       setTenant({ ...nextTenant.resource, etag: nextTenant.etag ?? undefined });
-      setSecurity({ ...nextSecurity.resource, etag: nextSecurity.etag ?? undefined });
+      const loadedSecurity = { ...nextSecurity.resource, etag: nextSecurity.etag ?? undefined };
+      setSecurity(loadedSecurity);
+      setInitialSecurity(loadedSecurity);
       setError(false);
       setSaveError(false);
     } catch {
@@ -1018,7 +1027,7 @@ function WorkspaceSettings({ language }: { language: string }) {
     setSaving(true);
     setSaveError(false);
     try {
-      await Promise.all([
+      const writes: Promise<unknown>[] = [
         browserJson('/api/workspace/tenant', {
           method: 'PATCH',
           headers: {
@@ -1032,19 +1041,38 @@ function WorkspaceSettings({ language }: { language: string }) {
             timezone: tenant.timezone,
           }),
         }),
-        browserJson('/api/workspace/settings/security', {
-          method: 'PATCH',
-          headers: {
-            'content-type': 'application/json',
-            'idempotency-key': crypto.randomUUID(),
-            ...(security.etag ? { 'if-match': security.etag } : {}),
-          },
-          body: JSON.stringify({
-            requireMfa: security.requireMfa,
-            sessionMaxHours: security.sessionMaxHours,
+      ];
+      const securityChanged =
+        initialSecurity === null ||
+        security.requireMfa !== initialSecurity.requireMfa ||
+        security.sessionMaxHours !== initialSecurity.sessionMaxHours;
+      if (securityChanged) {
+        writes.push(
+          browserJson('/api/workspace/settings/security', {
+            method: 'PATCH',
+            headers: {
+              'content-type': 'application/json',
+              'idempotency-key': crypto.randomUUID(),
+              ...(security.etag ? { 'if-match': security.etag } : {}),
+            },
+            body: JSON.stringify({
+              requireMfa: security.requireMfa,
+              sessionMaxHours: security.sessionMaxHours,
+            }),
           }),
-        }),
-      ]);
+        );
+      }
+      await Promise.all(writes);
+      /*
+       * The workspace locale is also the interface-language choice shown in
+       * this form. The shell reads the signed-in member locale, so keep the
+       * member preference in sync and refresh the session before rendering the
+       * success state. This makes the language change visible immediately and
+       * keeps it after a full reload.
+       */
+      const account = await getAccountProfile();
+      await updateAccountProfile({ locale: tenant.locale }, account.etag);
+      await refreshSession();
       setSaved(true);
       await load();
     } catch {
@@ -1205,7 +1233,7 @@ function WorkspaceSettings({ language }: { language: string }) {
                 )}
               </span>
             </span>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+            <span className="rounded-full bg-success-bg px-3 py-1 text-xs font-bold text-success">
               {l('Always on', 'Toujours actif')}
             </span>
           </div>
@@ -1229,7 +1257,7 @@ function WorkspaceSettings({ language }: { language: string }) {
       </Card>
       <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
         <span
-          className={`text-sm ${saved ? 'font-semibold text-emerald-700' : 'text-ink-muted'}`}
+          className={`text-sm ${saved ? 'font-semibold text-success' : 'text-ink-muted'}`}
           role="status"
         >
           {saved

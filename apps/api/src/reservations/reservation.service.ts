@@ -845,20 +845,21 @@ export class ReservationService {
      * Coarse authorization comes before target
      * resolution.
      *
-     * Users with no prospector team scope at all
-     * cannot probe campaign/prospect identifiers.
+     * Users with neither a prospector scope nor a manager scope cannot probe
+     * campaign/prospect identifiers. Managers may work rows dispatched to
+     * their own manager queue.
      */
     const grants = await this.authorizationService.getUserGrants(input.tenantId, input.userId);
 
-    const hasProspectorTeamScope = grants.some(
+    const hasWorkQueueTeamScope = grants.some(
       (grant) =>
-        grant.role === 'prospector' &&
+        (grant.role === 'prospector' || grant.role === 'manager') &&
         grant.scopeType === 'team' &&
         grant.organizationId !== null &&
         grant.teamId !== null,
     );
 
-    if (!hasProspectorTeamScope) {
+    if (!hasWorkQueueTeamScope) {
       throw new ForbiddenException('User does not have a prospector team scope');
     }
 
@@ -899,25 +900,18 @@ export class ReservationService {
     }
 
     /*
-     * Individual assignment ownership remains
-     * authoritative.
-     *
-     * Do not reveal that another user's assignment
-     * exists.
+     * Individual ownership remains authoritative. A manager may work a row
+     * dispatched to them while it is still team-owned (`assigned_user_id` is
+     * NULL), or after assigning the row to themself. A manager cannot act on a
+     * row already assigned to another prospector.
      */
     if (assignment.status === 'paused') throw new ConflictException('Assignment is paused');
 
-    if (assignment.assignedUserId && assignment.assignedUserId !== input.userId) {
-      throw new NotFoundException('Campaign prospect not found');
-    }
-
     /*
-     * The caller must possess the exact team-level
-     * prospector grant for the current assignment.
-     *
-     * A user who has some other prospector grant must
-     * not be able to distinguish an out-of-scope
-     * prospect from a nonexistent one.
+     * The caller must possess the exact team-level prospector or manager
+     * grant for the current assignment. A user who has some other team grant
+     * must not be able to distinguish an out-of-scope prospect from a
+     * nonexistent one.
      */
     const isExactTeamProspector = grants.some(
       (grant) =>
@@ -927,7 +921,25 @@ export class ReservationService {
         grant.teamId === assignment.teamId,
     );
 
-    if (!isExactTeamProspector) {
+    const isExactTeamManager = grants.some(
+      (grant) =>
+        grant.role === 'manager' &&
+        grant.scopeType === 'team' &&
+        grant.organizationId === assignment.organizationId &&
+        grant.teamId === assignment.teamId,
+    );
+
+    const canWorkAsProspector =
+      isExactTeamProspector &&
+      (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
+
+    const canWorkAsManager =
+      isExactTeamManager &&
+      (assignment.managerId === input.userId ||
+        (assignment.managerId === null && assignment.assignedUserId === input.userId)) &&
+      (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
+
+    if (!canWorkAsProspector && !canWorkAsManager) {
       throw new NotFoundException('Campaign prospect not found');
     }
 
@@ -936,7 +948,7 @@ export class ReservationService {
      *
      * From this point onward it is safe to expose
      * meaningful workflow-state conflicts to the
-     * legitimate prospector.
+     * legitimate work-queue user.
      */
     if (campaign.status !== 'active') {
       throw new ConflictException('Campaign is not active');

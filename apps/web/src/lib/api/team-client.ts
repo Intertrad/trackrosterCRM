@@ -48,6 +48,19 @@ export function listTeams(
   });
 }
 
+export function createTeam(input: {
+  organizationId: string;
+  name: string;
+  slug: string;
+  capacity?: number;
+}): Promise<Team> {
+  return browserJson<Team>('/api/teams', {
+    method: 'POST',
+    headers: writeHeaders(),
+    body: JSON.stringify(input),
+  });
+}
+
 export function getTeam(teamId: string, signal?: AbortSignal): Promise<BrowserResource<Team>> {
   return browserResource<Team>(`/api/teams/${encodeURIComponent(teamId)}`, {
     cache: 'no-store',

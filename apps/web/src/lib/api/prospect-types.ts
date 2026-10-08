@@ -31,6 +31,21 @@ export interface Prospect {
   category: EstablishmentCategory | null;
   createdAt: string;
   updatedAt: string;
+  /** Current assignments visible to the caller, grouped by campaign/team. */
+  assignments?: ProspectAssignmentSummary[];
+}
+
+export interface ProspectAssignmentSummary {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  organizationId: string;
+  organizationName: string;
+  teamId: string;
+  teamName: string | null;
+  assignedUserId: string | null;
+  assignedUserName: string | null;
+  status: string;
 }
 
 /** A user-managed label on an establishment. */

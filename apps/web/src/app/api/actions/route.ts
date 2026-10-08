@@ -8,6 +8,9 @@ export const dynamic = 'force-dynamic';
 const ALLOWED = [
   'campaignId',
   'assigneeMembershipId',
+  'channel',
+  'outcomeCode',
+  'periodDays',
   'status',
   'type',
   'cursor',

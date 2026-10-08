@@ -107,6 +107,8 @@ export interface AssignmentBatchInput {
   prospectIds: string[];
   teamId?: string;
   assignedUserId?: string | null;
+  managerMembershipId?: string | null;
+  deadlineAt?: string | null;
   ruleId?: string;
 }
 

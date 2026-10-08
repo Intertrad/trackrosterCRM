@@ -2,7 +2,16 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Building2, List, MapPin, Plus, RefreshCw, Users, Download } from 'lucide-react';
+import {
+  Building2,
+  CheckCircle,
+  List,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Users,
+  Download,
+} from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { ProspectAssignmentDrawer } from '@/components/admin/prospect-base/assignment-drawer';
 import { ProspectMap, toMapPoint } from '@/components/prospector/prospect-map';
@@ -10,6 +19,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { StatTile } from '@/components/ui/stat-tile';
 import { Drawer } from '@/components/ui/drawer';
 import { LinkButton } from '@/components/ui/link-button';
 import { PageHeader } from '@/components/ui/page-header';
@@ -31,6 +41,8 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { ActionEditor } from '@/components/workspace/action-editor';
 import { WORKSPACE_MODULES } from '@/lib/workspace/modules';
 import { text } from '@/lib/workspace/copy';
+import { getAdminDashboard } from '@/lib/api/admin-client';
+import type { AdminDashboard } from '@/lib/api/admin-types';
 import { togglePage, toggleRecord } from '@/lib/ui/record-selection';
 
 export default function ReferentialPage() {
@@ -94,10 +106,12 @@ function Referential() {
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<Map<string, Prospect>>(new Map());
   const [detail, setDetail] = useState<Prospect | null>(null);
+  const [mapSelectedId, setMapSelectedId] = useState<string | null>(null);
   const [batch, setBatch] = useState<Prospect[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const pageCheckbox = useRef<HTMLInputElement>(null);
   const latestQuery = useRef(paramString);
   latestQuery.current = paramString;
@@ -107,6 +121,7 @@ function Referential() {
   useEffect(() => {
     setSelected(new Map());
     setDetail(null);
+    setMapSelectedId(null);
     setPrevious([]);
     setTotal(null);
   }, [scopeKey]);
@@ -173,6 +188,13 @@ function Referential() {
     void load(controller.signal);
     return () => controller.abort();
   }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void getAdminDashboard(controller.signal)
+      .then(setDashboard)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
   useLiveRefresh(load, { scope: queryKey });
   const activePage = (items ?? []).filter((r) => r.status === 'active');
   const allChecked = activePage.length > 0 && activePage.every((r) => selected.has(r.id));
@@ -183,6 +205,10 @@ function Referential() {
   const points = (items ?? []).flatMap((r) =>
     toMapPoint(r.id, r.name, r.latitude, r.longitude, 'to_contact', `/admin/prospects/${r.id}`),
   );
+  const mapSelected = mapSelectedId
+    ? (items?.find((item) => item.id === mapSelectedId) ?? null)
+    : null;
+  const mapPanelItems = mapSelected ? [mapSelected] : (items ?? []);
   const filterCount = [
     query.search,
     query.category,
@@ -223,6 +249,49 @@ function Referential() {
       )}
       {notice && <Alert tone="success">{notice}</Alert>}
       {error && <Alert tone="danger">{error}</Alert>}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+        <StatTile
+          icon={<Building2 className="size-5" />}
+          value={dashboard?.metrics.totalEstablishments ?? total}
+          label={l('In the repository', 'Dans le référentiel')}
+        />
+        <StatTile
+          icon={<Users className="size-5" />}
+          tone="brand"
+          value={
+            dashboard
+              ? Math.max(
+                  0,
+                  dashboard.metrics.totalEstablishments -
+                    dashboard.metrics.establishmentsWithoutOwner,
+                )
+              : null
+          }
+          label={l('Assigned', 'Attribués')}
+        />
+        <StatTile
+          icon={<Users className="size-5" />}
+          tone="danger"
+          value={dashboard?.metrics.establishmentsWithoutOwner ?? null}
+          label={l('No owner', 'Sans responsable')}
+        />
+        <StatTile
+          icon={<RefreshCw className="size-5" />}
+          tone="warning"
+          value={dashboard?.metrics.pendingDuplicateReviews ?? null}
+          label={l('Duplicates', 'Doublons')}
+        />
+        <StatTile
+          icon={<CheckCircle className="size-5" />}
+          tone="success"
+          value={
+            dashboard
+              ? `${Math.max(0, Math.round(((dashboard.metrics.totalEstablishments - dashboard.metrics.establishmentsWithoutOwner) / Math.max(1, dashboard.metrics.totalEstablishments)) * 100))}%`
+              : null
+          }
+          label={l('Complete', 'Complets')}
+        />
+      </div>
       <Card className="space-y-3 p-4 sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row">
           <SearchInput
@@ -435,8 +504,11 @@ function Referential() {
               {points.length ? (
                 <ProspectMap
                   points={points}
-                  selectedId={detail?.id}
-                  onSelect={(p) => setDetail(items.find((r) => r.id === p.id) ?? null)}
+                  selectedId={mapSelectedId}
+                  onSelect={(p) => {
+                    setMapSelectedId(p.id);
+                    setDetail(null);
+                  }}
                   className="h-[520px]"
                 />
               ) : (
@@ -450,14 +522,33 @@ function Referential() {
               <aside className="max-h-[520px] overflow-y-auto rounded-xl border border-line-soft bg-surface-muted/50">
                 <div className="sticky top-0 z-10 border-b border-line-soft bg-surface px-4 py-3">
                   <p className="text-sm font-bold text-navy">
-                    {l('Filtered prospects', 'Résultats filtrés')}
+                    {mapSelected
+                      ? l('Selected prospect', 'Établissement sélectionné')
+                      : l('Filtered prospects', 'Résultats filtrés')}
                   </p>
                   <p className="mt-0.5 text-xs text-ink-muted">
-                    {l('Select records or open a location.', 'Sélectionnez ou ouvrez une fiche.')}
+                    {mapSelected
+                      ? l(
+                          'This is the location you selected on the map.',
+                          'Voici la localisation sélectionnée sur la carte.',
+                        )
+                      : l(
+                          'Select records or open a location.',
+                          'Sélectionnez ou ouvrez une fiche.',
+                        )}
                   </p>
+                  {mapSelected ? (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-bold text-brand hover:underline"
+                      onClick={() => setMapSelectedId(null)}
+                    >
+                      {l('Show all filtered prospects', 'Afficher tous les établissements filtrés')}
+                    </button>
+                  ) : null}
                 </div>
                 <div className="divide-y divide-line-soft">
-                  {items.map((r) => (
+                  {mapPanelItems.map((r) => (
                     <div key={r.id} className="flex gap-3 p-3 hover:bg-brand-wash">
                       <input
                         type="checkbox"
@@ -517,6 +608,9 @@ function Referential() {
                     {l('Location', 'Localisation')}
                   </th>
                   <th className="hidden px-4 py-3 lg:table-cell">{l('Phone', 'Téléphone')}</th>
+                  <th className="hidden px-4 py-3 xl:table-cell">
+                    {l('Assigned to', 'Attribué à')}
+                  </th>
                   <th className="px-4 py-3">{l('Status', 'Statut')}</th>
                 </tr>
               </thead>
@@ -561,6 +655,24 @@ function Referential() {
                     </td>
                     <td className="hidden whitespace-nowrap px-4 py-4 text-sm lg:table-cell">
                       {r.phone ?? '—'}
+                    </td>
+                    <td className="hidden max-w-[260px] px-4 py-4 text-sm xl:table-cell">
+                      {(r.assignments?.length ?? 0) ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {r.assignments!.slice(0, 2).map((assignment) => (
+                            <Badge key={assignment.id} tone="brand">
+                              {assignment.assignedUserName ??
+                                assignment.teamName ??
+                                l('Team', 'Équipe')}
+                            </Badge>
+                          ))}
+                          {r.assignments!.length > 2 ? (
+                            <Badge tone="neutral">+{r.assignments!.length - 2}</Badge>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-ink-muted">{l('Unassigned', 'Non attribué')}</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <Badge tone={r.status === 'active' ? 'success' : 'neutral'}>

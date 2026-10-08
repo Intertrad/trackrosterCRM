@@ -151,16 +151,56 @@ html[data-theme='dark'] {
   --color-brand-tint: #1a315e;
   --color-brand-wash: #142747;
   --color-success-bg: #153526;
+  --color-success: #107a46;
+  --color-success-border: #2e7d56;
   --color-warning-bg: #392b16;
+  --color-warning: #9a5b00;
+  --color-warning-border: #8e641e;
   --color-danger-bg: #3d202b;
+  --color-danger: #b52a45;
+  --color-danger-border: #8e4354;
   --color-critical-bg: #3d202b;
   --color-info-bg: #172e55;
+  --color-info: #2457b7;
+  --color-info-border: #466baf;
 }
 html[data-theme='dark'] .text-navy {
   color: var(--color-ink);
 }
 html[data-theme='dark'] .text-brand {
   color: var(--color-brand-pale);
+}
+/* Status tokens serve both as solid indicator backgrounds and as text on
+   status washes. Keep the background token dark enough for white glyphs while
+   giving text-only status labels a lighter foreground in dark mode. */
+html[data-theme='dark'] .text-success {
+  color: #b7f27d;
+}
+html[data-theme='dark'] .text-warning {
+  color: #ffd27a;
+}
+html[data-theme='dark'] .text-danger {
+  color: #ff9aa8;
+}
+html[data-theme='dark'] .text-info {
+  color: #8fb7ff;
+}
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder {
+  color: var(--color-ink-muted);
+  opacity: 1;
+}
+html[data-theme='dark'] button:focus-visible,
+html[data-theme='dark'] a:focus-visible,
+html[data-theme='dark'] input:focus-visible,
+html[data-theme='dark'] select:focus-visible,
+html[data-theme='dark'] textarea:focus-visible,
+html[data-theme='dark'] [role='button']:focus-visible {
+  outline-color: rgb(162 192 250 / 72%);
+}
+html[data-theme='dark'] select option {
+  background: var(--color-surface);
+  color: var(--color-ink);
 }
 html[data-high-contrast='true'] {
   --color-ink-muted: #344264;

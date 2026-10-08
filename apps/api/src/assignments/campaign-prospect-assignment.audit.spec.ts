@@ -133,6 +133,8 @@ describe('CampaignProspectAssignmentService audit integration', () => {
     teamId,
 
     assignedUserId: oldUserId,
+    managerId: null,
+    deadlineAt: null,
 
     assignedAt: new Date(),
 

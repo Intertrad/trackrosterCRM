@@ -47,6 +47,7 @@ const records = [{ id: 'establishment-1', name: 'Hospital A' }] as Prospect[];
 async function choose() {
   fireEvent.click(screen.getByText('Active campaign'));
   fireEvent.click(screen.getByText('Team'));
+  fireEvent.click(screen.getByText('Team manager'));
   fireEvent.click(screen.getByText('Prospector'));
   fireEvent.click(screen.getByText('Preview selection'));
   await screen.findByText('Add and preview assignment');
@@ -91,6 +92,8 @@ describe('prospect base assignment', () => {
         campaignId: 'campaignId',
         teamId: 'teamId',
         assignedUserId: 'assignedUserId',
+        managerMembershipId: 'managerMembershipId',
+        deadlineAt: null,
         prospectIds: ['campaign-prospect-1'],
       },
       expect.any(String),
@@ -140,6 +143,7 @@ describe('prospect base assignment', () => {
     render(<ProspectAssignmentDrawer records={records} onClose={vi.fn()} onAssigned={vi.fn()} />);
     fireEvent.click(screen.getByText('Active campaign'));
     fireEvent.click(screen.getByText('Team'));
+    fireEvent.click(screen.getByText('Team manager'));
     fireEvent.click(screen.getByText('Prospector'));
     fireEvent.click(screen.getByText('Preview selection'));
     await screen.findByText(/Excluded records are not reactivated/);

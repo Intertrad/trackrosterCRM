@@ -20,7 +20,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, gt, isNull, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
 import {
@@ -35,6 +35,7 @@ import { EstablishmentService } from '../establishments/establishment.service.js
 import { normalizeEstablishmentName } from '../establishments/establishment.utils.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { masterAccess, ProspectAccessService } from './prospect-access.service.js';
+import { prospectReadScope } from '../actions/action-access.js';
 import {
   AddressDto,
   CreateProspectDto,
@@ -45,6 +46,20 @@ import {
 } from './prospect-master.dto.js';
 import { CreateEstablishmentContactDto } from '../establishment-contacts/dto/create-establishment-contact.dto.js';
 import { UpdateEstablishmentContactDto } from '../establishment-contacts/dto/update-establishment-contact.dto.js';
+
+export interface ProspectAssignmentSummary {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  organizationId: string;
+  organizationName: string;
+  teamId: string;
+  teamName: string | null;
+  assignedUserId: string | null;
+  assignedUserName: string | null;
+  status: string;
+}
+
 const defined = <T extends object>(input: T) =>
   Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as T;
 const clean = (v: string | null | undefined) => v?.trim() || null;
@@ -157,7 +172,38 @@ export class ProspectMasterService {
         : cursor.normalizedName
       : undefined;
     const rows = await this.db
-      .select()
+      .select({
+        ...getTableColumns(establishments),
+        assignments: sql<ProspectAssignmentSummary[]>`COALESCE((
+          SELECT json_agg(json_build_object(
+            'id', aa.id,
+            'campaignId', ac.id,
+            'campaignName', ac.name,
+            'organizationId', ao.id,
+            'organizationName', ao.name,
+            'teamId', aa.team_id,
+            'teamName', at.name,
+            'assignedUserId', aa.assigned_user_id,
+            'assignedUserName', am.display_name,
+            'status', aa.status
+          ) ORDER BY ao.name, ac.name, aa.assigned_at, aa.id)
+          FROM campaign_prospect_assignments aa
+          JOIN campaign_prospects ap
+            ON ap.tenant_id = aa.tenant_id AND ap.id = aa.campaign_prospect_id
+          JOIN campaigns ac
+            ON ac.tenant_id = ap.tenant_id AND ac.id = ap.campaign_id
+          JOIN organizations ao
+            ON ao.tenant_id = ac.tenant_id AND ao.id = ac.organization_id
+          LEFT JOIN teams at
+            ON at.tenant_id = aa.tenant_id AND at.id = aa.team_id
+          LEFT JOIN tenant_memberships am
+            ON am.tenant_id = aa.tenant_id AND am.id = aa.assigned_user_id
+          WHERE aa.tenant_id = ${a.tenantId}
+            AND ap.establishment_id = establishments.id
+            AND aa.ended_at IS NULL
+            AND ${prospectReadScope(a, sql`ap.id`, false)}
+        ), '[]'::json)`,
+      })
       .from(establishments)
       .where(
         and(
@@ -173,9 +219,9 @@ export class ProspectMasterService {
       )
       .limit(q.limit + 1);
     return {
-      items: rows.slice(0, q.limit).map(({ location, ...r }) => {
+      items: rows.slice(0, q.limit).map(({ location, assignments, ...r }) => {
         void location;
-        return r;
+        return { ...r, assignments: assignments ?? [] };
       }),
       nextCursor: rows.length > q.limit ? rows[q.limit - 1]!.id : null,
       total: Number(countRow?.count ?? 0),

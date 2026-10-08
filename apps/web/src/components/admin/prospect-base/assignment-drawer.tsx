@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { RecordPicker } from '@/components/workspace/record-picker';
+import { TextField } from '@/components/ui/text-field';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { text } from '@/lib/workspace/copy';
 import { browserJson } from '@/lib/api/browser-json';
@@ -51,7 +52,9 @@ export function ProspectAssignmentDrawer({
   const l = (en: string, fr: string) => text(en, fr, language);
   const [campaign, setCampaign] = useState({ id: '', name: '', organizationId: '' });
   const [team, setTeam] = useState({ id: '', name: '' });
+  const [manager, setManager] = useState({ id: '', name: '' });
   const [member, setMember] = useState({ id: '', name: '' });
+  const [deadline, setDeadline] = useState('');
   const [enrollment, setEnrollment] = useState<CampaignEnrolmentResult | null>(null);
   const [preview, setPreview] = useState<AssignmentBatchResult | null>(null);
   const [input, setInput] = useState<AssignmentBatchInput | null>(null);
@@ -115,10 +118,17 @@ export function ProspectAssignmentDrawer({
                     'Your access no longer permits this operation.',
                     'Vos droits ne permettent plus cette opération.',
                   )
-                : l(
-                    'The result could not be confirmed. Your selection is kept; retry safely.',
-                    'Le résultat n’a pas pu être confirmé. Votre sélection est conservée ; vous pouvez réessayer.',
-                  ) + (caught.requestId ? ` (${caught.requestId})` : '')
+                : caught.statusCode === 400
+                  ? caught.messages.join(' ')
+                  : caught.statusCode >= 500
+                    ? l(
+                        'The assignment service failed. Make sure the API deployment includes the latest assignment migration, then retry.',
+                        'Le service d’attribution a échoué. Vérifiez que le déploiement de l’API inclut la dernière migration, puis réessayez.',
+                      )
+                    : l(
+                        'The result could not be confirmed. Your selection is kept; retry safely.',
+                        'Le résultat n’a pas pu être confirmé. Votre sélection est conservée ; vous pouvez réessayer.',
+                      ) + (caught.requestId ? ` (${caught.requestId})` : '')
             : caught instanceof Error
               ? caught.message
               : l('Please retry.', 'Veuillez réessayer.'),
@@ -143,7 +153,9 @@ export function ProspectAssignmentDrawer({
     const next = {
       campaignId: campaign.id,
       teamId: team.id,
-      assignedUserId: member.id,
+      assignedUserId: member.id || null,
+      managerMembershipId: manager.id,
+      deadlineAt: deadline ? new Date(deadline).toISOString() : null,
       prospectIds: memberships.map((m) => m.id),
     };
     setNames(
@@ -183,7 +195,7 @@ export function ProspectAssignmentDrawer({
               {!enrollment ? (
                 <Button
                   loading={busy}
-                  disabled={!campaign.id || !team.id || !member.id}
+                  disabled={!campaign.id || !team.id || !manager.id}
                   onClick={() =>
                     void run(async () =>
                       setEnrollment(await previewCampaignEnrolment(campaign.id, selection)),
@@ -258,11 +270,15 @@ export function ProspectAssignmentDrawer({
             </h3>
             <p>
               {l(
-                `They are now in ${member.name}’s portfolio.`,
-                `Ils figurent désormais dans le portefeuille de ${member.name}.`,
+                member.id
+                  ? `They are now in ${member.name}’s portfolio under ${manager.name}.`
+                  : `They are now in ${manager.name}’s team queue.`,
+                member.id
+                  ? `Ils figurent désormais dans le portefeuille de ${member.name}, sous la responsabilité de ${manager.name}.`
+                  : `Ils figurent désormais dans la file de l’équipe de ${manager.name}.`,
               )}
             </p>
-            <LinkButton href="/manager/assignments/active" variant="secondary">
+            <LinkButton href="/admin/assignments" variant="secondary">
               {l('View assignments', 'Voir les attributions')}
             </LinkButton>
           </div>
@@ -277,8 +293,8 @@ export function ProspectAssignmentDrawer({
               </p>
               <p className="mt-1 text-sm text-ink-soft">
                 {l(
-                  'Choose a campaign, team and prospector. Review each step before saving.',
-                  'Choisissez une campagne, une équipe et un prospecteur. Vérifiez chaque étape avant de valider.',
+                  'Choose a campaign, team manager and optional prospector. Set a deadline, then review before saving.',
+                  'Choisissez une campagne, une équipe et un responsable, puis éventuellement un prospecteur. Définissez une échéance avant de valider.',
                 )}
               </p>
             </div>
@@ -310,7 +326,9 @@ export function ProspectAssignmentDrawer({
                   organizationId: String(r?.organizationId ?? ''),
                 });
                 setTeam({ id: '', name: '' });
+                setManager({ id: '', name: '' });
                 setMember({ id: '', name: '' });
+                setDeadline('');
                 reset();
               }}
             />
@@ -325,7 +343,26 @@ export function ProspectAssignmentDrawer({
               onChange={() => {}}
               onRecordChange={(r) => {
                 setTeam({ id: String(r?.id ?? ''), name: String(r?.name ?? '') });
+                setManager({ id: '', name: '' });
                 setMember({ id: '', name: '' });
+                setDeadline('');
+                reset();
+              }}
+            />
+            <RecordPicker
+              key={`manager-${team.id}`}
+              name="managerMembershipId"
+              label={l('Team manager', 'Responsable de l’équipe')}
+              value={manager.id}
+              enabled={!!team.id}
+              disabled={busy || !canConfigure || !team.id}
+              filters={{ teamId: team.id, role: 'manager', status: 'active' }}
+              onChange={() => {}}
+              onRecordChange={(r) => {
+                setManager({
+                  id: String(r?.id ?? ''),
+                  name: String(r?.displayName ?? r?.email ?? ''),
+                });
                 reset();
               }}
             />
@@ -334,6 +371,7 @@ export function ProspectAssignmentDrawer({
               name="assignedUserId"
               label={l('Prospector', 'Prospecteur')}
               value={member.id}
+              optional
               enabled={!!team.id}
               disabled={busy || !canConfigure || !team.id}
               filters={{ teamId: team.id, role: 'prospector', status: 'active' }}
@@ -345,6 +383,20 @@ export function ProspectAssignmentDrawer({
                 });
                 reset();
               }}
+            />
+            <TextField
+              type="datetime-local"
+              label={l('Deadline (optional)', 'Échéance (facultative)')}
+              value={deadline}
+              disabled={busy || !canConfigure || !team.id}
+              onChange={(event) => {
+                setDeadline(event.target.value);
+                reset();
+              }}
+              hint={l(
+                'The manager can update this deadline when reassigning.',
+                'Le responsable peut modifier cette échéance lors de la réattribution.',
+              )}
             />
             {!campaign.id && (
               <LinkButton href="/manager/campaigns" variant="secondary">
@@ -390,13 +442,15 @@ export function ProspectAssignmentDrawer({
                   )}
                 </h3>
                 <p className="text-sm">
-                  {campaign.name} · {team.name} · {member.name}
+                  {campaign.name} · {team.name} · {manager.name}
+                  {member.id ? ` · ${member.name}` : ' · team queue'}
+                  {deadline ? ` · due ${new Date(deadline).toLocaleString()}` : ''}
                 </p>
                 {preview.decisions.some((d) => d.outcome === 'ineligible_target') && (
                   <Alert tone="warning">
                     {l(
-                      'This prospector is no longer eligible for the selected team. Choose another active prospector and preview again.',
-                      'Ce prospecteur n’est plus éligible pour l’équipe sélectionnée. Choisissez un autre prospecteur actif et actualisez l’aperçu.',
+                      'The selected manager or prospector is no longer eligible for the selected team. Choose an active teammate and preview again.',
+                      'Le responsable ou le prospecteur sélectionné n’est plus éligible pour cette équipe. Choisissez un membre actif et actualisez l’aperçu.',
                     )}
                   </Alert>
                 )}

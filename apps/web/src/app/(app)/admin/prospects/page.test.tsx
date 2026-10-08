@@ -70,6 +70,7 @@ function prospect(over: Partial<Prospect> = {}): Prospect {
     status: 'active',
     source: 'import',
     category: 'prospection',
+    assignments: [],
     createdAt: '2026-09-01T00:00:00.000Z',
     updatedAt: '2026-09-01T00:00:00.000Z',
     ...over,
@@ -232,6 +233,36 @@ describe('admin référentiel', () => {
     await waitFor(() => expect(screen.getByText('1–50 of 101')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(screen.getByText('51–100 of 101')).toBeInTheDocument());
+  });
+
+  it('shows the current assignment owner in the admin table', async () => {
+    listProspectsMock.mockResolvedValue({
+      items: [
+        prospect({
+          assignments: [
+            {
+              id: 'assignment-1',
+              campaignId: 'campaign-1',
+              campaignName: 'Gendarmeries 2026',
+              organizationId: 'organization-1',
+              organizationName: 'OFTI',
+              teamId: 'team-1',
+              teamName: 'Nancy team',
+              assignedUserId: 'member-1',
+              assignedUserName: 'Amel Diallo',
+              status: 'active',
+            },
+          ],
+        }),
+      ],
+      nextCursor: null,
+      total: 1,
+    });
+
+    render(<ReferentialPage />);
+
+    await waitFor(() => expect(screen.getByText('Amel Diallo')).toBeInTheDocument());
+    expect(screen.getByText('Assigned to')).toBeInTheDocument();
   });
 
   it('keeps the explicit selection on pagination and clears it when filters change', async () => {

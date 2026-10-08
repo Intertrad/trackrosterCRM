@@ -69,11 +69,15 @@ export class WorkQueueService {
      * Authorization must happen before resolving the
      * requested prospect.
      *
-     * A caller without the requested Prospector team
-     * authority receives 403 without learning whether
-     * the target resource exists.
+     * A caller without the requested manager/prospector
+     * team authority receives 403 without learning
+     * whether the target resource exists.
      */
-    await this.requireProspectorWorkspaceAccess(input.tenantId, input.userId, input.teamId);
+    const access = await this.requireWorkQueueWorkspaceAccess(
+      input.tenantId,
+      input.userId,
+      input.teamId,
+    );
 
     /*
      * The repository query itself is scoped by:
@@ -94,6 +98,8 @@ export class WorkQueueService {
       tenantId: input.tenantId,
 
       userId: input.userId,
+
+      ...(access === 'manager' ? { includeManagerAssignments: true } : {}),
 
       teamId: input.teamId,
 
@@ -124,12 +130,18 @@ export class WorkQueueService {
   }
 
   async getOptions(input: GetWorkQueueOptionsInput): Promise<WorkQueueOptionsResponse> {
-    await this.requireProspectorWorkspaceAccess(input.tenantId, input.userId, input.teamId);
+    const access = await this.requireWorkQueueWorkspaceAccess(
+      input.tenantId,
+      input.userId,
+      input.teamId,
+    );
 
     const campaigns = await this.workQueueRepository.findCampaignOptions({
       tenantId: input.tenantId,
 
       userId: input.userId,
+
+      ...(access === 'manager' ? { includeManagerAssignments: true } : {}),
 
       teamId: input.teamId,
     });
@@ -147,7 +159,11 @@ export class WorkQueueService {
      * requested workspace. It is never trusted by
      * itself.
      */
-    await this.requireProspectorWorkspaceAccess(input.tenantId, input.userId, input.teamId);
+    const access = await this.requireWorkQueueWorkspaceAccess(
+      input.tenantId,
+      input.userId,
+      input.teamId,
+    );
 
     const limit = input.limit ?? DEFAULT_LIMIT;
 
@@ -157,6 +173,8 @@ export class WorkQueueService {
       tenantId: input.tenantId,
 
       userId: input.userId,
+
+      ...(access === 'manager' ? { includeManagerAssignments: true } : {}),
 
       teamId: input.teamId,
 
@@ -223,20 +241,28 @@ export class WorkQueueService {
 
   /*
    * Both Work Queue list and detail reads use exactly
-   * the same durable authorization rule.
-   *
-   * A manager grant does not implicitly become a
-   * Prospector grant.
-   *
-   * A Prospector grant for Team A does not authorize
-   * Team B.
+   * the same durable authorization rule. Managers can
+   * work the manager queue for their own team; prospectors
+   * remain limited to assignments owned by themselves.
    */
-  private async requireProspectorWorkspaceAccess(
+  private async requireWorkQueueWorkspaceAccess(
     tenantId: string,
     userId: string,
     teamId: string,
-  ): Promise<void> {
+  ): Promise<'manager' | 'prospector'> {
     const grants = await this.authorizationService.getUserGrants(tenantId, userId);
+
+    const managerGrant = grants.find(
+      (grant) =>
+        grant.role === 'manager' &&
+        grant.scopeType === 'team' &&
+        grant.teamId === teamId &&
+        grant.organizationId !== null,
+    );
+
+    if (managerGrant) {
+      return 'manager';
+    }
 
     const prospectorGrant = grants.find(
       (grant) =>
@@ -249,6 +275,8 @@ export class WorkQueueService {
     if (!prospectorGrant) {
       throw new ForbiddenException('User does not have access to this prospector workspace');
     }
+
+    return 'prospector';
   }
 
   private encodeCursor(cursor: WorkQueueCursor): string {

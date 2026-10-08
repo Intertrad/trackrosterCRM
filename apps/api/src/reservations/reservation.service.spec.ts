@@ -1019,6 +1019,70 @@ describe('ReservationService', () => {
       });
     });
 
+    it('allows a manager to work a prospect dispatched to their manager queue', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      assignmentRepository.findCurrent.mockResolvedValue({
+        ...assignment,
+        assignedUserId: null,
+        managerId: userId,
+      });
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        assignment: {
+          ...assignment,
+          assignedUserId: null,
+          managerId: userId,
+        },
+        establishmentId,
+      });
+    });
+
+    it('keeps legacy manager-owned assignments usable when manager_id is not backfilled', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      assignmentRepository.findCurrent.mockResolvedValue({
+        ...assignment,
+        assignedUserId: userId,
+        managerId: null,
+      });
+
+      await expect(
+        service.requireReservationEligibility({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        assignment: {
+          ...assignment,
+          assignedUserId: userId,
+          managerId: null,
+        },
+        establishmentId,
+      });
+    });
+
     it('rejects a missing authenticated user before resolving the target', async () => {
       userRepository.findById.mockResolvedValue(null);
 

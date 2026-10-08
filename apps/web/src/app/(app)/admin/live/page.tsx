@@ -2,12 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { RefreshCw, Unlock } from 'lucide-react';
+import {
+  RefreshCw,
+  Unlock,
+  LockKeyhole,
+  ShieldAlert,
+  UserCheck,
+  Activity,
+  Users,
+} from 'lucide-react';
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { StatTile } from '@/components/ui/stat-tile';
 import { ProspectMap, toMapPoint } from '@/components/prospector/prospect-map';
 import { ApiError } from '@/lib/api/api-error';
 import { listActions } from '@/lib/api/action-client';
@@ -19,6 +28,8 @@ import type { RoutePage } from '@/lib/api/route-types';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { text } from '@/lib/workspace/copy';
+import { getAdminDashboard } from '@/lib/api/admin-client';
+import type { AdminDashboard } from '@/lib/api/admin-types';
 
 export default function Page() {
   return (
@@ -38,24 +49,28 @@ function Live() {
   const [reservations, setReservations] = useState<ReservationPage | null>(null);
   const [recent, setRecent] = useState<ActionPage | null>(null);
   const [routes, setRoutes] = useState<RoutePage | null>(null);
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [error, setError] = useState(false);
   const [releasing, setReleasing] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
   const request = useRef(0);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     const version = ++request.current;
     try {
-      const [started, active, completed, fieldRoutes] = await Promise.all([
+      const [started, active, completed, fieldRoutes, adminDashboard] = await Promise.all([
         listActions({ status: 'started', limit: 100 }, signal),
         listReservations({ status: 'active', limit: 100 }, signal),
         listActions({ status: 'completed', limit: 10 }, signal),
         listRoutes({ status: 'active', limit: 50 }, signal),
+        getAdminDashboard(signal),
       ]);
       if (signal?.aborted || version !== request.current) return;
       setActions(started);
       setReservations(active);
       setRecent(completed);
       setRoutes(fieldRoutes);
+      setDashboard(adminDashboard);
       setError(false);
     } catch (caught) {
       if (!signal?.aborted && version === request.current) {
@@ -65,6 +80,7 @@ function Live() {
           setReservations(null);
           setRecent(null);
           setRoutes(null);
+          setDashboard(null);
         }
       }
     }
@@ -78,7 +94,7 @@ function Live() {
       request.current += 1;
     };
   }, [load]);
-  useLiveRefresh(load, { interval: 30_000 });
+  useLiveRefresh(load, { interval: 30_000, enabled: !paused });
 
   const sessions = useMemo(() => groupSessions(actions?.items ?? []), [actions]);
   const mapPoints = useMemo(
@@ -116,6 +132,7 @@ function Live() {
     month: 'long',
   }).format(new Date());
   const reservationCount = reservations?.items.length ?? 0;
+  const live = dashboard?.liveSummary;
 
   return (
     <div className="space-y-5">
@@ -123,9 +140,11 @@ function Live() {
         title={l('Live activity', 'En direct')}
         subtitle={`${dayLabel} — ${sessions.length} ${l('sessions in progress', 'sessions en cours')}, ${reservationCount} ${l('establishments reserved', 'établissements réservés')}. ${l('Automatic refresh every 30 seconds.', 'Actualisation automatique toutes les 30 secondes.')}`}
         action={
-          <Button variant="secondary" onClick={() => void load()}>
+          <Button variant="secondary" onClick={() => setPaused((current) => !current)}>
             <RefreshCw className="size-4" />
-            {l('Refresh', 'Actualiser')}
+            {paused
+              ? l('Resume refresh', 'Reprendre l’actualisation')
+              : l('Pause refresh', 'Suspendre l’actualisation')}
           </Button>
         }
       />
@@ -137,6 +156,39 @@ function Live() {
           </Button>
         </Alert>
       )}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+        <StatTile
+          icon={<LockKeyhole className="size-5" />}
+          tone="brand"
+          value={live?.activeLocks ?? reservationCount}
+          label={l('Locks active', 'Verrous actifs')}
+          delta={l('Calls and visits in progress', 'Appels et visites en cours')}
+        />
+        <StatTile
+          icon={<ShieldAlert className="size-5" />}
+          tone="danger"
+          value={live?.blockedLastHour ?? null}
+          label={l('Blocked in the last hour', 'Bloqués cette heure')}
+        />
+        <StatTile
+          icon={<UserCheck className="size-5" />}
+          tone="warning"
+          value={live?.approvalsWaiting ?? null}
+          label={l('Approvals waiting', 'Approbations en attente')}
+        />
+        <StatTile
+          icon={<Activity className="size-5" />}
+          value={live?.actionsToday ?? null}
+          label={l('Actions today', 'Actions aujourd’hui')}
+          delta={l('Across the workspace', 'Dans l’espace de travail')}
+        />
+        <StatTile
+          icon={<Users className="size-5" />}
+          tone="success"
+          value={live?.usersOnline ?? null}
+          label={l('Users online', 'Utilisateurs en ligne')}
+        />
+      </div>
       <div className="grid items-start gap-4 xl:grid-cols-[1.75fr_1fr]">
         <div className="space-y-4">
           <Card padding="none">
@@ -321,9 +373,12 @@ function SessionRow({
       </td>
       <td className="px-4 py-4 font-semibold">{Math.max(0, total - completed)}</td>
       <td className="px-4 py-4">
-        <Button variant="secondary" size="md" disabled>
-          {l('Complete', 'Terminer')}
-        </Button>
+        <Link
+          href={`/admin/prospects/${session.actions[0]?.establishmentId ?? ''}`}
+          className="inline-flex items-center rounded-lg border border-line px-3 py-2 text-sm font-bold text-navy hover:border-brand hover:text-brand"
+        >
+          {l('Open', 'Ouvrir')}
+        </Link>
       </td>
     </tr>
   );
@@ -348,12 +403,18 @@ function ReservationRow({
     <div className="py-3 first:pt-0">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link
-            href={action ? `/admin/prospects/${action.establishmentId}` : '#'}
-            className="font-bold hover:text-brand"
-          >
-            {action?.establishment.name ?? l('Reserved establishment', 'Établissement réservé')}
-          </Link>
+          {action ? (
+            <Link
+              href={`/admin/prospects/${action.establishmentId}`}
+              className="font-bold hover:text-brand"
+            >
+              {action.establishment.name ?? l('Reserved establishment', 'Établissement réservé')}
+            </Link>
+          ) : (
+            <span className="font-bold">
+              {l('Reserved establishment', 'Établissement réservé')}
+            </span>
+          )}
           <p className="mt-1 text-sm text-ink-muted">
             {action?.actor.displayName ?? '—'}
             {action?.organization?.name ? ` · ${action.organization.name}` : ''}
@@ -367,7 +428,7 @@ function ReservationRow({
             , {l('lock until tomorrow', 'verrou jusqu’à demain')}
           </p>
         </div>
-        <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-brand">
+        <span className="rounded-full bg-info-bg px-2 py-1 text-xs font-bold text-info">
           {l('Active', 'Actif')}
         </span>
       </div>

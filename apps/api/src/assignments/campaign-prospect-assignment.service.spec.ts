@@ -126,6 +126,8 @@ describe('CampaignProspectAssignmentService', () => {
     teamId,
 
     assignedUserId: userId,
+    managerId: null,
+    deadlineAt: null,
 
     assignedAt: new Date(),
 

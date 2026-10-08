@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
 import { campaignProspectAssignments } from '../database/schema/campaign-prospect-assignments.js';
@@ -24,6 +24,13 @@ export interface FindWorkQueueInput {
 
   userId: string;
 
+  /**
+   * Managers can work the queue that was dispatched to them. A manager-owned
+   * assignment keeps the manager in `manager_id` even when no individual
+   * prospector has been selected yet (or after it is delegated to a teammate).
+   */
+  includeManagerAssignments?: boolean;
+
   teamId: string;
 
   campaignId?: string;
@@ -46,12 +53,16 @@ export interface FindWorkQueueCampaignOptionsInput {
 
   userId: string;
 
+  includeManagerAssignments?: boolean;
+
   teamId: string;
 }
 export interface FindWorkQueueProspectDetailInput {
   tenantId: string;
 
   userId: string;
+
+  includeManagerAssignments?: boolean;
 
   teamId: string;
 
@@ -78,6 +89,13 @@ export class WorkQueueRepository {
   async findCampaignOptions(
     input: FindWorkQueueCampaignOptionsInput,
   ): Promise<WorkQueueCampaignOption[]> {
+    const ownerCondition = input.includeManagerAssignments
+      ? (or(
+          eq(campaignProspectAssignments.assignedUserId, input.userId),
+          eq(campaignProspectAssignments.managerId, input.userId),
+        ) ?? eq(campaignProspectAssignments.assignedUserId, input.userId))
+      : eq(campaignProspectAssignments.assignedUserId, input.userId);
+
     return this.database
       .selectDistinct({
         id: campaigns.id,
@@ -109,7 +127,7 @@ export class WorkQueueRepository {
         and(
           eq(campaignProspectAssignments.tenantId, input.tenantId),
 
-          eq(campaignProspectAssignments.assignedUserId, input.userId),
+          ownerCondition,
 
           eq(campaignProspectAssignments.teamId, input.teamId),
 
@@ -124,10 +142,17 @@ export class WorkQueueRepository {
   }
 
   async findAssignedProspects(input: FindWorkQueueInput): Promise<WorkQueueItem[]> {
+    const ownerCondition = input.includeManagerAssignments
+      ? (or(
+          eq(campaignProspectAssignments.assignedUserId, input.userId),
+          eq(campaignProspectAssignments.managerId, input.userId),
+        ) ?? eq(campaignProspectAssignments.assignedUserId, input.userId))
+      : eq(campaignProspectAssignments.assignedUserId, input.userId);
+
     const conditions: SQL[] = [
       eq(campaignProspectAssignments.tenantId, input.tenantId),
 
-      eq(campaignProspectAssignments.assignedUserId, input.userId),
+      ownerCondition,
 
       eq(campaignProspectAssignments.teamId, input.teamId),
 
@@ -200,6 +225,28 @@ export class WorkQueueRepository {
           organizationId: campaignProspectAssignments.organizationId,
 
           teamId: campaignProspectAssignments.teamId,
+
+          managerId: campaignProspectAssignments.managerId,
+
+          managerName: sql<string | null>`(
+            SELECT COALESCE(m.display_name, i.email)
+            FROM tenant_memberships m
+            JOIN identities i ON i.id = m.identity_id
+            WHERE m.tenant_id = ${campaignProspectAssignments.tenantId}
+              AND m.id = ${campaignProspectAssignments.managerId}
+          )`,
+
+          assignedUserId: campaignProspectAssignments.assignedUserId,
+
+          assignedUserName: sql<string | null>`(
+            SELECT COALESCE(m.display_name, i.email)
+            FROM tenant_memberships m
+            JOIN identities i ON i.id = m.identity_id
+            WHERE m.tenant_id = ${campaignProspectAssignments.tenantId}
+              AND m.id = ${campaignProspectAssignments.assignedUserId}
+          )`,
+
+          deadlineAt: campaignProspectAssignments.deadlineAt,
 
           assignedAt: campaignProspectAssignments.assignedAt,
         },
@@ -313,6 +360,13 @@ export class WorkQueueRepository {
   async findAssignedProspectById(
     input: FindWorkQueueProspectDetailInput,
   ): Promise<WorkQueueProspectDetail | null> {
+    const ownerCondition = input.includeManagerAssignments
+      ? (or(
+          eq(campaignProspectAssignments.assignedUserId, input.userId),
+          eq(campaignProspectAssignments.managerId, input.userId),
+        ) ?? eq(campaignProspectAssignments.assignedUserId, input.userId))
+      : eq(campaignProspectAssignments.assignedUserId, input.userId);
+
     /*
      * This is deliberately a single scoped lookup.
      *
@@ -343,6 +397,28 @@ export class WorkQueueRepository {
           organizationId: campaignProspectAssignments.organizationId,
 
           teamId: campaignProspectAssignments.teamId,
+
+          managerId: campaignProspectAssignments.managerId,
+
+          managerName: sql<string | null>`(
+            SELECT COALESCE(m.display_name, i.email)
+            FROM tenant_memberships m
+            JOIN identities i ON i.id = m.identity_id
+            WHERE m.tenant_id = ${campaignProspectAssignments.tenantId}
+              AND m.id = ${campaignProspectAssignments.managerId}
+          )`,
+
+          assignedUserId: campaignProspectAssignments.assignedUserId,
+
+          assignedUserName: sql<string | null>`(
+            SELECT COALESCE(m.display_name, i.email)
+            FROM tenant_memberships m
+            JOIN identities i ON i.id = m.identity_id
+            WHERE m.tenant_id = ${campaignProspectAssignments.tenantId}
+              AND m.id = ${campaignProspectAssignments.assignedUserId}
+          )`,
+
+          deadlineAt: campaignProspectAssignments.deadlineAt,
 
           assignedAt: campaignProspectAssignments.assignedAt,
         },
@@ -413,7 +489,7 @@ export class WorkQueueRepository {
            *
            * The caller must own the current assignment.
            */
-          eq(campaignProspectAssignments.assignedUserId, input.userId),
+          ownerCondition,
 
           eq(campaignProspectAssignments.teamId, input.teamId),
 

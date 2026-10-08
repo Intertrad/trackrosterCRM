@@ -1,6 +1,6 @@
 'use client';
-import { useCallback, useState } from 'react';
-import { History, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { History, RefreshCw, BarChart3, CheckCircle2, Clock3, Users, Download } from 'lucide-react';
 import { ActionHistoryDrawer } from '@/components/prospector/action-history-drawer';
 import { ActionChannelIcon } from '@/components/prospector/action-channel-icon';
 import { Alert } from '@/components/ui/alert';
@@ -9,16 +9,24 @@ import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { SelectField } from '@/components/ui/select-field';
 import { SearchInput } from '@/components/ui/search-input';
+import { StatTile } from '@/components/ui/stat-tile';
 import { listActions } from '@/lib/api/action-client';
 import {
   toActionChannel,
+  OUTCOME_CODES,
+  OUTCOME_LABELS,
+  type ActionType,
   type ActionLifecycleStatus,
   type ActionRecord,
+  type OutcomeCode,
 } from '@/lib/api/action-types';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation } from '@/lib/i18n/i18n-context';
 import { useLivePages } from '@/lib/live/use-live-pages';
+import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { text } from '@/lib/workspace/copy';
+import { getAdminDashboard } from '@/lib/api/admin-client';
+import type { AdminDashboard } from '@/lib/api/admin-types';
 const statuses = {
   planned: ['Planned', 'Planifiée'],
   due: ['Due', 'À effectuer'],
@@ -33,14 +41,45 @@ export default function ActionsPage() {
   const l = (en: string, fr: string) => text(en, fr, language);
   const admin = activeWorkspace?.mode !== 'prospector';
   const [status, setStatus] = useState<ActionLifecycleStatus | 'all'>('all');
+  const [channel, setChannel] = useState<ActionType | 'all'>('all');
+  const [outcome, setOutcome] = useState<OutcomeCode | 'all'>('all');
+  const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(30);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ActionRecord | null>(null);
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const read = useCallback(
     (cursor: string | undefined, signal: AbortSignal) =>
-      listActions({ limit: 100, cursor, ...(status === 'all' ? {} : { status }) }, signal),
-    [status],
+      listActions(
+        {
+          limit: 100,
+          cursor,
+          ...(status === 'all' ? {} : { status }),
+          ...(channel === 'all' ? {} : { channel }),
+          ...(outcome === 'all' ? {} : { outcomeCode: outcome }),
+          periodDays,
+        },
+        signal,
+      ),
+    [channel, outcome, periodDays, status],
   );
   const { rows, cursor, error, busy, load, loadMore } = useLivePages(read);
+  useEffect(() => {
+    if (!admin) return;
+    const controller = new AbortController();
+    void getAdminDashboard(controller.signal)
+      .then(setDashboard)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [admin]);
+  useLiveRefresh(
+    (signal) => {
+      if (!admin) return;
+      void getAdminDashboard(signal)
+        .then(setDashboard)
+        .catch(() => undefined);
+    },
+    { interval: 30_000, scope: admin ? 'admin-activity-summary' : '' },
+  );
   const visible =
     rows?.filter((a) =>
       `${a.subject} ${a.establishment.name} ${a.actor.displayName} ${a.organization?.name}`
@@ -50,6 +89,32 @@ export default function ActionsPage() {
   const statusLabel = (a: ActionRecord) => {
     const pair = statuses[a.status];
     return pair ? l(pair[0], pair[1]) : a.status;
+  };
+  const activity = dashboard?.activitySummary;
+  const outcomes = activity?.outcomes ?? [];
+  const maxOutcome = Math.max(1, ...outcomes.map((item) => item.count));
+  const exportVisible = () => {
+    const rows = [
+      ['When', 'Establishment', 'Prospector', 'Company', 'Channel', 'Status', 'Outcome'],
+      ...visible.map((a) => [
+        a.completedAt ?? a.dueAt ?? '',
+        a.establishment.name ?? a.subject,
+        a.actor.displayName ?? '',
+        a.organization?.name ?? '',
+        a.type,
+        a.status,
+        a.outcomeCode ?? '',
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'trackroster-activity.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
   return (
     <div className="space-y-5">
@@ -67,10 +132,18 @@ export default function ActionsPage() {
               )
         }
         action={
-          <Button variant="secondary" disabled={busy} onClick={() => void load()}>
-            <RefreshCw className="size-4" />
-            {l('Refresh', 'Actualiser')}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {admin ? (
+              <Button variant="secondary" disabled={!visible.length} onClick={exportVisible}>
+                <Download className="size-4" />
+                {l('Export', 'Exporter')}
+              </Button>
+            ) : null}
+            <Button variant="secondary" disabled={busy} onClick={() => void load()}>
+              <RefreshCw className="size-4" />
+              {l('Refresh', 'Actualiser')}
+            </Button>
+          </div>
         }
       />
       {error && (
@@ -81,6 +154,41 @@ export default function ActionsPage() {
           )}
         </Alert>
       )}
+      {admin ? (
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
+          <StatTile
+            icon={<BarChart3 className="size-5" />}
+            value={activity?.totalActions ?? null}
+            label={l('Actions logged', 'Actions enregistrées')}
+            delta={l('Immutable records', 'Enregistrements immuables')}
+          />
+          <StatTile
+            icon={<Clock3 className="size-5" />}
+            tone="brand"
+            value={activity?.periodActions ?? null}
+            label={l('In this period', 'Sur la période')}
+            delta={l('Last 30 days', '30 derniers jours')}
+          />
+          <StatTile
+            icon={<CheckCircle2 className="size-5" />}
+            tone="success"
+            value={activity?.actionsToday ?? null}
+            label={l('Actions today', 'Actions aujourd’hui')}
+          />
+          <StatTile
+            icon={<Users className="size-5" />}
+            tone="warning"
+            value={dashboard?.metrics.activeMembers ?? null}
+            label={l('Active users', 'Utilisateurs actifs')}
+          />
+          <StatTile
+            icon={<History className="size-5" />}
+            tone="neutral"
+            value={outcomes.reduce((sum, item) => sum + item.count, 0) || null}
+            label={l('Recorded outcomes', 'Résultats enregistrés')}
+          />
+        </div>
+      ) : null}
       <Card className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <SearchInput
           className="flex-1"
@@ -105,6 +213,45 @@ export default function ActionsPage() {
             { value: 'cancelled', label: l('Cancelled', 'Annulées') },
           ]}
         />
+        {admin ? (
+          <>
+            <SelectField
+              label={l('Channel', 'Canal')}
+              value={channel}
+              onChange={(e) => setChannel(e.target.value as typeof channel)}
+              options={[
+                { value: 'all', label: l('All channels', 'Tous les canaux') },
+                ...(['call', 'email', 'message', 'visit', 'task', 'note'] as ActionType[]).map(
+                  (value) => ({
+                    value,
+                    label:
+                      value === 'message'
+                        ? l('Message', 'Message')
+                        : value.charAt(0).toUpperCase() + value.slice(1),
+                  }),
+                ),
+              ]}
+            />
+            <SelectField
+              label={l('Outcome', 'Résultat')}
+              value={outcome}
+              onChange={(e) => setOutcome(e.target.value as typeof outcome)}
+              options={[
+                { value: 'all', label: l('All outcomes', 'Tous les résultats') },
+                ...OUTCOME_CODES.map((value) => ({ value, label: OUTCOME_LABELS[value] })),
+              ]}
+            />
+            <SelectField
+              label={l('Period', 'Période')}
+              value={String(periodDays)}
+              onChange={(e) => setPeriodDays(Number(e.target.value) as 7 | 30 | 90)}
+              options={[7, 30, 90].map((value) => ({
+                value: String(value),
+                label: l(`Last ${value} days`, `${value} derniers jours`),
+              }))}
+            />
+          </>
+        ) : null}
       </Card>
       {!admin ? (
         <div className="space-y-2">
@@ -160,92 +307,137 @@ export default function ActionsPage() {
           </div>
         </div>
       ) : (
-        <Card padding="none">
-          <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-line-soft bg-surface-muted/60 text-xs text-ink-muted">
-                <tr>
-                  {[
-                    l('Establishment / action', 'Établissement / action'),
-                    l('Prospector', 'Prospecteur'),
-                    l('Company', 'Entreprise'),
-                    l('Channel', 'Canal'),
-                    l('Status', 'État'),
-                    l('Date', 'Date'),
-                  ].map((h) => (
-                    <th key={h} className="px-4 py-3 font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((a) => (
-                  <tr
-                    key={a.id}
-                    className="border-b border-line-soft last:border-0 hover:bg-brand-wash"
-                  >
-                    <td className="max-w-72 px-4 py-4">
-                      <button
-                        className="text-left font-semibold text-navy hover:text-brand"
-                        onClick={() => setSelected(a)}
-                      >
-                        {a.establishment.name ?? a.subject}
-                      </button>
-                      <p className="mt-1 text-xs text-ink-muted">{a.subject}</p>
-                    </td>
-                    <td className="px-4">{a.actor.displayName ?? '—'}</td>
-                    <td className="px-4">{a.organization?.name ?? '—'}</td>
-                    <td className="px-4">
-                      <ActionChannelIcon channel={toActionChannel(a.type)} />
-                    </td>
-                    <td className="px-4">
-                      <span
-                        className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${a.status === 'completed' ? 'bg-success-bg text-success' : a.status === 'overdue' ? 'bg-danger-bg text-danger' : 'bg-brand-tint text-brand'}`}
-                      >
-                        {statusLabel(a)}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 text-xs text-ink-muted">
-                      {a.completedAt || a.dueAt
-                        ? new Date((a.completedAt ?? a.dueAt)!).toLocaleDateString(locale)
-                        : '—'}
-                    </td>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.8fr)_minmax(260px,0.75fr)]">
+          <Card padding="none">
+            <div className="relative overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="border-b border-line-soft bg-surface-muted/60 text-xs text-ink-muted">
+                  <tr>
+                    {[
+                      l('Establishment / action', 'Établissement / action'),
+                      l('Prospector', 'Prospecteur'),
+                      l('Company', 'Entreprise'),
+                      l('Channel', 'Canal'),
+                      l('Status', 'État'),
+                      l('Date', 'Date'),
+                    ].map((h) => (
+                      <th key={h} className="px-4 py-3 font-semibold">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {rows === null && !error ? (
-            <div className="h-48 animate-pulse bg-surface-muted" aria-busy="true" />
-          ) : (
-            rows !== null &&
-            !visible.length && (
-              <div className="py-14 text-center">
-                <History className="mx-auto mb-3 size-7 text-ink-muted" />
-                <p className="font-semibold">
-                  {l('No actions to display', 'Aucune action à afficher')}
-                </p>
-                <p className="mt-2 text-sm text-ink-muted">
-                  {l(
-                    'Recorded contacts will appear here.',
-                    'Les contacts enregistrés apparaîtront ici.',
-                  )}
-                </p>
-              </div>
-            )
-          )}
-          <footer className="flex items-center justify-between border-t border-line-soft px-4 py-3 text-xs text-ink-muted">
-            <span>
-              {visible.length} {l('shown', 'affichées')}
-            </span>
-            {cursor && (
-              <Button variant="secondary" loading={busy} onClick={loadMore}>
-                {l('Load more', 'Charger la suite')}
-              </Button>
+                </thead>
+                <tbody>
+                  {visible.map((a) => (
+                    <tr
+                      key={a.id}
+                      className="border-b border-line-soft last:border-0 hover:bg-brand-wash"
+                    >
+                      <td className="max-w-72 px-4 py-4">
+                        <button
+                          className="text-left font-semibold text-navy hover:text-brand"
+                          onClick={() => setSelected(a)}
+                        >
+                          {a.establishment.name ?? a.subject}
+                        </button>
+                        <p className="mt-1 text-xs text-ink-muted">{a.subject}</p>
+                      </td>
+                      <td className="px-4">{a.actor.displayName ?? '—'}</td>
+                      <td className="px-4">{a.organization?.name ?? '—'}</td>
+                      <td className="px-4">
+                        <ActionChannelIcon channel={toActionChannel(a.type)} />
+                      </td>
+                      <td className="px-4">
+                        <span
+                          className={`whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${a.status === 'completed' ? 'bg-success-bg text-success' : a.status === 'overdue' ? 'bg-danger-bg text-danger' : 'bg-brand-tint text-brand'}`}
+                        >
+                          {statusLabel(a)}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-4 text-xs text-ink-muted">
+                        {a.completedAt || a.dueAt
+                          ? new Date((a.completedAt ?? a.dueAt)!).toLocaleDateString(locale)
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {rows === null && !error ? (
+              <div className="h-48 animate-pulse bg-surface-muted" aria-busy="true" />
+            ) : (
+              rows !== null &&
+              !visible.length && (
+                <div className="py-14 text-center">
+                  <History className="mx-auto mb-3 size-7 text-ink-muted" />
+                  <p className="font-semibold">
+                    {l('No actions to display', 'Aucune action à afficher')}
+                  </p>
+                  <p className="mt-2 text-sm text-ink-muted">
+                    {l(
+                      'Recorded contacts will appear here.',
+                      'Les contacts enregistrés apparaîtront ici.',
+                    )}
+                  </p>
+                </div>
+              )
             )}
-          </footer>
-        </Card>
+            <footer className="flex items-center justify-between border-t border-line-soft px-4 py-3 text-xs text-ink-muted">
+              <span>
+                {visible.length} {l('shown', 'affichées')}
+              </span>
+              {cursor && (
+                <Button variant="secondary" loading={busy} onClick={loadMore}>
+                  {l('Load more', 'Charger la suite')}
+                </Button>
+              )}
+            </footer>
+          </Card>
+          {admin ? (
+            <Card>
+              <h2 className="text-base font-extrabold text-navy">
+                {l('Outcomes in the period', 'Résultats sur la période')}
+              </h2>
+              <div className="mt-4 space-y-3">
+                {outcomes.length ? (
+                  outcomes.slice(0, 6).map((item) => (
+                    <div key={item.code}>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-ink-muted">{item.code.replaceAll('_', ' ')}</span>
+                        <strong className="text-navy">{item.count.toLocaleString(locale)}</strong>
+                      </div>
+                      <div className="mt-1.5 h-2 rounded-full bg-line-soft">
+                        <div
+                          className="h-full rounded-full bg-brand"
+                          style={{ width: `${Math.max(4, (item.count / maxOutcome) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-ink-muted">
+                    {l(
+                      'No outcomes recorded in this period.',
+                      'Aucun résultat enregistré sur cette période.',
+                    )}
+                  </p>
+                )}
+              </div>
+              <div className="mt-6 rounded-xl bg-surface-muted p-4 text-sm text-ink-muted">
+                <strong className="block text-navy">
+                  {l('Immutable by design', 'Immuable par conception')}
+                </strong>
+                <span className="mt-1 block">
+                  {l(
+                    'Actions are appended to the activity trail and cannot be silently edited.',
+                    'Les actions sont ajoutées au journal et ne peuvent pas être modifiées silencieusement.',
+                  )}
+                </span>
+              </div>
+            </Card>
+          ) : null}
+        </div>
       )}
       <ActionHistoryDrawer
         actionId={selected?.id ?? null}

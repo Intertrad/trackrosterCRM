@@ -251,16 +251,40 @@ describe('WorkQueueService', () => {
       });
     });
 
-    it('rejects a user without any prospector team grant', async () => {
+    it('lists a manager queue for manager-owned assignments in the exact team', async () => {
       authorizationService.getUserGrants.mockResolvedValue([
         {
           role: 'manager',
-
           scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      workQueueRepository.findAssignedProspects.mockResolvedValue([firstItem]);
+
+      await expect(service.list({ tenantId, userId, teamId })).resolves.toMatchObject({
+        items: [firstItem],
+      });
+
+      expect(workQueueRepository.findAssignedProspects).toHaveBeenCalledWith({
+        tenantId,
+        userId,
+        teamId,
+        includeManagerAssignments: true,
+        limit: 25,
+      });
+    });
+
+    it('rejects a user without a manager or prospector team grant', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'director',
+
+          scopeType: 'organization',
 
           organizationId,
 
-          teamId,
+          teamId: null,
         },
       ]);
 
@@ -511,16 +535,16 @@ describe('WorkQueueService', () => {
         });
       });
 
-      it('rejects campaign options when the user lacks a Prospector grant', async () => {
+      it('rejects campaign options when the user lacks a manager or Prospector grant', async () => {
         authorizationService.getUserGrants.mockResolvedValue([
           {
-            role: 'manager',
+            role: 'director',
 
-            scopeType: 'team',
+            scopeType: 'organization',
 
             organizationId,
 
-            teamId,
+            teamId: null,
           },
         ]);
 
@@ -572,7 +596,7 @@ describe('WorkQueueService', () => {
       });
     });
 
-    it('rejects prospect detail before lookup when the user lacks a prospector grant', async () => {
+    it('allows prospect detail for a manager-owned assignment in the exact team', async () => {
       authorizationService.getUserGrants.mockResolvedValue([
         {
           role: 'manager',
@@ -584,6 +608,7 @@ describe('WorkQueueService', () => {
           teamId,
         },
       ]);
+      workQueueRepository.findAssignedProspectById.mockResolvedValue(prospectDetail);
 
       await expect(
         service.getProspectDetail({
@@ -597,9 +622,16 @@ describe('WorkQueueService', () => {
 
           campaignProspectId: prospectId,
         }),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).resolves.toEqual(prospectDetail);
 
-      expect(workQueueRepository.findAssignedProspectById).not.toHaveBeenCalled();
+      expect(workQueueRepository.findAssignedProspectById).toHaveBeenCalledWith({
+        tenantId,
+        userId,
+        teamId,
+        includeManagerAssignments: true,
+        campaignId,
+        campaignProspectId: prospectId,
+      });
     });
 
     it('rejects prospect detail before lookup when the prospector grant belongs to another team', async () => {

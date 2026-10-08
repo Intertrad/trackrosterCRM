@@ -80,7 +80,11 @@ export function getAssignment(assignmentId: string, signal?: AbortSignal): Promi
 /** Pause, resume or re-prioritise without ending the assignment. */
 export function updateAssignment(
   assignmentId: string,
-  input: { status?: 'active' | 'paused'; priority?: AssignmentPriority },
+  input: {
+    status?: 'active' | 'paused';
+    priority?: AssignmentPriority;
+    deadlineAt?: string | null;
+  },
   options: WriteOptions,
 ): Promise<Assignment> {
   return browserJson<Assignment>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
@@ -99,7 +103,13 @@ export function updateAssignment(
  */
 export function reassignAssignment(
   assignmentId: string,
-  input: { teamId: string; assignedUserId?: string | null; reason: string },
+  input: {
+    teamId: string;
+    assignedUserId?: string | null;
+    managerMembershipId?: string | null;
+    deadlineAt?: string | null;
+    reason: string;
+  },
   options: WriteOptions,
 ): Promise<Assignment> {
   return browserJson<Assignment>(`/api/assignments/${encodeURIComponent(assignmentId)}/reassign`, {

@@ -1,0 +1,8 @@
+graph TD
+  A[Start with test data] --> B[Check API and web health]
+  B --> C{Health ready?}
+  C -- No --> X[Stop and record infrastructure defect]
+  C -- Yes --> D[Auth and role access]
+  D --> E[Core data, assignments, and reservations]
+  E --> F[Messaging, notifications, reports, imports, and exports]
+  F --> G[Integrations, mobile, and error checks]

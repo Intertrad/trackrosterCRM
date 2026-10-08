@@ -45,6 +45,12 @@ export interface WorkQueueItem {
     organizationId: string;
     teamId: string;
 
+    managerId?: string | null;
+    managerName?: string | null;
+    assignedUserId?: string | null;
+    assignedUserName?: string | null;
+    deadlineAt?: string | null;
+
     /*
      * Nest serializes backend Date values as ISO strings.
      */
@@ -93,6 +99,12 @@ export interface WorkQueueProspectDetail {
     id: string;
     organizationId: string;
     teamId: string;
+
+    managerId?: string | null;
+    managerName?: string | null;
+    assignedUserId?: string | null;
+    assignedUserName?: string | null;
+    deadlineAt?: string | null;
 
     assignedAt: string;
   };
