@@ -4,7 +4,6 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import {
   Ban,
   CalendarClock,
@@ -32,7 +31,6 @@ import { ConfirmDialog } from '@/components/ui/dialog';
 import { Drawer } from '@/components/ui/drawer';
 import { FilterSelect } from '@/components/ui/filter-select';
 import { PageHeader } from '@/components/ui/page-header';
-import { SearchInput } from '@/components/ui/search-input';
 import { ApiError } from '@/lib/api/api-error';
 import { listCollisionEvents } from '@/lib/api/collision-client';
 import {
@@ -78,12 +76,7 @@ function MyProspectsView() {
 
   const teamId = activeWorkspace?.teamId ?? null;
 
-  /* Scoped search links here with the matched name, so the queue opens
-   * already filtered rather than dropping the term the user searched for. */
-  const initialSearch = useSearchParams().get('search') ?? '';
-
   const [view, setView] = useState<ViewMode>('list');
-  const [search, setSearch] = useState(initialSearch);
   const [stage, setStage] = useState<WorkQueueLifecycleStage | 'all'>('all');
   const [campaignId, setCampaignId] = useState('all');
   const [sort, setSort] = useState<PortfolioSort>('priority');
@@ -200,15 +193,12 @@ function MyProspectsView() {
 
   const region = useMemo(() => regionSummary(items ?? []), [items]);
 
-  const narrowed =
-    search.trim() !== '' || stage !== 'all' || campaignId !== 'all' || quick !== 'all';
+  const narrowed = stage !== 'all' || campaignId !== 'all' || quick !== 'all';
 
   const visible = useMemo(() => {
     if (!items) {
       return [];
     }
-
-    const term = search.trim().toLowerCase();
 
     const filtered = items.filter((item) => {
       if (stage !== 'all' && item.lifecycleStage !== stage) {
@@ -223,17 +213,11 @@ function MyProspectsView() {
         return false;
       }
 
-      if (!term) {
-        return true;
-      }
-
-      return [item.establishment.name, item.establishment.city, item.establishment.postalCode]
-        .filter((part): part is string => Boolean(part))
-        .some((part) => part.toLowerCase().includes(term));
+      return true;
     });
 
     return sortPortfolio(filtered, sort);
-  }, [campaignId, items, quick, search, sort, stage]);
+  }, [campaignId, items, quick, sort, stage]);
 
   if (!teamId) {
     return (
@@ -289,14 +273,6 @@ function MyProspectsView() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <SearchInput
-          label={t('portfolio.search')}
-          placeholder={`${t('portfolio.search')}…`}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="min-w-[240px] flex-1 [&_input]:rounded-full"
-        />
-
         <FilterSelect
           label={t('portfolio.status')}
           tone="brand"
