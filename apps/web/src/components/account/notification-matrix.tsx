@@ -36,7 +36,7 @@ import {
  * they had already declined notifications they never declined.
  */
 export function NotificationMatrix() {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [saved, setSaved] = useState<NotificationPreferences | null>(null);
   const [draft, setDraft] = useState<NotificationPreferences | null>(null);
   const [busy, setBusy] = useState(false);
@@ -144,7 +144,7 @@ export function NotificationMatrix() {
                       scope="col"
                       className="px-3 pb-2 text-[13px] font-semibold text-ink-muted"
                     >
-                      {channelLabel(channel)}
+                      {channelLabel(channel, language)}
                     </th>
                   ))}
                 </tr>
@@ -155,18 +155,18 @@ export function NotificationMatrix() {
                   <tr key={category} className="border-b border-line-soft">
                     <td className="py-3 pr-4">
                       <span className="block text-[15px] font-semibold text-navy">
-                        {categoryLabel(category)}
+                        {categoryLabel(category, language)}
                       </span>
 
                       <span className="block text-[13px] text-ink-muted">
-                        {categoryDescription(category)}
+                        {categoryDescription(category, language)}
                       </span>
                     </td>
 
                     {NOTIFICATION_CHANNELS.map((channel) => (
                       <td key={channel} className="px-3 py-3">
                         <Checkbox
-                          label={`${channelLabel(channel)} for ${categoryLabel(category)}`}
+                          label={`${channelLabel(channel, language)} for ${categoryLabel(category, language)}`}
                           className="sr-only-label"
                           checked={isChannelEnabled(draft, category, channel)}
                           disabled={busy || isChannelRequired(category, channel)}
@@ -185,15 +185,19 @@ export function NotificationMatrix() {
           <ul className="flex flex-col gap-4 sm:hidden">
             {NOTIFICATION_CATEGORIES.map((category) => (
               <li key={category} className="rounded-xl border border-line-soft px-3.5 py-3">
-                <p className="text-[15px] font-semibold text-navy">{categoryLabel(category)}</p>
+                <p className="text-[15px] font-semibold text-navy">
+                  {categoryLabel(category, language)}
+                </p>
 
-                <p className="text-[13px] text-ink-muted">{categoryDescription(category)}</p>
+                <p className="text-[13px] text-ink-muted">
+                  {categoryDescription(category, language)}
+                </p>
 
                 <div className="mt-3 flex flex-wrap gap-4">
                   {NOTIFICATION_CHANNELS.map((channel) => (
                     <Checkbox
                       key={channel}
-                      label={channelLabel(channel)}
+                      label={channelLabel(channel, language)}
                       checked={isChannelEnabled(draft, category, channel)}
                       disabled={busy || isChannelRequired(category, channel)}
                       onChange={(event) =>
