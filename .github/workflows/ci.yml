@@ -3,9 +3,11 @@ name: CI
 on:
   pull_request:
     branches:
+      - dev-v2
       - main
   push:
     branches:
+      - dev-v2
       - main
 
 permissions:
