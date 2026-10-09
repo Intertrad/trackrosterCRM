@@ -160,17 +160,22 @@ export class WorkspaceAdministrationService {
   async createOrganization(auth: AuthenticatedPrincipal, input: CreateOrganizationDto) {
     await this.requireAdmin(auth);
     return this.mutate(async (transaction) => {
+      const explicitSlug = Boolean(input.slug);
       const baseSlug = organizationSlugFromName(input.slug ?? input.name);
       let slug = baseSlug;
-      for (let suffix = 2; ; suffix += 1) {
-        const [existing] = await transaction
-          .select({ id: organizations.id })
-          .from(organizations)
-          .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.slug, slug)))
-          .limit(1);
-        if (!existing) break;
-        const suffixText = `-${suffix}`;
-        slug = `${baseSlug.slice(0, 100 - suffixText.length)}${suffixText}`;
+      // Preserve conflict semantics for explicit identifiers. Name-only
+      // creation gets a deterministic suffix for duplicate display names.
+      if (!explicitSlug) {
+        for (let suffix = 2; ; suffix += 1) {
+          const [existing] = await transaction
+            .select({ id: organizations.id })
+            .from(organizations)
+            .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.slug, slug)))
+            .limit(1);
+          if (!existing) break;
+          const suffixText = `-${suffix}`;
+          slug = `${baseSlug.slice(0, 100 - suffixText.length)}${suffixText}`;
+        }
       }
       const createInput = { ...input, slug };
       const [row] = await transaction
