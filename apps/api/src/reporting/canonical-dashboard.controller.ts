@@ -134,7 +134,7 @@ export class CanonicalDashboardService {
    (SELECT count(*)::int FROM membership_invitations i JOIN tenant_memberships m ON m.tenant_id=i.tenant_id AND m.id=i.membership_id WHERE i.tenant_id=${a.tenantId} AND m.status='invited' AND i.consumed_at IS NULL AND i.expires_at>now()) AS "pendingInvitations",
    (SELECT count(*)::int FROM organization_coordination_policies WHERE tenant_id=${a.tenantId}) AS "coordinationRulesSet",
    (SELECT (count(*) * (count(*) - 1) / 2)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active') AS "coordinationPairs",
-   (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active' AND (short_name IS NULL OR phone IS NULL OR email IS NULL OR website IS NULL OR address IS NULL OR argumentaire IS NULL OR cardinality(prospected_sectors)=0)) AS "incompleteOrganizations",
+   (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active' AND (phone IS NULL OR email IS NULL OR website IS NULL OR address IS NULL OR argumentaire IS NULL OR cardinality(prospected_sectors)=0)) AS "incompleteOrganizations",
    (SELECT count(*)::int FROM script_templates WHERE tenant_id=${a.tenantId} AND enabled=true) AS "activeScriptTemplates",
    (SELECT count(*)::int FROM identities i JOIN tenant_memberships m ON m.tenant_id=${a.tenantId} AND m.identity_id=i.id WHERE m.status='active' AND i.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolledMembers",
    coalesce((SELECT require_mfa FROM tenant_security_policies WHERE tenant_id=${a.tenantId}), false) AS "mfaRequired",
