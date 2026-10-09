@@ -2,18 +2,10 @@
 import { LiveStatus } from './live-status';
 import { LandingPage } from '@/components/marketing/landing-page';
 
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp,
-  MoreHorizontal,
-  Search,
-  Settings,
-  X,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleHelp, MoreHorizontal, Settings, X } from 'lucide-react';
 
 import { NavIcon } from '@/components/layout/nav-icon';
 import { NotificationBell } from '@/components/layout/notification-bell';
@@ -46,7 +38,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [mobileQuery, setMobileQuery] = useState('');
   const [unreadMessages, setUnreadMessages] = useState(0);
 
   /* Per-viewer convenience only; never a source of truth for access. */
@@ -119,13 +110,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       return next;
     });
-  }
-
-  function submitMobileSearch(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const value = mobileQuery.trim();
-    if (!value) return;
-    router.push(`/search?q=${encodeURIComponent(value)}`);
   }
 
   if (status === 'loading') {
@@ -216,20 +200,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
           </div>
         </div>
-
-        <form noValidate onSubmit={submitMobileSearch} role="search" className="relative w-full">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
-          />
-          <input
-            aria-label={t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}
-            value={mobileQuery}
-            onChange={(event) => setMobileQuery(event.target.value)}
-            placeholder={`${t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}…`}
-            className="h-10 w-full rounded-lg border border-white/15 bg-white px-9 text-[14px] text-ink outline-none placeholder:text-ink-muted focus:border-brand"
-          />
-        </form>
       </header>
 
       <aside
@@ -327,12 +297,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="min-w-0 flex-1 bg-canvas">
-        <WorkspaceTopbar
-          isProspector={isProspector}
-          roleLabel={roleLabel}
-          displayName={user.displayName}
-          email={user.email}
-        />
+        <WorkspaceTopbar roleLabel={roleLabel} displayName={user.displayName} email={user.email} />
 
         <div className="reference-main min-w-0">
           <LiveStatus />
@@ -376,44 +341,19 @@ function WorkspaceScopeCard({
 }
 
 function WorkspaceTopbar({
-  isProspector,
   roleLabel,
   displayName,
   email,
 }: {
-  isProspector: boolean;
   roleLabel: string;
   displayName: string | null;
   email: string;
 }) {
-  const router = useRouter();
   const { t } = useTranslation();
-  const [query, setQuery] = useState('');
-
-  function submit(event: FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const value = query.trim();
-    if (!value) return;
-    router.push(`/search?q=${encodeURIComponent(value)}`);
-  }
 
   return (
-    <header className="hidden h-[58px] items-center gap-4 border-b border-line-soft bg-surface px-6 lg:flex">
-      <form noValidate onSubmit={submit} role="search" className="relative w-full max-w-[320px]">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
-        />
-        <input
-          aria-label={t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={`${t(isProspector ? 'nav.searchAssignedProspects' : 'nav.searchWorkspace')}…`}
-          className="h-9 w-full rounded-lg border border-line-soft bg-canvas px-9 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-brand focus:bg-surface"
-        />
-      </form>
-
-      <div className="ml-auto flex items-center gap-1.5">
+    <header className="hidden h-[58px] items-center justify-end gap-1.5 border-b border-line-soft bg-surface px-6 lg:flex">
+      <div className="flex items-center gap-1.5">
         <span className="rounded-full border border-brand-tint bg-brand-wash px-3 py-1 text-[10px] font-extrabold tracking-[0.12em] text-brand">
           {roleLabel.toUpperCase()}
         </span>

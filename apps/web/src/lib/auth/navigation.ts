@@ -685,6 +685,7 @@ export function isRouteAllowedForWorkspace(
   }
   if (segment === 'observer')
     return mode === 'admin' || mode === 'director' || mode === 'observer' || platformAdmin;
+  if (segment === 'search') return mode !== 'prospector' || platformAdmin;
 
   return true;
 }

@@ -23,6 +23,7 @@ describe('workspace navigation', () => {
       expect(isRouteAllowedForWorkspace('/director/overview', 'manager')).toBe(false);
       expect(isRouteAllowedForWorkspace('/admin/overview', 'manager')).toBe(false);
       expect(isRouteAllowedForWorkspace('/manager/overview', 'prospector')).toBe(false);
+      expect(isRouteAllowedForWorkspace('/search', 'prospector')).toBe(false);
       expect(isRouteAllowedForWorkspace('/observer/overview', 'observer')).toBe(true);
       expect(isRouteAllowedForWorkspace('/manager/overview', 'observer')).toBe(false);
     });
