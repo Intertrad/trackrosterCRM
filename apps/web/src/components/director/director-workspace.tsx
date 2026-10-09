@@ -16,11 +16,15 @@ import { StatTile } from '@/components/ui/stat-tile';
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { listCampaigns } from '@/lib/api/campaign-client';
 import type { Campaign } from '@/lib/api/campaign-types';
-import { listOrganizations, type OrganizationSummary } from '@/lib/api/organization-client';
+import {
+  getOrganization,
+  listOrganizations,
+  type OrganizationDetail,
+  type OrganizationSummary,
+} from '@/lib/api/organization-client';
 import { listTeams, getTeamCapacity } from '@/lib/api/team-client';
 import type { Team, TeamCapacity } from '@/lib/api/team-types';
 import { ApiError } from '@/lib/api/api-error';
-import { isRecord, readOperation } from '@/lib/workspace/client';
 
 function describeError(error: unknown, fallback: string) {
   if (error instanceof ApiError && error.statusCode === 403) {
@@ -235,17 +239,18 @@ function DirectorCompanyDrawer({
   campaigns: Campaign[];
   onClose: () => void;
 }) {
-  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
+  const [detail, setDetail] = useState<OrganizationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     setDetail(null);
     if (!organization) return;
+    const controller = new AbortController();
     setLoading(true);
-    void readOperation('GET /organizations/:organizationId', { organizationId: organization.id })
-      .then((result) => {
-        if (isRecord(result.resource)) setDetail(result.resource);
-      })
+    void getOrganization(organization.id, controller.signal)
+      .then((result) => setDetail(result.resource))
+      .catch(() => setDetail(null))
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, [organization]);
   const companyCampaigns = organization
     ? campaigns.filter((campaign) => campaign.organizationId === organization.id)
@@ -312,22 +317,17 @@ function DirectorCompanyDrawer({
 }
 
 export function DirectorCompanyDetailPage({ organizationId }: { organizationId: string }) {
-  const [organization, setOrganization] = useState<Record<string, unknown> | null>(null);
+  const [organization, setOrganization] = useState<OrganizationDetail | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
-      readOperation(
-        'GET /organizations/:organizationId',
-        { organizationId },
-        {},
-        controller.signal,
-      ),
+      getOrganization(organizationId, controller.signal),
       listCampaigns({ organizationId, limit: 100 }, controller.signal),
     ])
       .then(([result, campaignPage]) => {
-        if (isRecord(result.resource)) setOrganization(result.resource);
+        setOrganization(result.resource);
         setCampaigns(campaignPage.items);
       })
       .catch((caught) => setError(describeError(caught, 'We could not load this company.')));
