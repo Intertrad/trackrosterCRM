@@ -9,5 +9,8 @@ export interface ApiErrorResponse {
 
   error: string;
 
+  /** Optional machine-readable context, such as validation issue metadata. */
+  details?: Record<string, unknown>;
+
   requestId: string;
 }

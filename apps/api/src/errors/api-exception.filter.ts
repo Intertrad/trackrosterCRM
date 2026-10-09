@@ -20,6 +20,7 @@ interface RequestWithId {
 }
 
 interface HttpReply {
+  header?(name: string, value: string): unknown;
   status(statusCode: number): {
     send(body: ApiErrorResponse): unknown;
   };
@@ -30,6 +31,7 @@ interface ExceptionResponseObject {
   code?: unknown;
   message?: unknown;
   error?: unknown;
+  details?: unknown;
 }
 
 @Catch()
@@ -44,6 +46,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const response = http.getResponse<HttpReply>();
 
     const requestId = request.id ?? randomUUID();
+    response.header?.('x-request-id', requestId);
 
     if (isCampaignClosedError(exception) || isProspectArchivedError(exception)) {
       response.status(409).send({
@@ -108,6 +111,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     const customCode = typeof response?.code === 'string' ? response.code : null;
 
+    const details = this.normalizeDetails(response?.details);
+
     const error =
       typeof response?.error === 'string' ? response.error : this.defaultError(statusCode);
 
@@ -120,8 +125,15 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
       error,
 
+      ...(details ? { details } : {}),
+
       requestId,
     };
+  }
+
+  private normalizeDetails(value: unknown): Record<string, unknown> | undefined {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    return value as Record<string, unknown>;
   }
 
   private asResponseObject(value: unknown): ExceptionResponseObject | null {
