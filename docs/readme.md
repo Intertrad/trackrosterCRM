@@ -19,6 +19,14 @@ be updated whenever a significant product or architectural decision changes.
 
 ## Documentation Structure
 
+### Delivery planning
+
+- [Backend-first delivery backlog](./planning/README.md)
+- [Product, API, schema and design evaluation](./planning/PRODUCT_EVALUATION.md)
+- [API requirement ownership](./planning/API_REQUIREMENT_MAP.md)
+- [Page and subflow ownership](./planning/PAGE_REQUIREMENT_MAP.md)
+- [Verification evidence](./planning/VERIFICATION.md)
+
 ### Product
 
 Business requirements and product behavior.
