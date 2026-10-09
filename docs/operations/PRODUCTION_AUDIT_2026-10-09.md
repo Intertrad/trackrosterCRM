@@ -172,6 +172,11 @@ rules. Add tests for retry exhaustion and alert suppression.
 
 **Status:** Open.
 
+**Update (2026-10-09):** The delivery worker now claims rows in a short
+transaction, performs provider I/O outside the transaction, records a safe
+provider/attempt/reason signal, and keeps retry state bounded. Metrics and
+alerting for terminal failures remain follow-up work.
+
 ### AUD-005 — P1: security baseline depends on an unverified proxy
 
 **Category:** Security / HTTP hardening  
@@ -216,8 +221,6 @@ lockfile-based dependency audit, and publish the exact required checks in branch
 protection documentation. Keep network-dependent scans tolerant of registry
 outages but never silently green.
 
-**Status:** Open.
-
 ### AUD-007 — P2: readiness reporting can be misleading during optional-provider failures
 
 **Category:** Health checks / operations  
@@ -238,6 +241,11 @@ and report `MAILPIT_URL` as configured only outside production. Add readiness
 contract tests for Brevo, Mailpit, and timeout cases.
 
 **Status:** Open.
+
+**Update (2026-10-09):** Readiness now reports API pool utilization and treats
+Mailpit as configured in non-production while preserving Brevo checks for
+production. The underlying Postgres/Redis probe is still bounded by a deadline;
+full cancellation remains follow-up work.
 
 ### AUD-008 — P2: user-facing fallback errors remain inconsistent
 
