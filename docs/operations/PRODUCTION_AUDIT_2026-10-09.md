@@ -14,10 +14,13 @@ changed during this audit.
 ## Executive assessment
 
 The repository has a strong application test base and the local quality gates are
-green, but it is not ready for an unconditional production release. The current
-`dev-v2` GitHub Actions run is red: 57 of 58 API integration files passed (612 of
-613 tests), while the map scope-limit test timed out after 90 seconds. The CI
-workflow stops before its build step when integration tests fail.
+green, but it is not ready for an unconditional production release. The initial
+audit run on commit `5a0b4ad` was red: 57 of 58 API integration files passed
+(612 of 613 tests), while the map scope-limit test timed out after 90 seconds.
+The follow-up run on documentation commit `2bf0b40` passed all 58 integration
+files (613 tests) and the build in 6m48s. The timeout remains a fragile test
+signal that should be made deterministic before it becomes a recurring release
+blocker.
 
 The most important release risks are:
 
@@ -45,22 +48,23 @@ The most important release risks are:
 
 ## Verification performed
 
-| Check                     | Result      | Evidence                                                                                                                     |
-| ------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Migration integrity       | **Pass**    | `node scripts/check-migration-integrity.mjs`: 92 journal entries, SQL files, and snapshots form one contiguous chain         |
-| Web unit tests            | **Pass**    | 95 files, 755 tests                                                                                                          |
-| API unit tests            | **Pass**    | 99 files, 786 tests                                                                                                          |
-| Worker unit tests         | **Pass**    | 17 files, 80 tests                                                                                                           |
-| Worker typecheck          | **Pass**    | `tsc --noEmit -p apps/worker/tsconfig.json`                                                                                  |
-| API typecheck             | **Pass**    | CI and local `tsc`                                                                                                           |
-| API build                 | **Pass**    | `apps/api` Nest build                                                                                                        |
-| Worker build              | **Pass**    | `apps/worker` TypeScript build                                                                                               |
-| Web production build      | **Pass**    | Next.js webpack build; 89 routes generated                                                                                   |
-| Root formatting           | **Pass**    | Prettier reported all matched files use the configured style                                                                 |
-| Remote integration gate   | **Fail**    | GitHub Actions run `37904813545`; `test/maps.integration.spec.ts` timed out at 90 seconds                                    |
-| Dependency audit          | **Blocked** | `pnpm audit --prod` could not verify pnpm 11.24.0 registry signature in this environment; this is not a vulnerability result |
-| Local containers          | **Blocked** | Docker socket access was denied to the audit process                                                                         |
-| Authenticated browser E2E | **Not run** | No safe staging account/session was supplied                                                                                 |
+| Check                                   | Result      | Evidence                                                                                                                     |
+| --------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Migration integrity                     | **Pass**    | `node scripts/check-migration-integrity.mjs`: 92 journal entries, SQL files, and snapshots form one contiguous chain         |
+| Web unit tests                          | **Pass**    | 95 files, 755 tests                                                                                                          |
+| API unit tests                          | **Pass**    | 99 files, 786 tests                                                                                                          |
+| Worker unit tests                       | **Pass**    | 17 files, 80 tests                                                                                                           |
+| Worker typecheck                        | **Pass**    | `tsc --noEmit -p apps/worker/tsconfig.json`                                                                                  |
+| API typecheck                           | **Pass**    | CI and local `tsc`                                                                                                           |
+| API build                               | **Pass**    | `apps/api` Nest build                                                                                                        |
+| Worker build                            | **Pass**    | `apps/worker` TypeScript build                                                                                               |
+| Web production build                    | **Pass**    | Next.js webpack build; 89 routes generated                                                                                   |
+| Root formatting                         | **Pass**    | Prettier reported all matched files use the configured style                                                                 |
+| Remote integration gate (initial audit) | **Fail**    | GitHub Actions run `37904813545`; `test/maps.integration.spec.ts` timed out at 90 seconds                                    |
+| Remote integration gate (follow-up)     | **Pass**    | GitHub Actions run `37906774154`; 58 files, 613 tests, and build completed in 6m48s                                          |
+| Dependency audit                        | **Blocked** | `pnpm audit --prod` could not verify pnpm 11.24.0 registry signature in this environment; this is not a vulnerability result |
+| Local containers                        | **Blocked** | Docker socket access was denied to the audit process                                                                         |
+| Authenticated browser E2E               | **Not run** | No safe staging account/session was supplied                                                                                 |
 
 ## Findings
 
@@ -91,7 +95,8 @@ applied before the limit. Measure `EXPLAIN (ANALYZE, BUFFERS)` on a representati
 dataset, then add a separate load test for the full-size scope. Do not merely
 increase the timeout without measuring the query.
 
-**Status:** Open; must be fixed or explicitly waived before merging to `main`.
+**Status:** Mitigated for this run; keep open as a P1 test-determinism item until
+the fixture is made consistently bounded.
 
 ### AUD-002 — P1: production deployment is not reproducible from the repository
 
