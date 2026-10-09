@@ -39,6 +39,7 @@ Visual references and the connected frontend approach live here:
 - [Attached admin and prospector reference status](./design/ATTACHED_REFERENCE_STATUS.md)
 - [Application design system](../apps/web/DESIGN.md)
 - [Landing page visual QA](../design-qa.md)
+- [Frontend UI/UX audit 2026-10-09](./design/FRONTEND_UI_AUDIT_2026-10-09.md)
 
 ### Notifications
 
