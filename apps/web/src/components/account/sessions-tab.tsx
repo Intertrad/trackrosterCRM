@@ -10,32 +10,37 @@ import { Card, CardHeader } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/api-error';
 import { getAccountSessions, revokeOtherSessions, revokeSession } from '@/lib/api/account-client';
 import type { AccountSession } from '@/lib/api/account-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 export function SessionsTab() {
+  const { t, locale } = useTranslation();
   const [sessions, setSessions] = useState<AccountSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [revokingOthers, setRevokingOthers] = useState(false);
 
-  const load = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const page = await getAccountSessions(signal);
+  const load = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      try {
+        const page = await getAccountSessions(signal);
 
-      setSessions(page.items);
-      setError(null);
-    } catch (caught) {
-      if (signal?.aborted) {
-        return;
+        setSessions(page.items);
+        setError(null);
+      } catch (caught) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        setError(
+          caught instanceof ApiError && caught.statusCode === 401
+            ? t('common.sessionExpired')
+            : t('account.sessions.loadError'),
+        );
       }
-
-      setError(
-        caught instanceof ApiError && caught.statusCode === 401
-          ? 'Your session has expired. Please sign in again.'
-          : 'We could not load your sessions. Please try again.',
-      );
-    }
-  }, []);
+    },
+    [t],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -52,11 +57,11 @@ export function SessionsTab() {
     try {
       await revokeSession(sessionId);
 
-      setNotice('That session was signed out.');
+      setNotice(t('account.sessions.signedOut'));
 
       await load();
     } catch {
-      setError('We could not revoke that session. Please try again.');
+      setError(t('account.sessions.revokeError'));
     } finally {
       setPendingId(null);
     }
@@ -71,13 +76,13 @@ export function SessionsTab() {
 
       setNotice(
         result.revoked === 0
-          ? 'There were no other sessions to sign out.'
-          : `Signed out ${result.revoked} other session${result.revoked === 1 ? '' : 's'}.`,
+          ? t('account.sessions.noOthers')
+          : t('account.sessions.signedOutOthers', { count: result.revoked }),
       );
 
       await load();
     } catch {
-      setError('We could not revoke the other sessions. Please try again.');
+      setError(t('account.sessions.revokeOthersError'));
     } finally {
       setRevokingOthers(false);
     }
@@ -88,7 +93,7 @@ export function SessionsTab() {
   return (
     <Card>
       <CardHeader
-        title="Active sessions"
+        title={t('account.sessions.title')}
         action={
           <Button
             variant="secondary"
@@ -97,7 +102,7 @@ export function SessionsTab() {
             disabled={otherCount === 0}
             onClick={() => void handleRevokeOthers()}
           >
-            Sign out other sessions
+            {t('account.sessions.signOutOthers')}
           </Button>
         }
       />
@@ -121,7 +126,7 @@ export function SessionsTab() {
           ))}
         </div>
       ) : sessions.length === 0 ? (
-        <p className="text-[14px] text-ink-muted">No active sessions in this workspace.</p>
+        <p className="text-[14px] text-ink-muted">{t('account.sessions.none')}</p>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {sessions.map((session) => (
@@ -138,17 +143,21 @@ export function SessionsTab() {
 
               <span className="min-w-0 flex-1">
                 <span className="block text-[15px] font-semibold text-navy">
-                  Signed in {formatDateTime(session.createdAt)}
+                  {t('account.sessions.signedIn', {
+                    date: formatDateTime(session.createdAt, locale),
+                  })}
                 </span>
 
                 <span className="block text-[13px] text-ink-muted">
-                  Expires {formatDateTime(session.expiresAt)}
+                  {t('account.sessions.expires', {
+                    date: formatDateTime(session.expiresAt, locale),
+                  })}
                 </span>
               </span>
 
               {session.current ? (
                 <Badge tone="success" dot>
-                  This device
+                  {t('account.sessions.thisDevice')}
                 </Badge>
               ) : (
                 <Button
@@ -158,7 +167,7 @@ export function SessionsTab() {
                   disabled={pendingId !== null}
                   onClick={() => void handleRevoke(session.id)}
                 >
-                  Sign out
+                  {t('account.sessions.signOut')}
                 </Button>
               )}
             </li>
@@ -169,17 +178,13 @@ export function SessionsTab() {
       {/* The API returns sessions for the current workspace only, and records
           no device or location metadata, so neither is shown rather than
           guessed from a value the server does not have. */}
-      <p className="mt-4 text-[13px] text-ink-muted">
-        Sessions are listed for{' '}
-        <strong className="font-semibold text-ink-soft">this workspace</strong> only. Signing out a
-        session takes effect immediately and is recorded in the audit log.
-      </p>
+      <p className="mt-4 text-[13px] text-ink-muted">{t('account.sessions.workspaceNote')}</p>
     </Card>
   );
 }
 
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatDateTime(value: string, locale?: string): string {
+  return new Intl.DateTimeFormat(locale || undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));

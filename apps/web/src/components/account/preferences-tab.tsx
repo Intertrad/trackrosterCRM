@@ -12,8 +12,10 @@ import { ApiError } from '@/lib/api/api-error';
 import { getAccountPreferences, updateAccountPreferences } from '@/lib/api/account-client';
 import type { AccountPreferences } from '@/lib/api/account-types';
 import { notify } from '@/lib/notifications/notify';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 export function PreferencesTab() {
+  const { t } = useTranslation();
   const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
   const [etag, setEtag] = useState<string | null>(null);
   const [draft, setDraft] = useState<AccountPreferences | null>(null);
@@ -36,8 +38,8 @@ export function PreferencesTab() {
 
         setError(
           caught instanceof ApiError && caught.statusCode === 401
-            ? 'Your session has expired. Please sign in again.'
-            : 'We could not load your preferences.',
+            ? t('common.sessionExpired')
+            : t('account.preferences.loadError'),
         );
       });
 
@@ -58,13 +60,13 @@ export function PreferencesTab() {
       setPreferences(result.resource);
       setDraft(result.resource);
       setEtag(result.etag);
-      notify.success('Your preferences were saved.', { id: 'account-preferences-saved' });
+      notify.success(t('account.preferences.saved'), { id: 'account-preferences-saved' });
       window.dispatchEvent(new Event('trackroster:preferences-changed'));
     } catch (caught) {
       setError(
         caught instanceof ApiError && caught.statusCode === 412
-          ? 'These preferences changed somewhere else. Reload the page and try again.'
-          : 'We could not save your preferences. Please try again.',
+          ? t('account.preferences.conflict')
+          : t('account.preferences.saveError'),
       );
     } finally {
       setSaving(false);
@@ -97,25 +99,25 @@ export function PreferencesTab() {
 
       <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
         <Card>
-          <CardHeader title="Interface preferences" />
+          <CardHeader title={t('account.preferences.interface')} />
 
           <div className="flex flex-col gap-4">
             <SelectField
-              label="Theme"
+              label={t('account.preferences.theme')}
               value={draft.theme}
               onChange={(event) =>
                 setDraft({ ...draft, theme: event.target.value as AccountPreferences['theme'] })
               }
               options={[
-                { value: 'system', label: 'Match system' },
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
+                { value: 'system', label: t('account.preferences.system') },
+                { value: 'light', label: t('account.preferences.light') },
+                { value: 'dark', label: t('account.preferences.dark') },
               ]}
               disabled={saving}
             />
 
             <SelectField
-              label="Density"
+              label={t('account.preferences.density')}
               value={draft.density}
               onChange={(event) =>
                 setDraft({
@@ -124,24 +126,26 @@ export function PreferencesTab() {
                 })
               }
               options={[
-                { value: 'comfortable', label: 'Comfortable' },
-                { value: 'compact', label: 'Compact' },
+                { value: 'comfortable', label: t('account.preferences.comfortable') },
+                { value: 'compact', label: t('account.preferences.compact') },
               ]}
               disabled={saving}
             />
 
             <div className="flex flex-col gap-3 border-t border-line-soft pt-4">
-              <p className="text-[14px] font-semibold text-ink">Accessibility</p>
+              <p className="text-[14px] font-semibold text-ink">
+                {t('account.preferences.accessibility')}
+              </p>
 
               <Checkbox
-                label="Reduce motion"
+                label={t('account.preferences.reduceMotion')}
                 checked={draft.reducedMotion}
                 onChange={(event) => setDraft({ ...draft, reducedMotion: event.target.checked })}
                 disabled={saving}
               />
 
               <Checkbox
-                label="Increase contrast"
+                label={t('account.preferences.increaseContrast')}
                 checked={draft.highContrast}
                 onChange={(event) => setDraft({ ...draft, highContrast: event.target.checked })}
                 disabled={saving}
@@ -151,16 +155,15 @@ export function PreferencesTab() {
             {error ? <Alert tone="danger">{error}</Alert> : null}
 
             <Button fullWidth loading={saving} disabled={!dirty} onClick={() => void handleSave()}>
-              Save preferences
+              {t('account.preferences.save')}
             </Button>
           </div>
         </Card>
 
         <Card>
-          <CardHeader title="Contact safety" />
+          <CardHeader title={t('account.preferences.contactSafety')} />
           <p className="text-[14px] leading-relaxed text-ink-soft">
-            Reservation, collision and consent rules are checked by the server before contact
-            actions. Notification preferences do not grant permission to contact a prospect.
+            {t('account.preferences.contactSafetyBody')}
           </p>
         </Card>
       </div>

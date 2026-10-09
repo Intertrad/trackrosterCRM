@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ApiError } from '@/lib/api/api-error';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -35,6 +36,7 @@ import {
  * they had already declined notifications they never declined.
  */
 export function NotificationMatrix() {
+  const { t } = useTranslation();
   const [saved, setSaved] = useState<NotificationPreferences | null>(null);
   const [draft, setDraft] = useState<NotificationPreferences | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +64,7 @@ export function NotificationMatrix() {
         setDraft({});
 
         if (caught instanceof ApiError && caught.statusCode !== 404) {
-          setError('We could not load your notification preferences.');
+          setError(t('account.notifications.loadError'));
         }
       });
 
@@ -96,15 +98,15 @@ export function NotificationMatrix() {
       .then((result) => {
         setSaved(result);
         setDraft(result);
-        setNotice('Notification preferences saved.');
+        setNotice(t('account.notifications.saved'));
       })
-      .catch(() => setError('We could not save your preferences. Please try again.'))
+      .catch(() => setError(t('account.notifications.saveError')))
       .finally(() => setBusy(false));
   }
 
   return (
     <Card>
-      <CardHeader title="What we notify you about" />
+      <CardHeader title={t('account.notifications.title')} />
 
       {notice ? (
         <Alert tone="success" className="mb-4">
@@ -133,7 +135,7 @@ export function NotificationMatrix() {
               <thead>
                 <tr className="border-b border-line-soft">
                   <th scope="col" className="pb-2 text-[13px] font-semibold text-ink-muted">
-                    Event
+                    {t('account.notifications.event')}
                   </th>
 
                   {NOTIFICATION_CHANNELS.map((channel) => (
@@ -206,18 +208,15 @@ export function NotificationMatrix() {
 
           <div className="mt-5 flex flex-wrap gap-3">
             <Button loading={busy} disabled={!dirty} onClick={save}>
-              Save preferences
+              {t('account.notifications.save')}
             </Button>
 
             <Button variant="secondary" disabled={!dirty || busy} onClick={() => setDraft(saved)}>
-              Discard changes
+              {t('account.notifications.discard')}
             </Button>
           </div>
 
-          <p className="mt-4 text-[13px] text-ink-muted">
-            A channel you have never set stays on. Critical collision alerts always stay in the
-            in-app inbox. Push also needs a registered device.
-          </p>
+          <p className="mt-4 text-[13px] text-ink-muted">{t('account.notifications.note')}</p>
         </>
       )}
     </Card>

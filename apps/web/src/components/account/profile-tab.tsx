@@ -27,6 +27,7 @@ import { useAuth } from '@/lib/auth/auth-context';
 import { getInitials } from '@/lib/ui/initials';
 import { LOCALE_OPTIONS, TIMEZONE_OPTIONS, withCurrentValue } from '@/lib/ui/locales';
 import { notify } from '@/lib/notifications/notify';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import {
   getRoleLabel,
   getRolePermissionSummary,
@@ -52,7 +53,8 @@ const EDITABLE_PROFILE_FIELDS: EditableProfileField[] = [
 
 export function ProfileTab() {
   const router = useRouter();
-  const { refreshSession } = useAuth();
+  const { refreshSession, updateUser } = useAuth();
+  const { t, language } = useTranslation();
 
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [etag, setEtag] = useState<string | null>(null);
@@ -87,8 +89,8 @@ export function ProfileTab() {
 
         setLoadError(
           error instanceof ApiError && error.statusCode === 401
-            ? 'Your session has expired. Please sign in again.'
-            : 'We could not load your account. Please try again.',
+            ? t('common.sessionExpired')
+            : t('account.profile.loadError'),
         );
       }
     }
@@ -137,11 +139,9 @@ export function ProfileTab() {
       const result = await updateAccountProfile(input, etag);
 
       applyProfile(result.resource, result.etag);
+      updateUser({ displayName: result.resource.displayName, locale: result.resource.locale });
       setSave({ kind: 'saved' });
-      notify.success('Your changes were saved.', { id: 'profile-saved' });
-
-      /* The shell shows the display name, so refresh the session context. */
-      await refreshSession();
+      notify.success(t('account.profile.saved'), { id: 'profile-saved' });
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 412) {
         /* A session refresh, a second tab, or an administrator edit can make
@@ -161,16 +161,16 @@ export function ProfileTab() {
           const result = await updateAccountProfile(input, latest.etag);
 
           applyProfile(result.resource, result.etag);
+          updateUser({ displayName: result.resource.displayName, locale: result.resource.locale });
           setSave({ kind: 'saved' });
-          notify.success('Your changes were saved.', { id: 'profile-saved' });
-          await refreshSession();
+          notify.success(t('account.profile.saved'), { id: 'profile-saved' });
 
           return;
         } catch (retryError) {
           if (retryError instanceof ApiError && retryError.statusCode !== 412) {
             setSave({
               kind: 'error',
-              message: 'We could not save your changes. Please try again.',
+              message: t('account.profile.saveError'),
             });
 
             return;
@@ -186,8 +186,8 @@ export function ProfileTab() {
         kind: 'error',
         message:
           error instanceof ApiError && error.statusCode === 400
-            ? 'Please check the highlighted fields and try again.'
-            : 'We could not save your changes. Please try again.',
+            ? t('account.profile.validationError')
+            : t('account.profile.saveError'),
       });
     }
   }
@@ -199,7 +199,7 @@ export function ProfileTab() {
       applyProfile(result.resource, result.etag);
       setSave({ kind: 'idle' });
     } catch {
-      setSave({ kind: 'error', message: 'We could not reload your account.' });
+      setSave({ kind: 'error', message: t('account.profile.reloadError') });
     }
   }
 
@@ -219,9 +219,9 @@ export function ProfileTab() {
 
       await refreshSession();
       router.refresh();
-      notify.success('Workspace switched.', { id: 'workspace-switched' });
+      notify.success(t('account.workspaceSwitched'), { id: 'workspace-switched' });
     } catch {
-      setSave({ kind: 'error', message: 'We could not switch workspace. Please try again.' });
+      setSave({ kind: 'error', message: t('common.switchWorkspaceError') });
     } finally {
       setSwitchingId(null);
     }
@@ -232,7 +232,7 @@ export function ProfileTab() {
   }
 
   if (!profile) {
-    return <ProfileSkeleton />;
+    return <ProfileSkeleton loadingLabel={t('account.profile.loading')} />;
   }
 
   const primaryGrant = profile.grants[0] ?? null;
@@ -240,7 +240,7 @@ export function ProfileTab() {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
       <Card>
-        <CardHeader title="Personal information" />
+        <CardHeader title={t('account.profile.personalInformation')} />
 
         <div className="mb-6 flex items-center gap-4">
           <span
@@ -256,33 +256,35 @@ export function ProfileTab() {
             </p>
 
             {primaryGrant ? (
-              <p className="text-[14px] text-ink-muted">{getRoleLabel(primaryGrant.role)}</p>
+              <p className="text-[14px] text-ink-muted">
+                {getRoleLabel(primaryGrant.role, language)}
+              </p>
             ) : null}
           </div>
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
           <TextField
-            label="Display name"
+            label={t('account.profile.displayName')}
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             maxLength={120}
             autoComplete="name"
             disabled={save.kind === 'saving'}
-            hint="Shown to your team across assignments, actions and history."
+            hint={t('account.profile.displayNameHint')}
           />
 
           <TextField
-            label="Work email"
+            label={t('account.profile.workEmail')}
             value={profile.email}
             readOnly
             disabled
-            hint="Your sign-in address is managed by your administrator."
+            hint={t('account.profile.workEmailHint')}
           />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField
-              label="Phone number"
+              label={t('account.profile.phone')}
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               maxLength={40}
@@ -292,7 +294,7 @@ export function ProfileTab() {
             />
 
             <SelectField
-              label="Language"
+              label={t('account.profile.language')}
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
               options={withCurrentValue(LOCALE_OPTIONS, locale)}
@@ -301,7 +303,7 @@ export function ProfileTab() {
           </div>
 
           <SelectField
-            label="Time zone"
+            label={t('account.profile.timezone')}
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
             options={withCurrentValue(TIMEZONE_OPTIONS, timezone)}
@@ -309,15 +311,15 @@ export function ProfileTab() {
           />
 
           {save.kind === 'conflict' ? (
-            <Alert tone="warning" title="This profile changed somewhere else.">
-              Reload it before applying your changes.
+            <Alert tone="warning" title={t('account.profile.conflictTitle')}>
+              {t('account.profile.conflictBody')}
               <Button
                 variant="secondary"
                 size="md"
                 className="mt-3"
                 onClick={() => void reloadAfterConflict()}
               >
-                Reload profile
+                {t('account.profile.reload')}
               </Button>
             </Alert>
           ) : null}
@@ -325,14 +327,14 @@ export function ProfileTab() {
           {save.kind === 'error' ? <Alert tone="danger">{save.message}</Alert> : null}
 
           <Button type="submit" fullWidth loading={save.kind === 'saving'} disabled={!dirty}>
-            Save changes
+            {t('account.profile.save')}
           </Button>
         </form>
       </Card>
 
       <div className="flex flex-col gap-5">
         <Card>
-          <CardHeader title="Current access" />
+          <CardHeader title={t('account.profile.currentAccess')} />
 
           <div className="flex items-start gap-4">
             <span
@@ -345,36 +347,44 @@ export function ProfileTab() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[18px] font-bold text-navy">
-                  {primaryGrant ? getRoleLabel(primaryGrant.role) : 'No role assigned'}
+                  {primaryGrant
+                    ? getRoleLabel(primaryGrant.role, language)
+                    : t('account.profile.noRole')}
                 </p>
 
-                {primaryGrant ? <Badge tone="success">Primary role</Badge> : null}
+                {primaryGrant ? (
+                  <Badge tone="success">{t('account.profile.primaryRole')}</Badge>
+                ) : null}
               </div>
 
               {primaryGrant ? (
-                <p className="text-[14px] text-ink-muted">{getRoleSummary(primaryGrant.role)}</p>
+                <p className="text-[14px] text-ink-muted">
+                  {getRoleSummary(primaryGrant.role, language)}
+                </p>
               ) : null}
             </div>
           </div>
 
           <dl className="mt-5 divide-y divide-line-soft border-t border-line-soft pt-1">
-            <FieldRow label="Workspace">{profile.tenantName}</FieldRow>
+            <FieldRow label={t('account.profile.workspace')}>{profile.tenantName}</FieldRow>
 
             {primaryGrant ? (
               <>
-                <FieldRow label="Territory scope">{getScopeLabel(primaryGrant.scopeType)}</FieldRow>
+                <FieldRow label={t('account.profile.territoryScope')}>
+                  {getScopeLabel(primaryGrant.scopeType, language)}
+                </FieldRow>
 
-                <FieldRow label="Permission summary">
-                  {getRolePermissionSummary(primaryGrant.role) ?? '—'}
+                <FieldRow label={t('account.profile.permissionSummary')}>
+                  {getRolePermissionSummary(primaryGrant.role, language) ?? '—'}
                 </FieldRow>
               </>
             ) : null}
 
             {profile.grants.length > 1 ? (
-              <FieldRow label="Additional grants">
+              <FieldRow label={t('account.profile.additionalGrants')}>
                 {profile.grants
                   .slice(1)
-                  .map((grant) => getRoleLabel(grant.role))
+                  .map((grant) => getRoleLabel(grant.role, language))
                   .join(', ')}
               </FieldRow>
             ) : null}
@@ -382,7 +392,7 @@ export function ProfileTab() {
         </Card>
 
         <Card>
-          <CardHeader title="Workspace memberships" />
+          <CardHeader title={t('account.profile.memberships')} />
 
           {memberships === null ? (
             <div className="flex flex-col gap-3" aria-busy="true">
@@ -391,7 +401,7 @@ export function ProfileTab() {
               ))}
             </div>
           ) : memberships.length === 0 ? (
-            <p className="text-[14px] text-ink-muted">You have no other active workspaces.</p>
+            <p className="text-[14px] text-ink-muted">{t('account.profile.noOtherWorkspaces')}</p>
           ) : (
             <ul className="flex flex-col gap-2.5">
               {memberships.map((membership) => (
@@ -413,14 +423,14 @@ export function ProfileTab() {
 
                     {membership.roles.length > 0 ? (
                       <span className="block truncate text-[13px] text-ink-muted">
-                        {membership.roles.map(getRoleLabel).join(', ')}
+                        {membership.roles.map((role) => getRoleLabel(role, language)).join(', ')}
                       </span>
                     ) : null}
                   </span>
 
                   {membership.current ? (
                     <Badge tone="success" dot>
-                      Active
+                      {t('account.profile.active')}
                     </Badge>
                   ) : (
                     <Button
@@ -430,7 +440,7 @@ export function ProfileTab() {
                       disabled={switchingId !== null}
                       onClick={() => void handleSwitch(membership.membershipId)}
                     >
-                      Open
+                      {t('account.profile.open')}
                     </Button>
                   )}
                 </li>
@@ -440,10 +450,7 @@ export function ProfileTab() {
 
           {/* GET /me/memberships filters to status = 'active', so invited and
               suspended memberships in the design cannot be listed yet. */}
-          <p className="mt-4 text-[13px] text-ink-muted">
-            Only active workspaces appear here. Pending invitations are accepted from the link in
-            your email.
-          </p>
+          <p className="mt-4 text-[13px] text-ink-muted">{t('account.profile.membershipsHint')}</p>
         </Card>
       </div>
     </div>
@@ -492,10 +499,10 @@ interface ProfileFormValues {
   timezone: string;
 }
 
-function ProfileSkeleton() {
+function ProfileSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
     <div className="grid gap-5 lg:grid-cols-2" aria-busy="true" aria-live="polite">
-      <span className="sr-only">Loading your account…</span>
+      <span className="sr-only">{loadingLabel}</span>
 
       {[0, 1].map((column) => (
         <div

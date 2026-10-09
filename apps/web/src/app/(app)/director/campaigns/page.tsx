@@ -14,6 +14,7 @@ import { ApiError } from '@/lib/api/api-error';
 import { listCampaigns } from '@/lib/api/campaign-client';
 import { campaignStatusLabel, campaignStatusTone, type Campaign } from '@/lib/api/campaign-types';
 import { getReport } from '@/lib/api/report-client';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 import type {
   ActionsReport,
   ConversionsReport,
@@ -29,6 +30,7 @@ interface CampaignSnapshot {
 }
 
 export default function DirectorCampaignsPage() {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<CampaignSnapshot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,8 +59,8 @@ export default function DirectorCampaignsPage() {
       if (!signal?.aborted)
         setError(
           caught instanceof ApiError && caught.statusCode === 403
-            ? 'You do not hold director campaign authority for this scope.'
-            : 'We could not load campaigns.',
+            ? t('director.campaignAuthorityError')
+            : t('director.loadCampaignsError'),
         );
     }
   }, []);
@@ -74,20 +76,20 @@ export default function DirectorCampaignsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Campaign Performance"
-        subtitle="Comparative activity and conversion · last 90 days"
+        title={t('director.campaignPerformance')}
+        subtitle={t('director.campaignSubtitle')}
         action={
           <Link
             href="/director/exports"
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-bold text-ink hover:border-brand hover:text-brand"
           >
-            <Download aria-hidden="true" className="size-4" /> Export comparison
+            <Download aria-hidden="true" className="size-4" /> {t('director.exportComparison')}
           </Link>
         }
       />
       {error ? <Alert tone="danger">{error}</Alert> : null}
       <Card padding="none" className="overflow-hidden">
-        <CardHeader title="Detailed comparison" />
+        <CardHeader title={t('director.detailedComparison')} />
         {rows === null ? (
           <div className="space-y-2 p-5" aria-busy="true">
             {[0, 1, 2, 3].map((row) => (
@@ -96,22 +98,22 @@ export default function DirectorCampaignsPage() {
           </div>
         ) : rows.length === 0 ? (
           <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
-            No campaigns in the authorised scope.
+            {t('director.noCampaigns')}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] border-collapse">
               <thead>
                 <tr className="border-b border-line-soft text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
-                  <th className="px-5 py-3">Campaign</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Prospects</th>
-                  <th className="px-3 py-3">Actions</th>
-                  <th className="px-3 py-3">Contacts</th>
-                  <th className="px-3 py-3">Qualified</th>
-                  <th className="px-3 py-3">Conversion</th>
-                  <th className="px-3 py-3">Progress</th>
-                  <th className="px-5 py-3 text-right">Open</th>
+                  <th className="px-5 py-3">{t('director.campaign')}</th>
+                  <th className="px-3 py-3">{t('director.status')}</th>
+                  <th className="px-3 py-3">{t('director.prospects')}</th>
+                  <th className="px-3 py-3">{t('director.actions')}</th>
+                  <th className="px-3 py-3">{t('director.contacts')}</th>
+                  <th className="px-3 py-3">{t('director.qualified')}</th>
+                  <th className="px-3 py-3">{t('director.conversion')}</th>
+                  <th className="px-3 py-3">{t('director.progress')}</th>
+                  <th className="px-5 py-3 text-right">{t('common.open')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-soft">
@@ -120,7 +122,7 @@ export default function DirectorCampaignsPage() {
                     <td className="px-5 py-3.5">
                       <span className="block font-semibold text-navy">{campaign.name}</span>
                       <span className="text-[12px] text-ink-muted">
-                        {campaign.description ?? 'No description'}
+                        {campaign.description ?? t('director.noDescription')}
                       </span>
                     </td>
                     <td className="px-3 py-3.5">
@@ -151,7 +153,8 @@ export default function DirectorCampaignsPage() {
                         href={`/director/campaigns/${campaign.id}`}
                         className="inline-flex items-center gap-1 text-[13px] font-bold text-brand hover:text-brand-hover"
                       >
-                        Details <ExternalLink aria-hidden="true" className="size-3.5" />
+                        {t('director.details')}{' '}
+                        <ExternalLink aria-hidden="true" className="size-3.5" />
                       </Link>
                     </td>
                   </tr>
@@ -161,13 +164,8 @@ export default function DirectorCampaignsPage() {
           </div>
         )}
       </Card>
-      <Alert
-        tone="info"
-        title="Progress targets and remaining prospects are not returned by the API."
-      >
-        The table uses live campaign, actions, conversions and coverage reports. A dedicated
-        campaign-comparison endpoint is still needed for the grouped chart, target progress and
-        remaining counts shown in the reference.
+      <Alert tone="info" title={t('director.progressNoticeTitle')}>
+        {t('director.progressNoticeBody')}
       </Alert>
     </div>
   );

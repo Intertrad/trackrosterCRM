@@ -33,6 +33,9 @@ interface AuthContextValue {
 
   refreshSession: () => Promise<SelfAccessContext | null>;
 
+  /** Apply account changes locally without waiting for a second session read. */
+  updateUser: (patch: Partial<SelfAccessContext>) => void;
+
   selectWorkspace: (workspaceKey: string) => boolean;
 }
 
@@ -103,6 +106,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return null;
     }
+  }, []);
+
+  const updateUser = useCallback((patch: Partial<SelfAccessContext>): void => {
+    setUser((current) => (current ? { ...current, ...patch } : current));
   }, []);
 
   useEffect(() => {
@@ -199,6 +206,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       status,
       sessionError,
       refreshSession,
+      updateUser,
       selectWorkspace,
     }),
     [
@@ -209,6 +217,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       status,
       sessionError,
       refreshSession,
+      updateUser,
       selectWorkspace,
     ],
   );

@@ -25,10 +25,11 @@ import {
 import { listTeams, getTeamCapacity } from '@/lib/api/team-client';
 import type { Team, TeamCapacity } from '@/lib/api/team-types';
 import { ApiError } from '@/lib/api/api-error';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
-function describeError(error: unknown, fallback: string) {
+function describeError(error: unknown, fallback: string, forbidden = fallback) {
   if (error instanceof ApiError && error.statusCode === 403) {
-    return 'Your director grant does not include this scope.';
+    return forbidden;
   }
   return error instanceof Error ? error.message : fallback;
 }
@@ -38,6 +39,7 @@ function statusTone(status: string): 'success' | 'warning' | 'neutral' {
 }
 
 export function DirectorCompaniesPage() {
+  const { t } = useTranslation();
   const [organizations, setOrganizations] = useState<OrganizationSummary[] | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [search, setSearch] = useState('');
@@ -65,10 +67,13 @@ export function DirectorCompaniesPage() {
           setError(null);
         }
       } catch (caught) {
-        if (!signal?.aborted) setError(describeError(caught, 'We could not load companies.'));
+        if (!signal?.aborted)
+          setError(
+            describeError(caught, t('director.loadCompaniesError'), t('director.scopeError')),
+          );
       }
     },
-    [search, status],
+    [search, status, t],
   );
 
   useLiveRefresh(load);
@@ -94,20 +99,20 @@ export function DirectorCompaniesPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Companies"
-        subtitle="Organization-wide read-only view · coordination stays with workspace administrators"
+        title={t('director.companies.title')}
+        subtitle={t('director.companies.subtitle')}
         action={
           <Button
             variant="secondary"
             leadingIcon={<RefreshCw className="size-4" />}
             onClick={() => void load()}
           >
-            Refresh
+            {t('director.refresh')}
           </Button>
         }
       />
       {error ? (
-        <Alert tone="danger" title="Companies unavailable">
+        <Alert tone="danger" title={t('director.companies.unavailable')}>
           {error}
         </Alert>
       ) : null}
@@ -116,13 +121,13 @@ export function DirectorCompaniesPage() {
           icon={<Building2 className="size-5" />}
           tone="neutral"
           value={organizations?.length ?? null}
-          label="Companies in scope"
+          label={t('director.companies.inScope')}
         />
         <StatTile
           icon={<Users className="size-5" />}
           tone="brand"
           value={campaigns.length || null}
-          label="Campaigns linked"
+          label={t('director.campaignsLinked')}
         />
         <StatTile
           icon={<Building2 className="size-5" />}
@@ -132,31 +137,31 @@ export function DirectorCompaniesPage() {
               ? organizations.filter((organization) => organization.status === 'active').length
               : null
           }
-          label="Active companies"
+          label={t('director.activeCompanies')}
         />
       </div>
       <Card>
         <CardHeader
-          title="Companies"
+          title={t('director.companies.title')}
           action={
             <FilterSelect
-              label="Status"
+              label={t('director.status')}
               value={status}
               options={[
-                { value: 'active', label: 'Active' },
-                { value: 'inactive', label: 'Inactive' },
-                { value: 'all', label: 'All' },
+                { value: 'active', label: t('director.active') },
+                { value: 'inactive', label: t('director.inactive') },
+                { value: 'all', label: t('director.all') },
               ]}
               onChange={setStatus}
             />
           }
         />
         <SearchInput
-          label="Search companies"
+          label={t('director.searchCompanies')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           onClear={() => setSearch('')}
-          placeholder="Search company name or slug…"
+          placeholder={t('director.searchCompanyPlaceholder')}
         />
         {organizations === null ? (
           <div className="mt-5 space-y-2" aria-busy="true">
@@ -165,17 +170,17 @@ export function DirectorCompaniesPage() {
             ))}
           </div>
         ) : visible.length === 0 ? (
-          <p className="py-12 text-center text-sm text-ink-muted">No companies match this scope.</p>
+          <p className="py-12 text-center text-sm text-ink-muted">{t('director.noCompanies')}</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-[13px]">
               <thead className="border-b border-line-soft text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                 <tr>
-                  <th className="px-3 py-3">Company</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Campaigns</th>
-                  <th className="px-3 py-3">Website</th>
-                  <th className="px-3 py-3 text-right">Details</th>
+                  <th className="px-3 py-3">{t('director.company')}</th>
+                  <th className="px-3 py-3">{t('director.status')}</th>
+                  <th className="px-3 py-3">{t('director.campaigns')}</th>
+                  <th className="px-3 py-3">{t('director.website')}</th>
+                  <th className="px-3 py-3 text-right">{t('director.details')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-soft">
@@ -239,6 +244,7 @@ function DirectorCompanyDrawer({
   campaigns: Campaign[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [detail, setDetail] = useState<OrganizationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -258,42 +264,44 @@ function DirectorCompanyDrawer({
   return (
     <Drawer
       open={Boolean(organization)}
-      title={organization?.shortName ?? organization?.name ?? 'Company detail'}
+      title={organization?.shortName ?? organization?.name ?? t('director.companyDetail')}
       onClose={onClose}
     >
       <div className="space-y-5">
-        {loading ? <p className="text-sm text-ink-muted">Loading company detail…</p> : null}
+        {loading ? <p className="text-sm text-ink-muted">{t('director.loadingCompany')}</p> : null}
         <Card>
           <CardHeader
-            title="Company profile"
+            title={t('director.companyProfile')}
             action={
               organization ? (
                 <Link
                   href={`/director/companies/${organization.id}`}
                   className="text-[13px] font-bold text-brand hover:underline"
                 >
-                  Open detail
+                  {t('director.openDetail')}
                 </Link>
               ) : undefined
             }
           />
           <dl className="divide-y divide-line-soft">
-            <FieldRow label="Name">{String(detail?.name ?? organization?.name ?? '—')}</FieldRow>
-            <FieldRow label="Status">
+            <FieldRow label={t('director.name')}>
+              {String(detail?.name ?? organization?.name ?? '—')}
+            </FieldRow>
+            <FieldRow label={t('director.status')}>
               <Badge tone={statusTone(String(detail?.status ?? organization?.status))}>
                 {String(detail?.status ?? organization?.status ?? '—')}
               </Badge>
             </FieldRow>
-            <FieldRow label="Website">
+            <FieldRow label={t('director.website')}>
               {String(detail?.website ?? organization?.website ?? '—')}
             </FieldRow>
-            <FieldRow label="Address">
+            <FieldRow label={t('director.address')}>
               {String(detail?.address ?? organization?.address ?? '—')}
             </FieldRow>
           </dl>
         </Card>
         <Card>
-          <CardHeader title="Campaigns" />
+          <CardHeader title={t('director.campaigns')} />
           {companyCampaigns.length ? (
             <ul className="divide-y divide-line-soft">
               {companyCampaigns.map((campaign) => (
@@ -304,19 +312,17 @@ function DirectorCompanyDrawer({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-ink-muted">No campaigns in the authorized scope.</p>
+            <p className="text-sm text-ink-muted">{t('director.noCampaigns')}</p>
           )}
         </Card>
-        <Alert tone="info">
-          Director access is read-only. Changes to company profiles and coordination policies remain
-          in the administrator workspace.
-        </Alert>
+        <Alert tone="info">{t('director.readOnlyNotice')}</Alert>
       </div>
     </Drawer>
   );
 }
 
 export function DirectorCompanyDetailPage({ organizationId }: { organizationId: string }) {
+  const { t } = useTranslation();
   const [organization, setOrganization] = useState<OrganizationDetail | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -330,34 +336,36 @@ export function DirectorCompanyDetailPage({ organizationId }: { organizationId: 
         setOrganization(result.resource);
         setCampaigns(campaignPage.items);
       })
-      .catch((caught) => setError(describeError(caught, 'We could not load this company.')));
+      .catch((caught) =>
+        setError(describeError(caught, t('director.loadCompanyError'), t('director.scopeError'))),
+      );
     return () => controller.abort();
-  }, [organizationId]);
+  }, [organizationId, t]);
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title={String(organization?.name ?? 'Company detail')}
-        subtitle="Director read-only view"
+        title={String(organization?.name ?? t('director.companyDetail'))}
+        subtitle={t('director.directorReadOnly')}
         action={
           <Link href="/director/companies" className="text-sm font-bold text-brand">
-            Back to companies
+            {t('director.backCompanies')}
           </Link>
         }
       />
       {error ? <Alert tone="danger">{error}</Alert> : null}
       <Card>
-        <CardHeader title="Company profile" />
+        <CardHeader title={t('director.companyProfile')} />
         <dl className="grid gap-x-8 divide-y divide-line-soft sm:grid-cols-2 sm:divide-y-0">
-          <FieldRow label="Status">{String(organization?.status ?? '—')}</FieldRow>
+          <FieldRow label={t('director.status')}>{String(organization?.status ?? '—')}</FieldRow>
           <FieldRow label="Slug">{String(organization?.slug ?? '—')}</FieldRow>
-          <FieldRow label="Website">{String(organization?.website ?? '—')}</FieldRow>
-          <FieldRow label="Address">{String(organization?.address ?? '—')}</FieldRow>
-          <FieldRow label="Phone">{String(organization?.phone ?? '—')}</FieldRow>
-          <FieldRow label="E-mail">{String(organization?.email ?? '—')}</FieldRow>
+          <FieldRow label={t('director.website')}>{String(organization?.website ?? '—')}</FieldRow>
+          <FieldRow label={t('director.address')}>{String(organization?.address ?? '—')}</FieldRow>
+          <FieldRow label={t('director.phone')}>{String(organization?.phone ?? '—')}</FieldRow>
+          <FieldRow label={t('director.email')}>{String(organization?.email ?? '—')}</FieldRow>
         </dl>
       </Card>
       <Card>
-        <CardHeader title="Campaigns in scope" />
+        <CardHeader title={t('director.campaignsInScope')} />
         {campaigns.length ? (
           <div className="grid gap-3 sm:grid-cols-2">
             {campaigns.map((campaign) => (
@@ -367,13 +375,13 @@ export function DirectorCompanyDetailPage({ organizationId }: { organizationId: 
                   <Badge tone={statusTone(campaign.status)}>{campaign.status}</Badge>
                 </div>
                 <p className="mt-2 text-sm text-ink-muted">
-                  {campaign.description ?? 'No description'}
+                  {campaign.description ?? t('director.noDescription')}
                 </p>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-ink-muted">No campaigns in the authorized scope.</p>
+          <p className="text-sm text-ink-muted">{t('director.noCampaigns')}</p>
         )}
       </Card>
       <Alert tone="info">
@@ -385,24 +393,31 @@ export function DirectorCompanyDetailPage({ organizationId }: { organizationId: 
 }
 
 export function DirectorTeamsPage() {
+  const { t } = useTranslation();
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [capacities, setCapacities] = useState<Map<string, TeamCapacity>>(new Map());
   const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async (signal?: AbortSignal) => {
-    try {
-      const page = await listTeams({ limit: 100 }, signal);
-      const capacityEntries = await Promise.all(
-        page.items.map(async (team) => [team.id, await getTeamCapacity(team.id, signal)] as const),
-      );
-      if (!signal?.aborted) {
-        setTeams(page.items);
-        setCapacities(new Map(capacityEntries));
-        setError(null);
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const page = await listTeams({ limit: 100 }, signal);
+        const capacityEntries = await Promise.all(
+          page.items.map(
+            async (team) => [team.id, await getTeamCapacity(team.id, signal)] as const,
+          ),
+        );
+        if (!signal?.aborted) {
+          setTeams(page.items);
+          setCapacities(new Map(capacityEntries));
+          setError(null);
+        }
+      } catch (caught) {
+        if (!signal?.aborted)
+          setError(describeError(caught, t('director.loadTeamsError'), t('director.scopeError')));
       }
-    } catch (caught) {
-      if (!signal?.aborted) setError(describeError(caught, 'We could not load teams.'));
-    }
-  }, []);
+    },
+    [t],
+  );
   useLiveRefresh(load);
   useEffect(() => {
     const controller = new AbortController();
@@ -412,15 +427,15 @@ export function DirectorTeamsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Teams"
-        subtitle="Organization-wide team capacity and workload · read-only"
+        title={t('director.teams.title')}
+        subtitle={t('director.teams.subtitle')}
         action={
           <Button
             variant="secondary"
             leadingIcon={<RefreshCw className="size-4" />}
             onClick={() => void load()}
           >
-            Refresh
+            {t('director.refresh')}
           </Button>
         }
       />
@@ -430,19 +445,19 @@ export function DirectorTeamsPage() {
           <table className="w-full min-w-[760px] text-left text-[13px]">
             <thead className="bg-surface-muted text-[11px] uppercase tracking-[0.08em] text-ink-muted">
               <tr>
-                <th className="px-5 py-3">Team</th>
-                <th className="px-3 py-3">Organization</th>
-                <th className="px-3 py-3">Members</th>
-                <th className="px-3 py-3">Assigned prospects</th>
-                <th className="px-3 py-3">Paused</th>
-                <th className="px-5 py-3 text-right">Status</th>
+                <th className="px-5 py-3">{t('director.team')}</th>
+                <th className="px-3 py-3">{t('director.organization')}</th>
+                <th className="px-3 py-3">{t('director.members')}</th>
+                <th className="px-3 py-3">{t('director.assignedProspects')}</th>
+                <th className="px-3 py-3">{t('director.paused')}</th>
+                <th className="px-5 py-3 text-right">{t('director.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line-soft">
               {teams === null ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-ink-muted">
-                    Loading team capacity…
+                    {t('director.loadingCapacity')}
                   </td>
                 </tr>
               ) : (
@@ -472,9 +487,8 @@ export function DirectorTeamsPage() {
           </table>
         </div>
       </Card>
-      <Alert tone="info" title="Read-only director access">
-        Team membership, capacity targets and assignments are managed by authorized administrators
-        and managers. This view reflects the live team APIs.
+      <Alert tone="info" title={t('director.readOnlyAccess')}>
+        {t('director.teamsNotice')}
       </Alert>
     </div>
   );

@@ -13,14 +13,15 @@ import { getDirectorDashboard } from '@/lib/api/director-client';
 import type { DirectorDashboard } from '@/lib/api/director-types';
 import { listScopedMemberships } from '@/lib/api/membership-client';
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
-
-const PERIODS = [
-  { value: '7', label: 'Last 7 days' },
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-];
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 export default function DirectorPerformancePage() {
+  const { t } = useTranslation();
+  const periods = [
+    { value: '7', label: t('director.last7') },
+    { value: '30', label: t('director.last30') },
+    { value: '90', label: t('director.last90') },
+  ];
   const [days, setDays] = useState('30');
   const [dashboard, setDashboard] = useState<DirectorDashboard | null>(null);
   const [people, setPeople] = useState<Map<string, MembershipSummary>>(new Map());
@@ -43,12 +44,12 @@ export default function DirectorPerformancePage() {
         if (!signal?.aborted)
           setError(
             caught instanceof ApiError && caught.statusCode === 403
-              ? 'You do not hold director reporting authority for this scope.'
-              : 'We could not load team performance.',
+              ? t('director.performanceAuthorityError')
+              : t('director.loadPerformanceError'),
           );
       }
     },
-    [days],
+    [days, t],
   );
 
   useLiveRefresh(load);
@@ -67,13 +68,20 @@ export default function DirectorPerformancePage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Team Performance"
-        subtitle="Comparative execution and conversion · selected period"
-        action={<FilterSelect label="Period" value={days} options={PERIODS} onChange={setDays} />}
+        title={t('director.performanceTitle')}
+        subtitle={t('director.performanceSubtitle')}
+        action={
+          <FilterSelect
+            label={t('director.period')}
+            value={days}
+            options={periods}
+            onChange={setDays}
+          />
+        }
       />
       {error ? <Alert tone="danger">{error}</Alert> : null}
       <Card padding="none" className="overflow-hidden">
-        <CardHeader title="Prospector performance" />
+        <CardHeader title={t('director.prospectorPerformance')} />
         {dashboard === null ? (
           <div className="space-y-2 p-5" aria-busy="true">
             {[0, 1, 2, 3].map((row) => (
@@ -82,20 +90,20 @@ export default function DirectorPerformancePage() {
           </div>
         ) : rows.length === 0 ? (
           <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
-            No prospectors returned in this scope.
+            {t('director.noProspectors')}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse">
               <thead>
                 <tr className="border-b border-line-soft text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
-                  <th className="px-5 py-3">Team / member</th>
-                  <th className="px-3 py-3">Prospects</th>
-                  <th className="px-3 py-3">Actions</th>
-                  <th className="px-3 py-3">Open follow-ups</th>
-                  <th className="px-3 py-3">Overdue</th>
-                  <th className="px-3 py-3">Late completed</th>
-                  <th className="px-5 py-3 text-right">Status</th>
+                  <th className="px-5 py-3">{t('director.teamMember')}</th>
+                  <th className="px-3 py-3">{t('director.prospects')}</th>
+                  <th className="px-3 py-3">{t('director.actions')}</th>
+                  <th className="px-3 py-3">{t('director.openFollowUps')}</th>
+                  <th className="px-3 py-3">{t('director.overdue')}</th>
+                  <th className="px-3 py-3">{t('director.lateCompleted')}</th>
+                  <th className="px-5 py-3 text-right">{t('director.status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-soft">
@@ -117,7 +125,9 @@ export default function DirectorPerformancePage() {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <Badge tone={row.overdueFollowUps > 0 ? 'warning' : 'success'} dot>
-                          {row.overdueFollowUps > 0 ? 'Needs attention' : 'On track'}
+                          {row.overdueFollowUps > 0
+                            ? t('director.needsAttention')
+                            : t('director.onTrack')}
                         </Badge>
                       </td>
                     </tr>
@@ -128,10 +138,8 @@ export default function DirectorPerformancePage() {
           </div>
         )}
       </Card>
-      <Alert tone="info" title="Additional comparison fields are not exposed yet.">
-        The director API currently provides assignments, actions and follow-up workload per
-        prospector. Contacts, opportunities, conversion rate and on-time follow-ups require a
-        team-performance aggregation endpoint before they can be shown accurately.
+      <Alert tone="info" title={t('director.additionalFieldsTitle')}>
+        {t('director.additionalFieldsBody')}
       </Alert>
     </div>
   );
