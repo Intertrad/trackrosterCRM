@@ -19,7 +19,6 @@ import type { Action, DataRecord } from '@/lib/workspace/types';
 
 const definition = WORKSPACE_MODULES.find((module) => module.id === 'organizations')!;
 const PROFILE_FIELDS = [
-  'shortName',
   'name',
   'phone',
   'email',
