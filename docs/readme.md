@@ -40,6 +40,10 @@ Visual references and the connected frontend approach live here:
 - [Application design system](../apps/web/DESIGN.md)
 - [Landing page visual QA](../design-qa.md)
 
+### Notifications
+
+- [Centralized in-app toast notifications](./notifications/TOAST_NOTIFICATIONS.md)
+
 ---
 
 ## Architecture

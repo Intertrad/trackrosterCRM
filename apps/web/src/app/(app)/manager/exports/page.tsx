@@ -35,6 +35,7 @@ import {
   type ExportType,
 } from '@/lib/api/export-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { notify } from '@/lib/notifications/notify';
 
 /* Long enough not to hammer the API, short enough to feel live. */
 const POLL_MS = 4000;
@@ -44,7 +45,6 @@ export default function ExportsPage() {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(
     (signal?: AbortSignal): Promise<void> =>
@@ -123,8 +123,6 @@ export default function ExportsPage() {
       />
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
-
-      {notice ? <Alert tone="success">{notice}</Alert> : null}
 
       <Card>
         <CardHeader
@@ -230,7 +228,9 @@ export default function ExportsPage() {
         onClose={() => setCreating(false)}
         onCreated={() => {
           setCreating(false);
-          setNotice('Export queued. It will appear below as it is produced.');
+          notify.success('Export queued. It will appear below as it is produced.', {
+            id: 'export-queued',
+          });
           void load();
         }}
       />

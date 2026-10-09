@@ -26,6 +26,7 @@ import { clearChallenges } from '@/lib/auth/auth-challenge';
 import { useAuth } from '@/lib/auth/auth-context';
 import { getInitials } from '@/lib/ui/initials';
 import { LOCALE_OPTIONS, TIMEZONE_OPTIONS, withCurrentValue } from '@/lib/ui/locales';
+import { notify } from '@/lib/notifications/notify';
 import {
   getRoleLabel,
   getRolePermissionSummary,
@@ -137,6 +138,7 @@ export function ProfileTab() {
 
       applyProfile(result.resource, result.etag);
       setSave({ kind: 'saved' });
+      notify.success('Your changes were saved.', { id: 'profile-saved' });
 
       /* The shell shows the display name, so refresh the session context. */
       await refreshSession();
@@ -160,6 +162,7 @@ export function ProfileTab() {
 
           applyProfile(result.resource, result.etag);
           setSave({ kind: 'saved' });
+          notify.success('Your changes were saved.', { id: 'profile-saved' });
           await refreshSession();
 
           return;
@@ -216,6 +219,7 @@ export function ProfileTab() {
 
       await refreshSession();
       router.refresh();
+      notify.success('Workspace switched.', { id: 'workspace-switched' });
     } catch {
       setSave({ kind: 'error', message: 'We could not switch workspace. Please try again.' });
     } finally {
@@ -319,8 +323,6 @@ export function ProfileTab() {
           ) : null}
 
           {save.kind === 'error' ? <Alert tone="danger">{save.message}</Alert> : null}
-
-          {save.kind === 'saved' ? <Alert tone="success">Your changes were saved.</Alert> : null}
 
           <Button type="submit" fullWidth loading={save.kind === 'saving'} disabled={!dirty}>
             Save changes

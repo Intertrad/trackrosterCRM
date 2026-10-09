@@ -11,13 +11,13 @@ import { SelectField } from '@/components/ui/select-field';
 import { ApiError } from '@/lib/api/api-error';
 import { getAccountPreferences, updateAccountPreferences } from '@/lib/api/account-client';
 import type { AccountPreferences } from '@/lib/api/account-types';
+import { notify } from '@/lib/notifications/notify';
 
 export function PreferencesTab() {
   const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
   const [etag, setEtag] = useState<string | null>(null);
   const [draft, setDraft] = useState<AccountPreferences | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -50,7 +50,6 @@ export function PreferencesTab() {
     }
 
     setSaving(true);
-    setSaved(false);
     setError(null);
 
     try {
@@ -59,7 +58,7 @@ export function PreferencesTab() {
       setPreferences(result.resource);
       setDraft(result.resource);
       setEtag(result.etag);
-      setSaved(true);
+      notify.success('Your preferences were saved.', { id: 'account-preferences-saved' });
       window.dispatchEvent(new Event('trackroster:preferences-changed'));
     } catch (caught) {
       setError(
@@ -150,8 +149,6 @@ export function PreferencesTab() {
             </div>
 
             {error ? <Alert tone="danger">{error}</Alert> : null}
-
-            {saved ? <Alert tone="success">Your preferences were saved.</Alert> : null}
 
             <Button fullWidth loading={saving} disabled={!dirty} onClick={() => void handleSave()}>
               Save preferences

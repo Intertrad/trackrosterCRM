@@ -219,6 +219,32 @@ html[data-theme='dark'] textarea::placeholder {
   color: var(--color-ink-muted);
   opacity: 1;
 }
+
+/* Sonner uses its own surface defaults. Keep the shared toast host aligned
+   with TrackRoster tokens in both themes and give long messages room to wrap. */
+.trackroster-toaster [data-sonner-toast] {
+  max-width: min(420px, calc(100vw - 24px));
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-raised);
+  font-family: var(--font-sans);
+}
+
+.trackroster-toaster [data-sonner-toast] [data-title] {
+  font-weight: 700;
+}
+
+.trackroster-toaster [data-sonner-toast] [data-description] {
+  color: var(--color-ink-soft);
+}
+
+@media (max-width: 640px) {
+  .trackroster-toaster [data-sonner-toast] {
+    width: 100%;
+  }
+}
 html[data-theme='dark'] button:focus-visible,
 html[data-theme='dark'] a:focus-visible,
 html[data-theme='dark'] input:focus-visible,
