@@ -112,35 +112,33 @@ export class SearchService {
     if (q.length < 2)
       throw new BadRequestException('Search query must contain at least 2 characters');
     const pattern = `%${q}%`;
-    const [prospects, organizationsCount, campaignsCount] = await Promise.all([
-      this.db
-        .select({ value: count() })
-        .from(establishments)
-        .where(
-          and(
-            eq(establishments.tenantId, auth.tenantId),
-            or(ilike(establishments.name, pattern), ilike(establishments.city, pattern)),
-          ),
+    const prospects = await this.db
+      .select({ value: count() })
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, auth.tenantId),
+          or(ilike(establishments.name, pattern), ilike(establishments.city, pattern)),
         ),
-      this.db
-        .select({ value: count() })
-        .from(organizations)
-        .where(
-          and(
-            eq(organizations.tenantId, auth.tenantId),
-            or(ilike(organizations.name, pattern), ilike(organizations.slug, pattern)),
-          ),
+      );
+    const organizationsCount = await this.db
+      .select({ value: count() })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.tenantId, auth.tenantId),
+          or(ilike(organizations.name, pattern), ilike(organizations.slug, pattern)),
         ),
-      this.db
-        .select({ value: count() })
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.tenantId, auth.tenantId),
-            or(ilike(campaigns.name, pattern), ilike(campaigns.description, pattern)),
-          ),
+      );
+    const campaignsCount = await this.db
+      .select({ value: count() })
+      .from(campaigns)
+      .where(
+        and(
+          eq(campaigns.tenantId, auth.tenantId),
+          or(ilike(campaigns.name, pattern), ilike(campaigns.description, pattern)),
         ),
-    ]);
+      );
     return {
       query: q,
       facets: [

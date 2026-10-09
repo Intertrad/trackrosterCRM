@@ -102,9 +102,10 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
     this.timer = setInterval(() => {
       if (!this.running)
         this.running = this.dispatchPending()
-          .catch(() => {
+          .catch((error: unknown) => {
             // Do not log message bodies, email addresses, reset URLs, or driver parameters.
-            this.logger.warn('Account email dispatch temporarily unavailable');
+            const reason = error instanceof Error ? error.name : 'UnknownError';
+            this.logger.warn(`Account email dispatch temporarily unavailable reason=${reason}`);
           })
           .finally(() => {
             this.running = undefined;
@@ -119,7 +120,71 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
 
   async dispatchPending(): Promise<void> {
     const settings = this.settings();
-    await this.db.transaction(async (tx) => {
+    const message = await this.claimPending();
+    if (!message?.encryptedPayload) return;
+
+    const useLocalMailbox = Boolean(settings.endpoint);
+    const provider = useLocalMailbox ? 'mailpit' : 'brevo';
+    try {
+      const payload = JSON.parse(
+        openSecret(message.encryptedPayload, settings.key, `mail:${message.id}`).toString(),
+      ) as MailMessage;
+
+      /*
+       * The local mailbox wins when it is configured. The provider request is
+       * deliberately outside the database transaction so a slow provider
+       * cannot pin a PostgreSQL client for its entire timeout.
+       */
+      const response = await fetch(
+        useLocalMailbox
+          ? `${settings.endpoint}/api/v1/send`
+          : 'https://api.brevo.com/v3/smtp/email',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(useLocalMailbox || !settings.brevoKey ? {} : { 'api-key': settings.brevoKey }),
+          },
+          signal: AbortSignal.timeout(5000),
+          body: JSON.stringify({
+            ...(useLocalMailbox
+              ? { From: { Email: 'accounts@trackroster.test', Name: 'TrackRoster' } }
+              : {
+                  sender: {
+                    email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
+                    name: 'TrackRoster',
+                  },
+                }),
+            ...(useLocalMailbox
+              ? {
+                  To: [{ Email: payload.to }],
+                  Subject: payload.subject,
+                  Text: payload.text,
+                  ...(payload.html ? { HTML: payload.html } : {}),
+                }
+              : {
+                  to: [{ email: payload.to }],
+                  subject: payload.subject,
+                  textContent: payload.text,
+                  ...(payload.html ? { htmlContent: payload.html } : {}),
+                }),
+          }),
+        },
+      );
+      if (!response.ok) throw new Error(`${provider} responded HTTP ${response.status}`);
+      await this.markDelivered(message.id, message.attempts + 1);
+    } catch (error) {
+      const failed = message.attempts >= 7;
+      await this.markFailed(message.id, message.attempts + 1, failed);
+      const reason = error instanceof Error ? error.message : 'unknown delivery error';
+      this.logger.warn(
+        `Account email delivery failed provider=${provider} messageId=${message.id} attempt=${message.attempts + 1} reason=${reason}`,
+      );
+    }
+  }
+
+  private async claimPending() {
+    return this.db.transaction(async (tx) => {
       await tx
         .update(authMailOutbox)
         .set({ encryptedPayload: null, failedAt: sql`clock_timestamp()` })
@@ -144,87 +209,46 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
         .orderBy(authMailOutbox.nextAttemptAt)
         .limit(1)
         .for('update', { skipLocked: true });
-      if (!message?.encryptedPayload) return;
-      try {
-        const payload = JSON.parse(
-          openSecret(message.encryptedPayload, settings.key, `mail:${message.id}`).toString(),
-        ) as MailMessage;
-
-        /*
-         * The local mailbox wins when it is configured.
-         *
-         * settings() already refuses any endpoint that is not loopback, so a
-         * MAILPIT_URL can only mean a development machine — and on a machine
-         * that also carries a Brevo key, preferring the provider meant every
-         * invitation and password reset went to real addresses over the
-         * public internet, while the mailbox the developer was watching
-         * stayed empty. Of 45 queued messages here, none had ever been
-         * delivered locally.
-         */
-        const useLocalMailbox = Boolean(settings.endpoint);
-
-        const response = await fetch(
-          useLocalMailbox
-            ? `${settings.endpoint}/api/v1/send`
-            : 'https://api.brevo.com/v3/smtp/email',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(useLocalMailbox || !settings.brevoKey ? {} : { 'api-key': settings.brevoKey }),
-            },
-            signal: AbortSignal.timeout(5000),
-            body: JSON.stringify({
-              /*
-               * The two APIs disagree on the sender field: Mailpit wants
-               * `From`, Brevo wants `sender`. Sending Brevo's spelling to the
-               * local mailbox had it reject every message, which is why all
-               * 50 queued rows showed attempts and none showed a delivery.
-               */
-              ...(useLocalMailbox
-                ? { From: { Email: 'accounts@trackroster.test', Name: 'TrackRoster' } }
-                : {
-                    sender: {
-                      email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
-                      name: 'TrackRoster',
-                    },
-                  }),
-              ...(useLocalMailbox
-                ? {
-                    To: [{ Email: payload.to }],
-                    Subject: payload.subject,
-                    Text: payload.text,
-                    ...(payload.html ? { HTML: payload.html } : {}),
-                  }
-                : {
-                    to: [{ email: payload.to }],
-                    subject: payload.subject,
-                    textContent: payload.text,
-                    ...(payload.html ? { htmlContent: payload.html } : {}),
-                  }),
-            }),
-          },
-        );
-        if (!response.ok) throw new Error('Mailbox rejected delivery');
-        await tx
-          .update(authMailOutbox)
-          .set({
-            deliveredAt: sql`clock_timestamp()`,
-            encryptedPayload: null,
-            attempts: message.attempts + 1,
-          })
-          .where(eq(authMailOutbox.id, message.id));
-      } catch {
-        const failed = message.attempts >= 7;
-        await tx
-          .update(authMailOutbox)
-          .set({
-            attempts: message.attempts + 1,
-            nextAttemptAt: sql`clock_timestamp() + interval '1 minute' * ${Math.min(16, 2 ** message.attempts)}`,
-            ...(failed ? { failedAt: sql`clock_timestamp()`, encryptedPayload: null } : {}),
-          })
-          .where(eq(authMailOutbox.id, message.id));
-      }
+      if (!message?.encryptedPayload) return null;
+      await tx
+        .update(authMailOutbox)
+        .set({ nextAttemptAt: sql`clock_timestamp() + interval '5 minutes'` })
+        .where(eq(authMailOutbox.id, message.id));
+      return message;
     });
+  }
+
+  private async markDelivered(id: string, attempts: number) {
+    await this.db.transaction((tx) =>
+      tx
+        .update(authMailOutbox)
+        .set({ deliveredAt: sql`clock_timestamp()`, encryptedPayload: null, attempts })
+        .where(
+          and(
+            eq(authMailOutbox.id, id),
+            isNull(authMailOutbox.deliveredAt),
+            isNull(authMailOutbox.failedAt),
+          ),
+        ),
+    );
+  }
+
+  private async markFailed(id: string, attempts: number, terminal: boolean) {
+    await this.db.transaction((tx) =>
+      tx
+        .update(authMailOutbox)
+        .set({
+          attempts,
+          nextAttemptAt: sql`clock_timestamp() + interval '1 minute' * ${Math.min(16, 2 ** (attempts - 1))}`,
+          ...(terminal ? { failedAt: sql`clock_timestamp()`, encryptedPayload: null } : {}),
+        })
+        .where(
+          and(
+            eq(authMailOutbox.id, id),
+            isNull(authMailOutbox.deliveredAt),
+            isNull(authMailOutbox.failedAt),
+          ),
+        ),
+    );
   }
 }

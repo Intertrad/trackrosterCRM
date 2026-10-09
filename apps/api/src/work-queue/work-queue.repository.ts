@@ -326,27 +326,19 @@ export class WorkQueueRepository {
        */
       .limit(input.limit + 1);
 
-    const [latestActivities, nextFollowUps] = await Promise.all([
-      this.findLatestActivities(
-        input.tenantId,
-
-        rows.map((row) => row.campaignProspectId),
-      ),
-
-      this.findNextFollowUps(
-        input.tenantId,
-
-        input.userId,
-
-        rows.map((row) => ({
-          campaignId: row.campaign.id,
-
-          campaignProspectId: row.campaignProspectId,
-
-          assignmentId: row.assignment.id,
-        })),
-      ),
-    ]);
+    const latestActivities = await this.findLatestActivities(
+      input.tenantId,
+      rows.map((row) => row.campaignProspectId),
+    );
+    const nextFollowUps = await this.findNextFollowUps(
+      input.tenantId,
+      input.userId,
+      rows.map((row) => ({
+        campaignId: row.campaign.id,
+        campaignProspectId: row.campaignProspectId,
+        assignmentId: row.assignment.id,
+      })),
+    );
 
     return rows.map((row) => ({
       ...row,

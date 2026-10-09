@@ -181,15 +181,13 @@ export class ManagerDashboardScopeService {
   private async loadFilters(
     input: ResolveManagerDashboardScopeInput,
   ): Promise<LoadedReportingFilters> {
-    const [organization, team, campaign, user] = await Promise.all([
-      this.loadOrganization(input.tenantId, input.filters.organizationId),
-
-      this.loadTeam(input.tenantId, input.filters.teamId),
-
-      this.loadCampaign(input.tenantId, input.filters.campaignId),
-
-      this.loadUser(input.tenantId, input.filters.userId),
-    ]);
+    // These repositories can resolve to the request transaction executor.
+    // Keep them sequential so one PostgreSQL client never executes concurrent
+    // queries when RLS scope is active.
+    const organization = await this.loadOrganization(input.tenantId, input.filters.organizationId);
+    const team = await this.loadTeam(input.tenantId, input.filters.teamId);
+    const campaign = await this.loadCampaign(input.tenantId, input.filters.campaignId);
+    const user = await this.loadUser(input.tenantId, input.filters.userId);
 
     return {
       organization,

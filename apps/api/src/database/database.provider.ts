@@ -1,4 +1,4 @@
-import { Provider } from '@nestjs/common';
+import { Logger, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
@@ -58,7 +58,24 @@ export const databaseProviders: Provider[] = [
       const pool = new Pool({
         connectionString: poolConnectionString,
         ...(ssl ? { ssl } : {}),
-        connectionTimeoutMillis: 3000,
+        max: boundedPoolSetting(configService.get<string>('API_DATABASE_POOL_MAX'), 8, 1, 15),
+        idleTimeoutMillis: boundedPoolSetting(
+          configService.get<string>('DATABASE_IDLE_TIMEOUT_MS'),
+          30_000,
+          1_000,
+          300_000,
+        ),
+        connectionTimeoutMillis: boundedPoolSetting(
+          configService.get<string>('DATABASE_CONNECTION_TIMEOUT_MS'),
+          3_000,
+          250,
+          30_000,
+        ),
+      });
+
+      const logger = new Logger('DatabasePool');
+      pool.on('error', (error) => {
+        logger.error(`PostgreSQL pool error: ${error.message}`);
       });
 
       await pool.query('SELECT 1');
@@ -87,3 +104,17 @@ export const databaseProviders: Provider[] = [
     },
   },
 ];
+
+function boundedPoolSetting(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`Database pool setting must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}

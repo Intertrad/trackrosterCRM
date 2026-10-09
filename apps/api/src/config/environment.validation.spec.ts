@@ -35,6 +35,32 @@ describe('validateEnvironment', () => {
     ).not.toThrow();
   });
 
+  it('accepts bounded database pool settings', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        API_DATABASE_POOL_MAX: '8',
+        DATABASE_CONNECTION_TIMEOUT_MS: '3000',
+        DATABASE_IDLE_TIMEOUT_MS: '30000',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects database pool settings outside their safe bounds', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        API_DATABASE_POOL_MAX: '16',
+      }),
+    ).toThrow('API_DATABASE_POOL_MAX');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        DATABASE_CONNECTION_TIMEOUT_MS: '100',
+      }),
+    ).toThrow('DATABASE_CONNECTION_TIMEOUT_MS');
+  });
+
   it('rejects a missing access secret', () => {
     expect(() =>
       validateEnvironment({

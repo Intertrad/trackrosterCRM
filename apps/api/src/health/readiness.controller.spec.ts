@@ -8,7 +8,7 @@ describe('Dependency readiness', () => {
     ping = vi.fn().mockResolvedValue('PONG'),
   ) {
     return new ReadinessController(
-      { query } as never,
+      { query, totalCount: 1, idleCount: 1, waitingCount: 0 } as never,
       { ping } as never,
       { get: vi.fn().mockReturnValue(undefined) } as never,
       { configured: vi.fn().mockReturnValue(false) } as never,
@@ -19,6 +19,12 @@ describe('Dependency readiness', () => {
       status: 'ready',
       dependencies: {
         postgres: 'up',
+        postgresPool: {
+          total: 1,
+          idle: 1,
+          waiting: 0,
+          max: 8,
+        },
         redis: 'up',
         optional: {
           objectStorage: 'unconfigured',

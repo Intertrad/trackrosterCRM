@@ -56,6 +56,21 @@ function validatePositiveInteger(config: Record<string, unknown>, key: string): 
   }
 }
 
+function validateOptionalBoundedInteger(
+  config: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+): void {
+  if (config[key] === undefined) return;
+  const value = Number(config[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
 
@@ -75,6 +90,9 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateJwtTtl(config, 'JWT_REFRESH_TTL');
 
   validatePositiveInteger(config, 'PROSPECT_COOLING_OFF_MINUTES');
+  validateOptionalBoundedInteger(config, 'API_DATABASE_POOL_MAX', 1, 15);
+  validateOptionalBoundedInteger(config, 'DATABASE_CONNECTION_TIMEOUT_MS', 250, 30_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
   for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
     if (config[key] !== undefined) validatePositiveInteger(config, key);
   }

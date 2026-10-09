@@ -32,11 +32,20 @@ export class ReadinessController {
     ]);
     const dependencies = {
       postgres: results[0]!.status === 'fulfilled' ? 'up' : 'down',
+      postgresPool: {
+        total: this.pool.totalCount,
+        idle: this.pool.idleCount,
+        waiting: this.pool.waitingCount,
+        max: Number(this.config.get<string>('API_DATABASE_POOL_MAX') ?? 8),
+      },
       redis: results[1]!.status === 'fulfilled' ? 'up' : 'down',
       optional: {
         objectStorage: this.storage.configured() ? 'configured' : 'unconfigured',
         email:
-          this.config.get<string>('BREVO_API_KEY') && this.config.get<string>('BREVO_SENDER_EMAIL')
+          (this.config.get<string>('MAILPIT_URL') &&
+            this.config.get('NODE_ENV') !== 'production') ||
+          (this.config.get<string>('BREVO_API_KEY') &&
+            this.config.get<string>('BREVO_SENDER_EMAIL'))
             ? 'configured'
             : 'unconfigured',
         maps: this.config.get<string>('NEXT_PUBLIC_PMTILES_URL') ? 'configured' : 'unconfigured',

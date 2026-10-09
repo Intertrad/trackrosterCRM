@@ -24,10 +24,28 @@ function validateRedisUrl(config: Record<string, unknown>): void {
   }
 }
 
+function validateOptionalBoundedInteger(
+  config: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+): void {
+  if (config[key] === undefined) return;
+  const value = Number(config[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+}
+
 export function validateWorkerEnvironment(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
   validateRedisUrl(config);
+  validateOptionalBoundedInteger(config, 'WORKER_DATABASE_POOL_MAX', 1, 15);
+  validateOptionalBoundedInteger(config, 'DATABASE_CONNECTION_TIMEOUT_MS', 250, 30_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
 
   const shutdownTimeout = config['WORKER_SHUTDOWN_TIMEOUT_MS'];
 

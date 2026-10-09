@@ -432,62 +432,61 @@ export class CollisionWorkflowService {
   async requestDetail(auth: AuthenticatedPrincipal, id: string) {
     const row = await this.requestRow(auth, id);
     const event = await this.event(auth, row.collisionId);
-    const [[approval], [prospect], [campaign], [requester], [detector], [decider]] =
-      await Promise.all([
-        row.overrideId
-          ? this.db
-              .select({ id: collisionOverrides.id, expiresAt: collisionOverrides.expiresAt })
-              .from(collisionOverrides)
-              .where(
-                and(
-                  eq(collisionOverrides.tenantId, auth.tenantId),
-                  eq(collisionOverrides.id, row.overrideId),
-                ),
-              )
-          : Promise.resolve([]),
-        this.db
-          .select({ id: establishments.id, name: establishments.name })
-          .from(establishments)
+    // This endpoint runs inside the tenant transaction interceptor. Each
+    // lookup therefore has to finish before the next one starts.
+    const [approval] = row.overrideId
+      ? await this.db
+          .select({ id: collisionOverrides.id, expiresAt: collisionOverrides.expiresAt })
+          .from(collisionOverrides)
           .where(
             and(
-              eq(establishments.tenantId, auth.tenantId),
-              eq(establishments.id, event.establishmentId),
+              eq(collisionOverrides.tenantId, auth.tenantId),
+              eq(collisionOverrides.id, row.overrideId),
             ),
-          ),
-        this.db
-          .select({ id: campaigns.id, name: campaigns.name })
-          .from(campaigns)
-          .where(and(eq(campaigns.tenantId, auth.tenantId), eq(campaigns.id, event.campaignId))),
-        this.db
+          )
+      : [];
+    const [prospect] = await this.db
+      .select({ id: establishments.id, name: establishments.name })
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, auth.tenantId),
+          eq(establishments.id, event.establishmentId),
+        ),
+      );
+    const [campaign] = await this.db
+      .select({ id: campaigns.id, name: campaigns.name })
+      .from(campaigns)
+      .where(and(eq(campaigns.tenantId, auth.tenantId), eq(campaigns.id, event.campaignId)));
+    const [requester] = await this.db
+      .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
+      .from(tenantMemberships)
+      .where(
+        and(
+          eq(tenantMemberships.tenantId, auth.tenantId),
+          eq(tenantMemberships.id, row.requestedBy),
+        ),
+      );
+    const [detector] = await this.db
+      .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
+      .from(tenantMemberships)
+      .where(
+        and(
+          eq(tenantMemberships.tenantId, auth.tenantId),
+          eq(tenantMemberships.id, event.detectedBy),
+        ),
+      );
+    const [decider] = row.decidedBy
+      ? await this.db
           .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
           .from(tenantMemberships)
           .where(
             and(
               eq(tenantMemberships.tenantId, auth.tenantId),
-              eq(tenantMemberships.id, row.requestedBy),
+              eq(tenantMemberships.id, row.decidedBy),
             ),
-          ),
-        this.db
-          .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
-          .from(tenantMemberships)
-          .where(
-            and(
-              eq(tenantMemberships.tenantId, auth.tenantId),
-              eq(tenantMemberships.id, event.detectedBy),
-            ),
-          ),
-        row.decidedBy
-          ? this.db
-              .select({ id: tenantMemberships.id, displayName: tenantMemberships.displayName })
-              .from(tenantMemberships)
-              .where(
-                and(
-                  eq(tenantMemberships.tenantId, auth.tenantId),
-                  eq(tenantMemberships.id, row.decidedBy),
-                ),
-              )
-          : Promise.resolve([]),
-      ]);
+          )
+      : [];
     return {
       ...row,
       etag: resourceETag(row),
