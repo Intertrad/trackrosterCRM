@@ -55,7 +55,21 @@ export function Button({
       )}
       {...rest}
     >
-      {loading ? <Loader2 aria-hidden="true" className="size-[18px] animate-spin" /> : leadingIcon}
+      {/*
+       * Keep the icon slot mounted while a request starts and finishes. A
+       * conditional icon directly before the label can be reconciled against
+       * DOM nodes that browser extensions decorate, which was enough to throw
+       * an insertBefore error while saving a company in development.
+       */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          'inline-flex size-[18px] shrink-0 items-center justify-center',
+          !loading && !leadingIcon && 'hidden',
+        )}
+      >
+        {loading ? <Loader2 className="size-[18px] animate-spin" /> : leadingIcon}
+      </span>
 
       {children}
     </button>

@@ -131,6 +131,10 @@ export function ActionEditor({
 
   function bodyFor(nextValues: DataRecord, baseline: DataRecord) {
     const body = serializeFields(operation.fields, nextValues);
+    // Slugs are an internal organization key. Creation owns generation on the
+    // server so a name-only form submission remains valid and duplicate names
+    // can receive a deterministic suffix without exposing another field.
+    if (isOrganizationAction && operation.method === 'POST') delete body.slug;
     if (operation.method === 'PATCH')
       for (const field of operation.fields) {
         if (

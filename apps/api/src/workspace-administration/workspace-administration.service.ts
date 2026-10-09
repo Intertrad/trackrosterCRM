@@ -37,6 +37,19 @@ import {
   UpdateTenantDto,
 } from './workspace.dto.js';
 
+export function organizationSlugFromName(value: string): string {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 100) || 'organization'
+  );
+}
+
 @Injectable()
 export class WorkspaceAdministrationService {
   constructor(
@@ -147,11 +160,24 @@ export class WorkspaceAdministrationService {
   async createOrganization(auth: AuthenticatedPrincipal, input: CreateOrganizationDto) {
     await this.requireAdmin(auth);
     return this.mutate(async (transaction) => {
+      const baseSlug = organizationSlugFromName(input.slug ?? input.name);
+      let slug = baseSlug;
+      for (let suffix = 2; ; suffix += 1) {
+        const [existing] = await transaction
+          .select({ id: organizations.id })
+          .from(organizations)
+          .where(and(eq(organizations.tenantId, auth.tenantId), eq(organizations.slug, slug)))
+          .limit(1);
+        if (!existing) break;
+        const suffixText = `-${suffix}`;
+        slug = `${baseSlug.slice(0, 100 - suffixText.length)}${suffixText}`;
+      }
+      const createInput = { ...input, slug };
       const [row] = await transaction
         .insert(organizations)
-        .values({ tenantId: auth.tenantId, ...input })
+        .values({ tenantId: auth.tenantId, ...createInput })
         .returning();
-      await this.record(auth, 'organization', row!.id, 'created', input, transaction);
+      await this.record(auth, 'organization', row!.id, 'created', createInput, transaction);
       return this.organization(auth, row!.id, transaction);
     });
   }
