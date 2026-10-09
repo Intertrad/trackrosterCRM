@@ -160,6 +160,22 @@ export function AppShell({ children }: { children: ReactNode }) {
     return <ShellSkeleton />;
   }
 
+  if (!activeWorkspace && user.platformAdmin !== true) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center bg-canvas px-6">
+        <div className="w-full max-w-md rounded-xl border border-line bg-surface p-6 shadow-card">
+          <Alert tone="danger" title={t('common.noWorkspaceAccess')}>
+            {t('common.noWorkspaceAccessHint')}
+          </Alert>
+
+          <Button fullWidth className="mt-5" onClick={() => void refreshSession()}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
   const mode = activeWorkspace?.mode ?? 'prospector';
   const platformView =
     user.platformAdmin === true && (!activeWorkspace || pathname.startsWith('/platform'));

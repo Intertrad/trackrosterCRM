@@ -12,6 +12,8 @@ import { browserJson } from '@/lib/api/browser-json';
 import { challengeRoute, clearChallenges, storeChallenge } from '@/lib/auth/auth-challenge';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useTranslation } from '@/lib/i18n/i18n-context';
+import { getRoleHome } from '@/lib/auth/navigation';
+import { getWorkspaceModeLabelKey, type WorkspaceOption } from '@/lib/auth/workspace';
 import { cn } from '@/lib/ui/cn';
 import { getInitials } from '@/lib/ui/initials';
 
@@ -35,7 +37,13 @@ export function ProfileMenu({
   placement?: 'up' | 'down';
 }) {
   const router = useRouter();
-  const { refreshSession } = useAuth();
+  const {
+    refreshSession,
+    availableWorkspaces = [],
+    activeWorkspace,
+    selectWorkspace,
+    user,
+  } = useAuth();
   const { t } = useTranslation();
 
   const [open, setOpen] = useState(false);
@@ -167,6 +175,17 @@ export function ProfileMenu({
     }
   }
 
+  function switchRoleWorkspace(workspace: WorkspaceOption): void {
+    if (workspace.key === activeWorkspace?.key || !selectWorkspace(workspace.key)) {
+      return;
+    }
+
+    setOpen(false);
+    setWorkspacePickerOpen(false);
+    router.replace(getRoleHome(workspace.mode, user?.platformAdmin));
+    router.refresh();
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -236,6 +255,51 @@ export function ProfileMenu({
             <Settings aria-hidden="true" className="size-[18px] text-ink-muted" />
             {t('account.settings')}
           </Link>
+
+          {availableWorkspaces.length > 1 ? (
+            <div className="border-b border-line-soft px-2 py-2">
+              <p className="px-2 pb-1 text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+                {t('account.workspaceRole')}
+              </p>
+
+              <ul aria-label={t('common.availableRoles')}>
+                {availableWorkspaces.map((workspace) => {
+                  const current = workspace.key === activeWorkspace?.key;
+
+                  return (
+                    <li key={workspace.key}>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => switchRoleWorkspace(workspace)}
+                        disabled={current}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-surface-muted disabled:cursor-default disabled:opacity-60"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13px] font-semibold text-navy">
+                            {t(getWorkspaceModeLabelKey(workspace.mode))}
+                          </span>
+                          <span className="block truncate text-[11px] text-ink-muted">
+                            {workspace.scopeType === 'organization'
+                              ? t('nav.organizationScope')
+                              : workspace.scopeType === 'team'
+                                ? t('nav.teamScope')
+                                : t('nav.workspaceScope')}
+                          </span>
+                        </span>
+
+                        {current ? (
+                          <span className="shrink-0 text-[11px] font-semibold text-success">
+                            {t('common.current')}
+                          </span>
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           {workspacePickerOpen ? (
             <div className="border-b border-line-soft">

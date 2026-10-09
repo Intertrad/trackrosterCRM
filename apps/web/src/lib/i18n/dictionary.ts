@@ -91,6 +91,7 @@ export const DICTIONARY = {
   /* ---------- account menu ---------- */
   'account.settings': { en: 'Account settings', fr: 'Paramètres du compte' },
   'account.switchWorkspace': { en: 'Switch workspace', fr: "Changer d'espace de travail" },
+  'account.workspaceRole': { en: 'Workspace role', fr: 'Rôle de l’espace de travail' },
   'account.signOut': { en: 'Sign out', fr: 'Déconnexion' },
   'account.signingOut': { en: 'Signing out…', fr: 'Déconnexion…' },
   'account.language': { en: 'Language', fr: 'Langue' },
@@ -121,6 +122,7 @@ export const DICTIONARY = {
     en: 'Available workspaces',
     fr: 'Espaces de travail disponibles',
   },
+  'common.availableRoles': { en: 'Available workspace roles', fr: 'Rôles disponibles' },
   'common.loadingWorkspace': {
     en: 'Loading your workspace…',
     fr: 'Chargement de votre espace de travail…',
@@ -134,6 +136,14 @@ export const DICTIONARY = {
   'common.noActiveWorkspaces': {
     en: 'No active workspaces are available.',
     fr: 'Aucun espace de travail actif n’est disponible.',
+  },
+  'common.noWorkspaceAccess': {
+    en: 'No workspace access',
+    fr: 'Aucun accès à un espace de travail',
+  },
+  'common.noWorkspaceAccessHint': {
+    en: 'Your account is signed in, but it has no active role grant. Ask an administrator to restore access.',
+    fr: 'Votre compte est connecté, mais aucun rôle actif ne lui est attribué. Demandez à un administrateur de rétablir votre accès.',
   },
   'common.notificationsUnread': {
     en: 'Notifications, {count} unread',
