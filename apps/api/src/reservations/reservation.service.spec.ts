@@ -14,6 +14,7 @@ import { ReservationCoordinationScopeService } from '../coordination/reservation
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
+import { ReservationCollisionPipelineService } from './reservation-collision-pipeline.service.js';
 import { ReservationClaimConflictError } from './reservation-ledger.service.js';
 import { ReservationLedgerService } from './reservation-ledger.service.js';
 import { ReservationRepository } from './reservation.repository.js';
@@ -360,6 +361,11 @@ describe('ReservationService', () => {
       reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
 
       reservationExpirySchedulerService as unknown as ReservationExpirySchedulerService,
+      new ReservationCollisionPipelineService(
+        reservationRepository as unknown as ReservationRepository,
+        reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
+        collisionBusinessDecisionService as unknown as CollisionBusinessDecisionService,
+      ),
       undefined,
       reservationLedgerService as unknown as ReservationLedgerService,
     );

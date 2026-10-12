@@ -17,6 +17,7 @@ import { TeamModule } from '../teams/team.module.js';
 import { UserModule } from '../users/user.module.js';
 
 import { ReservationController } from './reservation.controller.js';
+import { ReservationCollisionPipelineService } from './reservation-collision-pipeline.service.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
 import { ReservationService } from './reservation.service.js';
@@ -66,6 +67,7 @@ import { ReservationService } from './reservation.service.js';
 
   providers: [
     ReservationHistoryInterceptor,
+    ReservationCollisionPipelineService,
     ReservationLedgerService,
     ReservationRepository,
     ReservationExpirySchedulerService,
@@ -74,6 +76,7 @@ import { ReservationService } from './reservation.service.js';
 
   exports: [
     ReservationRepository,
+    ReservationCollisionPipelineService,
     ReservationService,
     ReservationLedgerService,
     ReservationExpirySchedulerService,

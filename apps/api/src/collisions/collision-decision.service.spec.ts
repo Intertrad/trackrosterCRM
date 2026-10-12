@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
 import { ReservationRepository } from '../reservations/reservation.repository.js';
+import { ReservationCollisionPipelineService } from '../reservations/reservation-collision-pipeline.service.js';
 import { ReservationService } from '../reservations/reservation.service.js';
 import type { ProspectReservation } from '../reservations/reservation.types.js';
 import { CollisionBusinessDecisionService } from './collision-business-decision.service.js';
@@ -144,13 +145,12 @@ describe('CollisionDecisionService', () => {
     };
 
     service = new CollisionDecisionService(
-      reservationRepository as unknown as ReservationRepository,
-
       reservationService as unknown as ReservationService,
-
-      reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
-
-      collisionBusinessDecisionService as unknown as CollisionBusinessDecisionService,
+      new ReservationCollisionPipelineService(
+        reservationRepository as unknown as ReservationRepository,
+        reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
+        collisionBusinessDecisionService as unknown as CollisionBusinessDecisionService,
+      ),
     );
   });
 

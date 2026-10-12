@@ -32,6 +32,7 @@ import type { CampaignProspectAssignment } from '../database/schema/campaign-pro
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
+import { ReservationCollisionPipelineService } from './reservation-collision-pipeline.service.js';
 import { ReservationRepository } from './reservation.repository.js';
 import { currentTenantExecutor } from '../database/request-tenant-executor.js';
 
@@ -122,6 +123,7 @@ export class ReservationService {
     private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
 
     private readonly reservationExpirySchedulerService: ReservationExpirySchedulerService,
+    private readonly reservationCollisionPipelineService: ReservationCollisionPipelineService,
     private readonly rules?: ReservationPolicyService,
     private readonly ledger?: ReservationLedgerService,
   ) {}
@@ -157,135 +159,26 @@ export class ReservationService {
     const rule = await this.rules?.resolve(input.tenantId, input.campaignId);
     const ttlSeconds = (rule?.durationMinutes ?? 20) * 60;
 
-    /*
-     * Priority 1A:
-     * Exact campaign-prospect reservation.
-     *
-     * This remains ahead of every collision rule so
-     * an idempotent retry by the existing owner can
-     * return the already-acquired reservation.
-     */
-    let currentExact: ProspectReservation | null;
-
-    try {
-      currentExact = await this.reservationRepository.findCurrent(
-        input.tenantId,
-        input.campaignId,
-        input.campaignProspectId,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (currentExact) {
-      if (this.isIdempotentReservation(currentExact, input, assignment.id)) {
-        await this.scheduleExpiryBestEffort(currentExact);
-
-        return currentExact;
-      }
-
-      /*
-       * Manager overrides NEVER bypass an already
-       * active reservation owned by another request.
-       */
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Determine which organizations participate in
-     * reservation mutual exclusion.
-     *
-     * SAME / SHARED / COORDINATED / DELAYED
-     * are included.
-     *
-     * INDEPENDENT is excluded.
-     */
-    let blockingOrganizationIds: string[];
-
-    try {
-      const scope = await this.reservationCoordinationScopeService.resolve(
-        input.tenantId,
-        targetOrganizationId,
-      );
-
-      blockingOrganizationIds = scope.blockingOrganizationIds;
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    /*
-     * Priority 1B:
-     * Legacy TR-016 tenant-wide reservation
-     * compatibility.
-     *
-     * Existing legacy locks remain authoritative
-     * until their Redis TTL expires.
-     */
-    let legacyReservation: ProspectReservation | null;
-
-    try {
-      legacyReservation = await this.reservationRepository.findCurrentByEstablishment(
-        input.tenantId,
-        establishmentId,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (legacyReservation) {
-      /*
-       * This is also non-overrideable.
-       */
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Priority 1C:
-     * Organization-aware ACTIVE_RESERVATION.
-     *
-     * Manager approval may override a persisted
-     * business policy collision, but never a live
-     * reservation lock.
-     */
-    let reservationCandidates: ProspectReservation[];
-
-    try {
-      reservationCandidates = await this.reservationRepository.findCurrentCandidatesByOrganizations(
-        input.tenantId,
-        establishmentId,
-        blockingOrganizationIds,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (reservationCandidates.length > 0) {
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Persisted business collision evaluation.
-     *
-     * Both manager-override creation and reservation
-     * consumption use the same canonical evaluator.
-     *
-     * This prevents the two workflows from selecting
-     * different follow-ups, activities or assignments
-     * for the same collision.
-     */
-    const businessCollision = await this.collisionBusinessDecisionService.evaluate({
+    const collision = await this.reservationCollisionPipelineService.evaluate({
       tenantId: input.tenantId,
-
       userId: input.userId,
-
       campaignId: input.campaignId,
-
       campaignProspectId: input.campaignProspectId,
-
+      assignment,
       establishmentId,
-
-      targetOrganizationId,
     });
+
+    if (collision.sameOwnerReservation) {
+      await this.scheduleExpiryBestEffort(collision.sameOwnerReservation);
+      return collision.sameOwnerReservation;
+    }
+
+    if (collision.reservationConflict) {
+      throw new ConflictException('Campaign prospect is currently reserved');
+    }
+
+    const blockingOrganizationIds = collision.blockingOrganizationIds;
+    const businessCollision = collision.decision;
 
     if (businessCollision.decision === 'block') {
       if (input.overrideId && rule?.allowManagerOverride === false)
