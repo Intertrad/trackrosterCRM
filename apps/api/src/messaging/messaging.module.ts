@@ -589,10 +589,10 @@ export class MessagingService {
   }
 
   /**
-   * A message is mutable only while every other participant still has an
+   * A message can be deleted only while every other participant still has an
    * unread cursor before it. Keeping this predicate in the write query makes
-   * the rule atomic: a read racing with an edit/delete wins and the mutation
-   * is rejected.
+   * the rule atomic: a read racing with a delete wins and the mutation is
+   * rejected.
    */
   private unreadForOthers() {
     return sql`NOT EXISTS (
@@ -606,22 +606,9 @@ export class MessagingService {
     )`;
   }
 
-  async edit(a: Auth, id: string, body: string) {
-    const [r] = await this.db
-      .update(messages)
-      .set({ body: body.trim(), status: 'edited', updatedAt: sql`clock_timestamp()` })
-      .where(
-        and(
-          eq(messages.tenantId, a.tenantId),
-          eq(messages.id, id),
-          eq(messages.senderId, a.membershipId),
-          eq(messages.status, 'sent'),
-          this.unreadForOthers(),
-        ),
-      )
-      .returning();
-    if (!r) throw new ForbiddenException('Only unread messages can be edited');
-    return r;
+  async edit(...args: unknown[]): Promise<never> {
+    void args;
+    throw new ForbiddenException('Sent messages cannot be edited');
   }
   async remove(a: Auth, id: string) {
     const [m] = await this.db
