@@ -174,6 +174,9 @@ export interface ProspectTimelinePage {
 export type ProspectReservationState =
   | {
       state: 'none';
+
+      /** A manager can inspect delegated rows but cannot reserve them. */
+      canAcquire?: boolean;
     }
   | {
       state: 'owned';

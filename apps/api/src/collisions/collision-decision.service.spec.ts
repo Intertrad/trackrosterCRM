@@ -18,6 +18,8 @@ describe('CollisionDecisionService', () => {
 
   let reservationService: {
     requireReservationEligibility: ReturnType<typeof vi.fn>;
+
+    requireReservationReadEligibility: ReturnType<typeof vi.fn>;
   };
 
   let reservationCoordinationScopeService: {
@@ -111,6 +113,14 @@ describe('CollisionDecisionService', () => {
 
         establishmentId,
       }),
+
+      requireReservationReadEligibility: vi.fn().mockResolvedValue({
+        assignment: targetAssignment,
+
+        establishmentId,
+
+        canReserve: true,
+      }),
     };
 
     reservationCoordinationScopeService = {
@@ -164,6 +174,24 @@ describe('CollisionDecisionService', () => {
 
       campaignProspectId,
     });
+  });
+
+  it('uses read-only eligibility for manager collision status checks', async () => {
+    await service.evaluate({
+      tenantId,
+      userId,
+      campaignId,
+      campaignProspectId,
+      mode: 'read',
+    });
+
+    expect(reservationService.requireReservationReadEligibility).toHaveBeenCalledWith({
+      tenantId,
+      userId,
+      campaignId,
+      campaignProspectId,
+    });
+    expect(reservationService.requireReservationEligibility).not.toHaveBeenCalled();
   });
 
   it('allows the caller to continue using their own exact reservation', async () => {

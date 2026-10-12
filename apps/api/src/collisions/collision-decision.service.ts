@@ -15,6 +15,9 @@ export interface EvaluateCollisionInput {
   userId: string;
   campaignId: string;
   campaignProspectId: string;
+
+  /** GET status checks may be read by a manager for a delegated team row. */
+  mode?: 'mutate' | 'read';
 }
 
 @Injectable()
@@ -30,13 +33,16 @@ export class CollisionDecisionService {
   ) {}
 
   async evaluate(input: EvaluateCollisionInput): Promise<CollisionDecisionResult> {
+    const eligibilityInput = {
+      tenantId: input.tenantId,
+      userId: input.userId,
+      campaignId: input.campaignId,
+      campaignProspectId: input.campaignProspectId,
+    };
     const { assignment, establishmentId } =
-      await this.reservationService.requireReservationEligibility({
-        tenantId: input.tenantId,
-        userId: input.userId,
-        campaignId: input.campaignId,
-        campaignProspectId: input.campaignProspectId,
-      });
+      input.mode === 'read'
+        ? await this.reservationService.requireReservationReadEligibility(eligibilityInput)
+        : await this.reservationService.requireReservationEligibility(eligibilityInput);
 
     /*
      * Priority 1A:

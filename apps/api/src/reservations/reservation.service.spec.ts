@@ -1083,6 +1083,36 @@ describe('ReservationService', () => {
       });
     });
 
+    it('allows a manager to read reservation state for a delegated team assignment without granting reservation control', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      const delegatedAssignment = {
+        ...assignment,
+        managerId: userId,
+        assignedUserId: otherUserId,
+      };
+      assignmentRepository.findCurrent.mockResolvedValue(delegatedAssignment);
+
+      await expect(
+        service.requireReservationReadEligibility({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        assignment: delegatedAssignment,
+        establishmentId,
+        canReserve: false,
+      });
+    });
+
     it('rejects a missing authenticated user before resolving the target', async () => {
       userRepository.findById.mockResolvedValue(null);
 
@@ -1383,6 +1413,35 @@ describe('ReservationService', () => {
         }),
       ).resolves.toEqual({
         state: 'none',
+      });
+    });
+
+    it('returns a read-only empty state for a manager viewing a delegated assignment', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      assignmentRepository.findCurrent.mockResolvedValue({
+        ...assignment,
+        managerId: userId,
+        assignedUserId: otherUserId,
+      });
+      reservationRepository.findCurrent.mockResolvedValue(null);
+
+      await expect(
+        service.getCurrent({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        state: 'none',
+        canAcquire: false,
       });
     });
 

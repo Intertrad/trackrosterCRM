@@ -57,6 +57,8 @@ export interface ReservationEligibilityContext {
   establishmentId: string;
 }
 
+type ReservationEligibilityMode = 'mutate' | 'read';
+
 export interface ReleaseReservationInput {
   tenantId: string;
   userId: string;
@@ -552,7 +554,7 @@ export class ReservationService {
      * acquisition so out-of-scope users cannot use
      * this endpoint as a resource-existence oracle.
      */
-    const { assignment } = await this.requireReservationEligibility({
+    const { assignment, canReserve } = await this.requireReservationReadEligibility({
       tenantId: input.tenantId,
 
       userId: input.userId,
@@ -579,6 +581,7 @@ export class ReservationService {
     if (!reservation) {
       return {
         state: 'none',
+        ...(canReserve === false ? { canAcquire: false } : {}),
       };
     }
 
@@ -826,7 +829,8 @@ export class ReservationService {
    */
   async requireReservationEligibility(
     input: AcquireReservationInput,
-  ): Promise<ReservationEligibilityContext> {
+    mode: ReservationEligibilityMode = 'mutate',
+  ): Promise<ReservationEligibilityContext & { canReserve?: boolean }> {
     /*
      * Validate the authenticated principal before
      * resolving any requested campaign/prospect IDs.
@@ -933,13 +937,20 @@ export class ReservationService {
       isExactTeamProspector &&
       (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
 
-    const canWorkAsManager =
+    const canReserveAsManager =
       isExactTeamManager &&
       (assignment.managerId === input.userId ||
         (assignment.managerId === null && assignment.assignedUserId === input.userId)) &&
       (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
 
-    if (!canWorkAsProspector && !canWorkAsManager) {
+    const canReserve = canWorkAsProspector || canReserveAsManager;
+
+    const canReadAsManager =
+      isExactTeamManager &&
+      (assignment.managerId === input.userId ||
+        (assignment.managerId === null && assignment.assignedUserId === input.userId));
+
+    if (!canReserve && !(mode === 'read' && canReadAsManager)) {
       throw new NotFoundException('Campaign prospect not found');
     }
 
@@ -972,7 +983,22 @@ export class ReservationService {
       assignment,
 
       establishmentId: prospect.establishmentId,
+
+      ...(mode === 'read' ? { canReserve } : {}),
     };
+  }
+
+  /**
+   * Read-only collision and reservation status may be viewed by a manager for
+   * any active assignment in the manager's exact team queue. Mutations still
+   * use requireReservationEligibility() in its default, strict mode.
+   */
+  async requireReservationReadEligibility(
+    input: AcquireReservationInput,
+  ): Promise<ReservationEligibilityContext & { canReserve: boolean }> {
+    return this.requireReservationEligibility(input, 'read') as Promise<
+      ReservationEligibilityContext & { canReserve: boolean }
+    >;
   }
 
   /*
