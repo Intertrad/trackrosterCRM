@@ -21,7 +21,16 @@ export class ReadinessController {
 
   @Get('ready')
   async ready() {
-    const query = { text: 'SELECT 1', query_timeout: 1500 };
+    const query = {
+      text: `SELECT 1, (
+        SELECT count(*)::int
+        FROM auth_mail_outbox
+        WHERE failed_at IS NOT NULL
+          AND delivered_at IS NULL
+          AND created_at >= clock_timestamp() - interval '24 hours'
+      ) AS "terminalFailures"`,
+      query_timeout: 1500,
+    };
     const results = await Promise.allSettled([
       this.withDeadline(this.pool.query(query)),
       this.withDeadline(
@@ -30,8 +39,16 @@ export class ReadinessController {
         }),
       ),
     ]);
+    const postgresResult = results[0];
+    const terminalFailures =
+      postgresResult.status === 'fulfilled'
+        ? Number(postgresResult.value.rows[0]?.terminalFailures ?? 0)
+        : null;
+    const emailConfigured =
+      (this.config.get<string>('MAILPIT_URL') && this.config.get('NODE_ENV') !== 'production') ||
+      (this.config.get<string>('BREVO_API_KEY') && this.config.get<string>('BREVO_SENDER_EMAIL'));
     const dependencies = {
-      postgres: results[0]!.status === 'fulfilled' ? 'up' : 'down',
+      postgres: postgresResult.status === 'fulfilled' ? 'up' : 'down',
       postgresPool: {
         total: this.pool.totalCount,
         idle: this.pool.idleCount,
@@ -43,13 +60,17 @@ export class ReadinessController {
       redis: results[1]!.status === 'fulfilled' ? 'up' : 'down',
       optional: {
         objectStorage: this.storage.configured() ? 'configured' : 'unconfigured',
-        email:
-          (this.config.get<string>('MAILPIT_URL') &&
-            this.config.get('NODE_ENV') !== 'production') ||
-          (this.config.get<string>('BREVO_API_KEY') &&
-            this.config.get<string>('BREVO_SENDER_EMAIL'))
-            ? 'configured'
-            : 'unconfigured',
+        email: emailConfigured ? 'configured' : 'unconfigured',
+        emailDelivery: {
+          status: !emailConfigured
+            ? 'unconfigured'
+            : terminalFailures === null
+              ? 'unknown'
+              : terminalFailures > 0
+                ? 'degraded'
+                : 'healthy',
+          terminalFailures: emailConfigured ? terminalFailures : 0,
+        },
         maps: this.config.get<string>('NEXT_PUBLIC_PMTILES_URL') ? 'configured' : 'unconfigured',
         sso: this.config.get<string>('SSO_ENCRYPTION_KEY') ? 'configured' : 'unconfigured',
       },

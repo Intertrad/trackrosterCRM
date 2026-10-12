@@ -177,8 +177,9 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
       const failed = message.attempts >= 7;
       await this.markFailed(message.id, message.attempts + 1, failed);
       const reason = error instanceof Error ? error.message : 'unknown delivery error';
-      this.logger.warn(
-        `Account email delivery failed provider=${provider} messageId=${message.id} attempt=${message.attempts + 1} reason=${reason}`,
+      const log = failed ? this.logger.error.bind(this.logger) : this.logger.warn.bind(this.logger);
+      log(
+        `${failed ? 'Account email delivery reached terminal failure' : 'Account email delivery failed'} provider=${provider} messageId=${message.id} attempt=${message.attempts + 1} reason=${reason}`,
       );
     }
   }

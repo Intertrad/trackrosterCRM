@@ -31,8 +31,39 @@ describe('Dependency readiness', () => {
         optional: {
           objectStorage: 'unconfigured',
           email: 'unconfigured',
+          emailDelivery: { status: 'unconfigured', terminalFailures: 0 },
           maps: 'unconfigured',
           sso: 'unconfigured',
+        },
+      },
+    });
+  });
+  it('reports terminal mail failures without exposing mail contents', async () => {
+    const config = {
+      get: vi.fn((key: string) => {
+        if (key === 'BREVO_API_KEY') return 'configured';
+        if (key === 'BREVO_SENDER_EMAIL') return 'accounts@example.test';
+        return undefined;
+      }),
+    };
+    const check = new ReadinessController(
+      {
+        query: vi.fn().mockResolvedValue({ rows: [{ terminalFailures: 3 }] }),
+        totalCount: 1,
+        idleCount: 1,
+        waitingCount: 0,
+      } as never,
+      { ping: vi.fn().mockResolvedValue('PONG') } as never,
+      config as never,
+      { configured: vi.fn().mockReturnValue(false) } as never,
+    );
+
+    await expect(check.ready()).resolves.toMatchObject({
+      status: 'ready',
+      dependencies: {
+        optional: {
+          email: 'configured',
+          emailDelivery: { status: 'degraded', terminalFailures: 3 },
         },
       },
     });
