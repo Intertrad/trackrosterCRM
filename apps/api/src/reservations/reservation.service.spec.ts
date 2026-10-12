@@ -7,6 +7,8 @@ import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repos
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import { CollisionBusinessDecisionService } from '../collisions/collision-business-decision.service.js';
 import { CollisionOverrideRepository } from '../collisions/collision-override.repository.js';
+import type { Database } from '../database/database.types.js';
+import { runWithTenantExecutor } from '../database/request-tenant-executor.js';
 import type { CollisionOverride } from '../database/schema/collision-overrides.js';
 import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
 import { TeamRepository } from '../teams/team.repository.js';
@@ -364,6 +366,21 @@ describe('ReservationService', () => {
   });
 
   describe('acquire', () => {
+    it('serializes the claim inside the active tenant transaction', async () => {
+      const execute = vi.fn().mockResolvedValue([]);
+
+      await runWithTenantExecutor({ execute } as unknown as Database, () =>
+        service.acquire({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      );
+
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
     it('acquires a reservation when no collision exists', async () => {
       const result = await service.acquire({
         tenantId,

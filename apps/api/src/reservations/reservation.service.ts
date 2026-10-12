@@ -13,6 +13,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
 import type { ProspectReservation, ProspectReservationState } from './reservation.types.js';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
@@ -32,6 +33,7 @@ import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
 import { ReservationRepository } from './reservation.repository.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
 
 export interface AcquireReservationInput {
   tenantId: string;
@@ -139,6 +141,17 @@ export class ReservationService {
      * - exact team-level prospector grant
      */
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
+
+    /*
+     * Serialize the authoritative collision read and the final Redis claim
+     * inside the request transaction. Redis remains the cross-process lease
+     * authority, while this transaction-scoped lock prevents two API
+     * requests from observing the same persisted collision state while either
+     * request is completing its claim. The global tenant interceptor supplies
+     * the executor for HTTP requests; direct unit tests intentionally run
+     * without one and continue to exercise the service in isolation.
+     */
+    await this.lockReservationTarget(input.tenantId, establishmentId);
 
     const targetOrganizationId = assignment.organizationId;
     const rule = await this.rules?.resolve(input.tenantId, input.campaignId);
@@ -500,6 +513,20 @@ export class ReservationService {
 
       throw new ServiceUnavailableException('Reservation service is unavailable');
     }
+  }
+
+  private async lockReservationTarget(tenantId: string, establishmentId: string): Promise<void> {
+    const executor = currentTenantExecutor();
+    if (!executor) return;
+
+    const lockKey = `reservation:${tenantId}:${establishmentId}`;
+    await executor.execute(
+      sql`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${lockKey}, 0)
+        )
+      `,
+    );
   }
 
   private isUniqueViolation(error: unknown): boolean {
