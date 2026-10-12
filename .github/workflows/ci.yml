@@ -28,6 +28,8 @@ jobs:
       # The owner. DDL and cross-tenant fixture seeding only.
       DATABASE_MIGRATION_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
       DATABASE_SEED_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
+      DATABASE_MIGRATION_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
+      DATABASE_SEED_URL: postgresql://trackroster:trackroster@127.0.0.1:5432/trackroster?sslmode=disable
       REDIS_URL: redis://127.0.0.1:6379
       NODE_ENV: test
       JWT_ACCESS_SECRET: trackroster-ci-access-secret-0123456789-abcdefghijklmnopqrstuvwxyz
@@ -35,6 +37,7 @@ jobs:
       JWT_REFRESH_SECRET: trackroster-ci-refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       JWT_REFRESH_TTL: 7d
       PROSPECT_COOLING_OFF_MINUTES: '1440'
+      TENANT_RLS_MODE: enforce
       # Deterministic local providers used by the integration suite. These are
       # test-only values; production secrets are never committed here.
       MFA_ENCRYPTION_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
@@ -107,6 +110,9 @@ jobs:
 
       - name: Run database migrations
         run: pnpm --filter api db:migrate
+
+      - name: Verify live schema matches the repository
+        run: pnpm db:schema:check
 
       - name: Lint
         run: pnpm lint
