@@ -11,6 +11,7 @@
     "db:migrations:check": "node scripts/check-migration-integrity.mjs",
     "db:schema:check": "node scripts/check-live-schema.mjs",
     "db:migrations:recovery-check": "node scripts/check-migration-recovery.mjs",
+    "check:production-config": "node scripts/check-production-config.mjs",
     "maps:serve": "http-server infrastructure/maps -p 8787 --cors -c-1",
     "maps:check": "node scripts/check-pmtiles.mjs",
     "geocode:prospects": "node scripts/geocode-missing-prospects.mjs",
