@@ -22,6 +22,20 @@ TLS reachability, database backups, and the provider's rollback target. Record
 the DNS/TLS/provider evidence with the release; a passing local preflight does
 not prove that the external services are reachable.
 
+## Runtime provider and alert checks
+
+The worker's Brevo, push, and geocoding calls have a five-second timeout so a
+provider outage cannot occupy a worker slot indefinitely. Webhook and OAuth
+calls use the same bounded-request rule. Production monitoring should alert on
+`/health/ready` failures, `dependencies.redis=down`, `dependencies.postgres=down`,
+non-zero `optional.emailDelivery.terminalFailures`, queue backlog/lag, and
+dead-letter counts. Keep the response body free of credentials and message
+payloads when exporting it to monitoring.
+
+At release time, capture one successful `/health/live` response and one
+`/health/ready` response with their request IDs, then perform a controlled mail
+provider failure and confirm that the outbox retry/dead-letter alert fires.
+
 ## Initial Deployment Units
 
 TrackRoster contains:

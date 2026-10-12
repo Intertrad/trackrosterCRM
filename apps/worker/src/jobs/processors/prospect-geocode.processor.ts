@@ -52,6 +52,7 @@ export class ProspectGeocodeProcessor {
         accept: 'application/json',
         'user-agent': 'TrackRoster/1.0 coordinate-enrichment (admin-controlled)',
       },
+      signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error(`BAN geocoding failed with HTTP ${response.status}`);
     const body = (await response.json()) as {

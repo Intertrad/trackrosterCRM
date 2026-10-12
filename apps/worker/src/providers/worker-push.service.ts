@@ -47,6 +47,7 @@ export class WorkerPushService {
       method: 'POST',
       headers,
       body: JSON.stringify(requestPayload),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (

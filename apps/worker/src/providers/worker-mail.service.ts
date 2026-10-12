@@ -26,6 +26,7 @@ export class WorkerMailService {
         subject,
         textContent: message,
       }),
+      signal: AbortSignal.timeout(5000),
     });
     const payload = (await response.json().catch(() => ({}))) as { messageId?: string };
     if (!response.ok) throw new Error(`Brevo delivery failed with HTTP ${response.status}`);
@@ -47,6 +48,7 @@ export class WorkerMailService {
         textContent: 'Your TrackRoster report is attached.',
         attachment: [{ name: filename, content: Buffer.from(content).toString('base64') }],
       }),
+      signal: AbortSignal.timeout(5000),
     });
     const payload = (await response.json().catch(() => ({}))) as { messageId?: string };
     if (!response.ok) throw new Error(`Brevo delivery failed with HTTP ${response.status}`);
