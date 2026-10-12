@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { and, count, desc, ilike, or, eq } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
 import { campaigns, establishments, organizations } from '../database/schema/index.js';
@@ -25,7 +25,7 @@ export class SearchQuery {
   @IsOptional() limit?: number;
 }
 
-type Auth = { tenantId: string };
+type Auth = { tenantId: string; membershipId?: string };
 
 @Injectable()
 export class SearchService {
@@ -56,6 +56,7 @@ export class SearchService {
           and(
             eq(establishments.tenantId, auth.tenantId),
             or(ilike(establishments.name, pattern), ilike(establishments.city, pattern)),
+            visibleEstablishment(auth),
           ),
         )
         .orderBy(desc(establishments.updatedAt))
@@ -75,6 +76,7 @@ export class SearchService {
           and(
             eq(organizations.tenantId, auth.tenantId),
             or(ilike(organizations.name, pattern), ilike(organizations.slug, pattern)),
+            visibleOrganization(auth),
           ),
         )
         .orderBy(desc(organizations.updatedAt))
@@ -94,6 +96,7 @@ export class SearchService {
           and(
             eq(campaigns.tenantId, auth.tenantId),
             or(ilike(campaigns.name, pattern), ilike(campaigns.description, pattern)),
+            visibleCampaign(auth),
           ),
         )
         .orderBy(desc(campaigns.updatedAt))
@@ -119,6 +122,7 @@ export class SearchService {
         and(
           eq(establishments.tenantId, auth.tenantId),
           or(ilike(establishments.name, pattern), ilike(establishments.city, pattern)),
+          visibleEstablishment(auth),
         ),
       );
     const organizationsCount = await this.db
@@ -128,6 +132,7 @@ export class SearchService {
         and(
           eq(organizations.tenantId, auth.tenantId),
           or(ilike(organizations.name, pattern), ilike(organizations.slug, pattern)),
+          visibleOrganization(auth),
         ),
       );
     const campaignsCount = await this.db
@@ -137,6 +142,7 @@ export class SearchService {
         and(
           eq(campaigns.tenantId, auth.tenantId),
           or(ilike(campaigns.name, pattern), ilike(campaigns.description, pattern)),
+          visibleCampaign(auth),
         ),
       );
     return {
@@ -148,6 +154,53 @@ export class SearchService {
       ],
     };
   }
+}
+
+/*
+ * Search results must follow the same assignment boundary as the work queue.
+ * Keeping this predicate in the API prevents a hidden or hand-crafted search
+ * request from bypassing the Prospector scope enforced by the UI.
+ */
+function visibleAssignment(auth: Auth, relation: SQL): SQL {
+  return sql`EXISTS (
+    SELECT 1
+    FROM campaign_prospects cp
+    JOIN campaign_prospect_assignments a
+      ON a.tenant_id = cp.tenant_id
+      AND a.campaign_prospect_id = cp.id
+      AND a.ended_at IS NULL
+      AND a.status IN ('active', 'paused')
+    WHERE cp.tenant_id = ${auth.tenantId}
+      AND ${relation}
+      AND cp.status = 'active'
+      AND EXISTS (
+        SELECT 1
+        FROM user_access_grants g
+        WHERE g.tenant_id = cp.tenant_id
+          AND g.user_id = ${auth.membershipId ?? null}
+          AND (
+            (g.role = 'client_admin' AND g.scope_type = 'tenant')
+            OR (g.role = 'observer' AND g.scope_type = 'tenant')
+            OR (g.role = 'observer' AND g.scope_type = 'organization' AND g.organization_id = a.organization_id)
+            OR (g.role = 'observer' AND g.scope_type = 'team' AND g.team_id = a.team_id)
+            OR (g.role = 'director' AND g.scope_type = 'organization' AND g.organization_id = a.organization_id)
+            OR (g.role = 'manager' AND g.scope_type = 'team' AND g.team_id = a.team_id)
+            OR (g.role = 'prospector' AND g.scope_type = 'team' AND g.team_id = a.team_id AND a.assigned_user_id = ${auth.membershipId ?? null})
+          )
+      )
+  )`;
+}
+
+function visibleEstablishment(auth: Auth): SQL {
+  return visibleAssignment(auth, sql`cp.establishment_id = ${establishments.id}`);
+}
+
+function visibleOrganization(auth: Auth): SQL {
+  return visibleAssignment(auth, sql`a.organization_id = ${organizations.id}`);
+}
+
+function visibleCampaign(auth: Auth): SQL {
+  return visibleAssignment(auth, sql`a.campaign_id = ${campaigns.id}`);
 }
 
 @Controller('search')

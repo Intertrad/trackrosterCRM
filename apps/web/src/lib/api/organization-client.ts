@@ -1,4 +1,5 @@
 import { browserJson } from './browser-json';
+import { browserResource, type BrowserResource } from './browser-resource';
 
 export interface OrganizationSummary {
   id: string;
@@ -22,6 +23,18 @@ export interface OrganizationPage {
   nextCursor: string | null;
 }
 
+export interface OrganizationDetail extends OrganizationSummary {
+  summary?: {
+    teamCount?: number;
+    activeAssignments?: number;
+    pausedAssignments?: number;
+    campaignsWithAssignments?: number;
+    assignedMembers?: number;
+    scope?: string;
+  };
+  etag?: string;
+}
+
 export function listOrganizations(
   query: {
     status?: 'active' | 'inactive';
@@ -38,6 +51,16 @@ export function listOrganizations(
   const search = params.toString();
   return browserJson<OrganizationPage>(
     search ? `/api/organizations?${search}` : '/api/organizations',
+    { cache: 'no-store', signal },
+  );
+}
+
+export function getOrganization(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<BrowserResource<OrganizationDetail>> {
+  return browserResource<OrganizationDetail>(
+    `/api/organizations/${encodeURIComponent(organizationId)}`,
     { cache: 'no-store', signal },
   );
 }

@@ -14,6 +14,7 @@ import {
   type ProspectFollowUpCategory,
   type ProspectFollowUpChannel,
 } from '../schema/prospect-follow-ups.js';
+import { withTenantContext } from '../tenant-context.js';
 
 const LEGACY_CAMPAIGN = {
   key: 'LEGACY_MANAGER',
@@ -872,7 +873,7 @@ export async function seedDevelopmentWorkQueue(input: DevelopmentWorkQueueSeedIn
   campaigns: Array<{ id: string; name: string }>;
   prospects: SeededProspectSummary[];
 }> {
-  return input.database.transaction(async (transaction) => {
+  return withTenantContext(input.database, input.tenantId, async (transaction) => {
     await retireLegacyProspectorFixtures(transaction, input.tenantId, input.prospectorUserId);
 
     const allCampaignFixtures: CampaignFixture[] = [

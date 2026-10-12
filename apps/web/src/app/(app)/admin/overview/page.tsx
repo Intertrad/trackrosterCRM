@@ -106,6 +106,7 @@ function Overview() {
     },
     { label: l('Rules reviewed', 'Règles revues'), done: rulesSet > 0 },
   ];
+  const hasIncompleteSetup = data !== null && setup.some((step) => !step.done);
 
   const blockers: Array<{
     title: string;
@@ -260,43 +261,47 @@ function Overview() {
         </Alert>
       )}
 
-      <Card className="border-warning/40 bg-warning-bg/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-extrabold text-navy">
-              {l(
-                `Workspace setup — ${setup.filter((step) => step.done).length} of ${setup.length} steps done`,
-                `Configuration de l’espace — ${setup.filter((step) => step.done).length} étapes sur ${setup.length}`,
-              )}
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {setup.map((step) => (
-                <span
-                  key={step.label}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${step.done ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
-                >
-                  {step.done ? (
-                    <Check className="size-3.5" />
-                  ) : (
-                    <AlertTriangle className="size-3.5" />
-                  )}
-                  {step.label}
-                </span>
-              ))}
+      {hasIncompleteSetup && (
+        <Card className="border-warning/40 bg-warning-bg/20 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-extrabold text-navy">
+                {l(
+                  `Workspace setup — ${setup.filter((step) => step.done).length} of ${setup.length} steps done`,
+                  `Configuration de l’espace — ${setup.filter((step) => step.done).length} étapes sur ${setup.length}`,
+                )}
+              </h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {setup.map((step) => (
+                  <span
+                    key={step.label}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${step.done ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger'}`}
+                  >
+                    {step.done ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <AlertTriangle className="size-3.5" />
+                    )}
+                    {step.label}
+                  </span>
+                ))}
+              </div>
             </div>
+            <Link
+              href={blockers[0]?.href ?? '/admin/settings'}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-[14.4px] font-bold text-white transition-colors duration-150 hover:bg-brand-hover active:bg-brand-active sm:min-h-10"
+            >
+              {l('Continue setup', 'Continuer la configuration')}
+            </Link>
           </div>
-          <Link
-            href={blockers[0]?.href ?? '/admin/settings'}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-brand px-4 py-2.5 text-[14.4px] font-bold text-white transition-colors duration-150 hover:bg-brand-hover active:bg-brand-active sm:min-h-10"
-          >
-            {l('Continue setup', 'Continuer la configuration')}
-          </Link>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           value={format(metrics?.totalEstablishments)}
+          animatedValue={metrics?.totalEstablishments}
+          locale={locale}
           label={l('Establishments', 'Établissements')}
           detail={l(
             `${format(metrics?.activeOrganizations)} companies share them`,
@@ -305,12 +310,16 @@ function Overview() {
         />
         <MetricCard
           value={format(metrics?.establishmentsWithoutOwner)}
+          animatedValue={metrics?.establishmentsWithoutOwner}
+          locale={locale}
           label={l('Without an owner', 'Sans responsable')}
           detail={l('not protected by the engine', 'non protégés par le moteur')}
           danger
         />
         <MetricCard
           value={format(metrics?.activeMembers)}
+          animatedValue={metrics?.activeMembers}
+          locale={locale}
           label={l('Users', 'Utilisateurs')}
           detail={l(
             `${format(metrics?.pendingInvitations)} invitations pending`,
@@ -319,12 +328,16 @@ function Overview() {
         />
         <MetricCard
           value={format(metrics?.pendingDuplicateReviews)}
+          animatedValue={metrics?.pendingDuplicateReviews}
+          locale={locale}
           label={l('Duplicates to review', 'Doublons à examiner')}
           detail={l('pending duplicate decisions', 'décisions de doublons en attente')}
           warning
         />
         <MetricCard
           value={format(rulesSet)}
+          animatedValue={rulesSet}
+          locale={locale}
           label={l('Coordination rules set', 'Règles de coordination')}
           detail={l(
             `${format(Math.max(0, pairs - rulesSet))} pairs to decide`,
@@ -449,12 +462,16 @@ function Overview() {
 
 function MetricCard({
   value,
+  animatedValue,
+  locale,
   label,
   detail,
   danger,
   warning,
 }: {
   value: string;
+  animatedValue?: number;
+  locale?: string;
   label: string;
   detail: string;
   danger?: boolean;
@@ -467,13 +484,58 @@ function MetricCard({
       <p
         className={`text-[30px] font-extrabold tracking-[-0.04em] ${danger ? 'text-danger' : warning ? 'text-warning' : 'text-navy'}`}
       >
-        {value}
+        {typeof animatedValue === 'number' ? (
+          <AnimatedMetricValue value={animatedValue} locale={locale} />
+        ) : (
+          value
+        )}
       </p>
       <p className="mt-1 text-sm font-bold text-navy">{label}</p>
       <p className="mt-1 text-xs text-ink-muted">{detail}</p>
     </Card>
   );
 }
+
+function AnimatedMetricValue({ value, locale }: { value: number; locale?: string }) {
+  const numberRef = useRef<HTMLSpanElement>(null);
+  const [displayValue, setDisplayValue] = useState(value);
+  const formatter = new Intl.NumberFormat(locale ?? 'en-US');
+
+  useEffect(() => {
+    const target = numberRef.current;
+    if (!target) return;
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setDisplayValue(value);
+      return;
+    }
+
+    let frame = 0;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min((now - startedAt) / 850, 1);
+      const easedProgress = 1 - (1 - progress) ** 3;
+      setDisplayValue(Math.round(value * easedProgress));
+      if (progress < 1) frame = window.requestAnimationFrame(tick);
+    };
+
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [value]);
+
+  return (
+    <>
+      <span ref={numberRef} aria-hidden="true">
+        {formatter.format(displayValue)}
+      </span>
+      <span className="sr-only">{formatter.format(value)}</span>
+    </>
+  );
+}
+
 function SecurityRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3 py-3 text-sm">

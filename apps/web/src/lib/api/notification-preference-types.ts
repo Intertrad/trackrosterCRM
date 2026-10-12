@@ -44,6 +44,15 @@ const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   imports: 'Imports',
 };
 
+const CATEGORY_LABELS_FR: Record<NotificationCategory, string> = {
+  assignments: 'Attributions',
+  followUps: 'Relances',
+  collisions: 'Conflits',
+  overrides: 'Demandes de dérogation',
+  messages: 'Messages',
+  imports: 'Imports',
+};
+
 const CATEGORY_DESCRIPTIONS: Record<NotificationCategory, string> = {
   assignments: 'A prospect is assigned to you, or moved away from you.',
   followUps: 'A follow-up you own becomes due or overdue.',
@@ -53,22 +62,43 @@ const CATEGORY_DESCRIPTIONS: Record<NotificationCategory, string> = {
   imports: 'An import you started finishes or needs attention.',
 };
 
+const CATEGORY_DESCRIPTIONS_FR: Record<NotificationCategory, string> = {
+  assignments: 'Un prospect vous est attribué ou vous est retiré.',
+  followUps: 'Une relance dont vous êtes responsable arrive à échéance ou est en retard.',
+  collisions: 'Le moteur anti-collision bloque ou signale votre contact.',
+  overrides: 'Une demande de dérogation que vous avez créée est traitée.',
+  messages: 'Un nouveau message arrive dans une conversation à laquelle vous participez.',
+  imports: 'Un import que vous avez lancé se termine ou nécessite votre attention.',
+};
+
 const CHANNEL_LABELS: Record<NotificationChannel, string> = {
   email: 'Email',
   push: 'Push',
   inApp: 'In app',
 };
 
-export function categoryLabel(category: NotificationCategory): string {
-  return CATEGORY_LABELS[category];
+const CHANNEL_LABELS_FR: Record<NotificationChannel, string> = {
+  email: 'E-mail',
+  push: 'Push',
+  inApp: 'Dans l’application',
+};
+
+export function categoryLabel(
+  category: NotificationCategory,
+  language: 'en' | 'fr' = 'en',
+): string {
+  return (language === 'fr' ? CATEGORY_LABELS_FR : CATEGORY_LABELS)[category];
 }
 
-export function categoryDescription(category: NotificationCategory): string {
-  return CATEGORY_DESCRIPTIONS[category];
+export function categoryDescription(
+  category: NotificationCategory,
+  language: 'en' | 'fr' = 'en',
+): string {
+  return (language === 'fr' ? CATEGORY_DESCRIPTIONS_FR : CATEGORY_DESCRIPTIONS)[category];
 }
 
-export function channelLabel(channel: NotificationChannel): string {
-  return CHANNEL_LABELS[channel];
+export function channelLabel(channel: NotificationChannel, language: 'en' | 'fr' = 'en'): string {
+  return (language === 'fr' ? CHANNEL_LABELS_FR : CHANNEL_LABELS)[channel];
 }
 
 /**
