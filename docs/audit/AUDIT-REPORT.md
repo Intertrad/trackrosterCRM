@@ -338,6 +338,7 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
     "test": "vitest run"
   }
   ```
+- **Remediation (2026-10-12):** added a web contract test covering app and marketing breakpoints, safe-area padding, keyboard focus-visible selectors, and reduced-motion protections. Full browser-level 390px/1440px rendering and axe scans remain a deployment QA follow-up.
 - **Why it matters:** No scripted 390px/1440px overflow, focus, contrast or tap-target check protects role dashboards.
 - **Fix:** Add browser smoke coverage at 390px and 1440px plus axe checks as a CI gate.
 - **Effort:** M
