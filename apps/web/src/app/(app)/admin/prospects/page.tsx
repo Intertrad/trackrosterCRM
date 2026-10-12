@@ -107,6 +107,7 @@ function Referential() {
   const [selected, setSelected] = useState<Map<string, Prospect>>(new Map());
   const [detail, setDetail] = useState<Prospect | null>(null);
   const [mapSelectedId, setMapSelectedId] = useState<string | null>(null);
+  const [visibleMapIds, setVisibleMapIds] = useState<Set<string> | null>(null);
   const [batch, setBatch] = useState<Prospect[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -122,9 +123,13 @@ function Referential() {
     setSelected(new Map());
     setDetail(null);
     setMapSelectedId(null);
+    setVisibleMapIds(null);
     setPrevious([]);
     setTotal(null);
   }, [scopeKey]);
+  useEffect(() => {
+    setVisibleMapIds(null);
+  }, [map]);
   useEffect(() => setSearch(query.search ?? ''), [query.search]);
   const update = useCallback(
     (changes: Record<string, string>, page = false) => {
@@ -205,10 +210,18 @@ function Referential() {
   const points = (items ?? []).flatMap((r) =>
     toMapPoint(r.id, r.name, r.latitude, r.longitude, 'to_contact', `/admin/prospects/${r.id}`),
   );
+  const handleVisibleMapChange = useCallback((ids: string[]) => {
+    setVisibleMapIds(new Set(ids));
+  }, []);
   const mapSelected = mapSelectedId
     ? (items?.find((item) => item.id === mapSelectedId) ?? null)
     : null;
-  const mapPanelItems = mapSelected ? [mapSelected] : (items ?? []);
+  const selectedInViewport =
+    mapSelected !== null && (visibleMapIds === null || visibleMapIds.has(mapSelected.id));
+  const visibleMapItems = visibleMapIds
+    ? (items ?? []).filter((item) => visibleMapIds.has(item.id))
+    : (items ?? []);
+  const mapPanelItems = selectedInViewport && mapSelected ? [mapSelected] : visibleMapItems;
   const filterCount = [
     query.search,
     query.category,
@@ -505,6 +518,7 @@ function Referential() {
                 <ProspectMap
                   points={points}
                   selectedId={mapSelectedId}
+                  onVisibleChange={handleVisibleMapChange}
                   onSelect={(p) => {
                     setMapSelectedId(p.id);
                     setDetail(null);
@@ -522,22 +536,22 @@ function Referential() {
               <aside className="max-h-[360px] overflow-y-auto rounded-xl border border-line-soft bg-surface-muted/50 sm:max-h-[440px] lg:max-h-[520px]">
                 <div className="sticky top-0 z-10 border-b border-line-soft bg-surface px-4 py-3">
                   <p className="text-sm font-bold text-navy">
-                    {mapSelected
+                    {selectedInViewport
                       ? l('Selected prospect', 'Établissement sélectionné')
-                      : l('Filtered prospects', 'Résultats filtrés')}
+                      : l('Visible prospects', 'Établissements visibles')}
                   </p>
                   <p className="mt-0.5 text-xs text-ink-muted">
-                    {mapSelected
+                    {selectedInViewport
                       ? l(
                           'This is the location you selected on the map.',
                           'Voici la localisation sélectionnée sur la carte.',
                         )
                       : l(
-                          'Select records or open a location.',
-                          'Sélectionnez ou ouvrez une fiche.',
+                          'Zoom or pan the map to update this list.',
+                          'Zoomez ou déplacez la carte pour actualiser cette liste.',
                         )}
                   </p>
-                  {mapSelected ? (
+                  {selectedInViewport ? (
                     <button
                       type="button"
                       className="mt-2 text-xs font-bold text-brand hover:underline"
@@ -580,6 +594,14 @@ function Referential() {
                       </button>
                     </div>
                   ))}
+                  {!mapPanelItems.length ? (
+                    <p className="p-4 text-sm text-ink-muted">
+                      {l(
+                        'No prospects are visible in this map area.',
+                        'Aucun établissement n’est visible dans cette zone.',
+                      )}
+                    </p>
+                  ) : null}
                 </div>
               </aside>
             </div>
