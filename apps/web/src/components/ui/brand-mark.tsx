@@ -13,8 +13,7 @@ export function BrandMark({
   return (
     <Image
       src="/brand/roster.png"
-      alt=""
-      aria-hidden="true"
+      alt="TrackRoster logo"
       width={hero ? 208 : 38}
       height={hero ? 208 : 38}
       className={cn('shrink-0 object-contain', className)}
