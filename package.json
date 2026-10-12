@@ -9,6 +9,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "db:migrations:check": "node scripts/check-migration-integrity.mjs",
+    "db:migrations:recovery-check": "node scripts/check-migration-recovery.mjs",
     "maps:serve": "http-server infrastructure/maps -p 8787 --cors -c-1",
     "maps:check": "node scripts/check-pmtiles.mjs",
     "geocode:prospects": "node scripts/geocode-missing-prospects.mjs",

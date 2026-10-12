@@ -281,6 +281,7 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
   # no down/rollback files found
   verify-postgres-backup.mjs only calls pg_restore --list
   ```
+- **Remediation (2026-10-12):** added `docs/operations/MIGRATION_RECOVERY.md` with a forward-only restore/repair procedure and `scripts/check-migration-recovery.mjs`, which runs migration-chain integrity checks, verifies every SQL migration is non-empty, and checks the required RLS/runtime-role recovery controls.
 - **Why it matters:** A failed deployment can leave schema ahead of the application without a documented recovery path.
 - **Fix:** Document forward-fix policy plus disposable restore rehearsal and previous-release startup checks.
 - **Effort:** M
