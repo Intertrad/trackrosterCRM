@@ -71,6 +71,19 @@ function validateOptionalBoundedInteger(
   }
 }
 
+function validateOptionalUrl(config: Record<string, unknown>, key: string): void {
+  const value = config[key];
+  if (value === undefined) return;
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Environment variable ${key} must be a valid URL`);
+  }
+  try {
+    new URL(value);
+  } catch {
+    throw new Error(`Environment variable ${key} must be a valid URL`);
+  }
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
 
@@ -95,6 +108,9 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
   validateOptionalBoundedInteger(config, 'DATABASE_STATEMENT_TIMEOUT_MS', 250, 120_000);
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 1_000, 300_000);
+  validateOptionalBoundedInteger(config, 'PORT', 1, 65_535);
+  validateOptionalUrl(config, 'OBJECT_STORAGE_UPLOAD_BASE_URL');
+  validateOptionalUrl(config, 'OBJECT_STORAGE_DOWNLOAD_BASE_URL');
   for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
     if (config[key] !== undefined) validatePositiveInteger(config, key);
   }

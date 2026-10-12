@@ -103,9 +103,10 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
     requireString(config, 'DATABASE_URL');
     validateRedisUrl(config);
     validateJwtSecret(config, 'JWT_ACCESS_SECRET');
-    // other runtime modules read process.env.OBJECT_STORAGE_* directly
+    // runtime modules consume operational settings through ConfigService
   }
   ```
+- **Remediation (2026-10-12):** runtime API modules now read operational flags, object-storage fallback URLs, compliance signing secrets, and the listening port through `ConfigService`; boot validation covers bounded transaction settings, port range, and optional storage URLs. Test/seed-only `process.env` reads remain intentionally local to those harnesses.
 - **Why it matters:** A missing storage, scheduler or effect setting can fail only when used, with localhost defaults in deployment.
 - **Fix:** Add these variables to central validated config and inject ConfigService into affected modules.
 - **Effort:** M

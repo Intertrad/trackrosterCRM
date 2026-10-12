@@ -1,5 +1,6 @@
 import { ReservationLedgerService } from '../reservations/reservation-ledger.service.js';
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { withTenantContext } from '../database/tenant-context.js';
@@ -17,9 +18,10 @@ export class ActionEffectsService implements OnModuleInit, OnModuleDestroy {
     private readonly reservations: ReservationRepository,
     private readonly scheduler: FollowUpReminderSchedulerService,
     private readonly ledger: ReservationLedgerService,
+    private readonly config: ConfigService,
   ) {}
   onModuleInit() {
-    if (process.env.ACTION_EFFECTS_POLLING === 'off') return;
+    if (this.config.get<string>('ACTION_EFFECTS_POLLING') === 'off') return;
     this.timer = setInterval(() => {
       void this.drain().catch(() => this.logger.warn('Action effects delivery will retry'));
     }, 5000);

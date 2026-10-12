@@ -16,6 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database } from '../database/database.types.js';
@@ -50,13 +51,15 @@ export class CommunicationsService {
     @Inject(DATABASE) private readonly db: Database,
     private readonly messaging: MessagingService,
     private readonly storage: ObjectStorageService,
+    private readonly config: ConfigService,
   ) {}
   async presign(a: Auth, d: PresignUploadDto) {
     /* The DTO bounds filename, content type and size; this guards the one
      * case validation cannot express — a name that is only whitespace. */
     if (!d.filename.trim()) throw new BadRequestException('A filename is required');
     const key = `${a.tenantId}/${a.membershipId}/${randomUUID()}-${d.filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const base = process.env.OBJECT_STORAGE_UPLOAD_BASE_URL ?? 'http://localhost:58080/upload';
+    const base =
+      this.config.get<string>('OBJECT_STORAGE_UPLOAD_BASE_URL') ?? 'http://localhost:58080/upload';
     const signedUrl = await this.storage.uploadUrl(key, d.contentType);
     return {
       objectKey: key,
@@ -110,7 +113,9 @@ export class CommunicationsService {
         ),
       );
     if (!r) throw new BadRequestException('Attachment not found');
-    const base = process.env.OBJECT_STORAGE_DOWNLOAD_BASE_URL ?? 'http://localhost:58080/download';
+    const base =
+      this.config.get<string>('OBJECT_STORAGE_DOWNLOAD_BASE_URL') ??
+      'http://localhost:58080/download';
     const signedUrl = await this.storage.downloadUrl(r.objectKey);
     return {
       attachmentId: id,

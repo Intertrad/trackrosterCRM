@@ -19,6 +19,7 @@ export class NotificationDigestSchedulerService implements OnModuleInit, OnModul
   private readonly pollIntervalMs: number;
   private readonly digestHourUtc: number;
   private readonly inactivityDays: number;
+  private readonly enabled: boolean;
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
   private lastScheduledDay: string | null = null;
@@ -44,10 +45,11 @@ export class NotificationDigestSchedulerService implements OnModuleInit, OnModul
       1,
       365,
     );
+    this.enabled = config.get<string>('NOTIFICATION_DIGEST_SCHEDULER') !== 'off';
   }
 
   onModuleInit(): void {
-    if (process.env.NOTIFICATION_DIGEST_SCHEDULER === 'off') return;
+    if (!this.enabled) return;
 
     this.timer = setInterval(() => {
       void this.drain().catch((error: unknown) => {
