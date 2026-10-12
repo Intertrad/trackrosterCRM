@@ -442,6 +442,7 @@ function Referential() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            variant={selected.size > 0 && !error ? 'primary' : 'secondary'}
             leadingIcon={<Users className="size-4" aria-hidden="true" />}
             disabled={!selected.size || !!error}
             onClick={() => setBatch([...selected.values()])}

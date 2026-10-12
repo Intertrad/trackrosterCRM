@@ -280,6 +280,20 @@ describe('admin référentiel', () => {
     expect(screen.getByText('Assigned to')).toBeInTheDocument();
   });
 
+  it('shows the assignment action as inactive until records are selected', async () => {
+    listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: null });
+    render(<ReferentialPage />);
+
+    const assign = await screen.findByRole('button', { name: 'Assign selection (0)' });
+    expect(assign).toBeDisabled();
+    expect(assign).toHaveClass('bg-surface');
+
+    fireEvent.click(screen.getByLabelText('Select Brigade de Bastia'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Assign selection (1)' })).toBeEnabled();
+    });
+  });
+
   it('keeps the explicit selection on pagination and clears it when filters change', async () => {
     listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: 'cursor-2' });
     render(<ReferentialPage />);
