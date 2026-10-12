@@ -61,6 +61,9 @@ export function ActionEditor({
   const { language } = useTranslation();
   const operation = getOperation(action.operation);
   const isOrganizationAction = ORGANIZATION_ACTIONS.has(action.operation);
+  const isTerritoryAction =
+    action.operation === 'POST /territories' ||
+    action.operation === 'PATCH /territories/:territoryId';
   const visibleFields = isOrganizationAction
     ? operation.fields.filter((field) => field.name !== 'slug' && field.name !== 'shortName')
     : operation.fields;
@@ -436,6 +439,7 @@ export function ActionEditor({
                 setErrors({});
               }}
               errors={errors}
+              territoryBoundaryEditor={isTerritoryAction}
             />
             {!operation.fields.length && !parameterFields.length && (
               <p className="text-sm text-ink-soft">
