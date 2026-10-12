@@ -1,4 +1,5 @@
 import { validateAggregateDatabasePoolBudget } from './database-pool-budget.js';
+import { parseCorsOrigins, parseTrustProxy } from './http-security.js';
 
 const MINIMUM_JWT_SECRET_LENGTH = 32;
 
@@ -111,6 +112,12 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateOptionalBoundedInteger(config, 'DATABASE_STATEMENT_TIMEOUT_MS', 250, 120_000);
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 1_000, 300_000);
   validateAggregateDatabasePoolBudget(config);
+  if (config.API_CORS_ORIGINS !== undefined) {
+    parseCorsOrigins(String(config.API_CORS_ORIGINS));
+  }
+  if (config.TRUST_PROXY !== undefined) {
+    parseTrustProxy(String(config.TRUST_PROXY));
+  }
   validateOptionalBoundedInteger(config, 'PORT', 1, 65_535);
   validateOptionalUrl(config, 'OBJECT_STORAGE_UPLOAD_BASE_URL');
   validateOptionalUrl(config, 'OBJECT_STORAGE_DOWNLOAD_BASE_URL');
