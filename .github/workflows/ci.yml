@@ -43,6 +43,9 @@ jobs:
       MFA_ENCRYPTION_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
       AUTH_PUBLIC_ORIGIN: http://127.0.0.1:3000
       MAILPIT_URL: http://127.0.0.1:58025
+      # If a CI job runs the development seed, relative map/follow-up fixtures
+      # use the same clock on every run.
+      DEVELOPMENT_SEED_NOW: '2026-09-22T12:00:00.000Z'
 
     services:
       postgres:
