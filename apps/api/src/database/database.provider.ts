@@ -7,6 +7,7 @@ import { DATABASE, DATABASE_POOL } from './database.constants.js';
 import * as schema from './schema/index.js';
 import { createRequestAwareDatabase } from './request-tenant-executor.js';
 import { registerGuardDatabase } from './guard-tenant-scope.js';
+import { verifyTenantRlsRuntime, type TenantRlsMode } from './tenant-rls-guard.js';
 
 export const databaseProviders: Provider[] = [
   {
@@ -79,6 +80,9 @@ export const databaseProviders: Provider[] = [
       });
 
       await pool.query('SELECT 1');
+
+      const rlsMode = (configService.get<string>('TENANT_RLS_MODE') ?? 'disabled') as TenantRlsMode;
+      await verifyTenantRlsRuntime(pool, rlsMode, (message) => logger.warn(message));
 
       return pool;
     },
