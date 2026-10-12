@@ -163,8 +163,9 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
     follow_up, qualified, converted
   campaign-prospect PATCH updates membership status; action completion owns stage changes.
   ```
+- **Remediation (2026-10-12):** the campaign-prospect PATCH DTO declares only membership `status`; global whitelist/forbid-non-whitelisted validation rejects `lifecycleStage`, and the service repository update writes only `status`/`updatedAt`. A focused DTO negative test now protects this boundary.
 - **Why it matters:** Inclusion status and lifecycle stage are easy to confuse in clients and reporting.
-- **Fix:** Name PATCH as inclusion-status only, expose lifecycle transitions through commands, and add a negative direct-stage test.
+- **Fix status:** Membership PATCH is explicit and lifecycle transitions remain owned by action/assignment commands; the negative direct-stage test is in place.
 - **Effort:** S
 - **Confidence:** verified
 
