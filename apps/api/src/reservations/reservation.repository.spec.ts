@@ -364,6 +364,8 @@ describe('ReservationRepository', () => {
     ]);
 
     expect(options.arguments).toEqual([reservation.reservationId, organizationAId]);
+    expect(script).toContain('if not reservationValue then');
+    expect(script).toContain("redis.call('DEL', KEYS[2])");
   });
 
   it('returns false when organization-scoped release reports no matching reservation', async () => {

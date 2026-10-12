@@ -285,7 +285,17 @@ export class ReservationRepository {
       local reservationValue =
         redis.call('GET', KEYS[1])
 
+      local collisionValue =
+        redis.call('GET', KEYS[2])
+
       if not reservationValue then
+        if collisionValue then
+          local collision = cjson.decode(collisionValue)
+          if collision.reservationId == ARGV[1] then
+            redis.call('DEL', KEYS[2])
+            return 1
+          end
+        end
         return 0
       end
 
@@ -295,9 +305,6 @@ export class ReservationRepository {
       if reservation.reservationId ~= ARGV[1] then
         return 0
       end
-
-      local collisionValue =
-        redis.call('GET', KEYS[2])
 
       if collisionValue then
         local collision =
@@ -358,7 +365,17 @@ export class ReservationRepository {
       local reservationValue =
         redis.call('GET', KEYS[1])
 
+      local collisionValue =
+        redis.call('GET', KEYS[2])
+
       if not reservationValue then
+        if collisionValue then
+          local collision = cjson.decode(collisionValue)
+          if collision.reservationId == ARGV[1] and collision.organizationId == ARGV[2] then
+            redis.call('DEL', KEYS[2])
+            return 1
+          end
+        end
         return 0
       end
 
@@ -372,9 +389,6 @@ export class ReservationRepository {
       if reservation.organizationId ~= ARGV[2] then
         return 0
       end
-
-      local collisionValue =
-        redis.call('GET', KEYS[2])
 
       if collisionValue then
         local collision =
