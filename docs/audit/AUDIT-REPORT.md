@@ -12,8 +12,8 @@ Scope: read-only review against docs/audit/CODEX-AUDIT-PROMPT.md. No product cod
 5. **API-001 (S2):** the global tenant interceptor holds a PostgreSQL client for the full HTTP handler.
 6. **REQ-001 (S2):** backup restore is not rehearsed.
 7. **PRF-001 (S2):** leading-wildcard search is unmeasured and no trigram index was found.
-8. **DEV-001 (S2):** root verification commands timed out in this environment.
-9. **WEB-001 (S2):** frontend API contracts are not shared through the types package.
+8. **DEV-001 (S2):** direct repository verification is green; the aggregate Turbo test runner still stalls in this environment.
+9. **WEB-001 (S2):** frontend API contracts are shared through the types package; downstream contract adoption remains incremental.
 10. **UID-001 (S3):** no automated responsive or WCAG gate is defined.
 
 The repository also has strong controls: bounded API/worker pools, forced RLS, global DTO validation, immutable action/audit migrations, scoped exports, and real PostgreSQL concurrency tests.
@@ -27,6 +27,18 @@ The rehearsal restored the custom-format archive into a fresh PostgreSQL databas
 reapplied runtime grants, and verified the restored schema. Production scheduling,
 off-account encrypted retention, and an approved restore target remain operational
 follow-ups because they require deployment credentials and an operator decision.
+
+The direct root verification baseline was rerun on 2026-10-12. ESLint, Prettier,
+API/web/worker TypeScript checks, and migration integrity all passed. The aggregate
+`turbo run test` command was bounded and stopped after approximately 95 seconds
+without producing package results; Redis/PostgreSQL-backed integration tests cannot
+be classified as passing when those services are unavailable in the local
+environment. This is recorded as a verification limitation rather than a green
+full-suite claim.
+
+The shared action contract is now published from `packages/types` and consumed by
+the web app. Web TypeScript, focused action contract tests, lint, and formatting
+passed; remaining API adoption is tracked with the lifecycle/domain-event work.
 
 ## Severity count
 
@@ -55,6 +67,7 @@ follow-ups because they require deployment credentials and an operator decision.
   pnpm test -- --passWithNoTests — started, no output, interrupted after ~60s
   pnpm --filter web build — started, no output, interrupted after ~60s
   ```
+- **Updated verification (2026-10-12):** direct ESLint, Prettier, API/web/worker TypeScript checks, and migration-integrity checks passed. The bounded aggregate `turbo run test` run produced no package result within approximately 95 seconds and was stopped; service-backed integration tests remain unverified without Redis/PostgreSQL.
 - **Why it matters:** Release status cannot be established from the required root commands.
 - **Fix:** Add bounded per-package timeouts and CI artifacts; identify the first blocking package and fail fast with its output.
 - **Effort:** M
@@ -296,12 +309,11 @@ follow-ups because they require deployment credentials and an operator decision.
 - **Location:** packages/types/package.json:1-12; apps/web/src/lib/api/*
 - **Evidence:**
   ```json
-  { "name": "types", "main": "index.js", "type": "module" }
-  // no source, build or typecheck script in packages/types/package.json
-  // web request helpers define response interfaces locally
+  { "name": "@trackroster/types", "exports": { ".": "./src/index.ts" }, "private": true }
+  // shared action contracts are exported from packages/types and imported by web
   ```
 - **Why it matters:** Role scope, error envelopes and lifecycle values can diverge between API and pages.
-- **Fix:** Export stable DTO/result types from packages/types (or generate them from the API contract) and import them in web clients.
+- **Fix status:** Shared action contracts are now exported from packages/types and consumed by web clients; broaden adoption to lifecycle and error contracts as those APIs are finalized.
 - **Effort:** L
 - **Confidence:** verified
 
