@@ -31,6 +31,8 @@ to or mutates a target database. A restore rehearsal must use an isolated databa
 restore the runtime role/grants from
 `infrastructure/docker/postgres/init/01-runtime-role.sql`, run migrations/compatibility
 checks, and capture tenant/RLS/API/worker evidence before production scheduling.
+The role replay is safe when cluster roles are omitted from a custom-format archive;
+recreate the migration owner before applying any new migrations.
 Both commands require PostgreSQL 16 or newer clients. They resolve an explicit
 `PG_DUMP_BIN`/`PG_RESTORE_BIN` or `PG_CLIENT_BIN_DIR` first; setting `PG_CLIENT_IMAGE`
 uses a version-pinned Docker client and mounts the archive directory so paths outside
