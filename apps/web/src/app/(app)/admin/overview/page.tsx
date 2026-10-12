@@ -106,7 +106,8 @@ function Overview() {
     },
     { label: l('Rules reviewed', 'Règles revues'), done: rulesSet > 0 },
   ];
-  const hasIncompleteSetup = data !== null && setup.some((step) => !step.done);
+  const completedSetupSteps = setup.filter((step) => step.done).length;
+  const hasIncompleteSetup = data !== null && completedSetupSteps < setup.length;
 
   const blockers: Array<{
     title: string;
@@ -267,8 +268,8 @@ function Overview() {
             <div>
               <h2 className="text-base font-extrabold text-navy">
                 {l(
-                  `Workspace setup — ${setup.filter((step) => step.done).length} of ${setup.length} steps done`,
-                  `Configuration de l’espace — ${setup.filter((step) => step.done).length} étapes sur ${setup.length}`,
+                  `Workspace setup — ${completedSetupSteps} of ${setup.length} steps done`,
+                  `Configuration de l’espace — ${completedSetupSteps} étapes sur ${setup.length}`,
                 )}
               </h2>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -479,7 +480,7 @@ function MetricCard({
 }) {
   return (
     <Card
-      className={`min-h-[108px] ${danger ? 'border-danger/30' : warning ? 'border-warning/40' : ''}`}
+      className={`min-h-27 ${danger ? 'border-danger/30' : warning ? 'border-warning/40' : ''}`}
     >
       <p
         className={`text-[30px] font-extrabold tracking-[-0.04em] ${danger ? 'text-danger' : warning ? 'text-warning' : 'text-navy'}`}
