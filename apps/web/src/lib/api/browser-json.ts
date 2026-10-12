@@ -36,6 +36,11 @@ function normalizeApiError(status: number, value: unknown): ApiErrorPayload {
 
     error: typeof value.error === 'string' ? value.error : 'Request Error',
 
+    details:
+      typeof value.details === 'object' && value.details !== null && !Array.isArray(value.details)
+        ? (value.details as Record<string, unknown>)
+        : undefined,
+
     requestId: typeof value.requestId === 'string' ? value.requestId : undefined,
   };
 }
@@ -84,7 +89,10 @@ export async function browserJson<T>(input: RequestInfo | URL, init?: RequestIni
   const body = await readJson(response);
 
   if (!response.ok) {
-    throw new ApiError(normalizeApiError(response.status, body));
+    const normalized = normalizeApiError(response.status, body);
+    if (!normalized.requestId)
+      normalized.requestId = response.headers.get('x-request-id') ?? undefined;
+    throw new ApiError(normalized);
   }
 
   return body as T;

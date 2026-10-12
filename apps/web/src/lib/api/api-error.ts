@@ -3,6 +3,7 @@ export interface ApiErrorPayload {
   code: string;
   message: string | string[];
   error: string;
+  details?: Record<string, unknown>;
   requestId?: string;
 }
 
@@ -14,6 +15,8 @@ export class ApiError extends Error {
   readonly errorName: string;
 
   readonly requestId?: string;
+
+  readonly details?: Record<string, unknown>;
 
   readonly messages: string[];
 
@@ -27,6 +30,7 @@ export class ApiError extends Error {
     this.statusCode = payload.statusCode;
     this.code = payload.code;
     this.errorName = payload.error;
+    this.details = payload.details;
     this.requestId = payload.requestId;
     this.messages = messages;
   }

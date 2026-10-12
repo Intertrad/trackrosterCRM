@@ -72,6 +72,12 @@ function toApiError(status: number, body: unknown): ApiError {
         ? (record.message as string | string[])
         : 'Request failed',
     error: typeof record.error === 'string' ? record.error : 'Request Error',
+    details:
+      typeof record.details === 'object' &&
+      record.details !== null &&
+      !Array.isArray(record.details)
+        ? (record.details as Record<string, unknown>)
+        : undefined,
     requestId: typeof record.requestId === 'string' ? record.requestId : undefined,
   });
 }
