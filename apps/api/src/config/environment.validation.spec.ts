@@ -53,6 +53,7 @@ describe('validateEnvironment', () => {
         DATABASE_STATEMENT_TIMEOUT_MS: '30000',
         DATABASE_IDLE_TRANSACTION_TIMEOUT_MS: '30000',
         PORT: '3001',
+        OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test/s3',
         OBJECT_STORAGE_UPLOAD_BASE_URL: 'https://objects.example.test/upload',
       }),
     ).not.toThrow();
@@ -77,6 +78,12 @@ describe('validateEnvironment', () => {
         DATABASE_STATEMENT_TIMEOUT_MS: '100',
       }),
     ).toThrow('DATABASE_STATEMENT_TIMEOUT_MS');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        OBJECT_STORAGE_ENDPOINT: 'not-a-url',
+      }),
+    ).toThrow('OBJECT_STORAGE_ENDPOINT');
     expect(() =>
       validateEnvironment({
         ...validConfig,

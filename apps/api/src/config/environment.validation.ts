@@ -119,6 +119,8 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
     parseTrustProxy(String(config.TRUST_PROXY));
   }
   validateOptionalBoundedInteger(config, 'PORT', 1, 65_535);
+  validateOptionalUrl(config, 'OBJECT_STORAGE_ENDPOINT');
+  validateOptionalUrl(config, 'R2_ENDPOINT');
   validateOptionalUrl(config, 'OBJECT_STORAGE_UPLOAD_BASE_URL');
   validateOptionalUrl(config, 'OBJECT_STORAGE_DOWNLOAD_BASE_URL');
   for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
