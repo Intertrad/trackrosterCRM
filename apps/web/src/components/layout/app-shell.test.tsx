@@ -102,7 +102,9 @@ describe('AppShell', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getAllByPlaceholderText('Rechercher mes prospects attribués…')).toHaveLength(2);
+    expect(
+      screen.queryByPlaceholderText('Rechercher mes prospects attribués…'),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Espace attribué')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Menu du compte' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
@@ -113,7 +115,7 @@ describe('AppShell', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getAllByPlaceholderText('Search my assigned prospects…')).toHaveLength(2);
+    expect(screen.queryByPlaceholderText('Search my assigned prospects…')).not.toBeInTheDocument();
     expect(screen.getByText('Assigned workspace')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Account menu' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
@@ -193,20 +195,13 @@ describe('AppShell', () => {
     expect(bottomBar).toHaveTextContent('More');
   });
 
-  it('keeps workspace search available in the mobile shell', () => {
+  it('does not expose workspace search in the mobile shell', () => {
     authenticated();
 
     render(<AppShell>content</AppShell>);
 
-    const searches = screen.getAllByRole('search');
-    expect(searches).toHaveLength(2);
-
-    fireEvent.change(within(searches[0]!).getByRole('textbox'), {
-      target: { value: 'Nancy central' },
-    });
-    fireEvent.submit(searches[0]!);
-
-    expect(pushMock).toHaveBeenCalledWith('/search?q=Nancy%20central');
+    expect(screen.queryByRole('search')).not.toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   it('switches navigation when the active workspace is a manager', () => {
