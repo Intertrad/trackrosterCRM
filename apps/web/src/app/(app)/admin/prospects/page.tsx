@@ -207,11 +207,21 @@ function Referential() {
   useEffect(() => {
     if (pageCheckbox.current) pageCheckbox.current.indeterminate = someChecked && !allChecked;
   }, [allChecked, someChecked]);
-  const points = (items ?? []).flatMap((r) =>
-    toMapPoint(r.id, r.name, r.latitude, r.longitude, 'to_contact', `/admin/prospects/${r.id}`),
+  const points = useMemo(
+    () =>
+      (items ?? []).flatMap((r) =>
+        toMapPoint(r.id, r.name, r.latitude, r.longitude, 'to_contact', `/admin/prospects/${r.id}`),
+      ),
+    [items],
   );
   const handleVisibleMapChange = useCallback((ids: string[]) => {
-    setVisibleMapIds(new Set(ids));
+    setVisibleMapIds((current) => {
+      if (current && current.size === ids.length && ids.every((id) => current.has(id))) {
+        return current;
+      }
+
+      return new Set(ids);
+    });
   }, []);
   const mapSelected = mapSelectedId
     ? (items?.find((item) => item.id === mapSelectedId) ?? null)
