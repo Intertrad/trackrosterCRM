@@ -67,8 +67,11 @@ function Overview() {
   useLiveRefresh(load);
 
   const metrics = data?.metrics;
-  const format = (value: number | undefined) =>
-    typeof value === 'number' ? value.toLocaleString(locale) : '—';
+  const format = (value: number | undefined) => {
+    if (typeof value !== 'number') return '—';
+    /* PostgreSQL can represent an empty pair calculation as negative zero. */
+    return (Object.is(value, -0) ? 0 : value).toLocaleString(locale);
+  };
   const organizations = data?.organizations ?? [];
   const maxOrganizations = Math.max(
     1,
@@ -98,13 +101,17 @@ function Overview() {
     },
     {
       label: l('Coordination matrix', 'Matrice de coordination'),
-      done: rulesSet >= pairs && pairs > 0,
+      /* A workspace with fewer than two companies has no pair decisions. */
+      done: pairs === 0 || rulesSet >= pairs,
     },
     {
       label: l('Scripts and e-mails', 'Scripts et e-mails'),
       done: (metrics?.activeScriptTemplates ?? 0) > 0,
     },
-    { label: l('Rules reviewed', 'Règles revues'), done: rulesSet > 0 },
+    {
+      label: l('Rules reviewed', 'Règles revues'),
+      done: pairs === 0 || rulesSet > 0,
+    },
   ];
   const completedSetupSteps = setup.filter((step) => step.done).length;
   const hasIncompleteSetup = data !== null && completedSetupSteps < setup.length;
@@ -499,7 +506,8 @@ function MetricCard({
 
 function AnimatedMetricValue({ value, locale }: { value: number; locale?: string }) {
   const numberRef = useRef<HTMLSpanElement>(null);
-  const [displayValue, setDisplayValue] = useState(value);
+  const normalizedValue = Object.is(value, -0) ? 0 : value;
+  const [displayValue, setDisplayValue] = useState(normalizedValue);
   const formatter = new Intl.NumberFormat(locale ?? 'en-US');
 
   useEffect(() => {
@@ -510,7 +518,7 @@ function AnimatedMetricValue({ value, locale }: { value: number; locale?: string
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReducedMotion) {
-      setDisplayValue(value);
+      setDisplayValue(normalizedValue);
       return;
     }
 
@@ -519,20 +527,20 @@ function AnimatedMetricValue({ value, locale }: { value: number; locale?: string
     const tick = (now: number) => {
       const progress = Math.min((now - startedAt) / 850, 1);
       const easedProgress = 1 - (1 - progress) ** 3;
-      setDisplayValue(Math.round(value * easedProgress));
+      setDisplayValue(Math.round(normalizedValue * easedProgress));
       if (progress < 1) frame = window.requestAnimationFrame(tick);
     };
 
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [value]);
+  }, [normalizedValue]);
 
   return (
     <>
       <span ref={numberRef} aria-hidden="true">
         {formatter.format(displayValue)}
       </span>
-      <span className="sr-only">{formatter.format(value)}</span>
+      <span className="sr-only">{formatter.format(normalizedValue)}</span>
     </>
   );
 }
