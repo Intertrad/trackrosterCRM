@@ -37,6 +37,8 @@ export class ReadinessController {
         idle: this.pool.idleCount,
         waiting: this.pool.waitingCount,
         max: Number(this.config.get<string>('API_DATABASE_POOL_MAX') ?? 8),
+        aggregateBudget: Number(this.config.get<string>('DATABASE_POOL_BUDGET') ?? 12),
+        estimatedAggregate: this.estimatedAggregatePoolConnections(),
       },
       redis: results[1]!.status === 'fulfilled' ? 'up' : 'down',
       optional: {
@@ -69,5 +71,13 @@ export class ReadinessController {
     } finally {
       if (timer) clearTimeout(timer);
     }
+  }
+
+  private estimatedAggregatePoolConnections(): number {
+    const apiMax = Number(this.config.get<string>('API_DATABASE_POOL_MAX') ?? 8);
+    const workerMax = Number(this.config.get<string>('WORKER_DATABASE_POOL_MAX') ?? 4);
+    const apiReplicas = Number(this.config.get<string>('API_DATABASE_REPLICA_COUNT') ?? 1);
+    const workerReplicas = Number(this.config.get<string>('WORKER_DATABASE_REPLICA_COUNT') ?? 1);
+    return apiMax * apiReplicas + workerMax * workerReplicas;
   }
 }

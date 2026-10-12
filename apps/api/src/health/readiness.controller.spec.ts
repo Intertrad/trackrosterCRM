@@ -24,6 +24,8 @@ describe('Dependency readiness', () => {
           idle: 1,
           waiting: 0,
           max: 8,
+          aggregateBudget: 12,
+          estimatedAggregate: 12,
         },
         redis: 'up',
         optional: {

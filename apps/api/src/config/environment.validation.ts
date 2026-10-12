@@ -1,3 +1,5 @@
+import { validateAggregateDatabasePoolBudget } from './database-pool-budget.js';
+
 const MINIMUM_JWT_SECRET_LENGTH = 32;
 
 const JWT_TTL_PATTERN = /^\d+(s|m|h|d)$/;
@@ -108,6 +110,7 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
   validateOptionalBoundedInteger(config, 'DATABASE_STATEMENT_TIMEOUT_MS', 250, 120_000);
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 1_000, 300_000);
+  validateAggregateDatabasePoolBudget(config);
   validateOptionalBoundedInteger(config, 'PORT', 1, 65_535);
   validateOptionalUrl(config, 'OBJECT_STORAGE_UPLOAD_BASE_URL');
   validateOptionalUrl(config, 'OBJECT_STORAGE_DOWNLOAD_BASE_URL');
