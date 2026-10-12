@@ -32,3 +32,26 @@ export interface CompleteActionInput {
   };
   reservationDisposition: 'keep' | 'release';
 }
+
+/** Canonical lifecycle and coordination events persisted in the audit stream. */
+export const DOMAIN_EVENT_TYPES = [
+  'prospect.assigned',
+  'reservation.claimed',
+  'reservation.rejected',
+  'action.logged',
+  'followup.due',
+  'override.requested',
+  'override.decided',
+  'import.completed',
+] as const;
+
+export type DomainEventType = (typeof DOMAIN_EVENT_TYPES)[number];
+
+export interface DomainEventEnvelope {
+  type: DomainEventType;
+  tenantId: string;
+  resourceType: string;
+  resourceId: string;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+}

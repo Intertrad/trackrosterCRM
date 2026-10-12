@@ -144,8 +144,9 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
   apps/api/src/collisions/collision-workflow.service.ts:399:
     ... 'override.requested' ...
   ```
+- **Remediation (2026-10-12):** the eight required event names are now a shared `DomainEventType` union in `packages/types`, with an API adapter and contract tests that reject unrelated audit actions. Existing audit rows remain backward compatible; emitting each event from its owning workflow is the next adoption step.
 - **Why it matters:** Only a subset of the requested vocabulary was found, and membership status is separate from lifecycle stage.
-- **Fix:** Define a typed event union, persistence/consumer mapping and transition tests.
+- **Fix status:** Typed event union, API adapter, and contract tests are in place; workflow emission and consumer mapping remain the next adoption step.
 - **Effort:** M
 - **Confidence:** verified
 

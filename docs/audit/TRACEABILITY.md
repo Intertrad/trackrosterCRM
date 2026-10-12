@@ -34,16 +34,16 @@ Audit date: 2026-10-12. Status values are DONE, PARTIAL, NOT FOUND or N/A for cu
 
 ## Domain events
 
-| Event                | Emitted   | Consumed                             | Typed payload                          | Persisted                    | Status / gap                               |
-| -------------------- | --------- | ------------------------------------ | -------------------------------------- | ---------------------------- | ------------------------------------------ |
-| prospect.assigned    | NOT FOUND | NOT FOUND                            | NOT FOUND                              | assignment/audit rows exist  | Map assignment row/audit to a typed event. |
-| reservation.claimed  | NOT FOUND | worker reservation jobs              | NOT FOUND                              | reservation records/events   | Publish typed claim event.                 |
-| reservation.rejected | NOT FOUND | notifications partly                 | NOT FOUND                              | collision/audit evidence     | Publish typed rejection event with reason. |
-| action.logged        | PARTIAL   | observer/audit UI uses action.logged | UI string, no shared event union found | action events/audit rows     | Define backend event contract.             |
-| followup.due         | PARTIAL   | notification scheduler/digest        | NOT FOUND                              | follow-ups and notifications | Complete recipient/channel contract.       |
-| override.requested   | DONE      | collision workflow/audit             | local string payload                   | audit event                  | Promote to typed shared event.             |
-| override.decided     | NOT FOUND | NOT FOUND                            | NOT FOUND                              | override/audit records       | Add emitted decision event.                |
-| import.completed     | NOT FOUND | import jobs/notifications partly     | NOT FOUND                              | import execution records     | Add completion event and anomaly payload.  |
+| Event                | Emitted | Consumed                             | Typed payload                | Persisted                    | Status / gap                              |
+| -------------------- | ------- | ------------------------------------ | ---------------------------- | ---------------------------- | ----------------------------------------- |
+| prospect.assigned    | PARTIAL | assignment/audit rows                | shared DomainEventType union | assignment/audit rows exist  | Emit from assignment workflow.            |
+| reservation.claimed  | PARTIAL | worker reservation jobs              | shared DomainEventType union | reservation records/events   | Emit typed claim event.                   |
+| reservation.rejected | PARTIAL | notifications partly                 | shared DomainEventType union | collision/audit evidence     | Emit typed rejection event with reason.   |
+| action.logged        | PARTIAL | observer/audit UI uses action.logged | shared DomainEventType union | action events/audit rows     | Route action completion through contract. |
+| followup.due         | PARTIAL | notification scheduler/digest        | shared DomainEventType union | follow-ups and notifications | Complete recipient/channel contract.      |
+| override.requested   | PARTIAL | collision workflow/audit             | shared DomainEventType union | audit event                  | Emit through typed adapter.               |
+| override.decided     | PARTIAL | override/audit records               | shared DomainEventType union | override/audit records       | Add emitted decision event.               |
+| import.completed     | PARTIAL | import jobs/notifications partly     | shared DomainEventType union | import execution records     | Add completion event and anomaly payload. |
 
 ## Prospect lifecycle
 
