@@ -6,6 +6,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@trackroster/types': fileURLToPath(
+        new URL('../../packages/types/src/index.ts', import.meta.url),
+      ),
     },
   },
 
