@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ConsentService } from '../consents/consent.service.js';
 import { AuthorizationService } from '../authorization/authorization.service.js';
 import type { CampaignProspectAssignment } from '../database/schema/campaign-prospect-assignments.js';
 import type { Database } from '../database/database.types.js';
@@ -29,6 +30,8 @@ describe('ManagerOverrideService', () => {
   let authorizationService: AuthorizationService;
 
   let reservationService: ReservationService;
+
+  let consentService: ConsentService;
 
   let service: ManagerOverrideService;
 
@@ -115,6 +118,10 @@ describe('ManagerOverrideService', () => {
       requireReservationEligibility: vi.fn(),
     } as unknown as ReservationService;
 
+    consentService = {
+      assertNotBlocked: vi.fn(),
+    } as unknown as ConsentService;
+
     service = new ManagerOverrideService(
       database as unknown as Database,
 
@@ -129,6 +136,8 @@ describe('ManagerOverrideService', () => {
       reservationService,
 
       auditService as unknown as AuditService,
+
+      consentService,
     );
 
     vi.mocked(authorizationService.hasAnyOverrideAuthority).mockResolvedValue(true);
@@ -257,6 +266,13 @@ describe('ManagerOverrideService', () => {
       transaction,
     );
 
+    expect(consentService.assertNotBlocked).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      transaction,
+      'Prospect opposition cannot be overridden',
+    );
+
     expect(collisionOverrideRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId,
@@ -326,6 +342,50 @@ describe('ManagerOverrideService', () => {
     );
 
     expect(result.reasonCode).toBe('PLANNED_ACTION');
+  });
+
+  it('rejects an opted-out prospect before persisting an override', async () => {
+    const dueAt = '2026-09-11T10:00:00.000Z';
+
+    vi.mocked(collisionDecisionService.evaluate).mockResolvedValue({
+      decision: 'block',
+      reasonCode: 'PLANNED_ACTION',
+      establishmentId,
+      conflict: {
+        followUpId,
+        campaignId,
+        campaignProspectId,
+        assignmentId,
+        assignedUserId: null,
+        dueAt,
+      },
+    });
+    vi.mocked(consentService.assertNotBlocked).mockRejectedValue(
+      new ConflictException({
+        code: 'CONTACT_BLOCKED',
+        message: 'Prospect opposition cannot be overridden',
+      }),
+    );
+
+    await expect(
+      service.create({
+        tenantId,
+        approvedByUserId: approverUserId,
+        prospectorUserId,
+        campaignId,
+        campaignProspectId,
+        reason: 'Manager approval reason is valid.',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(consentService.assertNotBlocked).toHaveBeenCalledWith(
+      tenantId,
+      establishmentId,
+      transaction,
+      'Prospect opposition cannot be overridden',
+    );
+    expect(collisionOverrideRepository.create).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('rejects a caller with no override authority before resolving the target', async () => {

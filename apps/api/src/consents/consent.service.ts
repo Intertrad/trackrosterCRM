@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, eq, gt, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
@@ -15,6 +21,23 @@ import type { CreateConsentDto, ListConsentsDto } from './consent.dto.js';
 @Injectable()
 export class ConsentService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
+
+  async assertNotBlocked(
+    tenantId: string,
+    establishmentId: string,
+    tx: DatabaseExecutor = this.db,
+    message = 'Prospect opposition blocks this operation',
+  ) {
+    const result = await tx.execute<{ blocked: boolean }>(
+      sql`SELECT trackroster_consent_blocked(${tenantId}::uuid,${establishmentId}::uuid,NULL) AS blocked`,
+    );
+    if (result.rows[0]?.blocked)
+      throw new ConflictException({
+        code: 'CONTACT_BLOCKED',
+        message,
+      });
+  }
+
   async authorize(
     auth: AuthenticatedPrincipal,
     id: string,

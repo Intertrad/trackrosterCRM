@@ -22,6 +22,7 @@ import {
   isOverrideableCollisionReason,
 } from './collision-override-key.js';
 import { CollisionOverrideRepository } from './collision-override.repository.js';
+import { ConsentService } from '../consents/consent.service.js';
 
 const OVERRIDE_TTL_MINUTES = 10;
 
@@ -56,6 +57,7 @@ export class ManagerOverrideService {
     private readonly reservationService: ReservationService,
 
     private readonly auditService: AuditService,
+    private readonly consentService: ConsentService,
     private readonly reservationPolicy?: ReservationPolicyService,
   ) {}
 
@@ -260,6 +262,13 @@ export class ManagerOverrideService {
         if (!lockedAssignment || lockedAssignment.id !== assignment.id) {
           throw new ConflictException('Campaign prospect changed during override approval');
         }
+
+        await this.consentService.assertNotBlocked(
+          input.tenantId,
+          establishmentId,
+          transaction,
+          'Prospect opposition cannot be overridden',
+        );
 
         const override = await this.collisionOverrideRepository.create(
           {

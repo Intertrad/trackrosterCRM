@@ -19,6 +19,7 @@ import { ManagerOverrideController } from './manager-override.controller.js';
 import { CollisionBusinessModule } from './collision-business.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { DatabaseModule } from '../database/database.module.js';
+import { ConsentModule } from '../consents/consent.module.js';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { DatabaseModule } from '../database/database.module.js';
     FollowUpRepositoryModule,
     AuditModule,
     DatabaseModule,
+    ConsentModule,
     ActivityRepositoryModule,
 
     CoordinationPolicyModule,
