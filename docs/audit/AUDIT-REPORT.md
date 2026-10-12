@@ -18,6 +18,16 @@ Scope: read-only review against docs/audit/CODEX-AUDIT-PROMPT.md. No product cod
 
 The repository also has strong controls: bounded API/worker pools, forced RLS, global DTO validation, immutable action/audit migrations, scoped exports, and real PostgreSQL concurrency tests.
 
+## Remediation status
+
+The original findings are retained below as the 2026-10-12 baseline. Item 5 is now
+closed by existing version-matched backup tooling and the documented disposable
+restore rehearsal recorded in `docs/operations/BACKUP_RESTORE.md` (2026-10-02).
+The rehearsal restored the custom-format archive into a fresh PostgreSQL database,
+reapplied runtime grants, and verified the restored schema. Production scheduling,
+off-account encrypted retention, and an approved restore target remain operational
+follow-ups because they require deployment credentials and an operator decision.
+
 ## Severity count
 
 | Severity | Count |
