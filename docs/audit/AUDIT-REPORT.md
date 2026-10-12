@@ -259,6 +259,7 @@ passed; remaining API adoption is tracked with the lifecycle/domain-event work.
   });
   ```
 - **Why it matters:** Every authenticated request holds a pool client while the handler waits on Redis, queues, mail or remote providers.
+- **Remediation (2026-10-12):** request transactions now set bounded `statement_timeout` and `idle_in_transaction_session_timeout` values and emit a warning when a tenant transaction exceeds the configured idle threshold. This limits connection starvation while preserving tenant RLS context; splitting the global interceptor into route-specific database scopes remains a larger follow-up because many handlers currently depend on its request executor.
 - **Fix:** Open transactions inside multi-write services and pass an executor only across their SQL statements; add pool wait/active gauges.
 - **Effort:** L
 - **Confidence:** verified

@@ -93,6 +93,8 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateOptionalBoundedInteger(config, 'API_DATABASE_POOL_MAX', 1, 15);
   validateOptionalBoundedInteger(config, 'DATABASE_CONNECTION_TIMEOUT_MS', 250, 30_000);
   validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_STATEMENT_TIMEOUT_MS', 250, 120_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 1_000, 300_000);
   for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
     if (config[key] !== undefined) validatePositiveInteger(config, key);
   }
