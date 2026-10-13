@@ -52,12 +52,23 @@ export class MapService {
       ? sql`${column} && ST_MakeEnvelope(${w},${s},${e},${n},4326)`
       : sql`(${column} && ST_MakeEnvelope(${w},${s},180,${n},4326) OR ${column} && ST_MakeEnvelope(-180,${s},${e},${n},4326))`;
   }
-  private eligible(a: AuthenticatedPrincipal, q: ProspectMapFiltersDto, spatial: SQL) {
+  private eligible(
+    a: AuthenticatedPrincipal,
+    q: ProspectMapFiltersDto,
+    spatial: SQL,
+    options: { countOnly?: boolean } = {},
+  ) {
+    const countOnly = options.countOnly === true;
+
     // Match prospectReadScope authority using the already joined campaign/prospect.
     // Rejoining those tables inside the scope check can produce huge intermediate results.
-    return sql`eligible AS MATERIALIZED (
-    SELECT cp.id AS campaign_prospect_id,cp.campaign_id,cp.lifecycle_stage,e.id,e.name,e.longitude,e.latitude,e.location,
-      EXISTS(SELECT 1 FROM campaign_prospect_assignments ca WHERE ca.tenant_id=cp.tenant_id AND ca.campaign_prospect_id=cp.id AND ca.ended_at IS NULL) AS assigned
+    return sql`eligible AS ${countOnly ? sql`` : sql`MATERIALIZED `}(
+    SELECT ${
+      countOnly
+        ? sql`cp.id AS campaign_prospect_id`
+        : sql`cp.id AS campaign_prospect_id,cp.campaign_id,cp.lifecycle_stage,e.id,e.name,e.longitude,e.latitude,e.location,
+      EXISTS(SELECT 1 FROM campaign_prospect_assignments ca WHERE ca.tenant_id=cp.tenant_id AND ca.campaign_prospect_id=cp.id AND ca.ended_at IS NULL) AS assigned`
+    }
     FROM establishments e JOIN campaign_prospects cp ON cp.tenant_id=e.tenant_id AND cp.establishment_id=e.id
     JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id
     WHERE e.tenant_id=${a.tenantId} AND e.status='active' AND e.location IS NOT NULL AND cp.status='active'
@@ -96,7 +107,7 @@ export class MapService {
       size = 360 / 2 ** q.zoom;
     /* Count the bounded authorized scope before the expensive cell grouping. */
     const membershipCount = await this.db.execute(
-      sql`WITH ${this.eligible(a, q, this.spatial(bbox))}
+      sql`WITH ${this.eligible(a, q, this.spatial(bbox), { countOnly: true })}
         SELECT count(*)::int AS memberships FROM eligible`,
     );
     this.check(membershipCount.rows[0]!);
