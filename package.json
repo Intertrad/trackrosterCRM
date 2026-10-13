@@ -17,6 +17,7 @@
     "check:api-route-dispositions": "node scripts/check-api-route-dispositions.mjs",
     "check:release-evidence": "node scripts/check-release-evidence.mjs",
     "check:performance-budgets": "node scripts/check-performance-budgets.mjs",
+    "performance:baseline": "node scripts/run-performance-baseline.mjs",
     "maps:serve": "http-server infrastructure/maps -p 8787 --cors -c-1",
     "maps:check": "node scripts/check-pmtiles.mjs",
     "geocode:prospects": "node scripts/geocode-missing-prospects.mjs",
