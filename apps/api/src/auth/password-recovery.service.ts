@@ -10,6 +10,7 @@ import { authPasswordResets } from '../database/schema/auth-recovery.js';
 import { PasswordService } from './password.service.js';
 import { AuthMailService } from './auth-mail.service.js';
 import { tokenHash } from './mfa-crypto.js';
+import { renderPasswordResetEmail } from './password-reset-email.js';
 
 @Injectable()
 export class PasswordRecoveryService {
@@ -55,11 +56,19 @@ export class PasswordRecoveryService {
       await tx.execute(sql`INSERT INTO auth_password_resets (token_hash, identity_id, credentials_updated_at, security_state_updated_at, expires_at)
         SELECT ${tokenHash(token)}, id, credentials_updated_at, security_state_updated_at, clock_timestamp() + interval '30 minutes'
         FROM identities WHERE id = ${identity.id}`);
+      const rendered = renderPasswordResetEmail({
+        resetUrl: this.mail.publicLink('/reset-password', token),
+        expirationDate: new Date(Date.now() + 30 * 60000).toLocaleString('en-GB', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'UTC',
+        }),
+        logoUrl: this.mail.publicAsset('/trackroster-logo.png'),
+      });
       await this.mail.enqueue(
         {
           to: identity.email,
-          subject: 'Reset your TrackRoster password',
-          text: `Use this link within 30 minutes to reset your password:\n\n${this.mail.publicLink('/reset-password', token)}\n\nIf you did not request this, you can ignore this email. Your password has not changed.`,
+          ...rendered,
         },
         new Date(Date.now() + 30 * 60000),
         tx,
@@ -80,11 +89,11 @@ export class PasswordRecoveryService {
   }
   async status(token: string) {
     const [row] = await this.db
-      .select({ hash: authPasswordResets.tokenHash })
+      .select({ hash: authPasswordResets.tokenHash, expiresAt: authPasswordResets.expiresAt })
       .from(authPasswordResets)
       .innerJoin(identities, eq(identities.id, authPasswordResets.identityId))
       .where(this.validity(tokenHash(token)));
-    return { valid: !!row };
+    return { valid: !!row, ...(row ? { expiresAt: row.expiresAt.toISOString() } : {}) };
   }
   async reset(token: string, password: string) {
     const hash = tokenHash(token);
