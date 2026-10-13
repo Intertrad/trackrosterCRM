@@ -14,6 +14,7 @@ describe('AuthController', () => {
   it('advertises password recovery when Brevo is configured', () => {
     const result = controller({
       BREVO_API_KEY: 'brevo-test-key',
+      BREVO_SENDER_EMAIL: 'accounts@example.test',
       MFA_ENCRYPTION_KEY: 'a'.repeat(64),
       AUTH_PUBLIC_ORIGIN: 'https://www.trackroster.com',
     }).configuration();
@@ -42,6 +43,15 @@ describe('AuthController', () => {
     expect(
       controller({
         BREVO_API_KEY: 'brevo-test-key',
+        BREVO_SENDER_EMAIL: 'accounts@example.test',
+        AUTH_PUBLIC_ORIGIN: 'https://www.trackroster.com',
+      }).configuration().passwordRecovery,
+    ).toBe(false);
+
+    expect(
+      controller({
+        BREVO_API_KEY: 'brevo-test-key',
+        MFA_ENCRYPTION_KEY: 'a'.repeat(64),
         AUTH_PUBLIC_ORIGIN: 'https://www.trackroster.com',
       }).configuration().passwordRecovery,
     ).toBe(false);

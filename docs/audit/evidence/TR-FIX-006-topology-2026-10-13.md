@@ -37,4 +37,6 @@ an older build than `dev-v2`. The reset page and capability fix are present in
 deployment. No production code, credentials, or infrastructure were changed.
 The ticket remains partial until the deployment owner supplies the deployment
 topology, API origin, and a post-deploy probe with `/reset-password` returning
-`200` and `passwordRecovery: true`.
+`200` and `passwordRecovery: true`. The current `dev-v2` capability check also
+requires `BREVO_SENDER_EMAIL` whenever Brevo is the selected provider, matching
+the mail dispatcher instead of falling back to a test sender.

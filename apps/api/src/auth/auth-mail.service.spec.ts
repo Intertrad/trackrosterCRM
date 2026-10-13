@@ -7,6 +7,7 @@ function service(values: Record<string, string>) {
 
 const base = {
   BREVO_API_KEY: 'brevo-test-key',
+  BREVO_SENDER_EMAIL: 'accounts@example.test',
   MFA_ENCRYPTION_KEY: 'a'.repeat(64),
 };
 
@@ -19,6 +20,19 @@ describe('AuthMailService configuration', () => {
         AUTH_PUBLIC_ORIGIN: 'http://localhost:3000',
       }).assertConfigured(),
     ).toThrow('external HTTPS origin');
+  });
+
+  it('rejects a production Brevo configuration without a sender address', () => {
+    const withoutSender: Record<string, string> = { ...base };
+    delete withoutSender.BREVO_SENDER_EMAIL;
+
+    expect(() =>
+      service({
+        ...withoutSender,
+        NODE_ENV: 'production',
+        AUTH_PUBLIC_ORIGIN: 'https://www.trackroster.com',
+      }).assertConfigured(),
+    ).toThrow('Account email is not configured');
   });
 
   it('canonicalizes the production host and keeps invitation tokens in fragments', () => {

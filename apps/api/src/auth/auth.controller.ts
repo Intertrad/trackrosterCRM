@@ -30,7 +30,9 @@ export class AuthController {
   @Header('Cache-Control', 'no-store')
   configuration() {
     const hasPasswordRecoveryMail = Boolean(
-      (this.config.get<string>('MAILPIT_URL') || this.config.get<string>('BREVO_API_KEY')) &&
+      (this.config.get<string>('MAILPIT_URL') ||
+        (this.config.get<string>('BREVO_API_KEY') &&
+          this.config.get<string>('BREVO_SENDER_EMAIL'))) &&
       this.config.get<string>('MFA_ENCRYPTION_KEY') &&
       this.config.get<string>('AUTH_PUBLIC_ORIGIN'),
     );
