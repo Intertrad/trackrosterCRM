@@ -3,7 +3,10 @@
 Repository evidence is present in:
 
 - `apps/api/src/health/readiness.controller.ts` for bounded Postgres/Redis
-  readiness, pool utilization, waiting clients, and terminal mail failures.
+  readiness, pool utilization, waiting clients, BullMQ queue counts, and
+  terminal mail failures.
+- `apps/web/src/app/api/health/ready/route.ts` for the no-store public readiness
+  pass-through used by deployment monitors.
 - `apps/api/src/errors/api-exception.filter.ts` for sanitized errors and
   `x-request-id` propagation.
 - `docs/operations/OBSERVABILITY_ALERTS.md` for thresholds and fire drills.

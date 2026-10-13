@@ -7,7 +7,8 @@ const webUrl = requiredUrl(process.env.TOPOLOGY_WEB_URL, 'TOPOLOGY_WEB_URL');
 const apiUrl = optionalUrl(process.env.TOPOLOGY_API_URL, 'TOPOLOGY_API_URL');
 const timeoutMs = positiveInteger(process.env.TOPOLOGY_TIMEOUT_MS, 5_000, 'TOPOLOGY_TIMEOUT_MS');
 const expectedRoutes = parseRoutes(
-  process.env.TOPOLOGY_EXPECTED_ROUTES ?? '/login:200,/forgot-password:200,/reset-password:200',
+  process.env.TOPOLOGY_EXPECTED_ROUTES ??
+    '/login:200,/forgot-password:200,/reset-password:200,/api/health/ready:200',
 );
 const requirePasswordRecovery = process.env.TOPOLOGY_REQUIRE_PASSWORD_RECOVERY !== 'false';
 

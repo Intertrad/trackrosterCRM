@@ -22,6 +22,8 @@ Observed results:
   2026-10-08 through 2027-01-06.
 - `/login` and `/forgot-password` returned `200`.
 - `/reset-password` returned `404`.
+- `/api/health/ready` returned `404` (the public readiness proxy is included in
+  `dev-v2` and will be checked after deployment).
 - `/api/auth/config` returned HTTP `200` with `passwordRecovery: false`.
 
 The production login page was also checked in a browser. The forgot-password link
