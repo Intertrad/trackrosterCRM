@@ -30,4 +30,4 @@ node scripts/check-performance-budgets.mjs
 
 All four commands pass locally. The release verdict remains gated until the hosted and provider-dependent items marked `PARTIAL` or `BLOCKED` have evidence.
 
-The post-index CI run passed all release gates, including migrations, schema verification, lint, formatting, typecheck, unit tests, database/Redis integration tests, and the production build: [run 38381104470](https://github.com/Intertrad/trackrosterCRM/actions/runs/38381104470).
+The clean disposable-stack integration run passed API 58 files / 613 tests and worker 4 files / 12 tests (two provider tests remain intentionally skipped without hosted credentials). Repeated local integration runs must reset `docker-compose.backend-test.yml` first so fixture state cannot leak between runs. The latest GitHub Actions run passed migrations, schema verification, lint, formatting, typecheck, unit tests, database/Redis integration tests, and the production build: [run 38391141107](https://github.com/Intertrad/trackrosterCRM/actions/runs/38391141107).
