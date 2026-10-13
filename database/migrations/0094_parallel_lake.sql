@@ -1,0 +1,1 @@
+CREATE INDEX "establishments_tenant_location_gist_idx" ON "establishments" USING gist ("tenant_id","location") WHERE "establishments"."location" IS NOT NULL;
