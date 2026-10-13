@@ -1,0 +1,2727 @@
+{
+  "schemaVersion": 1,
+  "sourceSnapshot": "2026-09-30",
+  "redaction": "No credentials, tenant identifiers, tokens, or provider payloads",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/v1/actions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/actions/:actionId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/actions/:actionId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/cancel",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/complete",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/corrections",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/actions/:actionId/events",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/actions/:actionId/start",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignment-rules",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignment-rules",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/assignment-rules/:ruleId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/assignment-rules/:ruleId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignment-rules/:ruleId/simulate",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignment-suggestions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments/:assignmentId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/assignments/:assignmentId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/complete",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/reassign",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/:assignmentId/revoke",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/bulk",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assignments/preview",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assignments/unassigned",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/assignments",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/assignments/:assignmentId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/collisions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/collisions/:collisionId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/data-changes",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/events",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/events/:eventId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audit/evidence-exports",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/evidence-exports/:exportId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/exports",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/exports/:exportId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/overrides",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/overrides/:overrideId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/overview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/retention",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/security-events",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/security-events/:eventId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/users/:membershipId/access",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/config",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "accessClass": "authenticated-session-fixture",
+      "tenantFixture": "role and tenant session fixture",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me/access-grants",
+      "accessClass": "authenticated-session-fixture",
+      "tenantFixture": "role and tenant session fixture",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/mfa",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/enroll",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/recovery",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/recovery-codes/regenerate",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/mfa/verify",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/password-reset/:token/status",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password/forgot",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password/reset",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/refresh",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/select-tenant",
+      "accessClass": "authenticated-session-fixture",
+      "tenantFixture": "role and tenant session fixture",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/sso/:provider/callback",
+      "accessClass": "identity-provider-sandbox",
+      "tenantFixture": "configured SSO sandbox",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/sso/:provider/refresh",
+      "accessClass": "identity-provider-sandbox",
+      "tenantFixture": "configured SSO sandbox",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/sso/:provider/start",
+      "accessClass": "identity-provider-sandbox",
+      "tenantFixture": "configured SSO sandbox",
+      "owner": "identity",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaign-members/:id",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaign-members/:id",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/geographic-allocation/apply",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/geographic-allocation/preview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/members",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/members",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/organizations",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/organizations",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/organizations/:organizationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/organizations/:organizationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/activities",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/assignment-history",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/collision-decision",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/collision-overrides",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/cancel",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/complete",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/follow-ups/:followUpId/reschedule",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/reservation/:reservationId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/prospects/:prospectId/timeline",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/bulk",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/prospects/bulk/preview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/status",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campaigns/:campaignId/territories",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campaigns/:campaignId/territories",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campaigns/:campaignId/territories/:territoryId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collision-events",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/collision-events/:collisionId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/collision-events/:collisionId/override-request",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/custom-fields",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/custom-fields",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/custom-fields/:fieldId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/custom-fields/:fieldId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/admin",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/director",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/manager",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/dashboard/today",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/data-quality/overview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/establishments",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/establishments/:establishmentId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId/contacts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/establishments/:establishmentId/contacts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/:establishmentId/contacts/:contactId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/establishments/:establishmentId/contacts/:contactId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/establishments/nearby",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/audit",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports/:exportId/cancel",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/download",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/:exportId/file",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/activities",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/assignments",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/exports/follow_ups",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports/preview",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow-ups",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/follow-ups/:followUpId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/follow-ups/:followUpId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/follow-ups/:followUpId/cancel",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/follow-ups/:followUpId/complete",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "accessClass": "public-health-probe",
+      "tenantFixture": "isolated runtime process",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health/live",
+      "accessClass": "public-health-probe",
+      "tenantFixture": "isolated runtime process",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health/ready",
+      "accessClass": "public-health-probe",
+      "tenantFixture": "isolated runtime process",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/import-issues/:issueId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/cancel",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/commit",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/file",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/issues",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/imports/:importId/mapping",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/report",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/imports/:importId/rows",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/:importId/validate",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/execute",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports/preview",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/invitations/:token",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/invitations/:token/accept",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/manager/dashboard",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/map/collisions",
+      "accessClass": "provider-contract-fixture",
+      "tenantFixture": "provider sandbox or local service",
+      "owner": "integrations",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/map/coverage",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/map/heatmap",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/me",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/me/active-membership",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/memberships",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/permissions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/preferences",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/me/preferences",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/sessions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/me/sessions/:sessionId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/me/sessions/others",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/membership-scopes/:scopeId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/membership-scopes/:scopeId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/memberships/:membershipId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId/access-history",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/reactivate",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/resend-invite",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/memberships/:membershipId/scopes",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/scopes",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/memberships/:membershipId/suspend",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/notifications/:notificationId/read",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/:notificationId/read",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/read-all",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/unread-count",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/objectives",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/objectives",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/objectives/:objectiveId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/objectives/:objectiveId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/objectives/at-risk",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organization-coordination-policies",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organization-coordination-policies",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organization-coordination-policies/:policyId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/organization-coordination-policies/:policyId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organization-relationships",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organization-relationships",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organization-relationships/:id",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organizations",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/organizations",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/organizations/:organizationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/organizations/:organizationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/organizations/:organizationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/override-requests",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/override-requests/:requestId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/approve",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/cancel",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/override-requests/:requestId/reject",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/permissions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/:tenantId",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/:tenantId/config",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/tenants/:tenantId/config",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/tenants/:tenantId/status",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/:tenantId/usage",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/users",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/users/:identityId/grants",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/users/:identityId/grants/:grantId/revoke",
+      "accessClass": "platform-admin-fixture",
+      "tenantFixture": "platform-admin tenant fixture",
+      "owner": "platform",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospect-addresses/:addressId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospect-addresses/:addressId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospect-contacts/:contactId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospect-contacts/:contactId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospect-duplicates",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospect-duplicates/:duplicateId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospect-duplicates/:duplicateId/resolve",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospector/today",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospects/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/prospects/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/addresses",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/addresses",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/campaign-memberships",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/consents",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/consents",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/contacts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/contacts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/prospects/:prospectId/custom-fields",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/restore",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/prospects/:prospectId/tags/:tagId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/prospects/:prospectId/tags/:tagId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/:prospectId/timeline",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/map",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/prospects/nearby",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/regions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions/:regionId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/regions/:regionId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/regions/:regionId/children",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/report-definitions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/:reportId([0-9a-fA-F-]{36})",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/actions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/collisions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/conversions",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/coverage",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/data-quality",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/follow-ups",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/forecast",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/funnel",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/overview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/territories",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/workload",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservation-rules",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservation-rules",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/reservation-rules/:ruleId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservations",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reservations/:reservationId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/extend",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/heartbeat",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/:reservationId/release",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/check",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reservations/claim",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/roles",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/roles/:role/permissions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/roles/:role/permissions",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/route-stops/:stopId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/route-stops/:stopId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/routes",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/routes/:routeId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/routes/:routeId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/routes/:routeId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/complete",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/optimize",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/start",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/routes/:routeId/stop-order",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/routes/:routeId/stops",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/scripts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/scripts",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/scripts/:scriptId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/scripts/:scriptId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/scripts/:scriptId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/scripts/:scriptId/preview",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/scripts/:scriptId/test",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/default-statuses",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/settings/default-statuses",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/security",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/settings/security",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tags/:tagId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tags/:tagId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teams",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/teams/:teamId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/teams/:teamId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId/capacity",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teams/:teamId/members",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teams/:teamId/members",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/teams/:teamId/members/:membershipId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/teams/:teamId/members/:membershipId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenant",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenant",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/territories",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/territories/:territoryId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories/:territoryId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/territories/:territoryId",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territories/map",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/territory-assignments",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/territory-assignments",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/territory-assignments/:id",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/territory-assignments/:id",
+      "accessClass": "route-specific-fixture",
+      "tenantFixture": "source-evidence-only",
+      "owner": "api",
+      "runtimeStatus": "static-evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/:userId/access-grants",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/:userId/access-grants",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/:userId/access-grants/:grantId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/:userId/status",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue/:campaignId/:prospectId",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/work-queue/options",
+      "accessClass": "authenticated-role-fixture",
+      "tenantFixture": "redacted role and tenant fixture",
+      "owner": "api",
+      "runtimeStatus": "runtime-pending"
+    }
+  ]
+}
