@@ -24,6 +24,11 @@ Observed results:
 - `/reset-password` returned `404`.
 - `/api/auth/config` returned HTTP `200` with `passwordRecovery: false`.
 
+The production login page was also checked in a browser. The forgot-password link
+appears during the initial render, then disappears after `/api/auth/config` is
+loaded because the hosted capability flag is false. The page had no browser
+console errors, and the direct `/forgot-password` request returned `200`.
+
 This proves public DNS and TLS are healthy while the hosted application is serving
 an older build than `dev-v2`. The reset page and capability fix are present in
 `dev-v2` (`48cda85` and `6d5d8e4`), so production still needs the approved build
