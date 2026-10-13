@@ -38,8 +38,8 @@ The director shell now exposes organization-wide, read-only destinations that ma
 the supplied Director designs:
 
 - `/director/companies` lists companies from `GET /organizations` and enriches the
-  selected company with `GET /organizations/:organizationId` through the workspace
-  proxy. Campaign counts come from the scoped `GET /campaigns` response.
+  selected company with the typed, authenticated `GET /organizations/:organizationId`
+  browser contract. Campaign counts come from the scoped `GET /campaigns` response.
 - `/director/companies/:organizationId` shows the selected organization profile and
   its campaigns using the same two read contracts. It intentionally has no edit,
   invite or coordination controls; those remain administrator capabilities.

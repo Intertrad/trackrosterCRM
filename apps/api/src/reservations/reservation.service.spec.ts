@@ -7,11 +7,14 @@ import { CampaignProspectRepository } from '../campaigns/campaign-prospect.repos
 import { CampaignRepository } from '../campaigns/campaign.repository.js';
 import { CollisionBusinessDecisionService } from '../collisions/collision-business-decision.service.js';
 import { CollisionOverrideRepository } from '../collisions/collision-override.repository.js';
+import type { Database } from '../database/database.types.js';
+import { runWithTenantExecutor } from '../database/request-tenant-executor.js';
 import type { CollisionOverride } from '../database/schema/collision-overrides.js';
 import { ReservationCoordinationScopeService } from '../coordination/reservation-coordination-scope.service.js';
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
+import { ReservationCollisionPipelineService } from './reservation-collision-pipeline.service.js';
 import { ReservationClaimConflictError } from './reservation-ledger.service.js';
 import { ReservationLedgerService } from './reservation-ledger.service.js';
 import { ReservationRepository } from './reservation.repository.js';
@@ -358,12 +361,32 @@ describe('ReservationService', () => {
       reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
 
       reservationExpirySchedulerService as unknown as ReservationExpirySchedulerService,
+      new ReservationCollisionPipelineService(
+        reservationRepository as unknown as ReservationRepository,
+        reservationCoordinationScopeService as unknown as ReservationCoordinationScopeService,
+        collisionBusinessDecisionService as unknown as CollisionBusinessDecisionService,
+      ),
       undefined,
       reservationLedgerService as unknown as ReservationLedgerService,
     );
   });
 
   describe('acquire', () => {
+    it('serializes the claim inside the active tenant transaction', async () => {
+      const execute = vi.fn().mockResolvedValue([]);
+
+      await runWithTenantExecutor({ execute } as unknown as Database, () =>
+        service.acquire({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      );
+
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
     it('acquires a reservation when no collision exists', async () => {
       const result = await service.acquire({
         tenantId,
@@ -1083,6 +1106,36 @@ describe('ReservationService', () => {
       });
     });
 
+    it('allows a manager to read reservation state for a delegated team assignment without granting reservation control', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      const delegatedAssignment = {
+        ...assignment,
+        managerId: userId,
+        assignedUserId: otherUserId,
+      };
+      assignmentRepository.findCurrent.mockResolvedValue(delegatedAssignment);
+
+      await expect(
+        service.requireReservationReadEligibility({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        assignment: delegatedAssignment,
+        establishmentId,
+        canReserve: false,
+      });
+    });
+
     it('rejects a missing authenticated user before resolving the target', async () => {
       userRepository.findById.mockResolvedValue(null);
 
@@ -1383,6 +1436,35 @@ describe('ReservationService', () => {
         }),
       ).resolves.toEqual({
         state: 'none',
+      });
+    });
+
+    it('returns a read-only empty state for a manager viewing a delegated assignment', async () => {
+      authorizationService.getUserGrants.mockResolvedValue([
+        {
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        },
+      ]);
+      assignmentRepository.findCurrent.mockResolvedValue({
+        ...assignment,
+        managerId: userId,
+        assignedUserId: otherUserId,
+      });
+      reservationRepository.findCurrent.mockResolvedValue(null);
+
+      await expect(
+        service.getCurrent({
+          tenantId,
+          userId,
+          campaignId,
+          campaignProspectId: prospectId,
+        }),
+      ).resolves.toEqual({
+        state: 'none',
+        canAcquire: false,
       });
     });
 

@@ -30,6 +30,10 @@ describe('CollisionBusinessDecisionService', () => {
     evaluate: ReturnType<typeof vi.fn>;
   };
 
+  let plannedActions: {
+    candidates: ReturnType<typeof vi.fn>;
+  };
+
   let service: CollisionBusinessDecisionService;
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
@@ -76,6 +80,10 @@ describe('CollisionBusinessDecisionService', () => {
       evaluate: vi.fn(),
     };
 
+    plannedActions = {
+      candidates: vi.fn().mockResolvedValue([]),
+    };
+
     service = new CollisionBusinessDecisionService(
       coolingOffService as unknown as CoolingOffService,
 
@@ -86,7 +94,7 @@ describe('CollisionBusinessDecisionService', () => {
       activityRepository as unknown as ProspectActivityRepository,
 
       coordinationService as unknown as CoordinationCollisionPolicyService,
-      { candidates: vi.fn().mockResolvedValue([]) } as unknown as PlannedActionCollisionRepository,
+      plannedActions as unknown as PlannedActionCollisionRepository,
     );
   });
 
@@ -100,6 +108,56 @@ describe('CollisionBusinessDecisionService', () => {
 
       conflict: null,
     });
+  });
+
+  it('applies planned action precedence before recent contact and assignment collisions', async () => {
+    const followUp = {
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      campaignId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      campaignProspectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      assignmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      organizationId: conflictingOrganizationId,
+      assignedUserId: null,
+      dueAt: new Date('2026-09-11T10:00:00.000Z'),
+    };
+    followUpRepository.findConflictingPendingCandidatesByEstablishment.mockResolvedValue([
+      followUp,
+    ]);
+    activityRepository.findCandidatesByEstablishment.mockResolvedValue([
+      {
+        id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        type: 'call' as const,
+        organizationId: conflictingOrganizationId,
+        occurredAt: new Date('2026-09-10T08:00:00.000Z'),
+      },
+    ]);
+    assignmentRepository.findConflictingCurrentCandidatesByEstablishment.mockResolvedValue([
+      {
+        id: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        tenantId,
+        campaignId,
+        campaignProspectId,
+        organizationId: conflictingOrganizationId,
+        teamId: '12121212-1212-4121-8121-121212121212',
+        assignedUserId: userId,
+        assignedAt: new Date('2026-09-10T08:00:00.000Z'),
+      },
+    ]);
+    coordinationService.evaluate.mockResolvedValue({
+      action: 'block',
+      policy: 'coordinated',
+      delayMinutes: null,
+    });
+
+    const result = await service.evaluate(input);
+
+    expect(result.reasonCode).toBe('PLANNED_ACTION');
+    expect(result.decision).toBe('block');
+    expect(activityRepository.findCandidatesByEstablishment).not.toHaveBeenCalled();
+    expect(
+      assignmentRepository.findConflictingCurrentCandidatesByEstablishment,
+    ).not.toHaveBeenCalled();
+    expect(plannedActions.candidates).not.toHaveBeenCalled();
   });
 
   it('blocks an applicable planned action', async () => {

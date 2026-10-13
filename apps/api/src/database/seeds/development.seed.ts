@@ -11,6 +11,7 @@ import { TenantService } from '../../tenants/tenant.service.js';
 import { UserRepository } from '../../users/user.repository.js';
 import { DATABASE } from '../database.constants.js';
 import type { Database } from '../database.types.js';
+import { withTenantContext } from '../tenant-context.js';
 import { seedDevelopmentWorkQueue } from './development-work-queue.seed.js';
 
 async function seed(): Promise<void> {
@@ -184,286 +185,302 @@ async function seed(): Promise<void> {
       return updatedProfile;
     }
 
-    // ================================================================
-    // CLIENT ADMIN
-    //
-    // Role:
-    //   client_admin
-    //
-    // Scope:
-    //   tenant
-    // ================================================================
+    // UserRepository reads the tenant-scoped identity/membership projection.
+    // Run the idempotent user and grant reconciliation inside the same
+    // tenant-scoped transaction used by request handlers. Without this
+    // context the runtime role correctly sees no memberships, assumes every
+    // user is new, and then collides with the legacy users.email constraint.
+    await getAdminPasswordHash();
+    await getRolePasswordHash();
 
-    const adminEmail = 'admin@intertrad.test';
-    const adminDisplayName = 'Sophie Laurent';
+    const seededUsers = await withTenantContext(database, tenantId, async () => {
+      // ================================================================
+      // CLIENT ADMIN
+      //
+      // Role:
+      //   client_admin
+      //
+      // Scope:
+      //   tenant
+      // ================================================================
 
-    let admin = await userRepository.findByEmail(adminEmail);
+      const adminEmail = 'admin@intertrad.test';
+      const adminDisplayName = 'Sophie Laurent';
 
-    if (!admin) {
-      const passwordHash = await getAdminPasswordHash();
+      let admin = await userRepository.findByEmail(adminEmail);
 
-      admin = await userRepository.create({
-        tenantId,
-        email: adminEmail,
-        displayName: adminDisplayName,
-        passwordHash,
-        status: 'active',
-      });
+      if (!admin) {
+        const passwordHash = await getAdminPasswordHash();
 
-      console.log(`Created development user: ${admin.email}`);
-    } else {
-      const passwordHash = await getAdminPasswordHash();
+        admin = await userRepository.create({
+          tenantId,
+          email: adminEmail,
+          displayName: adminDisplayName,
+          passwordHash,
+          status: 'active',
+        });
 
-      const updatedAdmin = await userRepository.updatePasswordHash(
-        tenantId,
-        admin.id,
-        passwordHash,
-      );
+        console.log(`Created development user: ${admin.email}`);
+      } else {
+        const passwordHash = await getAdminPasswordHash();
 
-      if (!updatedAdmin) {
-        throw new Error(`Failed to synchronize development password for ${adminEmail}`);
-      }
-
-      admin = updatedAdmin;
-
-      if (admin.displayName !== adminDisplayName) {
-        const updatedProfile = await userRepository.updateDisplayName(
+        const updatedAdmin = await userRepository.updatePasswordHash(
           tenantId,
           admin.id,
-          adminDisplayName,
+          passwordHash,
         );
 
-        if (!updatedProfile) {
-          throw new Error(`Failed to synchronize development display name for ${adminEmail}`);
+        if (!updatedAdmin) {
+          throw new Error(`Failed to synchronize development password for ${adminEmail}`);
         }
 
-        admin = updatedProfile;
+        admin = updatedAdmin;
 
-        console.log(`Synchronized development display name: ${admin.email}`);
+        if (admin.displayName !== adminDisplayName) {
+          const updatedProfile = await userRepository.updateDisplayName(
+            tenantId,
+            admin.id,
+            adminDisplayName,
+          );
+
+          if (!updatedProfile) {
+            throw new Error(`Failed to synchronize development display name for ${adminEmail}`);
+          }
+
+          admin = updatedProfile;
+
+          console.log(`Synchronized development display name: ${admin.email}`);
+        }
+
+        console.log(`Synchronized development password: ${admin.email}`);
       }
 
-      console.log(`Synchronized development password: ${admin.email}`);
-    }
+      const adminGrants = await grantRepository.findByUser(tenantId, admin.id);
 
-    const adminGrants = await grantRepository.findByUser(tenantId, admin.id);
-
-    const hasClientAdminGrant = adminGrants.some(
-      (grant) => grant.role === 'client_admin' && grant.scopeType === 'tenant',
-    );
-
-    if (!hasClientAdminGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: admin.id,
-        role: 'client_admin',
-        scopeType: 'tenant',
-      });
-
-      console.log(`Created development client-admin grant: ${admin.email}`);
-    } else {
-      console.log(`Development client-admin grant already exists: ${admin.email}`);
-    }
-
-    // ================================================================
-    // DIRECTOR
-    //
-    // Role:
-    //   director
-    //
-    // Scope:
-    //   France Sales organization
-    // ================================================================
-
-    const director = await ensureRoleUser('director@intertrad.test', 'Claire Dubois');
-
-    const directorGrants = await grantRepository.findByUser(tenantId, director.id);
-
-    const hasDirectorGrant = directorGrants.some(
-      (grant) =>
-        grant.role === 'director' &&
-        grant.scopeType === 'organization' &&
-        grant.organizationId === organizationId,
-    );
-
-    if (!hasDirectorGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: director.id,
-        role: 'director',
-        scopeType: 'organization',
-        organizationId,
-      });
-
-      console.log(`Created development director grant: ${director.email}`);
-    } else {
-      console.log(`Development director grant already exists: ${director.email}`);
-    }
-
-    // ================================================================
-    // MANAGER
-    //
-    // Role:
-    //   manager
-    //
-    // Scope:
-    //   Paris Prospecting team
-    // ================================================================
-
-    const manager = await ensureRoleUser('manager@intertrad.test', 'Marie Garnier');
-
-    const managerGrants = await grantRepository.findByUser(tenantId, manager.id);
-
-    const hasManagerGrant = managerGrants.some(
-      (grant) =>
-        grant.role === 'manager' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId === organizationId &&
-        grant.teamId === teamId,
-    );
-
-    if (!hasManagerGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: manager.id,
-        role: 'manager',
-        scopeType: 'team',
-        organizationId,
-        teamId,
-      });
-
-      console.log(`Created development manager grant: ${manager.email}`);
-    } else {
-      console.log(`Development manager grant already exists: ${manager.email}`);
-    }
-
-    // ================================================================
-    // MANAGER MULTI-WORKSPACE FIXTURE
-    //
-    // TR-029 F5 development fixture:
-    //   manager@intertrad.test
-    //
-    // Grants:
-    //   manager    / Paris Prospecting team
-    //   prospector / Paris Prospecting team
-    //
-    // This allows the frontend to verify workspace switching without
-    // weakening or bypassing backend authorization.
-    // ================================================================
-
-    const hasManagerProspectorGrant = managerGrants.some(
-      (grant) =>
-        grant.role === 'prospector' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId === organizationId &&
-        grant.teamId === teamId,
-    );
-
-    if (!hasManagerProspectorGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: manager.id,
-        role: 'prospector',
-        scopeType: 'team',
-        organizationId,
-        teamId,
-      });
-
-      console.log(`Created development manager multi-workspace prospector grant: ${manager.email}`);
-    } else {
-      console.log(
-        `Development manager multi-workspace prospector grant already exists: ${manager.email}`,
+      const hasClientAdminGrant = adminGrants.some(
+        (grant) => grant.role === 'client_admin' && grant.scopeType === 'tenant',
       );
-    }
 
-    // ================================================================
-    // PROSPECTOR
-    //
-    // Role:
-    //   prospector
-    //
-    // Scope:
-    //   Paris Prospecting team
-    // ================================================================
+      if (!hasClientAdminGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: admin.id,
+          role: 'client_admin',
+          scopeType: 'tenant',
+        });
 
-    const prospector = await ensureRoleUser('prospector@intertrad.test', 'Nabil Benali');
+        console.log(`Created development client-admin grant: ${admin.email}`);
+      } else {
+        console.log(`Development client-admin grant already exists: ${admin.email}`);
+      }
 
-    const prospectorGrants = await grantRepository.findByUser(tenantId, prospector.id);
+      // ================================================================
+      // DIRECTOR
+      //
+      // Role:
+      //   director
+      //
+      // Scope:
+      //   France Sales organization
+      // ================================================================
 
-    const hasProspectorGrant = prospectorGrants.some(
-      (grant) =>
-        grant.role === 'prospector' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId === organizationId &&
-        grant.teamId === teamId,
-    );
+      const director = await ensureRoleUser('director@intertrad.test', 'Claire Dubois');
 
-    if (!hasProspectorGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: prospector.id,
-        role: 'prospector',
-        scopeType: 'team',
-        organizationId,
-        teamId,
-      });
+      const directorGrants = await grantRepository.findByUser(tenantId, director.id);
 
-      console.log(`Created development prospector grant: ${prospector.email}`);
-    } else {
-      console.log(`Development prospector grant already exists: ${prospector.email}`);
-    }
+      const hasDirectorGrant = directorGrants.some(
+        (grant) =>
+          grant.role === 'director' &&
+          grant.scopeType === 'organization' &&
+          grant.organizationId === organizationId,
+      );
 
-    // ================================================================
-    // OBSERVER
-    //
-    // Role:
-    //   observer
-    //
-    // Scope:
-    //   Paris Prospecting team
-    //
-    // Observer is intentionally team-scoped here so we can test
-    // read-only/scoped frontend behavior separately from tenant-wide
-    // administrator behavior.
-    // ================================================================
+      if (!hasDirectorGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: director.id,
+          role: 'director',
+          scopeType: 'organization',
+          organizationId,
+        });
 
-    const observer = await ensureRoleUser('observer@intertrad.test', 'Camille Moreau');
+        console.log(`Created development director grant: ${director.email}`);
+      } else {
+        console.log(`Development director grant already exists: ${director.email}`);
+      }
 
-    const observerGrants = await grantRepository.findByUser(tenantId, observer.id);
+      // ================================================================
+      // MANAGER
+      //
+      // Role:
+      //   manager
+      //
+      // Scope:
+      //   Paris Prospecting team
+      // ================================================================
 
-    const hasObserverGrant = observerGrants.some(
-      (grant) =>
-        grant.role === 'observer' &&
-        grant.scopeType === 'team' &&
-        grant.organizationId === organizationId &&
-        grant.teamId === teamId,
-    );
+      const manager = await ensureRoleUser('manager@intertrad.test', 'Marie Garnier');
 
-    if (!hasObserverGrant) {
-      await grantRepository.create({
-        tenantId,
-        userId: observer.id,
-        role: 'observer',
-        scopeType: 'team',
-        organizationId,
-        teamId,
-      });
+      const managerGrants = await grantRepository.findByUser(tenantId, manager.id);
 
-      console.log(`Created development observer grant: ${observer.email}`);
-    } else {
-      console.log(`Development observer grant already exists: ${observer.email}`);
-    }
+      const hasManagerGrant = managerGrants.some(
+        (grant) =>
+          grant.role === 'manager' &&
+          grant.scopeType === 'team' &&
+          grant.organizationId === organizationId &&
+          grant.teamId === teamId,
+      );
 
-    // ================================================================
-    // NO-ACCESS USER
-    //
-    // TR-029 G2 development fixture:
-    //
-    // Authenticated account with intentionally zero access grants.
-    // Used to verify the frontend fails closed and renders the
-    // access-denied state instead of an application workspace.
-    // ================================================================
+      if (!hasManagerGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: manager.id,
+          role: 'manager',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        });
 
-    const noAccessUser = await ensureRoleUser('noaccess@intertrad.test', 'Alex Martin');
+        console.log(`Created development manager grant: ${manager.email}`);
+      } else {
+        console.log(`Development manager grant already exists: ${manager.email}`);
+      }
+
+      // ================================================================
+      // MANAGER MULTI-WORKSPACE FIXTURE
+      //
+      // TR-029 F5 development fixture:
+      //   manager@intertrad.test
+      //
+      // Grants:
+      //   manager    / Paris Prospecting team
+      //   prospector / Paris Prospecting team
+      //
+      // This allows the frontend to verify workspace switching without
+      // weakening or bypassing backend authorization.
+      // ================================================================
+
+      const hasManagerProspectorGrant = managerGrants.some(
+        (grant) =>
+          grant.role === 'prospector' &&
+          grant.scopeType === 'team' &&
+          grant.organizationId === organizationId &&
+          grant.teamId === teamId,
+      );
+
+      if (!hasManagerProspectorGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: manager.id,
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        });
+
+        console.log(
+          `Created development manager multi-workspace prospector grant: ${manager.email}`,
+        );
+      } else {
+        console.log(
+          `Development manager multi-workspace prospector grant already exists: ${manager.email}`,
+        );
+      }
+
+      // ================================================================
+      // PROSPECTOR
+      //
+      // Role:
+      //   prospector
+      //
+      // Scope:
+      //   Paris Prospecting team
+      // ================================================================
+
+      const prospector = await ensureRoleUser('prospector@intertrad.test', 'Nabil Benali');
+
+      const prospectorGrants = await grantRepository.findByUser(tenantId, prospector.id);
+
+      const hasProspectorGrant = prospectorGrants.some(
+        (grant) =>
+          grant.role === 'prospector' &&
+          grant.scopeType === 'team' &&
+          grant.organizationId === organizationId &&
+          grant.teamId === teamId,
+      );
+
+      if (!hasProspectorGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: prospector.id,
+          role: 'prospector',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        });
+
+        console.log(`Created development prospector grant: ${prospector.email}`);
+      } else {
+        console.log(`Development prospector grant already exists: ${prospector.email}`);
+      }
+
+      // ================================================================
+      // OBSERVER
+      //
+      // Role:
+      //   observer
+      //
+      // Scope:
+      //   Paris Prospecting team
+      //
+      // Observer is intentionally team-scoped here so we can test
+      // read-only/scoped frontend behavior separately from tenant-wide
+      // administrator behavior.
+      // ================================================================
+
+      const observer = await ensureRoleUser('observer@intertrad.test', 'Camille Moreau');
+
+      const observerGrants = await grantRepository.findByUser(tenantId, observer.id);
+
+      const hasObserverGrant = observerGrants.some(
+        (grant) =>
+          grant.role === 'observer' &&
+          grant.scopeType === 'team' &&
+          grant.organizationId === organizationId &&
+          grant.teamId === teamId,
+      );
+
+      if (!hasObserverGrant) {
+        await grantRepository.create({
+          tenantId,
+          userId: observer.id,
+          role: 'observer',
+          scopeType: 'team',
+          organizationId,
+          teamId,
+        });
+
+        console.log(`Created development observer grant: ${observer.email}`);
+      } else {
+        console.log(`Development observer grant already exists: ${observer.email}`);
+      }
+
+      // ================================================================
+      // NO-ACCESS USER
+      //
+      // TR-029 G2 development fixture:
+      //
+      // Authenticated account with intentionally zero access grants.
+      // Used to verify the frontend fails closed and renders the
+      // access-denied state instead of an application workspace.
+      // ================================================================
+
+      const noAccessUser = await ensureRoleUser('noaccess@intertrad.test', 'Alex Martin');
+
+      return { admin, director, manager, prospector, observer, noAccessUser };
+    });
+
+    const { manager, prospector, noAccessUser } = seededUsers;
 
     // ================================================================
     // TR-031 WORK QUEUE / PROSPECT DETAIL DEVELOPMENT DATA

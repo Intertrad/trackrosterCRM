@@ -25,6 +25,22 @@ import { validateFields } from '@/lib/workspace/validation';
 import { SchemaFields } from './schema-fields';
 import { ValueView } from './record-view';
 
+const ORGANIZATION_ACTIONS = new Set([
+  'POST /organizations',
+  'PATCH /organizations/:organizationId',
+]);
+
+function slugFromName(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100);
+}
+
 export function ActionEditor({
   action,
   context,
@@ -44,6 +60,13 @@ export function ActionEditor({
 }) {
   const { language } = useTranslation();
   const operation = getOperation(action.operation);
+  const isOrganizationAction = ORGANIZATION_ACTIONS.has(action.operation);
+  const isTerritoryAction =
+    action.operation === 'POST /territories' ||
+    action.operation === 'PATCH /territories/:territoryId';
+  const visibleFields = isOrganizationAction
+    ? operation.fields.filter((field) => field.name !== 'slug' && field.name !== 'shortName')
+    : operation.fields;
   const parameterFields: Field[] = pathKeys(operation.path)
     .filter((key) => !context[key])
     .map((name) => ({
@@ -53,6 +76,9 @@ export function ActionEditor({
     }));
   const edit = ['PATCH', 'PUT'].includes(operation.method);
   const initial = useRef(initialValues(operation.fields, edit ? record : {}));
+  if (isOrganizationAction && !initial.current.slug && typeof initial.current.name === 'string') {
+    initial.current.slug = slugFromName(initial.current.name);
+  }
   const [values, setValues] = useState<DataRecord>(initial.current);
   const [parameters, setParameters] = useState<DataRecord>({});
   const [etag, setEtag] = useState(startingEtag);
@@ -108,6 +134,10 @@ export function ActionEditor({
 
   function bodyFor(nextValues: DataRecord, baseline: DataRecord) {
     const body = serializeFields(operation.fields, nextValues);
+    // Slugs are an internal organization key. Creation owns generation on the
+    // server so a name-only form submission remains valid and duplicate names
+    // can receive a deterministic suffix without exposing another field.
+    if (isOrganizationAction && operation.method === 'POST') delete body.slug;
     if (operation.method === 'PATCH')
       for (const field of operation.fields) {
         if (
@@ -398,13 +428,18 @@ export function ActionEditor({
             />
             <SchemaFields
               context={{ ...context, ...parameters, ...values }}
-              fields={operation.fields}
+              fields={visibleFields}
               values={values}
               onChange={(next) => {
-                setValues(next);
+                const normalized =
+                  isOrganizationAction && !edit && next.name !== values.name
+                    ? { ...next, slug: slugFromName(next.name) }
+                    : next;
+                setValues(normalized);
                 setErrors({});
               }}
               errors={errors}
+              territoryBoundaryEditor={isTerritoryAction}
             />
             {!operation.fields.length && !parameterFields.length && (
               <p className="text-sm text-ink-soft">

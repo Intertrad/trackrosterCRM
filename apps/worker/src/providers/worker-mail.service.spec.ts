@@ -54,6 +54,7 @@ describe('WorkerMailService', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ 'api-key': 'mock-api-key' }),
+        signal: expect.any(AbortSignal),
       }),
     );
   });

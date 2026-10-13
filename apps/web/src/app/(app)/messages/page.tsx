@@ -3,7 +3,6 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ConfirmDialog } from '@/components/ui/dialog';
 import { MessageAttachments } from '@/components/messaging/message-attachments';
 import { text } from '@/lib/workspace/copy';
 import {
@@ -18,12 +17,10 @@ import {
   MessageCircle,
   MessagesSquare,
   Paperclip,
-  Pencil,
   Plus,
   Search,
   Send,
   Smile,
-  Trash2,
   Users,
   UserRound,
   X,
@@ -40,8 +37,6 @@ import { membershipName } from '@/lib/api/membership-types';
 import {
   createConversation,
   addParticipant,
-  deleteMessage,
-  editMessage,
   listConversations,
   listMessages,
   listMessagingMembers,
@@ -91,7 +86,6 @@ export default function MessagesPage() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const olderLoaded = useRef(false);
   const [participants, setParticipants] = useState<ConversationParticipant[]>([]);
-  const [participantsLoaded, setParticipantsLoaded] = useState(false);
   const [people, setPeople] = useState<Map<string, MessagingMember>>(new Map());
 
   const [search, setSearch] = useState('');
@@ -104,9 +98,6 @@ export default function MessagesPage() {
   const setDraft = (value: string) => {
     if (activeId) setDrafts((current) => ({ ...current, [activeId]: value }));
   };
-  const [editing, setEditing] = useState<Message | null>(null);
-  const [editBody, setEditBody] = useState('');
-  const [deleting, setDeleting] = useState<Message | null>(null);
   const threadScroll = useRef<HTMLDivElement | null>(null);
   const composerInput = useRef<HTMLTextAreaElement | null>(null);
   const nearBottom = useRef(true);
@@ -188,7 +179,7 @@ export default function MessagesPage() {
             return;
           }
 
-          const { members, loaded: participantsAreAuthoritative } = participantResult;
+          const { members } = participantResult;
 
           /* The API returns newest first; a thread reads oldest to newest. */
           setMessages((current) => {
@@ -217,7 +208,6 @@ export default function MessagesPage() {
           });
           if (!olderLoaded.current) setOlderCursor(page.nextCursor);
           setParticipants(members);
-          setParticipantsLoaded(participantsAreAuthoritative);
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
@@ -251,7 +241,6 @@ export default function MessagesPage() {
 
     const controller = new AbortController();
     setMessages(null);
-    setParticipantsLoaded(false);
     setOlderCursor(null);
     olderLoaded.current = false;
     nearBottom.current = true;
@@ -1016,42 +1005,6 @@ export default function MessagesPage() {
                                     ) : null}
                                   </p>
                                 </div>
-                                {mine ? (
-                                  <div className="flex items-center gap-0.5 pb-7 text-ink-muted">
-                                    {message.status === 'sent' &&
-                                    participantsLoaded &&
-                                    !readByOther ? (
-                                      <button
-                                        type="button"
-                                        aria-label={text(
-                                          'Edit message',
-                                          'Modifier le message',
-                                          language,
-                                        )}
-                                        className="rounded p-1 hover:bg-surface-muted hover:text-ink"
-                                        onClick={() => {
-                                          setEditing(message);
-                                          setEditBody(message.body);
-                                        }}
-                                      >
-                                        <Pencil aria-hidden="true" className="size-3.5" />
-                                      </button>
-                                    ) : null}
-                                    {message.status === 'sent' &&
-                                    participantsLoaded &&
-                                    !readByOther ? (
-                                      <button
-                                        type="button"
-                                        aria-label={t('messages.deleteMessage')}
-                                        disabled={busy}
-                                        className="rounded p-1 hover:bg-danger-bg hover:text-danger disabled:opacity-40"
-                                        onClick={() => setDeleting(message)}
-                                      >
-                                        <Trash2 aria-hidden="true" className="size-3.5" />
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                ) : null}
                               </div>
                             </li>
                           );
@@ -1410,67 +1363,6 @@ export default function MessagesPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        title={text('Delete message?', 'Supprimer le message ?', language)}
-        description={text(
-          'The message will be replaced with a deletion notice.',
-          'Le message sera remplacé par un avis de suppression.',
-          language,
-        )}
-        confirmLabel={text('Delete message', 'Supprimer le message', language)}
-        busy={busy}
-        onClose={() => {
-          if (!busy) setDeleting(null);
-        }}
-        onConfirm={() => {
-          if (!deleting || busy) return;
-          setBusy(true);
-          deleteMessage(deleting.id)
-            .then(async () => {
-              setDeleting(null);
-              if (activeId) await loadThread(activeId);
-            })
-            .catch((error) => setActionError(describeMessagingError(error, t)))
-            .finally(() => setBusy(false));
-        }}
-      />
-      <Drawer
-        open={!!editing}
-        title={text('Edit message', 'Modifier le message', language)}
-        onClose={() => {
-          if (!busy) setEditing(null);
-        }}
-      >
-        <form
-          noValidate
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!editing || busy || !editBody.trim()) return;
-            setBusy(true);
-            editMessage(editing.id, editBody.trim())
-              .then(async () => {
-                setEditing(null);
-                if (activeId) await loadThread(activeId);
-              })
-              .catch((error) => setActionError(describeMessagingError(error, t)))
-              .finally(() => setBusy(false));
-          }}
-        >
-          {actionError && <Alert tone="danger">{actionError}</Alert>}
-          <TextField
-            label={t('messages.message')}
-            value={editBody}
-            maxLength={MAX_MESSAGE_BODY}
-            required
-            onChange={(e) => setEditBody(e.target.value)}
-          />
-          <Button type="submit" loading={busy} disabled={!editBody.trim()}>
-            {text('Save message', 'Enregistrer le message', language)}
-          </Button>
-        </form>
-      </Drawer>
       <ComposeDrawer
         open={composing}
         people={[...people.values()].filter((person) => person.membershipId !== me)}

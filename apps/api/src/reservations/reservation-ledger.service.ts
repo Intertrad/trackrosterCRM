@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants.js';
 import { discoverSweepWork, sweepByTenant } from '../database/tenant-sweep.js';
@@ -27,9 +28,10 @@ export class ReservationLedgerService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly redis: RedisService,
+    private readonly config: ConfigService,
   ) {}
   onModuleInit() {
-    if (process.env.RESERVATION_RECONCILIATION === 'off') return;
+    if (this.config.get<string>('RESERVATION_RECONCILIATION') === 'off') return;
     this.timer = setInterval(() => {
       void this.reconcile().catch(() =>
         this.logger.warn('Reservation evidence reconciliation will retry'),

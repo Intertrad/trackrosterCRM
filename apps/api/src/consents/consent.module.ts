@@ -7,5 +7,6 @@ import { ConsentService } from './consent.service.js';
   imports: [AuthModule, DatabaseModule],
   controllers: [ConsentController],
   providers: [ConsentService, ConsentWriteGuard],
+  exports: [ConsentService],
 })
 export class ConsentModule {}

@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  transpilePackages: ['@trackroster/types'],
 
   // The beta browser runs on 127.0.0.1 while the dev server binds to the
   // local loopback interface. Allow its HMR/font requests so authenticated

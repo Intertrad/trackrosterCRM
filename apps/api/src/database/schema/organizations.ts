@@ -70,6 +70,8 @@ export const organizations = pgTable(
 
     unique('organizations_tenant_id_id_unique').on(table.tenantId, table.id),
     index('organizations_tenant_id_idx').on(table.tenantId),
+    index('organizations_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
+    index('organizations_slug_trgm_idx').using('gin', sql`${table.slug} gin_trgm_ops`),
   ],
 );
 

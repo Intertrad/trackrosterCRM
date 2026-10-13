@@ -11,6 +11,7 @@ import { fieldLabel, text } from '@/lib/workspace/copy';
 import { isRecord, initialValues } from '@/lib/workspace/client';
 import type { DataRecord, Field } from '@/lib/workspace/types';
 import { LOOKUPS, RecordPicker } from './record-picker';
+import { TerritoryBoundaryField } from './territory-boundary-field';
 
 export function SchemaFields({
   fields,
@@ -19,6 +20,7 @@ export function SchemaFields({
   errors = {},
   prefix = '',
   context = {},
+  territoryBoundaryEditor = false,
 }: {
   fields: Field[];
   values: DataRecord;
@@ -26,6 +28,7 @@ export function SchemaFields({
   errors?: Record<string, string>;
   prefix?: string;
   context?: DataRecord;
+  territoryBoundaryEditor?: boolean;
 }) {
   const { language } = useTranslation();
   const clearedValues = useRef<DataRecord>({});
@@ -40,8 +43,9 @@ export function SchemaFields({
             onChange={(value) => onChange({ ...values, [field.name]: value })}
             errors={errors}
             path={`${prefix}${field.name}`}
+            territoryBoundaryEditor={territoryBoundaryEditor}
           />
-          {field.nullable && (
+          {field.nullable && !(territoryBoundaryEditor && field.name === 'boundary') && (
             <Checkbox
               label={text('Clear this value', 'Effacer cette valeur', language)}
               checked={values[field.name] === null}
@@ -74,6 +78,7 @@ function FieldInput({
   errors,
   path,
   context,
+  territoryBoundaryEditor,
 }: {
   field: Field;
   value: unknown;
@@ -81,6 +86,7 @@ function FieldInput({
   errors: Record<string, string>;
   path: string;
   context: DataRecord;
+  territoryBoundaryEditor?: boolean;
 }) {
   const { language } = useTranslation();
   const id = useId();
@@ -88,6 +94,11 @@ function FieldInput({
   const error = errors[path];
   const optional = field.optional ? text(' (optional)', ' (facultatif)', language) : '';
   const fullLabel = `${label}${optional}`;
+  if (territoryBoundaryEditor && field.name === 'boundary') {
+    return (
+      <TerritoryBoundaryField label={fullLabel} value={value} onChange={onChange} error={error} />
+    );
+  }
   if (field.type === 'object') {
     if (!field.fields)
       return (
@@ -122,6 +133,7 @@ function FieldInput({
             onChange={onChange}
             errors={errors}
             prefix={`${path}.`}
+            territoryBoundaryEditor={territoryBoundaryEditor}
           />
         )}
       </fieldset>
@@ -141,6 +153,7 @@ function FieldInput({
                 values={isRecord(item) ? item : {}}
                 errors={errors}
                 prefix={`${path}.${index}.`}
+                territoryBoundaryEditor={territoryBoundaryEditor}
                 onChange={(next) => onChange(items.map((old, i) => (i === index ? next : old)))}
               />
               <Button

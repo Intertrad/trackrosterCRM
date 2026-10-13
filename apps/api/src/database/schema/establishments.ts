@@ -198,6 +198,9 @@ export const establishments = pgTable(
 
     index('establishments_tenant_city_idx').on(table.tenantId, table.city),
 
+    index('establishments_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
+    index('establishments_city_trgm_idx').using('gin', sql`${table.city} gin_trgm_ops`),
+
     index('establishments_tenant_category_idx').on(table.tenantId, table.category),
 
     index('establishments_location_gist_idx')

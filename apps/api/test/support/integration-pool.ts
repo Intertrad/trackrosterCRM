@@ -18,6 +18,10 @@ export function createIntegrationPool(connectionString: string): Pool {
 
   const config: PoolConfig = {
     connectionString,
+    // The application pool (max 8) and the fixture pool share the same
+    // Supabase session pool during integration tests. Keep this pool small so
+    // the combined test process stays below the provider's pool_size limit.
+    max: boundedIntegrationPoolMax(process.env.INTEGRATION_DATABASE_POOL_MAX),
     connectionTimeoutMillis: 3000,
   };
 
@@ -34,4 +38,13 @@ export function createIntegrationPool(connectionString: string): Pool {
   }
 
   return new Pool(config);
+}
+
+function boundedIntegrationPoolMax(value: string | undefined): number {
+  if (value === undefined) return 2;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 4) {
+    throw new Error('INTEGRATION_DATABASE_POOL_MAX must be an integer between 1 and 4');
+  }
+  return parsed;
 }

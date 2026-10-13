@@ -19,6 +19,26 @@ describe('validateWorkerEnvironment', () => {
     ).not.toThrow();
   });
 
+  it('accepts bounded database pool settings', () => {
+    expect(() =>
+      validateWorkerEnvironment({
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        WORKER_DATABASE_POOL_MAX: '4',
+        DATABASE_CONNECTION_TIMEOUT_MS: '3000',
+        DATABASE_IDLE_TIMEOUT_MS: '30000',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an oversized worker pool', () => {
+    expect(() =>
+      validateWorkerEnvironment({
+        REDIS_URL: 'redis://127.0.0.1:6379',
+        WORKER_DATABASE_POOL_MAX: '16',
+      }),
+    ).toThrow('WORKER_DATABASE_POOL_MAX');
+  });
+
   it('rejects a missing redis URL', () => {
     expect(() => validateWorkerEnvironment({})).toThrow('REDIS_URL');
   });

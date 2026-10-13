@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import './globals.css';
 import './marketing.css';
 import { RuntimePreferences } from '@/components/account/runtime-preferences';
+import { AppToaster } from '@/components/notifications/app-toaster';
 import { AuthProvider } from '@/lib/auth/auth-context';
 import { SessionLanguage } from '@/lib/i18n/session-language';
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
           <SessionLanguage>
             <RuntimePreferences />
             {children}
+            <AppToaster />
           </SessionLanguage>
         </AuthProvider>
       </body>

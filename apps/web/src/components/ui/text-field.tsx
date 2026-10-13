@@ -110,7 +110,7 @@ export function TextField({
       </div>
 
       {error ? (
-        <p id={errorId} className="text-[13px] font-medium text-danger">
+        <p id={errorId} role="alert" className="text-[13px] font-medium text-danger">
           {error}
         </p>
       ) : null}

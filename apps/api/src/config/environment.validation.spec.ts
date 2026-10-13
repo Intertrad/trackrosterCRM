@@ -35,6 +35,63 @@ describe('validateEnvironment', () => {
     ).not.toThrow();
   });
 
+  it('accepts bounded database pool settings', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        API_DATABASE_POOL_MAX: '8',
+        DATABASE_CONNECTION_TIMEOUT_MS: '3000',
+        DATABASE_IDLE_TIMEOUT_MS: '30000',
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts bounded transaction and optional storage settings', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        DATABASE_STATEMENT_TIMEOUT_MS: '30000',
+        DATABASE_IDLE_TRANSACTION_TIMEOUT_MS: '30000',
+        PORT: '3001',
+        OBJECT_STORAGE_ENDPOINT: 'https://objects.example.test/s3',
+        OBJECT_STORAGE_UPLOAD_BASE_URL: 'https://objects.example.test/upload',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects database pool settings outside their safe bounds', () => {
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        API_DATABASE_POOL_MAX: '16',
+      }),
+    ).toThrow('API_DATABASE_POOL_MAX');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        DATABASE_CONNECTION_TIMEOUT_MS: '100',
+      }),
+    ).toThrow('DATABASE_CONNECTION_TIMEOUT_MS');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        DATABASE_STATEMENT_TIMEOUT_MS: '100',
+      }),
+    ).toThrow('DATABASE_STATEMENT_TIMEOUT_MS');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        OBJECT_STORAGE_ENDPOINT: 'not-a-url',
+      }),
+    ).toThrow('OBJECT_STORAGE_ENDPOINT');
+    expect(() =>
+      validateEnvironment({
+        ...validConfig,
+        OBJECT_STORAGE_UPLOAD_BASE_URL: 'not-a-url',
+      }),
+    ).toThrow('OBJECT_STORAGE_UPLOAD_BASE_URL');
+  });
+
   it('rejects a missing access secret', () => {
     expect(() =>
       validateEnvironment({

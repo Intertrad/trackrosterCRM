@@ -40,6 +40,9 @@ export interface ProspectReservation {
 export type ProspectReservationState =
   | {
       state: 'none';
+
+      /** Managers may inspect delegated rows without being allowed to reserve them. */
+      canAcquire?: boolean;
     }
   | {
       state: 'owned';

@@ -8,7 +8,7 @@ describe('Dependency readiness', () => {
     ping = vi.fn().mockResolvedValue('PONG'),
   ) {
     return new ReadinessController(
-      { query } as never,
+      { query, totalCount: 1, idleCount: 1, waitingCount: 0 } as never,
       { ping } as never,
       { get: vi.fn().mockReturnValue(undefined) } as never,
       { configured: vi.fn().mockReturnValue(false) } as never,
@@ -19,12 +19,51 @@ describe('Dependency readiness', () => {
       status: 'ready',
       dependencies: {
         postgres: 'up',
+        postgresPool: {
+          total: 1,
+          idle: 1,
+          waiting: 0,
+          max: 8,
+          aggregateBudget: 12,
+          estimatedAggregate: 12,
+        },
         redis: 'up',
         optional: {
           objectStorage: 'unconfigured',
           email: 'unconfigured',
+          emailDelivery: { status: 'unconfigured', terminalFailures: 0 },
           maps: 'unconfigured',
           sso: 'unconfigured',
+        },
+      },
+    });
+  });
+  it('reports terminal mail failures without exposing mail contents', async () => {
+    const config = {
+      get: vi.fn((key: string) => {
+        if (key === 'BREVO_API_KEY') return 'configured';
+        if (key === 'BREVO_SENDER_EMAIL') return 'accounts@example.test';
+        return undefined;
+      }),
+    };
+    const check = new ReadinessController(
+      {
+        query: vi.fn().mockResolvedValue({ rows: [{ terminalFailures: 3 }] }),
+        totalCount: 1,
+        idleCount: 1,
+        waitingCount: 0,
+      } as never,
+      { ping: vi.fn().mockResolvedValue('PONG') } as never,
+      config as never,
+      { configured: vi.fn().mockReturnValue(false) } as never,
+    );
+
+    await expect(check.ready()).resolves.toMatchObject({
+      status: 'ready',
+      dependencies: {
+        optional: {
+          email: 'configured',
+          emailDelivery: { status: 'degraded', terminalFailures: 3 },
         },
       },
     });

@@ -17,6 +17,7 @@ import {
   verifyMfaCode,
 } from '@/lib/api/auth-client';
 import type { MfaEnrollment } from '@/lib/api/auth-types';
+import { notify } from '@/lib/notifications/notify';
 
 type Mode = 'idle' | 'enrolling' | 'confirming' | 'rotating' | 'disabling';
 
@@ -40,7 +41,6 @@ export function MfaCard({ enabled }: { enabled: boolean }) {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   function reset(): void {
     setMode('idle');
@@ -78,7 +78,9 @@ export function MfaCard({ enabled }: { enabled: boolean }) {
     try {
       await verifyMfaCode(enrollment.challengeToken, code);
 
-      setNotice('Two-factor authentication is now on for your account.');
+      notify.success('Two-factor authentication is now on for your account.', {
+        id: 'mfa-enabled',
+      });
       reset();
     } catch (caught) {
       setError(describeMfaError(caught));
@@ -95,7 +97,9 @@ export function MfaCard({ enabled }: { enabled: boolean }) {
       const result = await regenerateRecoveryCodes(password, code);
 
       setRecoveryCodes(result.recoveryCodes);
-      setNotice('New recovery codes generated. Your previous codes no longer work.');
+      notify.success('New recovery codes generated. Your previous codes no longer work.', {
+        id: 'mfa-recovery-codes-rotated',
+      });
       reset();
     } catch (caught) {
       setError(describeMfaError(caught));
@@ -111,7 +115,9 @@ export function MfaCard({ enabled }: { enabled: boolean }) {
     try {
       await disableMfa(password, code);
 
-      setNotice('Two-factor authentication has been removed from your account.');
+      notify.success('Two-factor authentication has been removed from your account.', {
+        id: 'mfa-disabled',
+      });
       setRecoveryCodes(null);
       reset();
     } catch (caught) {
@@ -140,12 +146,6 @@ export function MfaCard({ enabled }: { enabled: boolean }) {
           )
         }
       />
-
-      {notice ? (
-        <Alert tone="success" className="mb-4">
-          {notice}
-        </Alert>
-      ) : null}
 
       {recoveryCodes ? (
         <Alert tone="warning" className="mb-4" title="Save these recovery codes now.">

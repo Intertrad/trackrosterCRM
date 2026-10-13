@@ -34,6 +34,7 @@ import { getOutcomeSettings } from '@/lib/api/outcome-settings-client';
 import { outcomesForChannel, type OutcomeDefinition } from '@/lib/api/outcome-settings-types';
 import type { ProspectReservationState } from '@/lib/api/work-queue-types';
 import { cn } from '@/lib/ui/cn';
+import { notify } from '@/lib/notifications/notify';
 
 const CHANNELS: Array<{ value: ActionType; label: string; icon: typeof Phone }> = [
   { value: 'call', label: 'Call', icon: Phone },
@@ -277,6 +278,12 @@ export function LogOutcomeDrawer({
 
       resetDraft();
       onCompleted();
+      notify.success(
+        createFollowUp
+          ? l('Action completed and follow-up scheduled.', 'Action terminée et relance planifiée.')
+          : l('Action completed.', 'Action terminée.'),
+        { id: 'action-completed' },
+      );
       onClose();
     } catch (caught) {
       setError(describeError(caught, language));

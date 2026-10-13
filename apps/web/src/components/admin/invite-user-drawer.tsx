@@ -13,6 +13,7 @@ import { listOrganizations, type OrganizationSummary } from '@/lib/api/organizat
 import { roleLabel, TENANT_ROLES } from '@/lib/api/role-types';
 import { createTeam, listTeams } from '@/lib/api/team-client';
 import type { Team } from '@/lib/api/team-types';
+import { notify } from '@/lib/notifications/notify';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -47,7 +48,6 @@ export function InviteUserDrawer({
   const [teamError, setTeamError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
 
@@ -69,7 +69,6 @@ export function InviteUserDrawer({
     setTeamCreateBusy(false);
     setTeamName('');
     setTeamError(null);
-    setNotice(null);
     /* One key per opened form: retrying a failed send must not create a
      * second invitation for the same person. */
     setIdempotencyKey(crypto.randomUUID());
@@ -131,7 +130,9 @@ export function InviteUserDrawer({
       setTeamId(team.id);
       setTeamName('');
       setFormError(null);
-      setNotice(`Team “${team.name}” created. You can now send the invitation.`);
+      notify.success(`Team “${team.name}” created. You can now send the invitation.`, {
+        id: 'invite-team-created',
+      });
     } catch (caught) {
       setTeamError(describeInviteError(caught));
     } finally {
@@ -180,7 +181,7 @@ export function InviteUserDrawer({
         idempotencyKey ?? crypto.randomUUID(),
       );
 
-      setNotice(`Invitation sent to ${trimmed}.`);
+      notify.success(`Invitation sent to ${trimmed}.`, { id: 'workspace-invitation-sent' });
       setEmail('');
       setDisplayName('');
       setIdempotencyKey(crypto.randomUUID());
@@ -195,8 +196,6 @@ export function InviteUserDrawer({
   return (
     <Drawer open={open} title="Invite users" onClose={onClose}>
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-5">
-        {notice ? <Alert tone="success">{notice}</Alert> : null}
-
         <TextField
           label="Email"
           type="email"

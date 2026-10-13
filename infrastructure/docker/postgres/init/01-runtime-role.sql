@@ -78,12 +78,16 @@ BEGIN
 END $$;
 
 -- Tables created by later migrations must be reachable too, otherwise the
--- next migration silently locks the application out of its own data.
--- The image entrypoint runs this file as its bootstrap superuser, while
--- migrations run later as `trackroster`. Scope the defaults explicitly to the
--- migration owner so tables created by Drizzle inherit the runtime grants.
-ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trackroster_app;
-
-ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO trackroster_app;
+-- next migration silently locks the application out of its own data. The
+-- image entrypoint normally runs this file while the `trackroster` owner role
+-- exists. A custom-format restore intentionally omits cluster roles, though,
+-- so make this replay idempotent instead of failing before the runtime grants
+-- can be checked. The restore operator must recreate the migration owner
+-- before applying any new migrations to that database.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'trackroster') THEN
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO trackroster_app';
+    EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE trackroster IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO trackroster_app';
+  END IF;
+END $$;

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
   ConflictException,
@@ -8,6 +9,7 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { and, eq, gt, sql } from 'drizzle-orm';
@@ -37,9 +39,10 @@ export class ExportJobService implements OnModuleInit, OnModuleDestroy {
     private readonly scopes: ManagerDashboardScopeService,
     private readonly repository: ControlledExportRepository,
     private readonly serializer: ControlledExportSerializerService,
+    @Optional() private readonly config?: ConfigService,
   ) {}
   onModuleInit() {
-    if (process.env.DATA_JOBS_POLLING !== 'off') {
+    if (this.config?.get<string>('DATA_JOBS_POLLING') !== 'off') {
       this.timer = setInterval(() => {
         void this.drain().catch(() => undefined);
       }, 5000);

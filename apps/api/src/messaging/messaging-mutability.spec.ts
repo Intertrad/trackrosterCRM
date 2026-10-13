@@ -1,5 +1,4 @@
 import { ForbiddenException } from '@nestjs/common';
-import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import type { Database } from '../database/database.types.js';
@@ -19,23 +18,13 @@ function fixture(returned: unknown[]) {
 }
 
 describe('message mutability', () => {
-  it('allows an edit while no other participant has read the message', async () => {
-    const message = { id: 'message', status: 'edited', body: 'updated' };
-    const { service, where } = fixture([message]);
-
-    await expect(service.edit(auth, 'message', 'updated')).resolves.toEqual(message);
-
-    const query = new PgDialect().sqlToQuery(where.mock.calls[0]![0]);
-    expect(query.sql.toLowerCase()).toContain('not exists');
-    expect(query.sql).toContain('last_read_at');
-  });
-
-  it('rejects edits after another participant has read the message', async () => {
-    const { service } = fixture([]);
+  it('rejects every edit after a message is sent', async () => {
+    const { service, where } = fixture([{ id: 'message', status: 'sent', body: 'original' }]);
 
     await expect(service.edit(auth, 'message', 'updated')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(where).not.toHaveBeenCalled();
   });
 
   it('rejects deletes after another participant has read the message', async () => {

@@ -5,7 +5,7 @@ export function copy(value: Copy, language: string): string {
 }
 const labels: Record<string, Copy> = {
   name: { en: 'Name', fr: 'Nom' },
-  slug: { en: 'Short name', fr: 'Nom court' },
+  slug: { en: 'Identifier', fr: 'Identifiant' },
   status: { en: 'Status', fr: 'Statut' },
   type: { en: 'Type', fr: 'Type' },
   organizationId: { en: 'Organization', fr: 'Organisation' },
@@ -34,6 +34,7 @@ const labels: Record<string, Copy> = {
   displayName: { en: 'Name', fr: 'Nom' },
   email: { en: 'Email', fr: 'E-mail' },
   description: { en: 'Description', fr: 'Description' },
+  argumentaire: { en: 'Notes', fr: 'Notes' },
   reason: { en: 'Reason', fr: 'Motif' },
   locale: { en: 'Language', fr: 'Langue' },
   timezone: { en: 'Timezone', fr: 'Fuseau horaire' },

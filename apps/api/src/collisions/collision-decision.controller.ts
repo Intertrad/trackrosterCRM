@@ -34,6 +34,8 @@ export class CollisionDecisionController {
       campaignId,
 
       campaignProspectId: prospectId,
+
+      mode: 'read',
     });
 
     let conflict:

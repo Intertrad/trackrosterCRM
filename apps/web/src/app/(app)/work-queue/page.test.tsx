@@ -329,23 +329,12 @@ describe('WorkQueuePage', () => {
     expect(screen.getByText('No prospect matches these filters.')).toBeInTheDocument();
   });
 
-  it('searches the portfolio it already holds', async () => {
+  it('does not expose a portfolio search field', async () => {
     render(<MyProspectsPage />);
 
     await screen.findByText('North Star Dental');
 
-    const calls = listWorkQueueMock.mock.calls.length;
-
-    fireEvent.change(screen.getByLabelText('Search my portfolio'), {
-      target: { value: 'nothing matches this' },
-    });
-
-    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
-    expect(listWorkQueueMock).toHaveBeenCalledTimes(calls);
-
-    fireEvent.change(screen.getByLabelText('Search my portfolio'), { target: { value: '75001' } });
-
-    expect(screen.getByText('North Star Dental')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search my portfolio')).not.toBeInTheDocument();
   });
 
   it('distinguishes a filtered empty result from an empty portfolio', async () => {
@@ -451,21 +440,14 @@ describe('WorkQueuePage', () => {
     expect(document.body.textContent).not.toMatch(/\b(portfolio|nav|stage|next|when)\.[a-zA-Z.]+/);
   });
 
-  it('opens already filtered when scoped search links here with a term', async () => {
+  it('does not render a search field for scoped links', async () => {
     searchParamsMock.mockReturnValue(new URLSearchParams('search=North%20Star'));
 
     render(<MyProspectsPage />);
 
     await screen.findByRole('heading', { name: 'My prospects' });
 
-    expect(screen.getByLabelText('Search my portfolio')).toHaveValue('North Star');
-
-    /* Seeding the box is not enough: the term has to narrow the list, or the
-     * link would land on an unfiltered portfolio. */
+    expect(screen.queryByLabelText('Search my portfolio')).not.toBeInTheDocument();
     expect(screen.getByText('North Star Dental')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText('Search my portfolio'), { target: { value: 'zzz' } });
-
-    expect(screen.queryByText('North Star Dental')).not.toBeInTheDocument();
   });
 });

@@ -48,20 +48,18 @@ export class PlatformTenantController {
 
   @Get(':tenantId/usage')
   async usage(@Param('tenantId', new ParseUUIDPipe()) tenantId: string) {
-    const [members, prospects, campaigns, activities] = await Promise.all([
-      this.db.execute(
-        sql`SELECT count(*)::int AS count FROM tenant_memberships WHERE tenant_id=${tenantId}`,
-      ),
-      this.db.execute(
-        sql`SELECT count(*)::int AS count FROM establishments WHERE tenant_id=${tenantId}`,
-      ),
-      this.db.execute(
-        sql`SELECT count(*)::int AS count FROM campaigns WHERE tenant_id=${tenantId}`,
-      ),
-      this.db.execute(
-        sql`SELECT count(*)::int AS count FROM prospect_activities WHERE tenant_id=${tenantId}`,
-      ),
-    ]);
+    const members = await this.db.execute(
+      sql`SELECT count(*)::int AS count FROM tenant_memberships WHERE tenant_id=${tenantId}`,
+    );
+    const prospects = await this.db.execute(
+      sql`SELECT count(*)::int AS count FROM establishments WHERE tenant_id=${tenantId}`,
+    );
+    const campaigns = await this.db.execute(
+      sql`SELECT count(*)::int AS count FROM campaigns WHERE tenant_id=${tenantId}`,
+    );
+    const activities = await this.db.execute(
+      sql`SELECT count(*)::int AS count FROM prospect_activities WHERE tenant_id=${tenantId}`,
+    );
     return {
       tenantId,
       memberships: members.rows[0]?.count ?? 0,

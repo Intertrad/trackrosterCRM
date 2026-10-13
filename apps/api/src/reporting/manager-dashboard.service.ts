@@ -75,31 +75,19 @@ export class ManagerDashboardService {
     };
 
     /*
-     * These queries are intentionally independent.
-     *
-     * Running them separately avoids row multiplication
-     * from joining activities × assignments × follow-ups.
+     * These queries are intentionally independent, but the repository uses
+     * the request-aware database. Sequential execution avoids concurrent
+     * statements on the same tenant transaction client.
      */
-    const [
-      activities,
-      assignments,
-      followUps,
-      activityByProspector,
-      assignmentsByProspector,
-      followUpsByProspector,
-    ] = await Promise.all([
-      this.dashboardRepository.getActivitySummary(reportInput),
-
-      this.dashboardRepository.getAssignmentSummary(reportInput),
-
-      this.dashboardRepository.getFollowUpSummary(reportInput),
-
-      this.dashboardRepository.getActivityByProspector(reportInput),
-
-      this.dashboardRepository.getAssignmentsByProspector(reportInput),
-
-      this.dashboardRepository.getFollowUpsByProspector(reportInput),
-    ]);
+    const activities = await this.dashboardRepository.getActivitySummary(reportInput);
+    const assignments = await this.dashboardRepository.getAssignmentSummary(reportInput);
+    const followUps = await this.dashboardRepository.getFollowUpSummary(reportInput);
+    const activityByProspector =
+      await this.dashboardRepository.getActivityByProspector(reportInput);
+    const assignmentsByProspector =
+      await this.dashboardRepository.getAssignmentsByProspector(reportInput);
+    const followUpsByProspector =
+      await this.dashboardRepository.getFollowUpsByProspector(reportInput);
 
     return {
       generatedAt: generatedAt.toISOString(),

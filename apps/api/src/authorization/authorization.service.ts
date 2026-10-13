@@ -16,7 +16,12 @@ export class AuthorizationService {
   ) {}
 
   async getUserGrants(tenantId: string, userId: string): Promise<UserAccessGrant[]> {
-    return this.grantRepository.findByUser(tenantId, userId);
+    const grants = await this.grantRepository.findByUser(tenantId, userId);
+
+    // Repository queries are tenant-scoped, but keep the boundary explicit at
+    // the authorization layer too. A faulty query, cache, or future repository
+    // implementation must never turn a foreign grant into local authority.
+    return grants.filter((grant) => grant.tenantId === tenantId && grant.userId === userId);
   }
 
   async isClientAdmin(tenantId: string, userId: string): Promise<boolean> {

@@ -1,3 +1,6 @@
+import { validateAggregateDatabasePoolBudget } from './database-pool-budget.js';
+import { parseCorsOrigins, parseTrustProxy } from './http-security.js';
+
 const MINIMUM_JWT_SECRET_LENGTH = 32;
 
 const JWT_TTL_PATTERN = /^\d+(s|m|h|d)$/;
@@ -56,6 +59,34 @@ function validatePositiveInteger(config: Record<string, unknown>, key: string): 
   }
 }
 
+function validateOptionalBoundedInteger(
+  config: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+): void {
+  if (config[key] === undefined) return;
+  const value = Number(config[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+}
+
+function validateOptionalUrl(config: Record<string, unknown>, key: string): void {
+  const value = config[key];
+  if (value === undefined) return;
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Environment variable ${key} must be a valid URL`);
+  }
+  try {
+    new URL(value);
+  } catch {
+    throw new Error(`Environment variable ${key} must be a valid URL`);
+  }
+}
+
 export function validateEnvironment(config: Record<string, unknown>): Record<string, unknown> {
   requireString(config, 'DATABASE_URL');
 
@@ -75,6 +106,23 @@ export function validateEnvironment(config: Record<string, unknown>): Record<str
   validateJwtTtl(config, 'JWT_REFRESH_TTL');
 
   validatePositiveInteger(config, 'PROSPECT_COOLING_OFF_MINUTES');
+  validateOptionalBoundedInteger(config, 'API_DATABASE_POOL_MAX', 1, 15);
+  validateOptionalBoundedInteger(config, 'DATABASE_CONNECTION_TIMEOUT_MS', 250, 30_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_STATEMENT_TIMEOUT_MS', 250, 120_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TRANSACTION_TIMEOUT_MS', 1_000, 300_000);
+  validateAggregateDatabasePoolBudget(config);
+  if (config.API_CORS_ORIGINS !== undefined) {
+    parseCorsOrigins(String(config.API_CORS_ORIGINS));
+  }
+  if (config.TRUST_PROXY !== undefined) {
+    parseTrustProxy(String(config.TRUST_PROXY));
+  }
+  validateOptionalBoundedInteger(config, 'PORT', 1, 65_535);
+  validateOptionalUrl(config, 'OBJECT_STORAGE_ENDPOINT');
+  validateOptionalUrl(config, 'R2_ENDPOINT');
+  validateOptionalUrl(config, 'OBJECT_STORAGE_UPLOAD_BASE_URL');
+  validateOptionalUrl(config, 'OBJECT_STORAGE_DOWNLOAD_BASE_URL');
   for (const key of ['AUTH_RATE_LIMIT_IP', 'AUTH_RATE_LIMIT_ACCOUNT']) {
     if (config[key] !== undefined) validatePositiveInteger(config, key);
   }

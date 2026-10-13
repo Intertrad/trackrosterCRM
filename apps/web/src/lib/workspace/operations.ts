@@ -4238,7 +4238,7 @@ export const OPERATIONS: Record<string, Operation> = {
       {
         name: 'slug',
         type: 'string',
-        optional: false,
+        optional: true,
         nullable: false,
         maxLength: 100,
       },

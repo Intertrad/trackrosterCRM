@@ -43,6 +43,7 @@ describe('CollisionDecisionController', () => {
       userId,
       campaignId,
       campaignProspectId: prospectId,
+      mode: 'read',
     });
 
     expect(result).toEqual({

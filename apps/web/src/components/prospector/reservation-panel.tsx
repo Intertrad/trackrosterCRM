@@ -214,7 +214,7 @@ export function ReservationPanel({
         </Alert>
       ) : null}
 
-      {reservation?.state === 'none' ? (
+      {reservation?.state === 'none' && reservation.canAcquire !== false ? (
         <Button
           fullWidth
           className="mt-4"

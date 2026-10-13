@@ -8,6 +8,40 @@ function requireString(config: Record<string, unknown>, key: string): string {
   return value;
 }
 
+function validateAggregateDatabasePoolBudget(config: Record<string, unknown>): void {
+  const apiPoolMax = readBoundedInteger(config, 'API_DATABASE_POOL_MAX', 8, 1, 15);
+  const workerPoolMax = readBoundedInteger(config, 'WORKER_DATABASE_POOL_MAX', 4, 1, 15);
+  const apiReplicas = readBoundedInteger(config, 'API_DATABASE_REPLICA_COUNT', 1, 1, 100);
+  const workerReplicas = readBoundedInteger(config, 'WORKER_DATABASE_REPLICA_COUNT', 1, 1, 100);
+  const budget = readBoundedInteger(config, 'DATABASE_POOL_BUDGET', 12, 1, 1_000);
+  const estimatedConnections = apiPoolMax * apiReplicas + workerPoolMax * workerReplicas;
+
+  if (estimatedConnections > budget) {
+    throw new Error(
+      `Database pool budget exceeded: API (${apiPoolMax} x ${apiReplicas}) + ` +
+        `worker (${workerPoolMax} x ${workerReplicas}) = ${estimatedConnections}, ` +
+        `budget is ${budget}`,
+    );
+  }
+}
+
+function readBoundedInteger(
+  config: Record<string, unknown>,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (config[key] === undefined) return fallback;
+  const value = Number(config[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+  return value;
+}
+
 function validateRedisUrl(config: Record<string, unknown>): void {
   const redisUrl = requireString(config, 'REDIS_URL');
 
@@ -24,10 +58,29 @@ function validateRedisUrl(config: Record<string, unknown>): void {
   }
 }
 
+function validateOptionalBoundedInteger(
+  config: Record<string, unknown>,
+  key: string,
+  minimum: number,
+  maximum: number,
+): void {
+  if (config[key] === undefined) return;
+  const value = Number(config[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between ${minimum} and ${maximum}`,
+    );
+  }
+}
+
 export function validateWorkerEnvironment(
   config: Record<string, unknown>,
 ): Record<string, unknown> {
   validateRedisUrl(config);
+  validateOptionalBoundedInteger(config, 'WORKER_DATABASE_POOL_MAX', 1, 15);
+  validateOptionalBoundedInteger(config, 'DATABASE_CONNECTION_TIMEOUT_MS', 250, 30_000);
+  validateOptionalBoundedInteger(config, 'DATABASE_IDLE_TIMEOUT_MS', 1_000, 300_000);
+  validateAggregateDatabasePoolBudget(config);
 
   const shutdownTimeout = config['WORKER_SHUTDOWN_TIMEOUT_MS'];
 

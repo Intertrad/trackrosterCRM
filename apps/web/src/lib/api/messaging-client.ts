@@ -132,15 +132,6 @@ export function sendMessage(conversationId: string, body: string): Promise<Messa
   });
 }
 
-/** Only the sender may edit, and only while the message is still `sent`. */
-export function editMessage(messageId: string, body: string): Promise<Message> {
-  return browserJson<Message>(`/api/messages/${encodeURIComponent(messageId)}`, {
-    method: 'PATCH',
-    headers: writeHeaders(),
-    body: JSON.stringify({ body }),
-  });
-}
-
 /* A delete is a tombstone upstream: the row stays, its body is cleared. */
 export function deleteMessage(messageId: string): Promise<void> {
   return browserJson<void>(`/api/messages/${encodeURIComponent(messageId)}`, {

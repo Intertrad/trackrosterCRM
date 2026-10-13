@@ -34,7 +34,12 @@ export class ListTeamsDto extends ListWorkspaceResourcesDto {
 
 export class CreateOrganizationDto {
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(255) name!: string;
-  @Transform(trim) @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(100) slug!: string;
+  @ValidateIf(optional)
+  @Transform(trim)
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  @MaxLength(100)
+  slug?: string;
   @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(100) shortName?: string;
   @ValidateIf(optional) @Transform(trim) @IsString() @MaxLength(80) phone?: string;
   @ValidateIf(optional) @Transform(trim) @IsEmail() @MaxLength(320) email?: string;
@@ -83,6 +88,11 @@ export class UpdateOrganizationDto {
 }
 
 export class CreateTeamDto extends CreateOrganizationDto {
+  @Transform(trim)
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  @MaxLength(100)
+  override slug = '';
   @IsUUID() organizationId!: string;
   @ValidateIf(optional) @IsInt() @Min(1) @Max(100000) capacity?: number;
   @ValidateIf((_, value) => value !== undefined && value !== null) @IsUUID() managerMembershipId?:

@@ -39,6 +39,11 @@ Visual references and the connected frontend approach live here:
 - [Attached admin and prospector reference status](./design/ATTACHED_REFERENCE_STATUS.md)
 - [Application design system](../apps/web/DESIGN.md)
 - [Landing page visual QA](../design-qa.md)
+- [Frontend UI/UX audit 2026-10-09](./design/FRONTEND_UI_AUDIT_2026-10-09.md)
+
+### Notifications
+
+- [Centralized in-app toast notifications](./notifications/TOAST_NOTIFICATIONS.md)
 
 ---
 
@@ -90,6 +95,7 @@ Important technical decisions are documented using ADRs.
 
 ## Operations
 
+- [Full-stack production audit 2026-10-09](./operations/PRODUCTION_AUDIT_2026-10-09.md)
 - [Deployment](./operations/DEPLOYMENT.md)
 - [Environments](./operations/ENVIRONMENTS.md)
 - [Backup & Restore](./operations/BACKUP_RESTORE.md)
@@ -157,6 +163,8 @@ Use it to interpret dated audits and implementation snapshots.
 - `backend/`: endpoint contracts, implementation progress, and frontend handoff.
 - `api/`: public API reference.
 - `operations/`: deployment, incident response, backup, and recovery procedures.
+- `operations/PRODUCTION_AUDIT_2026-10-09.md`: current full-stack audit findings,
+  evidence, release blockers, and prioritized remediation backlog.
 - `production/`: launch readiness, API inventory, and migration runbooks.
 - `product/`: workflows, lifecycle rules, and user roles.
 - `engineering/`: contribution, testing, naming, and delivery standards.

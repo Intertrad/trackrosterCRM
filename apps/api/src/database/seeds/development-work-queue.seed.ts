@@ -14,6 +14,7 @@ import {
   type ProspectFollowUpCategory,
   type ProspectFollowUpChannel,
 } from '../schema/prospect-follow-ups.js';
+import { withTenantContext } from '../tenant-context.js';
 
 const LEGACY_CAMPAIGN = {
   key: 'LEGACY_MANAGER',
@@ -113,7 +114,7 @@ const DEVELOPMENT_CITY_COORDINATES: Record<string, { latitude: number; longitude
  * Nudges each establishment off its city centre so fixtures in the same city
  * are distinguishable as separate markers rather than stacking exactly.
  */
-function developmentCoordinates(
+export function developmentCoordinates(
   city: string,
   externalReference: string,
 ): { latitude: number | null; longitude: number | null } {
@@ -133,6 +134,23 @@ function developmentCoordinates(
     latitude: Number((base.latitude + ((hash % 50) - 25) / 2000).toFixed(6)),
     longitude: Number((base.longitude + ((Math.floor(hash / 50) % 50) - 25) / 2000).toFixed(6)),
   };
+}
+
+/**
+ * Makes relative follow-up dates reproducible when a seed is run in CI.
+ * Local development keeps the historical "now" behavior unless the caller
+ * opts in with DEVELOPMENT_SEED_NOW.
+ */
+export function developmentSeedNow(): Date {
+  const configured = process.env.DEVELOPMENT_SEED_NOW;
+  if (!configured) return new Date();
+
+  const value = new Date(configured);
+  if (!Number.isFinite(value.getTime())) {
+    throw new Error('DEVELOPMENT_SEED_NOW must be a valid ISO timestamp');
+  }
+
+  return value;
 }
 
 interface ProspectFixture {
@@ -632,7 +650,7 @@ async function retireLegacyProspectorFixtures(
 }
 
 function prototypeProspectFixtures(input: DevelopmentWorkQueueSeedInput): ProspectFixture[] {
-  const seedRunAt = new Date();
+  const seedRunAt = developmentSeedNow();
   const rows: Array<{
     name: string;
     normalizedName: string;
@@ -872,7 +890,7 @@ export async function seedDevelopmentWorkQueue(input: DevelopmentWorkQueueSeedIn
   campaigns: Array<{ id: string; name: string }>;
   prospects: SeededProspectSummary[];
 }> {
-  return input.database.transaction(async (transaction) => {
+  return withTenantContext(input.database, input.tenantId, async (transaction) => {
     await retireLegacyProspectorFixtures(transaction, input.tenantId, input.prospectorUserId);
 
     const allCampaignFixtures: CampaignFixture[] = [

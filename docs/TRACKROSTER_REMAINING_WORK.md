@@ -593,6 +593,12 @@ residual cause is a **product throughput limit**, recorded as TR-917.
 | TR-918 | concurrency   | Nine services take the tenant mutex with `FOR UPDATE` and **six sit behind idempotent routes**, so each is exposed to the same key-share upgrade deadlock TR-904 fixed in participation                                                                                                                                                                                                                                               | `resource-scope`, `territory`, `prospect-access`, `membership`, `campaign-lifecycle`, `campaign`, `workspace-administration` vs. the `no key update` precedent in assignment-batch, consents, reservation-rule, outcome-settings, import-deduplication                        | change each to `for('no key update')` — but write a concurrency test per route first, because the fix is one word and the risk is assuming rather than proving | a two-request test per affected route, red before and green after                        | 6–10 h |
 | TR-915 | storage       | Object storage failure paths untested                                                                                                                                                                                                                                                                                                                                                                                                 | `providers/object-storage.service.ts` has no failure tests                                                                                                                                                                                                                    | add unavailable/partial-write tests                                                                                                                            | those tests                                                                              | 3–5 h  |
 
+**TR-917 status (2026-10-09): Resolved in `dev-v2` commit `b2ee8f19`.**
+`AuthMailService` now claims one outbox row in a short transaction, performs
+Mailpit/Brevo I/O after commit, and records bounded retries and safe provider
+diagnostics. The remaining observability recommendation is tracked separately;
+the connection-pinning defect is no longer open.
+
 ### P3
 
 `establishments/:id/contacts` over-guarded (audit §12, 1–2 h); 10 `no-explicit-any`
@@ -616,18 +622,17 @@ sign-in, marketplace. **16 items — do not schedule these for MVP.**
 | --- | ------ | -------- | ----------------------------------------- | ------- |
 | 1   | TR-916 | P1       | Reservation durable intent is not durable | 10–16 h |
 | 2   | TR-918 | P2       | Tenant mutex deadlock at 6 more sites     | 6–10 h  |
-| 3   | TR-917 | P2       | Mail delivery throughput                  | 4–6 h   |
-| 4   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
-| 5   | TR-913 | P2       | Audit immutability under the app role     | 2–3 h   |
-| 6   | TR-906 | P1       | Backup and rehearsed restore              | 8–12 h  |
-| 7   | TR-905 | P1       | Import deduplication key set              | 10–14 h |
-| 8   | TR-907 | P1       | Notification channel matrix + CR-033      | 12–16 h |
-| 9   | TR-908 | P2       | Territory reporting dimension             | 4–6 h   |
-| 10  | TR-912 | P2       | Observability baseline                    | 8–12 h  |
-| 11  | TR-911 | P2       | Reservation PostgreSQL backstop           | 6–8 h   |
-| 12  | TR-915 | P2       | Object storage failure paths              | 3–5 h   |
+| 3   | TR-914 | P2       | RLS catalogue coverage guard              | 2–3 h   |
+| 4   | TR-913 | P2       | Audit immutability under the app role     | 2–3 h   |
+| 5   | TR-906 | P1       | Backup and rehearsed restore              | 8–12 h  |
+| 6   | TR-905 | P1       | Import deduplication key set              | 10–14 h |
+| 7   | TR-907 | P1       | Notification channel matrix + CR-033      | 12–16 h |
+| 8   | TR-908 | P2       | Territory reporting dimension             | 4–6 h   |
+| 9   | TR-912 | P2       | Observability baseline                    | 8–12 h  |
+| 10  | TR-911 | P2       | Reservation PostgreSQL backstop           | 6–8 h   |
+| 11  | TR-915 | P2       | Object storage failure paths              | 3–5 h   |
 
-TR-902, TR-909 and TR-910 are resolved and no longer listed. TR-904 is resolved except for the
+TR-902, TR-909, TR-910 and TR-917 are resolved and no longer listed. TR-904 is resolved except for the
 two defects it uncovered, which lead this list as TR-909 and TR-916. TR-913 remains
 only for tables beyond the two that 0079 covered.
 

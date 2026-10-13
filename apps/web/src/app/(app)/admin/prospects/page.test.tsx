@@ -45,8 +45,23 @@ vi.mock('next/navigation', async () => {
   };
 });
 vi.mock('@/components/prospector/prospect-map', () => ({
-  ProspectMap: () => null,
-  toMapPoint: () => [],
+  ProspectMap: ({ onVisibleChange }: { onVisibleChange?: (ids: string[]) => void }) => (
+    <button
+      type="button"
+      onClick={() => onVisibleChange?.(['44444444-4444-4444-8444-444444444444'])}
+    >
+      Report visible map prospects
+    </button>
+  ),
+  toMapPoint: (
+    id: string,
+    name: string,
+    latitude: number | null,
+    longitude: number | null,
+    stage: string,
+    href?: string,
+  ) =>
+    latitude === null || longitude === null ? [] : [{ id, name, latitude, longitude, stage, href }],
 }));
 
 import ReferentialPage from './page';
@@ -265,6 +280,20 @@ describe('admin référentiel', () => {
     expect(screen.getByText('Assigned to')).toBeInTheDocument();
   });
 
+  it('shows the assignment action as inactive until records are selected', async () => {
+    listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: null });
+    render(<ReferentialPage />);
+
+    const assign = await screen.findByRole('button', { name: 'Assign selection (0)' });
+    expect(assign).toBeDisabled();
+    expect(assign).toHaveClass('bg-surface');
+
+    fireEvent.click(screen.getByLabelText('Select Brigade de Bastia'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Assign selection (1)' })).toBeEnabled();
+    });
+  });
+
   it('keeps the explicit selection on pagination and clears it when filters change', async () => {
     listProspectsMock.mockResolvedValue({ items: [prospect()], nextCursor: 'cursor-2' });
     render(<ReferentialPage />);
@@ -315,6 +344,30 @@ describe('admin référentiel', () => {
     await waitFor(() =>
       expect(screen.getByText(/No coordinates are available/)).toBeInTheDocument(),
     );
+  });
+
+  it('limits the map-side list to prospects inside the current viewport', async () => {
+    const second = prospect({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Lyon hospital',
+      city: 'Lyon',
+      postalCode: '69001',
+      latitude: 45.75,
+      longitude: 4.85,
+    });
+    nav.query = 'view=map';
+    listProspectsMock.mockResolvedValue({ items: [prospect(), second], nextCursor: null });
+
+    render(<ReferentialPage />);
+
+    await waitFor(() => expect(screen.getByText('Lyon hospital')).toBeInTheDocument());
+    expect(screen.getByText('Brigade de Bastia')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Report visible map prospects' }));
+
+    await waitFor(() => expect(screen.getByText('Brigade de Bastia')).toBeInTheDocument());
+    expect(screen.queryByText('Lyon hospital')).not.toBeInTheDocument();
+    expect(screen.getByText('Zoom or pan the map to update this list.')).toBeInTheDocument();
   });
 
   it('separates an empty référentiel from an empty filter result', async () => {

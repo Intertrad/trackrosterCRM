@@ -26,6 +26,7 @@
     "@nestjs/jwt": "^12.0.1",
     "@nestjs/platform-fastify": "^12.0.1",
     "@trackroster/jobs": "workspace:*",
+    "@trackroster/types": "workspace:*",
     "argon2": "^0.45.1",
     "bullmq": "^6.3.4",
     "class-transformer": "^0.5.1",

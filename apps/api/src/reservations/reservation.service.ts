@@ -13,6 +13,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { sql } from 'drizzle-orm';
 import type { ProspectReservation, ProspectReservationState } from './reservation.types.js';
 
 import { CampaignProspectAssignmentRepository } from '../assignments/campaign-prospect-assignment.repository.js';
@@ -31,7 +32,9 @@ import type { CampaignProspectAssignment } from '../database/schema/campaign-pro
 import { TeamRepository } from '../teams/team.repository.js';
 import { UserRepository } from '../users/user.repository.js';
 import { ReservationExpirySchedulerService } from './reservation-expiry-scheduler.service.js';
+import { ReservationCollisionPipelineService } from './reservation-collision-pipeline.service.js';
 import { ReservationRepository } from './reservation.repository.js';
+import { currentTenantExecutor } from '../database/request-tenant-executor.js';
 
 export interface AcquireReservationInput {
   tenantId: string;
@@ -56,6 +59,8 @@ export interface ReservationEligibilityContext {
   assignment: CampaignProspectAssignment;
   establishmentId: string;
 }
+
+type ReservationEligibilityMode = 'mutate' | 'read';
 
 export interface ReleaseReservationInput {
   tenantId: string;
@@ -118,6 +123,7 @@ export class ReservationService {
     private readonly reservationCoordinationScopeService: ReservationCoordinationScopeService,
 
     private readonly reservationExpirySchedulerService: ReservationExpirySchedulerService,
+    private readonly reservationCollisionPipelineService: ReservationCollisionPipelineService,
     private readonly rules?: ReservationPolicyService,
     private readonly ledger?: ReservationLedgerService,
   ) {}
@@ -138,139 +144,41 @@ export class ReservationService {
      */
     const { assignment, establishmentId } = await this.requireReservationEligibility(input);
 
+    /*
+     * Serialize the authoritative collision read and the final Redis claim
+     * inside the request transaction. Redis remains the cross-process lease
+     * authority, while this transaction-scoped lock prevents two API
+     * requests from observing the same persisted collision state while either
+     * request is completing its claim. The global tenant interceptor supplies
+     * the executor for HTTP requests; direct unit tests intentionally run
+     * without one and continue to exercise the service in isolation.
+     */
+    await this.lockReservationTarget(input.tenantId, establishmentId);
+
     const targetOrganizationId = assignment.organizationId;
     const rule = await this.rules?.resolve(input.tenantId, input.campaignId);
     const ttlSeconds = (rule?.durationMinutes ?? 20) * 60;
 
-    /*
-     * Priority 1A:
-     * Exact campaign-prospect reservation.
-     *
-     * This remains ahead of every collision rule so
-     * an idempotent retry by the existing owner can
-     * return the already-acquired reservation.
-     */
-    let currentExact: ProspectReservation | null;
-
-    try {
-      currentExact = await this.reservationRepository.findCurrent(
-        input.tenantId,
-        input.campaignId,
-        input.campaignProspectId,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (currentExact) {
-      if (this.isIdempotentReservation(currentExact, input, assignment.id)) {
-        await this.scheduleExpiryBestEffort(currentExact);
-
-        return currentExact;
-      }
-
-      /*
-       * Manager overrides NEVER bypass an already
-       * active reservation owned by another request.
-       */
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Determine which organizations participate in
-     * reservation mutual exclusion.
-     *
-     * SAME / SHARED / COORDINATED / DELAYED
-     * are included.
-     *
-     * INDEPENDENT is excluded.
-     */
-    let blockingOrganizationIds: string[];
-
-    try {
-      const scope = await this.reservationCoordinationScopeService.resolve(
-        input.tenantId,
-        targetOrganizationId,
-      );
-
-      blockingOrganizationIds = scope.blockingOrganizationIds;
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    /*
-     * Priority 1B:
-     * Legacy TR-016 tenant-wide reservation
-     * compatibility.
-     *
-     * Existing legacy locks remain authoritative
-     * until their Redis TTL expires.
-     */
-    let legacyReservation: ProspectReservation | null;
-
-    try {
-      legacyReservation = await this.reservationRepository.findCurrentByEstablishment(
-        input.tenantId,
-        establishmentId,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (legacyReservation) {
-      /*
-       * This is also non-overrideable.
-       */
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Priority 1C:
-     * Organization-aware ACTIVE_RESERVATION.
-     *
-     * Manager approval may override a persisted
-     * business policy collision, but never a live
-     * reservation lock.
-     */
-    let reservationCandidates: ProspectReservation[];
-
-    try {
-      reservationCandidates = await this.reservationRepository.findCurrentCandidatesByOrganizations(
-        input.tenantId,
-        establishmentId,
-        blockingOrganizationIds,
-      );
-    } catch {
-      throw new ServiceUnavailableException('Reservation service is unavailable');
-    }
-
-    if (reservationCandidates.length > 0) {
-      throw new ConflictException('Campaign prospect is currently reserved');
-    }
-
-    /*
-     * Persisted business collision evaluation.
-     *
-     * Both manager-override creation and reservation
-     * consumption use the same canonical evaluator.
-     *
-     * This prevents the two workflows from selecting
-     * different follow-ups, activities or assignments
-     * for the same collision.
-     */
-    const businessCollision = await this.collisionBusinessDecisionService.evaluate({
+    const collision = await this.reservationCollisionPipelineService.evaluate({
       tenantId: input.tenantId,
-
       userId: input.userId,
-
       campaignId: input.campaignId,
-
       campaignProspectId: input.campaignProspectId,
-
+      assignment,
       establishmentId,
-
-      targetOrganizationId,
     });
+
+    if (collision.sameOwnerReservation) {
+      await this.scheduleExpiryBestEffort(collision.sameOwnerReservation);
+      return collision.sameOwnerReservation;
+    }
+
+    if (collision.reservationConflict) {
+      throw new ConflictException('Campaign prospect is currently reserved');
+    }
+
+    const blockingOrganizationIds = collision.blockingOrganizationIds;
+    const businessCollision = collision.decision;
 
     if (businessCollision.decision === 'block') {
       if (input.overrideId && rule?.allowManagerOverride === false)
@@ -500,6 +408,20 @@ export class ReservationService {
     }
   }
 
+  private async lockReservationTarget(tenantId: string, establishmentId: string): Promise<void> {
+    const executor = currentTenantExecutor();
+    if (!executor) return;
+
+    const lockKey = `reservation:${tenantId}:${establishmentId}`;
+    await executor.execute(
+      sql`
+        SELECT pg_advisory_xact_lock(
+          hashtextextended(${lockKey}, 0)
+        )
+      `,
+    );
+  }
+
   private isUniqueViolation(error: unknown): boolean {
     if (!error || typeof error !== 'object') return false;
     return 'code' in error && error.code === '23505';
@@ -552,7 +474,7 @@ export class ReservationService {
      * acquisition so out-of-scope users cannot use
      * this endpoint as a resource-existence oracle.
      */
-    const { assignment } = await this.requireReservationEligibility({
+    const { assignment, canReserve } = await this.requireReservationReadEligibility({
       tenantId: input.tenantId,
 
       userId: input.userId,
@@ -579,6 +501,7 @@ export class ReservationService {
     if (!reservation) {
       return {
         state: 'none',
+        ...(canReserve === false ? { canAcquire: false } : {}),
       };
     }
 
@@ -826,7 +749,8 @@ export class ReservationService {
    */
   async requireReservationEligibility(
     input: AcquireReservationInput,
-  ): Promise<ReservationEligibilityContext> {
+    mode: ReservationEligibilityMode = 'mutate',
+  ): Promise<ReservationEligibilityContext & { canReserve?: boolean }> {
     /*
      * Validate the authenticated principal before
      * resolving any requested campaign/prospect IDs.
@@ -933,13 +857,20 @@ export class ReservationService {
       isExactTeamProspector &&
       (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
 
-    const canWorkAsManager =
+    const canReserveAsManager =
       isExactTeamManager &&
       (assignment.managerId === input.userId ||
         (assignment.managerId === null && assignment.assignedUserId === input.userId)) &&
       (assignment.assignedUserId === null || assignment.assignedUserId === input.userId);
 
-    if (!canWorkAsProspector && !canWorkAsManager) {
+    const canReserve = canWorkAsProspector || canReserveAsManager;
+
+    const canReadAsManager =
+      isExactTeamManager &&
+      (assignment.managerId === input.userId ||
+        (assignment.managerId === null && assignment.assignedUserId === input.userId));
+
+    if (!canReserve && !(mode === 'read' && canReadAsManager)) {
       throw new NotFoundException('Campaign prospect not found');
     }
 
@@ -972,7 +903,22 @@ export class ReservationService {
       assignment,
 
       establishmentId: prospect.establishmentId,
+
+      ...(mode === 'read' ? { canReserve } : {}),
     };
+  }
+
+  /**
+   * Read-only collision and reservation status may be viewed by a manager for
+   * any active assignment in the manager's exact team queue. Mutations still
+   * use requireReservationEligibility() in its default, strict mode.
+   */
+  async requireReservationReadEligibility(
+    input: AcquireReservationInput,
+  ): Promise<ReservationEligibilityContext & { canReserve: boolean }> {
+    return this.requireReservationEligibility(input, 'read') as Promise<
+      ReservationEligibilityContext & { canReserve: boolean }
+    >;
   }
 
   /*

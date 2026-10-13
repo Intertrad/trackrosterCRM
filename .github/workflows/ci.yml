@@ -3,9 +3,11 @@ name: CI
 on:
   pull_request:
     branches:
+      - dev-v2
       - main
   push:
     branches:
+      - dev-v2
       - main
 
 permissions:
@@ -33,11 +35,15 @@ jobs:
       JWT_REFRESH_SECRET: trackroster-ci-refresh-secret-0123456789-abcdefghijklmnopqrstuvwxyz
       JWT_REFRESH_TTL: 7d
       PROSPECT_COOLING_OFF_MINUTES: '1440'
+      TENANT_RLS_MODE: enforce
       # Deterministic local providers used by the integration suite. These are
       # test-only values; production secrets are never committed here.
       MFA_ENCRYPTION_KEY: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff'
       AUTH_PUBLIC_ORIGIN: http://127.0.0.1:3000
       MAILPIT_URL: http://127.0.0.1:58025
+      # If a CI job runs the development seed, relative map/follow-up fixtures
+      # use the same clock on every run.
+      DEVELOPMENT_SEED_NOW: '2026-09-22T12:00:00.000Z'
 
     services:
       postgres:
@@ -105,6 +111,9 @@ jobs:
 
       - name: Run database migrations
         run: pnpm --filter api db:migrate
+
+      - name: Verify live schema matches the repository
+        run: pnpm db:schema:check
 
       - name: Lint
         run: pnpm lint

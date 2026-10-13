@@ -134,7 +134,7 @@ export class CanonicalDashboardService {
    (SELECT count(*)::int FROM membership_invitations i JOIN tenant_memberships m ON m.tenant_id=i.tenant_id AND m.id=i.membership_id WHERE i.tenant_id=${a.tenantId} AND m.status='invited' AND i.consumed_at IS NULL AND i.expires_at>now()) AS "pendingInvitations",
    (SELECT count(*)::int FROM organization_coordination_policies WHERE tenant_id=${a.tenantId}) AS "coordinationRulesSet",
    (SELECT (count(*) * (count(*) - 1) / 2)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active') AS "coordinationPairs",
-   (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active' AND (short_name IS NULL OR phone IS NULL OR email IS NULL OR website IS NULL OR address IS NULL OR argumentaire IS NULL OR cardinality(prospected_sectors)=0)) AS "incompleteOrganizations",
+   (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active' AND (phone IS NULL OR email IS NULL OR website IS NULL OR address IS NULL OR argumentaire IS NULL OR cardinality(prospected_sectors)=0)) AS "incompleteOrganizations",
    (SELECT count(*)::int FROM script_templates WHERE tenant_id=${a.tenantId} AND enabled=true) AS "activeScriptTemplates",
    (SELECT count(*)::int FROM identities i JOIN tenant_memberships m ON m.tenant_id=${a.tenantId} AND m.identity_id=i.id WHERE m.status='active' AND i.mfa_enrolled_at IS NOT NULL) AS "mfaEnrolledMembers",
    coalesce((SELECT require_mfa FROM tenant_security_policies WHERE tenant_id=${a.tenantId}), false) AS "mfaRequired",
@@ -151,31 +151,29 @@ export class CanonicalDashboardService {
       WHERE o.tenant_id=${a.tenantId} AND o.status='active'
       GROUP BY o.id, o.name
       ORDER BY o.name`);
-    const [activitySummary, outcomes, channels, liveSummary] = await Promise.all([
-      this.db.execute(sql`
+    const activitySummary = await this.db.execute(sql`
         SELECT
           (SELECT count(*)::int FROM actions WHERE tenant_id=${a.tenantId}) AS "totalActions",
           (SELECT count(*)::int FROM actions WHERE tenant_id=${a.tenantId} AND created_at>=now()-interval '30 days') AS "periodActions",
-          (SELECT count(*)::int FROM actions WHERE tenant_id=${a.tenantId} AND created_at>=date_trunc('day', now())) AS "actionsToday"`),
-      this.db.execute(sql`
+          (SELECT count(*)::int FROM actions WHERE tenant_id=${a.tenantId} AND created_at>=date_trunc('day', now())) AS "actionsToday"`);
+    const outcomes = await this.db.execute(sql`
         SELECT o.outcome_code AS code, count(*)::int AS count
         FROM action_outcomes o
         JOIN actions ac ON ac.tenant_id=o.tenant_id AND ac.id=o.action_id
         WHERE o.tenant_id=${a.tenantId} AND o.recorded_at>=now()-interval '30 days'
-        GROUP BY o.outcome_code ORDER BY count DESC, o.outcome_code`),
-      this.db.execute(sql`
+        GROUP BY o.outcome_code ORDER BY count DESC, o.outcome_code`);
+    const channels = await this.db.execute(sql`
         SELECT type AS channel, count(*)::int AS count
         FROM actions
         WHERE tenant_id=${a.tenantId} AND created_at>=now()-interval '30 days'
-        GROUP BY type ORDER BY count DESC, type`),
-      this.db.execute(sql`
+        GROUP BY type ORDER BY count DESC, type`);
+    const liveSummary = await this.db.execute(sql`
         SELECT
           (SELECT count(*)::int FROM reservation_records WHERE tenant_id=${a.tenantId} AND status='active' AND expires_at>now()) AS "activeLocks",
           (SELECT count(*)::int FROM collision_events WHERE tenant_id=${a.tenantId} AND decision='block' AND created_at>=now()-interval '1 hour') AS "blockedLastHour",
           (SELECT count(*)::int FROM override_requests WHERE tenant_id=${a.tenantId} AND status='pending') AS "approvalsWaiting",
           (SELECT count(*)::int FROM actions WHERE tenant_id=${a.tenantId} AND created_at>=date_trunc('day', now())) AS "actionsToday",
-          (SELECT count(DISTINCT membership_id)::int FROM auth_sessions WHERE tenant_id=${a.tenantId} AND revoked_at IS NULL AND expires_at>now() AND updated_at>=now()-interval '15 minutes') AS "usersOnline"`),
-    ]);
+          (SELECT count(DISTINCT membership_id)::int FROM auth_sessions WHERE tenant_id=${a.tenantId} AND revoked_at IS NULL AND expires_at>now() AND updated_at>=now()-interval '15 minutes') AS "usersOnline"`);
     const activity = await this.db.execute(sql`
       WITH days AS (SELECT generate_series((now() AT TIME ZONE 'Europe/Paris')::date - 13, (now() AT TIME ZONE 'Europe/Paris')::date, interval '1 day')::date AS day),
       counts AS (SELECT (occurred_at AT TIME ZONE 'Europe/Paris')::date AS day, count(*)::int AS total FROM prospect_activities WHERE tenant_id=${a.tenantId} AND occurred_at >= ((now() AT TIME ZONE 'Europe/Paris')::date - 13) AT TIME ZONE 'Europe/Paris' GROUP BY 1)

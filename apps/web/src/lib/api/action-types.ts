@@ -1,24 +1,16 @@
-export type ActionType = 'call' | 'email' | 'message' | 'visit' | 'task' | 'note';
+import type { ActionLifecycleStatus, ActionType, OutcomeCode } from '@trackroster/types';
+
+export {
+  OUTCOME_CODES,
+  type ActionLifecycleStage,
+  type ActionLifecycleStatus,
+  type ActionType,
+  type CompleteActionInput,
+  type OutcomeCode,
+} from '@trackroster/types';
 
 export type ActionStatus =
   'planned' | 'due' | 'overdue' | 'in_progress' | 'completed' | 'cancelled';
-
-export type ActionLifecycleStage =
-  'to_contact' | 'contact_made' | 'in_progress' | 'follow_up' | 'qualified' | 'converted';
-
-/** The server's outcome vocabulary. Anything else is rejected upstream. */
-export const OUTCOME_CODES = [
-  'no_answer',
-  'contacted',
-  'interested',
-  'not_interested',
-  'qualified',
-  'converted',
-  'do_not_contact',
-  'completed',
-] as const;
-
-export type OutcomeCode = (typeof OUTCOME_CODES)[number];
 
 export const OUTCOME_LABELS: Record<OutcomeCode, string> = {
   no_answer: 'No answer',
@@ -94,18 +86,6 @@ export interface CreateActionInput {
  * One transaction: the outcome, the prospect's new lifecycle stage, the next
  * follow-up and the reservation disposition all commit together or not at all.
  */
-export interface CompleteActionInput {
-  outcomeCode: OutcomeCode;
-  notes?: string;
-  lifecycleStage?: ActionLifecycleStage;
-  nextFollowUp?: {
-    /** Must carry an explicit offset or Z; the API rejects a bare local time. */
-    dueAt: string;
-    channel?: 'call' | 'email' | 'message' | 'visit' | 'letter';
-  };
-  reservationDisposition: 'keep' | 'release';
-}
-
 export const MAX_ACTION_NOTES = 10_000;
 
 /**
@@ -156,8 +136,6 @@ export const MIN_ACTION_REASON = 1;
  * the API says `started` where the UI says `in_progress`. Keeping the two
  * apart stops a display value being sent as a filter, which the API rejects.
  */
-export type ActionLifecycleStatus = 'planned' | 'started' | 'completed' | 'cancelled';
-
 export function toLifecycleStatus(status: ActionStatus): ActionLifecycleStatus | null {
   switch (status) {
     case 'in_progress':

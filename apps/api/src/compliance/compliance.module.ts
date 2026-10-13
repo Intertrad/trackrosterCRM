@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { AuthModule } from '../auth/auth.module.js';
 import { DATABASE } from '../database/database.constants.js';
@@ -32,7 +33,10 @@ import { Idempotent } from '../idempotency/idempotent.decorator.js';
 type Auth = AuthenticatedPrincipal;
 @Injectable()
 export class ComplianceService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly config: ConfigService,
+  ) {}
   private async admin(a: Auth) {
     const r = await this.db.execute(
       sql`SELECT 1 FROM user_access_grants WHERE tenant_id=${a.tenantId} AND user_id=${a.membershipId} AND scope_type='tenant' AND role='client_admin' LIMIT 1`,
@@ -157,7 +161,9 @@ export class ComplianceService {
   async download(a: Auth, id: string) {
     const r = await this.report(a, id);
     const expires = Math.floor(Date.now() / 1000) + 300;
-    const secret = process.env.COMPLIANCE_DOWNLOAD_SECRET ?? process.env.JWT_ACCESS_SECRET;
+    const secret =
+      this.config.get<string>('COMPLIANCE_DOWNLOAD_SECRET') ??
+      this.config.get<string>('JWT_ACCESS_SECRET');
     if (!secret) throw new BadRequestException('Download signing is not configured');
     const signature = createHmac('sha256', secret)
       .update(`${a.tenantId}:${r.id}:${expires}`)

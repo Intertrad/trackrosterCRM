@@ -101,6 +101,8 @@ export const campaigns = pgTable(
     index('campaigns_tenant_organization_idx').on(table.tenantId, table.organizationId),
 
     index('campaigns_tenant_status_idx').on(table.tenantId, table.status),
+    index('campaigns_name_trgm_idx').using('gin', sql`${table.name} gin_trgm_ops`),
+    index('campaigns_description_trgm_idx').using('gin', sql`${table.description} gin_trgm_ops`),
 
     /*
      * Campaign name cannot be blank after

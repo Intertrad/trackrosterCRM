@@ -10,9 +10,11 @@ import { MfaCard } from '@/components/account/mfa-card';
 import { getAccountProfile, getAccountSessions } from '@/lib/api/account-client';
 import { requestPasswordReset } from '@/lib/api/auth-client';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
 
 export function SecurityTab() {
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   const [sessionCount, setSessionCount] = useState<number | null>(null);
 
@@ -52,7 +54,7 @@ export function SecurityTab() {
 
       setResetSent(true);
     } catch {
-      setError('We could not send the reset email. Please try again.');
+      setError(t('account.security.resetError'));
     } finally {
       setResetting(false);
     }
@@ -61,25 +63,25 @@ export function SecurityTab() {
   return (
     <div className="flex flex-col gap-5">
       <Card>
-        <CardHeader title="Security status" />
+        <CardHeader title={t('account.security.status')} />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <StatusTile
             icon={<KeyRound className="size-5 text-brand" />}
-            label="Password"
-            value="Change by email link"
-            detail="A signed link is sent to your work address."
+            label={t('account.security.password')}
+            value={t('account.security.passwordValue')}
+            detail={t('account.security.passwordDetail')}
           />
 
           <StatusTile
             icon={<ShieldCheck className="size-5 text-brand" />}
-            label="Active sessions"
+            label={t('account.security.sessions')}
             value={
               sessionCount === null
-                ? 'Unavailable'
-                : `${sessionCount} session${sessionCount === 1 ? '' : 's'}`
+                ? t('account.security.sessionsUnavailable')
+                : t('account.security.sessionCount', { count: sessionCount })
             }
-            detail="In this workspace."
+            detail={t('account.security.workspaceOnly')}
           />
         </div>
       </Card>
@@ -87,7 +89,7 @@ export function SecurityTab() {
       <MfaCard enabled={mfaEnabled === true} />
 
       <Card>
-        <CardHeader title="Password" />
+        <CardHeader title={t('account.security.passwordSection')} />
 
         <p className="text-[15px] text-ink-soft">
           TrackRoster sends a single-use link to{' '}
@@ -102,9 +104,8 @@ export function SecurityTab() {
         ) : null}
 
         {resetSent ? (
-          <Alert tone="success" className="mt-4" title="Check your inbox">
-            If an account exists for this email, a reset link is on its way. It expires in 30
-            minutes.
+          <Alert tone="success" className="mt-4" title={t('account.security.checkInbox')}>
+            {t('account.security.resetSent')}
           </Alert>
         ) : (
           <Button
@@ -114,13 +115,13 @@ export function SecurityTab() {
             disabled={!user?.email}
             onClick={() => void handlePasswordReset()}
           >
-            Send password reset link
+            {t('account.security.sendReset')}
           </Button>
         )}
       </Card>
 
       <Card>
-        <CardHeader title="Multi-factor authentication" />
+        <CardHeader title={t('account.security.mfa')} />
 
         <div className="flex items-start gap-4">
           <span
@@ -131,12 +132,9 @@ export function SecurityTab() {
           </span>
 
           <div className="min-w-0 text-[15px] text-ink-soft">
-            <p className="font-semibold text-navy">Authenticator app</p>
+            <p className="font-semibold text-navy">{t('account.security.authenticator')}</p>
 
-            <p className="mt-1">
-              Enrolment and recovery codes are handled during sign-in, and step-up authentication is
-              required to change them.
-            </p>
+            <p className="mt-1">{t('account.security.mfaBody')}</p>
           </div>
         </div>
 
@@ -146,9 +144,8 @@ export function SecurityTab() {
          * report enrolment state. Showing an enable/disable control here would
          * imply a status the API cannot confirm.
          */}
-        <Alert tone="info" className="mt-4" title="Enrolment status is not readable yet.">
-          <code className="text-[13px]">GET /me</code> does not return MFA state, so this screen
-          cannot show whether your account is enrolled or offer a disable action.
+        <Alert tone="info" className="mt-4" title={t('account.security.mfaUnavailable')}>
+          {t('account.security.mfaUnavailableBody')}
         </Alert>
       </Card>
     </div>

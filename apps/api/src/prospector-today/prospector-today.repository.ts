@@ -256,11 +256,12 @@ export class ProspectorTodayRepository {
         ),
       );
 
-    const [[summary], priorities, [completed]] = await Promise.all([
-      summaryQuery,
-      prioritiesQuery,
-      completedQuery,
-    ]);
+    // All three queries may run on the request transaction client. PostgreSQL
+    // clients cannot execute overlapping statements, so preserve the same
+    // result shape with ordered awaits.
+    const [summary] = await summaryQuery;
+    const priorities = await prioritiesQuery;
+    const [completed] = await completedQuery;
 
     return {
       summary: {

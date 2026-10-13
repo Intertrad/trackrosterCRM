@@ -133,6 +133,56 @@ describe('AuthorizationService', () => {
         true,
       );
     });
+
+    it('never trusts a grant returned for another tenant or user', async () => {
+      vi.mocked(repository.findByUser).mockResolvedValue([
+        createGrant({
+          tenantId: 'foreign-tenant',
+          userId,
+          role: 'client_admin',
+          scopeType: 'tenant',
+        }),
+        createGrant({
+          tenantId,
+          userId: 'foreign-user',
+          role: 'observer',
+          scopeType: 'tenant',
+        }),
+      ]);
+
+      await expect(service.isClientAdmin(tenantId, userId)).resolves.toBe(false);
+      await expect(service.canViewTeam(tenantId, userId, organizationId, teamId)).resolves.toBe(
+        false,
+      );
+    });
+
+    it.each([
+      ['client_admin', 'tenant'],
+      ['observer', 'tenant'],
+      ['director', 'organization'],
+      ['manager', 'team'],
+      ['prospector', 'team'],
+    ] as const)(
+      'keeps %s grants scoped to their declared tenant boundary',
+      async (role, scopeType) => {
+        vi.mocked(repository.findByUser).mockResolvedValue([
+          createGrant({
+            role,
+            scopeType,
+            organizationId:
+              scopeType === 'organization' || scopeType === 'team' ? organizationId : null,
+            teamId: scopeType === 'team' ? teamId : null,
+          }),
+        ]);
+
+        await expect(
+          service.canViewOrganization('foreign-tenant', userId, organizationId),
+        ).resolves.toBe(false);
+        await expect(
+          service.canViewTeam('foreign-tenant', userId, organizationId, teamId),
+        ).resolves.toBe(false);
+      },
+    );
   });
 
   describe('resolveViewScope', () => {

@@ -14,6 +14,7 @@ import { browserJson } from '@/lib/api/browser-json';
 import { ApiError } from '@/lib/api/api-error';
 import { previewCampaignEnrolment, applyCampaignEnrolment } from '@/lib/api/campaign-client';
 import { previewAssignment, applyAssignment } from '@/lib/api/assignment-client';
+import { notify } from '@/lib/notifications/notify';
 import type {
   AssignmentBatchInput,
   AssignmentBatchResult,
@@ -233,6 +234,13 @@ export function ProspectAssignmentDrawer({
                       const result = await applyAssignment(input, assignmentKey.current);
                       setDone(result.assigned);
                       onAssigned(result.assigned);
+                      notify.success(
+                        l(
+                          `${result.assigned} prospects assigned successfully.`,
+                          `${result.assigned} établissements attribués avec succès.`,
+                        ),
+                        { id: 'prospect-assignment-completed' },
+                      );
                     })
                   }
                 >
