@@ -29,13 +29,19 @@ export class AuthController {
   @Get('config')
   @Header('Cache-Control', 'no-store')
   configuration() {
+    const hasPasswordRecoveryMail = Boolean(
+      (this.config.get<string>('MAILPIT_URL') || this.config.get<string>('BREVO_API_KEY')) &&
+      this.config.get<string>('MFA_ENCRYPTION_KEY') &&
+      this.config.get<string>('AUTH_PUBLIC_ORIGIN'),
+    );
+
     return {
       password: true,
       mfa: {
         totp: !!this.config.get('MFA_ENCRYPTION_KEY'),
         recoveryCodes: !!this.config.get('MFA_ENCRYPTION_KEY'),
       },
-      passwordRecovery: !!this.config.get('MAILPIT_URL'),
+      passwordRecovery: hasPasswordRecoveryMail,
       sso: { enabled: false },
     };
   }
