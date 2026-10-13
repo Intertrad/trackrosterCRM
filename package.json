@@ -22,6 +22,7 @@
     "geocode:prospects": "node scripts/geocode-missing-prospects.mjs",
     "backup:postgres": "node scripts/backup-postgres.mjs",
     "verify:backup": "node scripts/verify-postgres-backup.mjs",
+    "check:database-pool-concurrency": "node scripts/check-database-pool-concurrency.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "build": "turbo run build",
