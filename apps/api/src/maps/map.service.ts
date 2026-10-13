@@ -52,10 +52,85 @@ export class MapService {
       ? sql`${column} && ST_MakeEnvelope(${w},${s},${e},${n},4326)`
       : sql`(${column} && ST_MakeEnvelope(${w},${s},180,${n},4326) OR ${column} && ST_MakeEnvelope(-180,${s},${e},${n},4326))`;
   }
+  private async mapAccess(a: AuthenticatedPrincipal): Promise<SQL> {
+    const result = await this.db.execute(
+      sql`SELECT scope_type,role,organization_id,team_id
+          FROM user_access_grants
+          WHERE tenant_id=${a.tenantId} AND user_id=${a.membershipId}`,
+    );
+    const grants = result.rows as Array<{
+      scope_type: string;
+      role: string;
+      organization_id: string | null;
+      team_id: string | null;
+    }>;
+
+    if (
+      grants.some(
+        (grant) =>
+          grant.scope_type === 'tenant' &&
+          (grant.role === 'client_admin' || grant.role === 'observer'),
+      )
+    ) {
+      return sql`true`;
+    }
+
+    const organizationIds = grants
+      .filter(
+        (grant) =>
+          grant.scope_type === 'organization' &&
+          (grant.role === 'director' || grant.role === 'observer') &&
+          grant.organization_id,
+      )
+      .map((grant) => grant.organization_id!);
+    const broadTeamIds = grants
+      .filter(
+        (grant) =>
+          grant.scope_type === 'team' &&
+          (grant.role === 'manager' || grant.role === 'observer') &&
+          grant.team_id,
+      )
+      .map((grant) => grant.team_id!);
+    const prospectorTeamIds = grants
+      .filter(
+        (grant) => grant.scope_type === 'team' && grant.role === 'prospector' && grant.team_id,
+      )
+      .map((grant) => grant.team_id!);
+    const predicates: SQL[] = [];
+    const list = (values: string[]) =>
+      sql.join(
+        values.map((value) => sql`${value}`),
+        sql`, `,
+      );
+
+    if (organizationIds.length > 0) {
+      predicates.push(sql`c.organization_id IN (${list(organizationIds)})`);
+    }
+    if (broadTeamIds.length > 0) {
+      predicates.push(sql`cp.id IN (
+        SELECT aa.campaign_prospect_id
+        FROM campaign_prospect_assignments aa
+        WHERE aa.tenant_id=${a.tenantId} AND aa.ended_at IS NULL
+          AND aa.team_id IN (${list(broadTeamIds)})
+      )`);
+    }
+    if (prospectorTeamIds.length > 0) {
+      predicates.push(sql`cp.id IN (
+        SELECT aa.campaign_prospect_id
+        FROM campaign_prospect_assignments aa
+        WHERE aa.tenant_id=${a.tenantId} AND aa.ended_at IS NULL
+          AND aa.team_id IN (${list(prospectorTeamIds)})
+          AND (aa.assigned_user_id IS NULL OR aa.assigned_user_id=${a.membershipId})
+      )`);
+    }
+
+    return predicates.length > 0 ? sql`(${sql.join(predicates, sql` OR `)})` : sql`false`;
+  }
   private eligible(
     a: AuthenticatedPrincipal,
     q: ProspectMapFiltersDto,
     spatial: SQL,
+    access: SQL,
     options: { countOnly?: boolean } = {},
   ) {
     const countOnly = options.countOnly === true;
@@ -72,18 +147,7 @@ export class MapService {
     FROM establishments e JOIN campaign_prospects cp ON cp.tenant_id=e.tenant_id AND cp.establishment_id=e.id
     JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id
     WHERE e.tenant_id=${a.tenantId} AND e.status='active' AND e.location IS NOT NULL AND cp.status='active'
-      AND ${spatial} AND EXISTS (
-        SELECT 1 FROM user_access_grants g WHERE g.tenant_id=cp.tenant_id AND g.user_id=${a.membershipId} AND (
-          (g.scope_type='tenant' AND g.role IN ('client_admin','observer')) OR
-          (g.scope_type='organization' AND g.organization_id=c.organization_id AND g.role IN ('director','observer')) OR
-          (g.scope_type='team' AND EXISTS (
-            SELECT 1 FROM campaign_prospect_assignments aa
-            WHERE aa.tenant_id=cp.tenant_id AND aa.campaign_prospect_id=cp.id AND aa.ended_at IS NULL
-              AND aa.team_id=g.team_id AND (g.role IN ('manager','observer') OR
-                (g.role='prospector' AND (aa.assigned_user_id IS NULL OR aa.assigned_user_id=${a.membershipId})))
-          ))
-        )
-      )
+      AND ${spatial} AND ${access}
       AND ${q.campaignStatus ? sql`c.status=${q.campaignStatus}` : sql`c.status IN ('active','paused')`}
       ${q.campaignId ? sql`AND cp.campaign_id=${q.campaignId}` : sql``}
       ${q.organizationId ? sql`AND c.organization_id=${q.organizationId}` : sql``}
@@ -105,14 +169,15 @@ export class MapService {
   async markers(a: AuthenticatedPrincipal, q: MapViewportDto) {
     const bbox = viewport(q.bbox),
       size = 360 / 2 ** q.zoom;
+    const access = await this.mapAccess(a);
     /* Count the bounded authorized scope before the expensive cell grouping. */
     const membershipCount = await this.db.execute(
-      sql`WITH ${this.eligible(a, q, this.spatial(bbox), { countOnly: true })}
+      sql`WITH ${this.eligible(a, q, this.spatial(bbox), access, { countOnly: true })}
         SELECT count(*)::int AS memberships FROM eligible`,
     );
     this.check(membershipCount.rows[0]!);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox), access)}, points AS MATERIALIZED (
     SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
       bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
     FROM eligible GROUP BY id,name,longitude,latitude,location
@@ -146,8 +211,9 @@ export class MapService {
   }
   async nearby(a: AuthenticatedPrincipal, q: NearbyProspectsDto) {
     const origin = sql`ST_SetSRID(ST_MakePoint(${q.longitude},${q.latitude}),4326)::geography`;
+    const access = await this.mapAccess(a);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, sql`ST_DWithin(e.location::geography,${origin},${q.radiusMeters})`)}, points AS MATERIALIZED (
+      .execute(sql`WITH ${this.eligible(a, q, sql`ST_DWithin(e.location::geography,${origin},${q.radiusMeters})`, access)}, points AS MATERIALIZED (
     SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
       bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
     FROM eligible GROUP BY id,name,longitude,latitude,location
@@ -183,10 +249,11 @@ export class MapService {
   }
   async heatmap(a: AuthenticatedPrincipal, q: HeatmapDto) {
     const bbox = viewport(q.bbox),
-      size = 360 / 2 ** q.zoom,
-      { window, cte } = this.measures(a, q);
+      size = 360 / 2 ** q.zoom;
+    const access = await this.mapAccess(a);
+    const { window, cte } = this.measures(a, q);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox), access)}, points AS MATERIALIZED (
     SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
       bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
     FROM eligible GROUP BY id,name,longitude,latitude,location
@@ -211,10 +278,11 @@ export class MapService {
     };
   }
   async coverage(a: AuthenticatedPrincipal, q: MapAggregateDto) {
-    const bbox = viewport(q.bbox),
-      { window, cte } = this.measures(a, q);
+    const bbox = viewport(q.bbox);
+    const access = await this.mapAccess(a);
+    const { window, cte } = this.measures(a, q);
     const result = await this.db
-      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox))}, points AS MATERIALIZED (
+      .execute(sql`WITH ${this.eligible(a, q, this.spatial(bbox), access)}, points AS MATERIALIZED (
     SELECT id,name,longitude,latitude,location,array_agg(DISTINCT lifecycle_stage ORDER BY lifecycle_stage) AS stages,
       bool_or(assigned) AS assigned,bool_or(lifecycle_stage='converted') AS converted
     FROM eligible GROUP BY id,name,longitude,latitude,location
