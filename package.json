@@ -12,6 +12,7 @@
     "db:schema:check": "node scripts/check-live-schema.mjs",
     "db:migrations:recovery-check": "node scripts/check-migration-recovery.mjs",
     "check:production-config": "node scripts/check-production-config.mjs",
+    "check:deployment-topology": "node scripts/check-deployment-topology.mjs",
     "check:localization": "node scripts/check-localization-parity.mjs",
     "check:api-routes": "node scripts/check-api-route-ledger.mjs",
     "check:api-route-dispositions": "node scripts/check-api-route-dispositions.mjs",
