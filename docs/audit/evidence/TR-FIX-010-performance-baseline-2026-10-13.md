@@ -38,3 +38,19 @@ at concurrency 4 across two endpoints. The harness completed with zero errors:
 This proves the probe and budget enforcement path. A representative authenticated
 staging run and query-plan captures for search, map, and report workloads are still
 required before TR-FIX-010 can be marked complete.
+
+## Public unauthenticated smoke
+
+On 2026-10-13, the same probe sent 20 read-only requests to the public production
+login pages (10 requests per endpoint, concurrency 4):
+
+```text
+PERF_BASE_URL='https://www.trackroster.com' \
+PERF_ENDPOINTS='/login,/forgot-password' \
+PERF_REQUESTS=20 PERF_CONCURRENCY=4 PERF_TIMEOUT_MS=5000 \
+node scripts/run-performance-baseline.mjs
+```
+
+The run returned zero errors, with aggregate p50 `127.95 ms`, p95 `227.13 ms`,
+and p99 `229.07 ms`. This is an unauthenticated edge smoke only; it does not
+replace the authenticated staging search/map/report baseline or query-plan review.
