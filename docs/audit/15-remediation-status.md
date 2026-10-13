@@ -23,9 +23,12 @@ This status separates repository changes from checks that require hosted infrast
 node scripts/check-localization-parity.mjs
 node scripts/check-api-route-ledger.mjs
 node scripts/check-api-route-dispositions.mjs
+node scripts/check-api-route-matrix.mjs
 node scripts/check-database-pool-concurrency.mjs
 node scripts/check-release-evidence.mjs
 node scripts/check-performance-budgets.mjs
+# Requires explicit disposable-stack PROVIDER_* variables:
+node scripts/check-local-provider-contracts.mjs
 ```
 
 The listed local verification commands pass when run against the disposable stack with its explicit database URL. The release verdict remains gated until the hosted and provider-dependent items marked `PARTIAL` or `BLOCKED` have evidence.
