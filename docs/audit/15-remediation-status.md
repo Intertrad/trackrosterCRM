@@ -6,7 +6,7 @@ This status separates repository changes from checks that require hosted infrast
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | TR-FIX-001 | Existing bounded pools, transaction limits, and readiness pool metrics retained; full request-wide transaction redesign still needs a safe endpoint-by-endpoint plan. | PARTIAL — hosted load test required                                                                 |
 | TR-FIX-002 | Existing assignment/collision transaction tests retained.                                                                                                             | PARTIAL — repeated concurrent database run required                                                 |
-| TR-FIX-003 | Added `check:api-routes`; rejects malformed or duplicate route inventory and reports verified/unverified counts.                                                      | IMPLEMENTED — 148 runtime probes remain                                                             |
+| TR-FIX-003 | Added `check:api-routes` plus explicit disposition rules for every pending route; each route now names its required fixture or external dependency.                   | IMPLEMENTED — 148 runtime probes remain                                                             |
 | TR-FIX-004 | Existing RLS startup guard and policies retained.                                                                                                                     | PARTIAL — hosted cross-tenant probes required                                                       |
 | TR-FIX-005 | Existing migration recovery and backup verification scripts retained; a version-matched local backup and isolated restore rehearsal passed on 2026-10-13.             | PARTIAL — production scheduling, off-account retention, and agreed RPO/RTO remain required          |
 | TR-FIX-006 | Existing bounded pool-budget validation retained.                                                                                                                     | BLOCKED — deployment topology, DNS, and TLS are external                                            |
@@ -22,6 +22,7 @@ This status separates repository changes from checks that require hosted infrast
 ```text
 node scripts/check-localization-parity.mjs
 node scripts/check-api-route-ledger.mjs
+node scripts/check-api-route-dispositions.mjs
 node scripts/check-release-evidence.mjs
 node scripts/check-performance-budgets.mjs
 ```

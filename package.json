@@ -14,6 +14,7 @@
     "check:production-config": "node scripts/check-production-config.mjs",
     "check:localization": "node scripts/check-localization-parity.mjs",
     "check:api-routes": "node scripts/check-api-route-ledger.mjs",
+    "check:api-route-dispositions": "node scripts/check-api-route-dispositions.mjs",
     "check:release-evidence": "node scripts/check-release-evidence.mjs",
     "check:performance-budgets": "node scripts/check-performance-budgets.mjs",
     "maps:serve": "http-server infrastructure/maps -p 8787 --cors -c-1",
@@ -24,7 +25,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "build": "turbo run build",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm check:api-routes && pnpm check:localization && pnpm check:release-evidence && pnpm check:performance-budgets",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm check:api-routes && pnpm check:api-route-dispositions && pnpm check:localization && pnpm check:release-evidence && pnpm check:performance-budgets",
     "prepare": "husky"
   },
   "packageManager": "pnpm@11.24.0",
