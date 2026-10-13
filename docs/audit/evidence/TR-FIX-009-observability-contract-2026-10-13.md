@@ -7,6 +7,8 @@ Repository evidence is present in:
   terminal mail failures.
 - `apps/web/src/app/api/health/ready/route.ts` for the no-store public readiness
   pass-through used by deployment monitors.
+- `apps/api/src/health/readiness.controller.spec.ts` verifies that Redis and
+  BullMQ health failures return a sanitized `503 not_ready` response.
 - `apps/api/src/errors/api-exception.filter.ts` for sanitized errors and
   `x-request-id` propagation.
 - `docs/operations/OBSERVABILITY_ALERTS.md` for thresholds and fire drills.

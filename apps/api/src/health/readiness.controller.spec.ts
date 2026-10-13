@@ -86,6 +86,50 @@ describe('Dependency readiness', () => {
     });
     expect(check.live()).toEqual({ status: 'ok' });
   });
+  it('fails closed when the BullMQ queue health check is unavailable', async () => {
+    const check = new ReadinessController(
+      {
+        query: vi.fn().mockResolvedValue({ rows: [{ terminalFailures: 0 }] }),
+        totalCount: 1,
+        idleCount: 1,
+        waitingCount: 0,
+      } as never,
+      { ping: vi.fn().mockResolvedValue('PONG') } as never,
+      { get: vi.fn().mockReturnValue(undefined) } as never,
+      { configured: vi.fn().mockReturnValue(false) } as never,
+      { healthSnapshot: vi.fn().mockRejectedValue(new Error('queue unavailable')) } as never,
+    );
+
+    await expect(check.ready()).rejects.toMatchObject({
+      status: 503,
+      response: {
+        status: 'not_ready',
+        dependencies: {
+          postgres: 'up',
+          redis: 'up',
+          optional: {
+            jobQueue: {
+              status: 'unknown',
+              waiting: null,
+              active: null,
+              delayed: null,
+              failed: null,
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('fails closed when Redis does not respond with PONG', async () => {
+    await expect(
+      controller(undefined, vi.fn().mockResolvedValue('DOWN')).ready(),
+    ).rejects.toMatchObject({
+      status: 503,
+      response: { status: 'not_ready', dependencies: { postgres: 'up', redis: 'down' } },
+    });
+  });
+
   it('does not hang indefinitely on an unavailable dependency', async () => {
     vi.useFakeTimers();
     const promise = controller(vi.fn().mockReturnValue(new Promise(() => {}))).ready();
