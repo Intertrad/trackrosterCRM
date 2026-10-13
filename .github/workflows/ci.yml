@@ -112,6 +112,11 @@ jobs:
       - name: Verify API route ledger
         run: pnpm check:api-routes
 
+      - name: Verify API route dispositions and redacted matrix
+        run: |
+          pnpm check:api-route-dispositions
+          pnpm check:api-route-matrix
+
       - name: Verify localization parity
         run: pnpm check:localization
 
