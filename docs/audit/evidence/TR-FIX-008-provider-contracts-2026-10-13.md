@@ -20,3 +20,18 @@ The same contract harness can run against a staging S3-compatible endpoint and
 Mailpit-compatible sandbox by supplying explicit `PROVIDER_*` variables. Brevo,
 hosted object storage, SSO, maps, and webhook sandbox credentials are still
 required for hosted certification.
+
+## Webhook signature and retry contract
+
+The worker test verifies the exact wire contract for a webhook delivery:
+
+```text
+signing key = SHA-256(raw secret)
+signature   = HMAC-SHA-256(signing key, raw JSON body)
+header      = x-trackroster-signature: sha256=<hex digest>
+```
+
+The test also confirms that the delivery ID and event are included in the signed
+body, and the existing retry test verifies that the fifth failed attempt moves to
+`dead_letter` without another delivery. A hosted receiver replay/idempotency drill
+is still required for the deployment-specific part of this ticket.
