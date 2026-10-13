@@ -109,6 +109,18 @@ jobs:
       - name: Verify migration integrity
         run: pnpm db:migrations:check
 
+      - name: Verify API route ledger
+        run: pnpm check:api-routes
+
+      - name: Verify localization parity
+        run: pnpm check:localization
+
+      - name: Verify release evidence bundle
+        run: pnpm check:release-evidence
+
+      - name: Verify performance budgets
+        run: pnpm check:performance-budgets
+
       - name: Run database migrations
         run: pnpm --filter api db:migrate
 

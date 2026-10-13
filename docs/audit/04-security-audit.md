@@ -1,0 +1,12 @@
+# Security audit
+
+Observed controls: RLS migrations and forced policies; startup RLS role verification; bearer/session auth guard; whitelist/forbid validation; explicit CORS; security headers; request-id error envelope.
+
+| ID                                                                                                                                                                                        | Priority | Finding                                                                              | Status       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------ | ------------ |
+| TR-AUD-010                                                                                                                                                                                | P1       | Hosted RLS mode, database roles, and policy behavior need a live preflight artifact. | NOT_VERIFIED |
+| TR-AUD-011                                                                                                                                                                                | P1       | Cross-tenant negative tests are needed across high-risk controllers.                 | NOT_VERIFIED |
+| TR-AUD-012                                                                                                                                                                                | P2       | Deployed cookie flags and CORS/origin values need hosted evidence.                   | NOT_VERIFIED |
+| TR-AUD-013                                                                                                                                                                                | P2       | Invitation token leakage checks need real browser/network verification.              | NOT_VERIFIED |
+| TR-AUD-014                                                                                                                                                                                | P2       | Dependency and secret scanning evidence is not in the latest bundle.                 | NOT_VERIFIED |
+| **Mode:** read-only audit. No application code, production data, branches, or deployment settings were changed. Static evidence is labelled; unverified runtime claims remain unverified. |
