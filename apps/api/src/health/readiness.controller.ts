@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { DATABASE_POOL } from '../database/database.constants.js';
 import { ObjectStorageService } from '../providers/object-storage.service.js';
 import { RedisService } from '../redis/redis.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
 
 @Controller('health')
 export class ReadinessController {
@@ -14,6 +15,7 @@ export class ReadinessController {
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly storage: ObjectStorageService,
+    private readonly jobs: JobQueueService,
   ) {}
 
   @Get('live')
@@ -40,6 +42,7 @@ export class ReadinessController {
           if (response !== 'PONG') throw new Error('Redis unavailable');
         }),
       ),
+      this.withDeadline(this.jobs.healthSnapshot()),
     ]);
     const postgresResult = results[0];
     const terminalFailures =
@@ -49,6 +52,7 @@ export class ReadinessController {
     const emailConfigured =
       (this.config.get<string>('MAILPIT_URL') && this.config.get('NODE_ENV') !== 'production') ||
       (this.config.get<string>('BREVO_API_KEY') && this.config.get<string>('BREVO_SENDER_EMAIL'));
+    const queueResult = results[2];
     if (this.pool.waitingCount > 0) {
       this.logger.warn(
         `PostgreSQL pool has ${this.pool.waitingCount} waiting request(s); total=${this.pool.totalCount} idle=${this.pool.idleCount}`,
@@ -84,6 +88,10 @@ export class ReadinessController {
                 : 'healthy',
           terminalFailures: emailConfigured ? terminalFailures : 0,
         },
+        jobQueue:
+          queueResult.status === 'fulfilled'
+            ? { status: 'healthy', ...queueResult.value }
+            : { status: 'unknown', waiting: null, active: null, delayed: null, failed: null },
         maps: this.config.get<string>('NEXT_PUBLIC_PMTILES_URL') ? 'configured' : 'unconfigured',
         sso: this.config.get<string>('SSO_ENCRYPTION_KEY') ? 'configured' : 'unconfigured',
       },

@@ -12,6 +12,9 @@ describe('Dependency readiness', () => {
       { ping } as never,
       { get: vi.fn().mockReturnValue(undefined) } as never,
       { configured: vi.fn().mockReturnValue(false) } as never,
+      {
+        healthSnapshot: vi.fn().mockResolvedValue({ waiting: 0, active: 0, delayed: 0, failed: 0 }),
+      } as never,
     );
   }
   it('reports readiness only when both dependencies respond', async () => {
@@ -33,6 +36,7 @@ describe('Dependency readiness', () => {
           objectStorage: 'unconfigured',
           email: 'unconfigured',
           emailDelivery: { status: 'unconfigured', terminalFailures: 0 },
+          jobQueue: { status: 'healthy', waiting: 0, active: 0, delayed: 0, failed: 0 },
           maps: 'unconfigured',
           sso: 'unconfigured',
         },
@@ -57,6 +61,9 @@ describe('Dependency readiness', () => {
       { ping: vi.fn().mockResolvedValue('PONG') } as never,
       config as never,
       { configured: vi.fn().mockReturnValue(false) } as never,
+      {
+        healthSnapshot: vi.fn().mockResolvedValue({ waiting: 0, active: 0, delayed: 0, failed: 3 }),
+      } as never,
     );
 
     await expect(check.ready()).resolves.toMatchObject({
