@@ -144,6 +144,12 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Worker unit tests
+        run: pnpm --filter worker test
+
+      - name: Web unit tests
+        run: pnpm --filter web test
+
       - name: Database and Redis integration tests
         run: pnpm --filter api test:integration
 

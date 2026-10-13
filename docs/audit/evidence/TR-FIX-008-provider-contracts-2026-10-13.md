@@ -21,6 +21,10 @@ Mailpit-compatible sandbox by supplying explicit `PROVIDER_*` variables. Brevo,
 hosted object storage, SSO, maps, and webhook sandbox credentials are still
 required for hosted certification.
 
+The CI quality job now has explicit `pnpm --filter worker test` and
+`pnpm --filter web test` steps in addition to the workspace test gate, so a
+worker-only or web-only regression is visible as its own required check.
+
 ## Webhook signature and retry contract
 
 The worker test verifies the exact wire contract for a webhook delivery:
