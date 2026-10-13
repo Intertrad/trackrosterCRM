@@ -240,9 +240,10 @@ export default function TeamPage() {
       <Card padding="none" className="overflow-hidden">
         <CardHeader
           title="Team activity"
+          className="px-5 pt-5"
           action={<Activity aria-hidden="true" className="size-5 text-brand" />}
         />
-        <p className="-mt-3 px-5 pb-3 text-[12px] text-ink-muted">
+        <p className="-mt-3 px-5 pb-4 text-[12px] text-ink-muted">
           Live actions, assignments and follow-ups from the manager dashboard
         </p>
         {dashboard === null ? (

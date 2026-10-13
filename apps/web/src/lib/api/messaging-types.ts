@@ -8,6 +8,8 @@ export type ConversationStatus = 'active' | 'archived';
 export type MessageStatus = 'sent' | 'edited' | 'deleted';
 
 export interface Conversation {
+  unreadCount?: number;
+  pendingRequests?: { id: string; senderId: string; body: string; createdAt: string }[];
   id: string;
   tenantId: string;
   kind: ConversationKind;
@@ -68,6 +70,8 @@ export interface MessageReaction {
   reacted: boolean;
 }
 export interface Message {
+  isRequest?: boolean;
+  replyToRequestId?: string | null;
   attachments?: MessageAttachment[];
   id: string;
   tenantId: string;

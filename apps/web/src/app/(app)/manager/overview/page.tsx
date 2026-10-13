@@ -396,7 +396,9 @@ export default function TeamOverviewPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-3">
-                        <CapacityBar percent={member.capacityPercent} className="justify-end" />
+                        {member.capacityPercent !== null ? (
+                          <CapacityBar percent={member.capacityPercent} className="justify-end" />
+                        ) : null}
                         <MemberStatus member={member} />
                       </div>
                     </td>
@@ -420,7 +422,7 @@ export default function TeamOverviewPage() {
             title={l('Current risks', 'Risques actuels')}
             subtitle={l('Needs attention', 'Nécessite votre attention')}
           />
-          <div className="space-y-2 px-5 pb-5">
+          <div className="space-y-2 px-5 pt-4 pb-5">
             {totals.overdue > 0 ? (
               <RiskRow tone="danger" icon={<CircleAlert aria-hidden="true" className="size-4" />}>
                 <strong>

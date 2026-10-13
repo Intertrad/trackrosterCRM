@@ -519,7 +519,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'follow_ups',
-          label: 'nav.followUps',
+          label: 'nav.actions',
           icon: 'today',
           href: '/follow-ups',
           availability: 'ready',
@@ -527,7 +527,7 @@ function navigationFor(mode: WorkspaceMode): WorkspaceNavigationItem[] {
         },
         {
           id: 'logged_actions',
-          label: 'nav.actions',
+          label: 'nav.history',
           icon: 'actions',
           href: '/actions',
           availability: 'ready',
