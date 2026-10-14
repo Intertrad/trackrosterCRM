@@ -18,6 +18,7 @@ import {
   LockKeyhole,
   MessageCircle,
   MessagesSquare,
+  MoreHorizontal,
   Paperclip,
   Plus,
   Search,
@@ -32,6 +33,7 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Menu, MenuItem } from '@/components/ui/menu';
 import { Drawer } from '@/components/ui/drawer';
 import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
@@ -120,6 +122,31 @@ export default function MessagesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const conversationLayout = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!activeId) return;
+    const layout = conversationLayout.current;
+    if (!layout) return;
+
+    function updateHeight() {
+      if (!layout || !window.matchMedia('(max-width: 1023px)').matches) return;
+      const navigation = document.querySelector('nav.fixed.bottom-0');
+      const bottom = navigation?.getBoundingClientRect().top ?? window.innerHeight;
+      const top = layout.getBoundingClientRect().top;
+      layout.style.setProperty('--conversation-height', `${Math.max(0, bottom - top)}px`);
+    }
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    const navigation = document.querySelector('nav.fixed.bottom-0');
+    if (navigation) observer.observe(navigation);
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [activeId, readError]);
 
   const listEnd = useRef<HTMLDivElement | null>(null);
   const readAcknowledged = useRef(new Map<string, string>());
@@ -324,6 +351,16 @@ export default function MessagesPage() {
   const actionMode = replyTarget?.id ?? 'request';
   const actionEnabled = !!activeId && sendModes[activeId] === actionMode;
 
+  function selectRequestToReply(requestId: string) {
+    if (!activeId || busy || pendingAttachmentMessageId) return;
+    setReplyChoices((current) => ({ ...current, [activeId]: requestId }));
+    setSendModes((current) => ({ ...current, [activeId]: requestId }));
+    requestAnimationFrame(() => {
+      composerInput.current?.scrollIntoView({ block: 'nearest' });
+      composerInput.current?.focus({ preventScroll: true });
+    });
+  }
+
   const myParticipation = useMemo(
     () => participants.find((participant) => participant.membershipId === me),
     [me, participants],
@@ -486,7 +523,12 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
+    <div
+      className={cn(
+        'flex flex-col gap-5 [&_button>span.hidden]:hidden',
+        active && styles.mobileConversation,
+      )}
+    >
       <div
         className={cn('flex flex-wrap items-end justify-between gap-4', active && 'max-lg:hidden')}
       >
@@ -516,10 +558,11 @@ export default function MessagesPage() {
 
       {readError ? <Alert tone="danger">{readError}</Alert> : null}
 
-      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 min-[701px]:max-lg:-mx-5 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
+      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 max-lg:w-[calc(100%+2rem)] min-[701px]:max-lg:-mx-5 min-[701px]:max-lg:w-[calc(100%+2.5rem)] max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
         <div
+          ref={conversationLayout}
           className={cn(
-            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[calc(100dvh-148px)]',
+            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[var(--conversation-height,calc(100dvh-148px))]',
             styles.layout,
             active && styles.withDetails,
           )}
@@ -991,38 +1034,87 @@ export default function MessagesPage() {
                                     </p>
                                   ) : null}
                                   <div
-                                    className={cn(
-                                      'w-fit max-w-full break-words',
-                                      mine && 'ml-auto',
-                                      message.isRequest && message.status !== 'deleted'
-                                        ? `rounded-2xl border border-warning-border bg-warning-bg px-3.5 py-3 text-warning shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
-                                        : message.replyToRequestId && message.status !== 'deleted'
-                                          ? `rounded-2xl border border-brand-tint bg-brand-wash px-3.5 py-3 text-brand shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
-                                          : mine
-                                            ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
-                                            : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised',
-                                    )}
+                                    className={cn('flex items-start gap-1', mine && 'justify-end')}
                                   >
-                                    {message.status === 'deleted' ? (
-                                      <p className="text-[14px] italic opacity-70">
-                                        {text(
-                                          'This message was deleted',
-                                          'Ce message a été supprimé',
+                                    <div
+                                      className={cn(
+                                        'w-fit max-w-full break-words',
+                                        mine && 'ml-auto',
+                                        message.isRequest && message.status !== 'deleted'
+                                          ? `rounded-2xl border border-warning-border bg-warning-bg px-3.5 py-3 text-warning shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                          : message.replyToRequestId && message.status !== 'deleted'
+                                            ? `rounded-2xl border border-brand-tint bg-brand-wash px-3.5 py-3 text-brand shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                            : mine
+                                              ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
+                                              : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised',
+                                      )}
+                                    >
+                                      {message.status === 'deleted' ? (
+                                        <p className="text-[14px] italic opacity-70">
+                                          {text(
+                                            'This message was deleted',
+                                            'Ce message a été supprimé',
+                                            language,
+                                          )}
+                                        </p>
+                                      ) : (
+                                        <p className="whitespace-pre-wrap text-[14px] leading-5">
+                                          {message.body}
+                                        </p>
+                                      )}
+                                      {message.status !== 'deleted' ? (
+                                        <MessageAttachments
+                                          message={message}
+                                          mine={
+                                            mine && !message.isRequest && !message.replyToRequestId
+                                          }
+                                        />
+                                      ) : null}
+                                    </div>
+                                    {!mine && message.isRequest && message.status !== 'deleted' ? (
+                                      <Menu
+                                        placement="request-actions"
+                                        trigger={
+                                          <MoreHorizontal aria-hidden="true" className="size-4" />
+                                        }
+                                        label={text(
+                                          'Message options',
+                                          'Options du message',
                                           language,
                                         )}
-                                      </p>
-                                    ) : (
-                                      <p className="whitespace-pre-wrap text-[14px] leading-5">
-                                        {message.body}
-                                      </p>
-                                    )}
-                                    {message.status !== 'deleted' ? (
-                                      <MessageAttachments
-                                        message={message}
-                                        mine={
-                                          mine && !message.isRequest && !message.replyToRequestId
-                                        }
-                                      />
+                                        className="shrink-0"
+                                      >
+                                        {(close) => (
+                                          <MenuItem
+                                            icon={<Reply aria-hidden="true" className="size-4" />}
+                                            disabled={
+                                              busy ||
+                                              !!pendingAttachmentMessageId ||
+                                              !active.pendingRequests?.some(
+                                                (request) => request.id === message.id,
+                                              )
+                                            }
+                                            onSelect={() => {
+                                              close();
+                                              selectRequestToReply(message.id);
+                                            }}
+                                          >
+                                            {active.pendingRequests?.some(
+                                              (request) => request.id === message.id,
+                                            )
+                                              ? text(
+                                                  'Reply to this request',
+                                                  'Répondre à cette demande',
+                                                  language,
+                                                )
+                                              : text(
+                                                  'Request already answered',
+                                                  'Demande déjà répondue',
+                                                  language,
+                                                )}
+                                          </MenuItem>
+                                        )}
+                                      </Menu>
                                     ) : null}
                                   </div>
                                   {message.reactions?.length ? (
@@ -1090,17 +1182,7 @@ export default function MessagesPage() {
                                         className="order-2 inline-flex items-center gap-1 rounded-full border border-brand-tint bg-brand-wash px-2 py-1 font-bold text-brand hover:bg-brand-tint"
                                         aria-pressed={sendModes[active.id] === message.id}
                                         disabled={busy || !!pendingAttachmentMessageId}
-                                        onClick={() => {
-                                          setReplyChoices((current) => ({
-                                            ...current,
-                                            [active.id]: message.id,
-                                          }));
-                                          setSendModes((current) => ({
-                                            ...current,
-                                            [active.id]: message.id,
-                                          }));
-                                          composerInput.current?.focus();
-                                        }}
+                                        onClick={() => selectRequestToReply(message.id)}
                                       >
                                         <Reply aria-hidden="true" className="size-3.5" />
                                         {text('Reply', 'Répondre', language)}
@@ -1145,7 +1227,7 @@ export default function MessagesPage() {
                   <div ref={listEnd} className="h-px" aria-hidden="true" />
                 </div>
 
-                <div className="bg-surface px-4 pt-2 text-center text-[11px] leading-4 text-ink-muted sm:px-6">
+                <div className="hidden bg-surface px-4 pt-2 text-center text-[11px] leading-4 text-ink-muted sm:px-6 lg:block">
                   <LockKeyhole aria-hidden="true" className="mr-1 inline size-3.5 align-[-2px]" />
                   {text(
                     'Messages and calls are secured with end-to-end encryption.',
@@ -1179,31 +1261,11 @@ export default function MessagesPage() {
                   <div className="rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
                     {replyTarget ? (
                       <div className="mb-2 rounded-lg border border-brand-tint bg-brand-wash px-3 py-2 text-[12px] text-ink">
-                        {incomingRequests.length > 1 ? (
-                          <SelectField
-                            label={text(
-                              'Request to answer',
-                              'Demande à laquelle répondre',
-                              language,
-                            )}
-                            options={incomingRequests.map((request) => ({
-                              value: request.id,
-                              label: request.body.slice(0, 100),
-                            }))}
-                            value={replyTarget.id}
-                            onChange={(event) => {
-                              const id = event.target.value;
-                              setReplyChoices((current) => ({ ...current, [active.id]: id }));
-                              if (actionEnabled)
-                                setSendModes((current) => ({ ...current, [active.id]: id }));
-                            }}
-                          />
-                        ) : (
-                          <p className="truncate font-semibold">
-                            {text('Request:', 'Demande :', language)} {replyTarget.body}
-                          </p>
-                        )}
-                        <p className="mt-1 text-ink-muted">
+                        <p className="text-ink-muted">
+                          <span className="font-semibold text-ink">
+                            {text('Request to answer', 'Demande', language)}
+                          </span>
+                          <span className="font-semibold text-ink">{' · '}</span>
                           {actionEnabled
                             ? text(
                                 'Sending this reply will resolve this request.',
@@ -1215,6 +1277,9 @@ export default function MessagesPage() {
                                 'Activez Répondre pour répondre à cette demande.',
                                 language,
                               )}
+                        </p>
+                        <p className="mt-1 truncate font-semibold" title={replyTarget.body}>
+                          {replyTarget.body}
                         </p>
                       </div>
                     ) : actionEnabled ? (
@@ -1250,14 +1315,7 @@ export default function MessagesPage() {
                         'min-h-14 w-full resize-none border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted',
                       )}
                     />
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-                      <span className="order-2 whitespace-nowrap text-[11px] text-ink-muted @max-[760px]:order-first @max-[760px]:w-full @max-[420px]:whitespace-normal">
-                        {text(
-                          'Enter to send · Shift + Enter for a new line',
-                          'Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne',
-                          language,
-                        )}
-                      </span>
+                    <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 @max-[560px]:grid-cols-[1fr_auto]">
                       <div className="flex items-center gap-1 text-ink-muted @max-[360px]:gap-0 @max-[360px]:[&>label]:w-7 @max-[360px]:[&_button]:w-7">
                         <input
                           id={composerFileId}
@@ -1341,7 +1399,24 @@ export default function MessagesPage() {
                           <FileText aria-hidden="true" className="size-[17px]" />
                         </button>
                       </div>
-                      <div className="order-3 ml-auto flex shrink-0 items-center gap-2 @max-[360px]:gap-1 @max-[360px]:[&>button]:px-1 @max-[360px]:[&>button]:text-[12px]">
+                      <div className="@container/composer-help min-w-0 text-center text-[11px] leading-4 text-ink-muted @max-[560px]:col-span-2 @max-[560px]:row-start-1 @max-[560px]:text-left">
+                        <p className="flex flex-col items-center justify-center @[290px]/composer-help:flex-row @[290px]/composer-help:gap-1 @max-[560px]:items-start @max-[560px]:justify-start">
+                          <span className="whitespace-nowrap">
+                            {text('Enter to send', 'Entrée : envoyer', language)}
+                          </span>
+                          <span aria-hidden="true" className="hidden @[290px]/composer-help:inline">
+                            ·
+                          </span>
+                          <span className="whitespace-nowrap">
+                            {text(
+                              'Shift + Enter for a new line',
+                              'Maj + Entrée : à la ligne',
+                              language,
+                            )}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-2 @max-[360px]:gap-1 @max-[360px]:[&>button]:px-1 @max-[360px]:[&>button]:text-[12px]">
                         <Button
                           type="button"
                           size="md"
@@ -1357,7 +1432,9 @@ export default function MessagesPage() {
                           className={cn(
                             'gap-1 px-2',
                             actionEnabled &&
-                              'border-brand bg-brand-wash text-brand ring-2 ring-brand/20',
+                              (replyTarget
+                                ? '[&]:border-brand-tint [&]:bg-brand-wash [&]:text-brand ring-2 ring-brand/20 hover:[&]:border-brand-tint hover:[&]:bg-brand-wash'
+                                : '[&]:border-warning-border [&]:bg-warning-bg [&]:text-warning ring-2 ring-warning/20 hover:[&]:border-warning-border hover:[&]:bg-warning-bg'),
                           )}
                         >
                           {actionEnabled ? (
