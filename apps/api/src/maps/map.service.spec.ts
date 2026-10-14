@@ -15,6 +15,7 @@ describe('map service', () => {
     const execute = vi
       .fn()
       .mockResolvedValueOnce({ rows: [{ scope_type: 'tenant', role: 'client_admin' }] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ memberships: 2 }] })
       .mockResolvedValueOnce({
         rows: [
