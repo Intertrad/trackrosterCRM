@@ -673,6 +673,13 @@
       "when": 1791962943702,
       "tag": "0095_lazy_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791980000000,
+      "tag": "0096_repair_messaging_columns",
+      "breakpoints": true
     }
   ]
 }
