@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "description": "Deterministic disposition rules for controller routes that are not yet runtime-certified. A disposition records the fixture or external dependency needed for a future probe; it is not a verification claim.",
+  "rules": [
+    {
+      "id": "health-probe",
+      "path": "^/api/v1/health(?:/|$)",
+      "disposition": "public-health-probe",
+      "owner": "platform",
+      "blockingDependency": "isolated runtime process"
+    },
+    {
+      "id": "session-fixture",
+      "path": "^/api/v1/auth/(me|select-tenant)(?:/|$)",
+      "disposition": "authenticated-session-fixture",
+      "owner": "identity",
+      "blockingDependency": "role and tenant session fixture"
+    },
+    {
+      "id": "identity-provider",
+      "path": "^/api/v1/auth/sso/",
+      "disposition": "identity-provider-sandbox",
+      "owner": "identity",
+      "blockingDependency": "configured SSO sandbox"
+    },
+    {
+      "id": "platform-admin",
+      "path": "^/api/v1/platform/",
+      "disposition": "platform-admin-fixture",
+      "owner": "platform",
+      "blockingDependency": "platform-admin tenant fixture"
+    },
+    {
+      "id": "provider-contract",
+      "path": "^/api/v1/(imports|exports|map)(?:/|$)",
+      "disposition": "provider-contract-fixture",
+      "owner": "integrations",
+      "blockingDependency": "provider sandbox or local service"
+    },
+    {
+      "id": "authenticated-role",
+      "path": "^/api/v1/(?!health(?:/|$)|auth/(?:me|select-tenant)(?:/|$)|auth/sso/|platform/|(?:imports|exports|map)(?:/|$))",
+      "disposition": "authenticated-role-fixture",
+      "owner": "api",
+      "blockingDependency": "redacted role and tenant fixture"
+    }
+  ]
+}

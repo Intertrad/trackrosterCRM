@@ -115,6 +115,25 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  /**
+   * Return aggregate queue counts for readiness and deployment telemetry.
+   * BullMQ only returns metadata here; job payloads never leave the queue layer.
+   */
+  async healthSnapshot(): Promise<{
+    waiting: number;
+    active: number;
+    delayed: number;
+    failed: number;
+  }> {
+    const counts = await this.queue.getJobCounts('waiting', 'active', 'delayed', 'failed');
+    return {
+      waiting: counts.waiting ?? 0,
+      active: counts.active ?? 0,
+      delayed: counts.delayed ?? 0,
+      failed: counts.failed ?? 0,
+    };
+  }
+
   async onModuleDestroy(): Promise<void> {
     await this.queue.close();
 

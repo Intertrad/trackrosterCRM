@@ -1,7 +1,10 @@
+import { createHash, createHmac } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebhookDeliveryProcessor } from './webhook-delivery.processor.js';
 describe('WebhookDeliveryProcessor', () => {
   afterEach(() => vi.unstubAllGlobals());
+  const rawSecret = 'secret';
+  const storedSecretHash = createHash('sha256').update(rawSecret).digest('hex');
   const data = {
     jobId: 'j',
     /*
@@ -49,7 +52,7 @@ describe('WebhookDeliveryProcessor', () => {
 
   it('signs and delivers payloads', async () => {
     const { pool } = poolDouble({
-      rows: [{ url: 'https://receiver.test', secret_hash: 'secret', active: true }],
+      rows: [{ url: 'https://receiver.test', secret_hash: storedSecretHash, active: true }],
     });
     const fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     vi.stubGlobal('fetch', fetch);
@@ -59,11 +62,15 @@ describe('WebhookDeliveryProcessor', () => {
       maxAttempts: 3,
     });
     expect(result.status).toBe('processed');
-    expect(fetch.mock.calls[0]![1].headers['x-trackroster-signature']).toMatch(/^sha256=/);
+    const request = fetch.mock.calls[0]![1];
+    const body = request.body as string;
+    const expected = `sha256=${createHmac('sha256', storedSecretHash).update(body).digest('hex')}`;
+    expect(request.headers['x-trackroster-signature']).toBe(expected);
+    expect(JSON.parse(body)).toMatchObject({ id: data.deliveryId, event: data.event });
   });
   it('dead-letters after the final attempt', async () => {
     const { pool } = poolDouble({
-      rows: [{ url: 'https://receiver.test', secret_hash: 'secret', active: true }],
+      rows: [{ url: 'https://receiver.test', secret_hash: storedSecretHash, active: true }],
     });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('timeout')));
     const result = await new WebhookDeliveryProcessor(pool as never).process(data, {

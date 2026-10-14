@@ -3,6 +3,8 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
 import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import styles from './messages.module.css';
+import { ConversationSettingsDrawer } from '@/components/messaging/conversation-settings-drawer';
 import { MessageAttachments } from '@/components/messaging/message-attachments';
 import { text } from '@/lib/workspace/copy';
 import {
@@ -19,6 +21,7 @@ import {
   Paperclip,
   Plus,
   Search,
+  Reply,
   Send,
   Smile,
   Users,
@@ -46,7 +49,6 @@ import {
   removeParticipant,
   sendMessage,
   toggleMessageReaction,
-  updateConversation,
 } from '@/lib/api/messaging-client';
 import { uploadMessageAttachment } from '@/lib/api/message-attachment-client';
 import {
@@ -92,7 +94,12 @@ export default function MessagesPage() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const conversationSearchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'waiting' | 'closed'>('all');
+  useEffect(() => {
+    if (mobileSearchOpen) conversationSearchInput.current?.focus();
+  }, [mobileSearchOpen]);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [sendModes, setSendModes] = useState<Record<string, string>>({});
+  const [replyChoices, setReplyChoices] = useState<Record<string, string>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const draft = activeId ? (drafts[activeId] ?? '') : '';
   const setDraft = (value: string) => {
@@ -115,6 +122,7 @@ export default function MessagesPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const listEnd = useRef<HTMLDivElement | null>(null);
+  const readAcknowledged = useRef(new Map<string, string>());
 
   const loadConversations = useCallback(
     (signal?: AbortSignal): Promise<void> =>
@@ -245,17 +253,7 @@ export default function MessagesPage() {
     olderLoaded.current = false;
     nearBottom.current = true;
 
-    void loadThread(activeId, controller.signal).then(() => {
-      if (!controller.signal.aborted) {
-        /* Opening a thread is what marks it read. */
-        markConversationRead(activeId)
-          .then(() => {
-            window.dispatchEvent(new Event('trackroster:messages-read'));
-            return loadConversations();
-          })
-          .catch(() => undefined);
-      }
-    });
+    void loadThread(activeId, controller.signal);
 
     return () => controller.abort();
   }, [activeId, loadConversations, loadThread]);
@@ -265,10 +263,66 @@ export default function MessagesPage() {
       threadScroll.current.scrollTop = threadScroll.current.scrollHeight;
   }, [messages]);
 
+  useEffect(() => {
+    const end = listEnd.current;
+    const root = threadScroll.current;
+    const latest = messages?.at(-1);
+    if (!activeId || !latest || !end || !root) return;
+    let visible = false;
+    let pending = false;
+    let cancelled = false;
+    const acknowledge = () => {
+      if (
+        cancelled ||
+        !visible ||
+        document.visibilityState !== 'visible' ||
+        pending ||
+        readAcknowledged.current.get(activeId) === latest.id
+      )
+        return;
+      pending = true;
+      void markConversationRead(activeId, latest.id)
+        .then(() => {
+          readAcknowledged.current.set(activeId, latest.id);
+          window.dispatchEvent(new Event('trackroster:messages-read'));
+          return loadConversations();
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          pending = false;
+        });
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = !!entry && entry.isIntersecting && entry.intersectionRatio === 1;
+        acknowledge();
+      },
+      { root, threshold: 1 },
+    );
+    observer.observe(end);
+    document.addEventListener('visibilitychange', acknowledge);
+    root.addEventListener('scroll', acknowledge);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', acknowledge);
+      root.removeEventListener('scroll', acknowledge);
+    };
+  }, [activeId, messages, loadConversations]);
+
   const active = useMemo(
     () => conversations?.find((conversation) => conversation.id === activeId) ?? null,
     [activeId, conversations],
   );
+
+  const incomingRequests = (active?.pendingRequests ?? []).filter(
+    (request) => request.senderId !== me,
+  );
+  const replyTarget =
+    incomingRequests.find((request) => request.id === replyChoices[activeId ?? '']) ??
+    incomingRequests[0];
+  const actionMode = replyTarget?.id ?? 'request';
+  const actionEnabled = !!activeId && sendModes[activeId] === actionMode;
 
   const myParticipation = useMemo(
     () => participants.find((participant) => participant.membershipId === me),
@@ -322,8 +376,8 @@ export default function MessagesPage() {
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
-      const unread = conversation.latestMessage?.sender?.membershipId !== me;
-      const waiting = conversation.latestMessage?.sender?.membershipId === me;
+      const unread = (conversation.unreadCount ?? 0) > 0;
+      const waiting = (conversation.pendingRequests?.length ?? 0) > 0;
       const matchesFilter =
         filter === 'all' ||
         (filter === 'unread' && unread) ||
@@ -343,12 +397,9 @@ export default function MessagesPage() {
     const items = conversations ?? [];
     return {
       all: items.length,
-      unread: items.filter(
-        (conversation) => conversation.latestMessage?.sender?.membershipId !== me,
-      ).length,
-      waiting: items.filter(
-        (conversation) => conversation.latestMessage?.sender?.membershipId === me,
-      ).length,
+      unread: items.filter((conversation) => (conversation.unreadCount ?? 0) > 0).length,
+      waiting: items.filter((conversation) => (conversation.pendingRequests?.length ?? 0) > 0)
+        .length,
       closed: items.filter((conversation) => conversation.status === 'archived').length,
     };
   }, [conversations, me]);
@@ -373,9 +424,20 @@ export default function MessagesPage() {
     try {
       const sentMessage = pendingAttachmentMessageId
         ? { id: pendingAttachmentMessageId }
-        : await sendMessage(activeId, body);
+        : await sendMessage(
+            activeId,
+            body,
+            actionEnabled
+              ? replyTarget
+                ? { replyToRequestId: replyTarget.id }
+                : { isRequest: true }
+              : {},
+          );
 
-      if (!pendingAttachmentMessageId) setDraft('');
+      if (!pendingAttachmentMessageId) {
+        setDraft('');
+        setSendModes((current) => ({ ...current, [activeId]: '' }));
+      }
       if (file) {
         setPendingAttachmentMessageId(sentMessage.id);
         setUploadProgress(0);
@@ -424,7 +486,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
       <div
         className={cn('flex flex-wrap items-end justify-between gap-4', active && 'max-lg:hidden')}
       >
@@ -434,50 +496,45 @@ export default function MessagesPage() {
           </h1>
           <p className="mt-1 text-[14px] text-ink-muted">{t('messages.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-nowrap items-center gap-2 max-lg:w-full max-lg:justify-end">
           <button
             type="button"
             aria-label={text('Search conversations', 'Rechercher une conversation', language)}
-            aria-pressed={mobileSearchOpen}
+            aria-expanded={mobileSearchOpen}
+            aria-controls="conversation-search"
             onClick={() => setMobileSearchOpen((open) => !open)}
-            className="flex size-11 items-center justify-center rounded-lg border border-line bg-surface text-ink-soft shadow-raised hover:border-brand hover:text-brand focus-visible:outline-brand sm:hidden"
+            className="flex size-11 items-center justify-center rounded-lg border border-line bg-surface text-ink-soft shadow-raised hover:border-brand hover:text-brand focus-visible:outline-brand lg:hidden"
           >
             <Search aria-hidden="true" className="size-5" />
           </button>
-          <Button className="hidden sm:inline-flex" onClick={() => setComposing(true)}>
-            <Plus aria-hidden="true" className="size-4" />
+          <Button className="whitespace-nowrap gap-1 px-2" onClick={() => setComposing(true)}>
+            <Plus aria-hidden="true" className="size-4 shrink-0" />
             {t('messages.newConversation')}
           </Button>
-          <button
-            type="button"
-            aria-label={t('messages.newConversation')}
-            onClick={() => setComposing(true)}
-            className="flex size-11 items-center justify-center rounded-lg bg-brand text-white shadow-raised hover:bg-brand-hover focus-visible:outline-brand sm:hidden"
-          >
-            <Plus aria-hidden="true" className="size-6" />
-          </button>
         </div>
       </div>
 
       {readError ? <Alert tone="danger">{readError}</Alert> : null}
 
-      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
+      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 min-[701px]:max-lg:-mx-5 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
         <div
           className={cn(
             'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[calc(100dvh-148px)]',
-            active
-              ? 'grid lg:grid-cols-[348px_minmax(0,1fr)_294px]'
-              : 'grid lg:grid-cols-[348px_minmax(0,1fr)]',
+            styles.layout,
+            active && styles.withDetails,
           )}
         >
           <aside
             className={cn(
-              'min-h-0 border-b border-line lg:border-r lg:border-b-0',
+              'min-h-0 min-w-0 max-lg:w-full max-lg:flex-1 border-b border-line lg:border-r lg:border-b-0',
               active && 'max-lg:hidden',
             )}
           >
             <div className="border-b border-line p-3">
-              <label className="relative block">
+              <label
+                id="conversation-search"
+                className={cn('relative block', !mobileSearchOpen && 'max-lg:hidden')}
+              >
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
@@ -494,12 +551,15 @@ export default function MessagesPage() {
                   )}
                   className={cn(
                     'h-10 w-full rounded-lg border border-line bg-surface px-9 text-[13px] text-ink outline-none placeholder:text-ink-muted focus:border-brand',
-                    !mobileSearchOpen && 'max-lg:hidden',
                   )}
                 />
               </label>
               <div
-                className="mt-2 grid grid-cols-4 gap-0.5 rounded-[10px] bg-surface-muted p-1"
+                className={cn(
+                  'grid grid-cols-4 gap-0.5 rounded-[10px] bg-surface-muted p-1',
+                  styles.filters,
+                  mobileSearchOpen ? 'mt-2' : 'lg:mt-2',
+                )}
                 aria-label={text('Conversation filters', 'Filtres des conversations', language)}
               >
                 {(['all', 'unread', 'waiting', 'closed'] as const).map((value) => (
@@ -566,14 +626,14 @@ export default function MessagesPage() {
                     const latest = conversation.latestMessage;
                     const contacts = participantContacts(conversation);
                     const subject = nameFor(conversation);
-                    const unread = latest?.sender?.membershipId !== me;
-                    const waiting = latest?.sender?.membershipId === me;
-                    const isOverdue = waiting && isOlderThan(latest?.createdAt, 48);
+                    const unread = (conversation.unreadCount ?? 0) > 0;
+                    const waiting = (conversation.pendingRequests?.length ?? 0) > 0;
+                    const isOverdue =
+                      waiting && isOlderThan(conversation.pendingRequests?.[0]?.createdAt, 48);
                     const previous = visible[index - 1];
-                    const previousLatest = previous?.latestMessage;
-                    const previousWaiting = previousLatest?.sender?.membershipId === me;
+                    const previousWaiting = (previous?.pendingRequests?.length ?? 0) > 0;
                     const previousOverdue =
-                      previousWaiting && isOlderThan(previousLatest?.createdAt, 48);
+                      previousWaiting && isOlderThan(previous?.pendingRequests?.[0]?.createdAt, 48);
                     const group = isOverdue ? 'overdue' : 'week';
                     const previousGroup = index === 0 ? '' : previousOverdue ? 'overdue' : 'week';
                     return (
@@ -651,7 +711,7 @@ export default function MessagesPage() {
 
           <section
             className={cn(
-              'flex min-h-0 min-w-0 flex-col bg-surface text-ink',
+              'flex min-h-0 min-w-0 flex-col bg-surface text-ink max-lg:w-full max-lg:flex-1',
               !active && 'max-lg:hidden',
             )}
           >
@@ -892,9 +952,12 @@ export default function MessagesPage() {
                           const mine = message.senderId === me;
                           const sender = message.sender ?? people.get(message.senderId);
                           const readByOther =
-                            mine &&
+                            message.id === messages.at(-1)?.id &&
                             participants.some((participant) => {
-                              if (participant.membershipId === me || !participant.lastReadAt)
+                              if (
+                                participant.membershipId === message.senderId ||
+                                !participant.lastReadAt
+                              )
                                 return false;
                               const readAt = new Date(participant.lastReadAt).getTime();
                               const sentAt = new Date(message.createdAt).getTime();
@@ -908,7 +971,7 @@ export default function MessagesPage() {
                               className={mine ? 'flex justify-end' : 'flex justify-start'}
                             >
                               <div
-                                className={`group flex max-w-[92%] items-end gap-2 sm:max-w-[78%] ${mine ? 'flex-row-reverse' : ''}`}
+                                className={`group flex max-w-[92%] items-end gap-2 sm:max-w-[92%] ${mine ? 'flex-row-reverse' : ''}`}
                               >
                                 {!mine ? (
                                   <span
@@ -928,11 +991,17 @@ export default function MessagesPage() {
                                     </p>
                                   ) : null}
                                   <div
-                                    className={
-                                      mine
-                                        ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
-                                        : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised'
-                                    }
+                                    className={cn(
+                                      'w-fit max-w-full break-words',
+                                      mine && 'ml-auto',
+                                      message.isRequest && message.status !== 'deleted'
+                                        ? `rounded-2xl border border-warning-border bg-warning-bg px-3.5 py-3 text-warning shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                        : message.replyToRequestId && message.status !== 'deleted'
+                                          ? `rounded-2xl border border-brand-tint bg-brand-wash px-3.5 py-3 text-brand shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                          : mine
+                                            ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
+                                            : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised',
+                                    )}
                                   >
                                     {message.status === 'deleted' ? (
                                       <p className="text-[14px] italic opacity-70">
@@ -950,8 +1019,9 @@ export default function MessagesPage() {
                                     {message.status !== 'deleted' ? (
                                       <MessageAttachments
                                         message={message}
-                                        mine={mine}
-                                        onUpdated={() => void loadThread(active.id)}
+                                        mine={
+                                          mine && !message.isRequest && !message.replyToRequestId
+                                        }
                                       />
                                     ) : null}
                                   </div>
@@ -981,27 +1051,87 @@ export default function MessagesPage() {
                                     </div>
                                   ) : null}
                                   <p
-                                    className={`mt-1 flex items-center gap-1 px-1 text-[11px] text-ink-muted ${mine ? 'justify-end' : ''}`}
+                                    className={`mt-1 flex flex-wrap items-center gap-1 px-1 text-[11px] text-ink-muted ${mine ? 'justify-end' : ''}`}
                                   >
-                                    {formatTimestamp(message.createdAt)}
-                                    {message.status === 'edited'
-                                      ? text(' · edited', ' · modifié', language)
-                                      : ''}
-                                    {mine ? (
+                                    <span className={cn('whitespace-nowrap', mine && 'order-3')}>
+                                      {formatTimestamp(message.createdAt)}
+                                      {message.status === 'edited'
+                                        ? text(' · edited', ' · modifié', language)
+                                        : ''}
+                                    </span>
+                                    {message.isRequest && message.status !== 'deleted' ? (
+                                      <span className="order-2 inline-flex items-center gap-1.5 rounded-full border border-warning-border bg-warning-bg px-2 py-1 text-[11px] font-bold text-warning">
+                                        <MessageCircle aria-hidden="true" className="size-3.5" />
+                                        {text('Request', 'Demande', language)} ·{' '}
+                                        {active.pendingRequests?.some(
+                                          (request) => request.id === message.id,
+                                        )
+                                          ? text('Waiting', 'En attente', language)
+                                          : text('Answered', 'Répondue', language)}
+                                      </span>
+                                    ) : message.replyToRequestId && message.status !== 'deleted' ? (
+                                      <span className="order-2 inline-flex items-center gap-1 rounded-full border border-brand-tint bg-brand-wash px-2 py-1 text-[11px] font-bold text-brand">
+                                        <Reply aria-hidden="true" className="size-3.5" />
+                                        {text(
+                                          'Reply to a request',
+                                          'Réponse à une demande',
+                                          language,
+                                        )}
+                                      </span>
+                                    ) : null}
+                                    {!mine &&
+                                    message.isRequest &&
+                                    message.status !== 'deleted' &&
+                                    active.pendingRequests?.some(
+                                      (request) => request.id === message.id,
+                                    ) ? (
+                                      <button
+                                        type="button"
+                                        className="order-2 inline-flex items-center gap-1 rounded-full border border-brand-tint bg-brand-wash px-2 py-1 font-bold text-brand hover:bg-brand-tint"
+                                        aria-pressed={sendModes[active.id] === message.id}
+                                        disabled={busy || !!pendingAttachmentMessageId}
+                                        onClick={() => {
+                                          setReplyChoices((current) => ({
+                                            ...current,
+                                            [active.id]: message.id,
+                                          }));
+                                          setSendModes((current) => ({
+                                            ...current,
+                                            [active.id]: message.id,
+                                          }));
+                                          composerInput.current?.focus();
+                                        }}
+                                      >
+                                        <Reply aria-hidden="true" className="size-3.5" />
+                                        {text('Reply', 'Répondre', language)}
+                                      </button>
+                                    ) : null}
+                                    {message.id === messages.at(-1)?.id &&
+                                    message.status !== 'deleted' ? (
                                       readByOther ? (
-                                        <>
+                                        <span
+                                          className={cn(
+                                            'inline-flex items-center gap-1 whitespace-nowrap',
+                                            mine ? 'order-1' : 'order-3',
+                                          )}
+                                        >
                                           <CheckCheck
                                             aria-hidden="true"
                                             className="size-3 text-success"
                                           />
                                           {text('Read', 'Lu', language)}
-                                        </>
-                                      ) : (
-                                        <>
+                                        </span>
+                                      ) : mine ? (
+                                        <span
+                                          className={cn(
+                                            'inline-flex items-center gap-1 whitespace-nowrap',
+                                            mine ? 'order-1' : 'order-3',
+                                          )}
+                                        >
                                           <Check aria-hidden="true" className="size-3" />
                                           {text('Sent', 'Envoyé', language)}
-                                        </>
-                                      )
+                                        </span>
+                                      ) : null
                                     ) : null}
                                   </p>
                                 </div>
@@ -1012,7 +1142,7 @@ export default function MessagesPage() {
                       </ol>
                     </>
                   )}
-                  <div ref={listEnd} />
+                  <div ref={listEnd} className="h-px" aria-hidden="true" />
                 </div>
 
                 <div className="bg-surface px-4 pt-2 text-center text-[11px] leading-4 text-ink-muted sm:px-6">
@@ -1023,7 +1153,7 @@ export default function MessagesPage() {
                     language,
                   )}
                 </div>
-                <div className="flex gap-2 overflow-x-auto px-4 pt-3 lg:hidden">
+                <div className="mt-2 flex shrink-0 gap-2 overflow-x-auto px-4 pt-3 pb-2 lg:hidden">
                   {[
                     text('Documents uploaded', 'Documents envoyés', language),
                     text("I'll call them today", 'Je les appelle aujourd’hui', language),
@@ -1041,12 +1171,61 @@ export default function MessagesPage() {
                 <form
                   noValidate
                   onSubmit={(event) => void send(event)}
-                  className="border-t border-line bg-surface p-3 sm:p-4"
+                  className="@container border-t border-line bg-surface p-3 sm:p-4"
                 >
                   <label htmlFor={`${composerFileId}-message`} className="sr-only">
                     {t('messages.message')}
                   </label>
-                  <div className="rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
+                  <div className="rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
+                    {replyTarget ? (
+                      <div className="mb-2 rounded-lg border border-brand-tint bg-brand-wash px-3 py-2 text-[12px] text-ink">
+                        {incomingRequests.length > 1 ? (
+                          <SelectField
+                            label={text(
+                              'Request to answer',
+                              'Demande à laquelle répondre',
+                              language,
+                            )}
+                            options={incomingRequests.map((request) => ({
+                              value: request.id,
+                              label: request.body.slice(0, 100),
+                            }))}
+                            value={replyTarget.id}
+                            onChange={(event) => {
+                              const id = event.target.value;
+                              setReplyChoices((current) => ({ ...current, [active.id]: id }));
+                              if (actionEnabled)
+                                setSendModes((current) => ({ ...current, [active.id]: id }));
+                            }}
+                          />
+                        ) : (
+                          <p className="truncate font-semibold">
+                            {text('Request:', 'Demande :', language)} {replyTarget.body}
+                          </p>
+                        )}
+                        <p className="mt-1 text-ink-muted">
+                          {actionEnabled
+                            ? text(
+                                'Sending this reply will resolve this request.',
+                                'L’envoi de cette réponse clôturera cette demande.',
+                                language,
+                              )
+                            : text(
+                                'Activate Reply to answer this request.',
+                                'Activez Répondre pour répondre à cette demande.',
+                                language,
+                              )}
+                        </p>
+                      </div>
+                    ) : actionEnabled ? (
+                      <p className="mb-2 text-[12px] font-semibold text-brand">
+                        {text(
+                          'This message will request a reply.',
+                          'Ce message demandera une réponse.',
+                          language,
+                        )}
+                      </p>
+                    ) : null}
                     <textarea
                       ref={composerInput}
                       id={`${composerFileId}-message`}
@@ -1066,10 +1245,20 @@ export default function MessagesPage() {
                       maxLength={MAX_MESSAGE_BODY}
                       disabled={busy}
                       rows={2}
-                      className="min-h-14 w-full resize-none border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted"
+                      className={cn(
+                        styles.composerInput,
+                        'min-h-14 w-full resize-none border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted',
+                      )}
                     />
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-1 text-ink-muted">
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+                      <span className="order-2 whitespace-nowrap text-[11px] text-ink-muted @max-[760px]:order-first @max-[760px]:w-full @max-[420px]:whitespace-normal">
+                        {text(
+                          'Enter to send · Shift + Enter for a new line',
+                          'Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne',
+                          language,
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1 text-ink-muted @max-[360px]:gap-0 @max-[360px]:[&>label]:w-7 @max-[360px]:[&_button]:w-7">
                         <input
                           id={composerFileId}
                           type="file"
@@ -1151,23 +1340,47 @@ export default function MessagesPage() {
                         >
                           <FileText aria-hidden="true" className="size-[17px]" />
                         </button>
-                        <span className="hidden text-[11px] text-ink-muted sm:inline">
-                          {text(
-                            'Enter to send · Shift + Enter for a new line',
-                            'Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne',
-                            language,
-                          )}
-                        </span>
                       </div>
-                      <Button
-                        type="submit"
-                        size="md"
-                        loading={busy}
-                        disabled={draft.trim().length === 0 && !pendingAttachmentMessageId}
-                        className="bg-brand text-white hover:bg-brand-hover active:bg-brand-active"
-                      >
-                        {t('messages.send')} <Send aria-hidden="true" className="size-4" />
-                      </Button>
+                      <div className="order-3 ml-auto flex shrink-0 items-center gap-2 @max-[360px]:gap-1 @max-[360px]:[&>button]:px-1 @max-[360px]:[&>button]:text-[12px]">
+                        <Button
+                          type="button"
+                          size="md"
+                          variant="secondary"
+                          aria-pressed={actionEnabled}
+                          disabled={busy || !!pendingAttachmentMessageId}
+                          onClick={() =>
+                            setSendModes((current) => ({
+                              ...current,
+                              [active.id]: actionEnabled ? '' : actionMode,
+                            }))
+                          }
+                          className={cn(
+                            'gap-1 px-2',
+                            actionEnabled &&
+                              'border-brand bg-brand-wash text-brand ring-2 ring-brand/20',
+                          )}
+                        >
+                          {actionEnabled ? (
+                            <Check aria-hidden="true" className="size-4" />
+                          ) : replyTarget ? (
+                            <Reply aria-hidden="true" className="size-4" />
+                          ) : (
+                            <MessageCircle aria-hidden="true" className="size-4" />
+                          )}
+                          {replyTarget
+                            ? text('Reply', 'Répondre', language)
+                            : text('Request', 'Demander', language)}
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="md"
+                          loading={busy}
+                          disabled={draft.trim().length === 0 && !pendingAttachmentMessageId}
+                          className="gap-1 px-2 bg-brand text-white hover:bg-brand-hover active:bg-brand-active"
+                        >
+                          {t('messages.send')} <Send aria-hidden="true" className="size-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   {composerFile ? (
@@ -1217,7 +1430,12 @@ export default function MessagesPage() {
           </section>
 
           {active ? (
-            <aside className="hidden border-l border-line bg-surface lg:block">
+            <aside
+              className={cn(
+                styles.details,
+                'min-h-0 overflow-y-auto border-l border-line bg-surface',
+              )}
+            >
               <div className="border-b border-line px-4 py-3">
                 <p className="text-[11px] font-extrabold tracking-[0.08em] text-ink-muted">
                   {text('LINKED PROSPECT', 'PROSPECT LIÉ', language)}
@@ -1519,116 +1737,6 @@ function ConversationMembersDrawer({
   );
 }
 
-function ConversationSettingsDrawer({
-  open,
-  conversation,
-  onClose,
-  onUpdated,
-}: {
-  open: boolean;
-  conversation: Conversation | null;
-  onClose: () => void;
-  onUpdated: () => Promise<void>;
-}) {
-  const { language } = useTranslation();
-  const [title, setTitle] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open && conversation) {
-      setTitle(conversation.title ?? '');
-      setError(null);
-    }
-  }, [conversation, open]);
-
-  if (!conversation) return null;
-
-  return (
-    <Drawer
-      open={open}
-      title={text('Conversation settings', 'Paramètres de la conversation', language)}
-      onClose={() => {
-        if (!busy) onClose();
-      }}
-    >
-      <form
-        noValidate
-        className="space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (busy) return;
-          setBusy(true);
-          setError(null);
-          updateConversation(conversation.id, { title: title.trim() || undefined })
-            .then(async () => {
-              await onUpdated();
-              onClose();
-            })
-            .catch((caught: unknown) =>
-              setError(
-                caught instanceof ApiError
-                  ? caught.message
-                  : text(
-                      'Could not save conversation settings.',
-                      'Impossible d’enregistrer les paramètres.',
-                      language,
-                    ),
-              ),
-            )
-            .finally(() => setBusy(false));
-        }}
-      >
-        <TextField
-          label={text('Conversation title', 'Titre de la conversation', language)}
-          value={title}
-          maxLength={200}
-          disabled={busy}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        {error ? <Alert tone="danger">{error}</Alert> : null}
-        <Button type="submit" fullWidth loading={busy}>
-          {text('Save settings', 'Enregistrer les paramètres', language)}
-        </Button>
-        <div className="border-t border-line pt-4">
-          <Button
-            type="button"
-            fullWidth
-            variant="secondary"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              updateConversation(conversation.id, {
-                status: conversation.status === 'archived' ? 'active' : 'archived',
-              })
-                .then(async () => {
-                  await onUpdated();
-                  onClose();
-                })
-                .catch((caught: unknown) =>
-                  setError(
-                    caught instanceof ApiError
-                      ? caught.message
-                      : text(
-                          'Could not update conversation status.',
-                          'Impossible de modifier le statut.',
-                          language,
-                        ),
-                  ),
-                )
-                .finally(() => setBusy(false));
-            }}
-          >
-            {conversation.status === 'archived'
-              ? text('Reopen conversation', 'Rouvrir la conversation', language)
-              : text('Close conversation', 'Fermer la conversation', language)}
-          </Button>
-        </div>
-      </form>
-    </Drawer>
-  );
-}
-
 function ComposeDrawer({
   open,
   people,
@@ -1659,7 +1767,7 @@ function ComposeDrawer({
 
   return (
     <Drawer open={open} title={t('messages.newConversation')} onClose={onClose}>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
         <SelectField
           label={t('messages.kind')}
           value={kind}

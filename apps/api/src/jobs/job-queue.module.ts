@@ -15,6 +15,7 @@ import { JobQueueService } from './job-queue.service.js';
      * private infrastructure.
      */
     JobProducerService,
+    JobQueueService,
   ],
 })
 export class JobQueueModule {}

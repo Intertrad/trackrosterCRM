@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ConflictException,
   Delete,
   ForbiddenException,
   Get,
@@ -40,6 +41,7 @@ import {
   ConversationListDto,
   CreateConversationDto,
   MuteConversationDto,
+  MarkConversationReadDto,
   SendMessageDto,
   ToggleMessageReactionDto,
   UpdateConversationDto,
@@ -232,6 +234,7 @@ export class MessagingService {
           .select({
             conversationId: conversationParticipants.conversationId,
             membershipId: conversationParticipants.membershipId,
+            lastReadAt: conversationParticipants.lastReadAt,
           })
           .from(conversationParticipants)
           .where(
@@ -257,10 +260,50 @@ export class MessagingService {
       current.push(profile);
       participantsByConversation.set(row.conversationId, current);
     }
+    const readByConversation = new Map(
+      participantRows
+        .filter((row) => row.membershipId === a.membershipId)
+        .map((row) => [row.conversationId, row.lastReadAt]),
+    );
+    const unreadByConversation = new Map<string, number>();
+    for (const message of latestRows) {
+      const readAt = readByConversation.get(message.conversationId);
+      if (
+        message.senderId !== a.membershipId &&
+        message.status !== 'deleted' &&
+        (!readAt || message.createdAt > readAt)
+      ) {
+        unreadByConversation.set(
+          message.conversationId,
+          (unreadByConversation.get(message.conversationId) ?? 0) + 1,
+        );
+      }
+    }
+    const answeredRequestIds = new Set(
+      latestRows
+        .filter((message) => message.status !== 'deleted' && message.replyToRequestId)
+        .map((message) => message.replyToRequestId),
+    );
     const inboxItems = items.map((conversation) => {
       const latest = latestByConversation.get(conversation.id);
       return {
         ...conversation,
+        unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+        pendingRequests: latestRows
+          .filter(
+            (message) =>
+              message.conversationId === conversation.id &&
+              message.isRequest &&
+              message.status !== 'deleted' &&
+              !answeredRequestIds.has(message.id),
+          )
+          .reverse()
+          .map((message) => ({
+            id: message.id,
+            senderId: message.senderId,
+            body: message.body,
+            createdAt: message.createdAt,
+          })),
         participants: participantsByConversation.get(conversation.id) ?? [],
         latestMessage: latest
           ? {
@@ -569,23 +612,63 @@ export class MessagingService {
       .where(and(eq(messageReactions.tenantId, a.tenantId), eq(messageReactions.messageId, id)));
     return { messageId: id, reactions: this.groupReactions(rows, a.membershipId).get(id) ?? [] };
   }
-  async send(a: Auth, id: string, body: string) {
+  async send(
+    a: Auth,
+    id: string,
+    body: string,
+    options: { isRequest?: boolean; replyToRequestId?: string } = {},
+  ) {
     await this.member(a, id);
     if (!body.trim()) throw new BadRequestException('Message body is required');
-    const [m] = await this.db
-      .insert(messages)
-      .values({
-        tenantId: a.tenantId,
-        conversationId: id,
-        senderId: a.membershipId,
-        body: body.trim(),
-      })
-      .returning();
-    await this.db
-      .update(conversations)
-      .set({ updatedAt: sql`clock_timestamp()` })
-      .where(eq(conversations.id, id));
-    return m;
+    if (options.isRequest && options.replyToRequestId)
+      throw new BadRequestException('A message cannot be both a request and a reply');
+    return this.db.transaction(async (tx) => {
+      if (options.replyToRequestId) {
+        const [request] = await tx
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.tenantId, a.tenantId),
+              eq(messages.conversationId, id),
+              eq(messages.id, options.replyToRequestId),
+              eq(messages.isRequest, true),
+              sql`${messages.status} <> 'deleted'`,
+            ),
+          )
+          .for('update');
+        if (!request) throw new NotFoundException('Request not found in this conversation');
+        if (request.senderId === a.membershipId)
+          throw new ForbiddenException('You cannot answer your own request');
+        const [answered] = await tx
+          .select({ id: messages.id })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.tenantId, a.tenantId),
+              eq(messages.replyToRequestId, request.id),
+              sql`${messages.status} <> 'deleted'`,
+            ),
+          );
+        if (answered) throw new ConflictException('This request has already been answered');
+      }
+      const [message] = await tx
+        .insert(messages)
+        .values({
+          tenantId: a.tenantId,
+          conversationId: id,
+          senderId: a.membershipId,
+          body: body.trim(),
+          isRequest: options.isRequest ?? false,
+          replyToRequestId: options.replyToRequestId ?? null,
+        })
+        .returning();
+      await tx
+        .update(conversations)
+        .set({ updatedAt: sql`clock_timestamp()` })
+        .where(and(eq(conversations.id, id), eq(conversations.tenantId, a.tenantId)));
+      return message;
+    });
   }
 
   /**
@@ -626,11 +709,28 @@ export class MessagingService {
       .returning({ id: messages.id });
     if (!m) throw new ForbiddenException('Only unread messages can be deleted');
   }
-  async read(a: Auth, id: string) {
+  async read(a: Auth, id: string, messageId?: string) {
     await this.member(a, id);
+    if (messageId) {
+      const [message] = await this.db
+        .select({ id: messages.id })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.tenantId, a.tenantId),
+            eq(messages.conversationId, id),
+            eq(messages.id, messageId),
+          ),
+        );
+      if (!message) throw new NotFoundException('Message not found in this conversation');
+    }
     await this.db
       .update(conversationParticipants)
-      .set({ lastReadAt: sql`clock_timestamp()` })
+      .set({
+        lastReadAt: messageId
+          ? sql`greatest(${conversationParticipants.lastReadAt}, (select created_at from messages where tenant_id=${a.tenantId} and conversation_id=${id} and id=${messageId}))`
+          : sql`clock_timestamp()`,
+      })
       .where(
         and(
           eq(conversationParticipants.tenantId, a.tenantId),
@@ -718,10 +818,14 @@ export class ConversationController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() d: SendMessageDto,
   ) {
-    return this.s.send(a, id, d.body);
+    return this.s.send(a, id, d.body, d);
   }
-  @Post(':id/read') read(@CurrentAuth() a: Auth, @Param('id', ParseUUIDPipe) id: string) {
-    return this.s.read(a, id);
+  @Post(':id/read') read(
+    @CurrentAuth() a: Auth,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() d: MarkConversationReadDto,
+  ) {
+    return this.s.read(a, id, d.messageId);
   }
   @Patch(':id/mute') mute(
     @CurrentAuth() a: Auth,

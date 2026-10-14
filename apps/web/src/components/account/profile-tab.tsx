@@ -80,6 +80,16 @@ export function ProfileTab() {
         ]);
 
         applyProfile(profileResult.resource, profileResult.etag);
+        /*
+         * The profile endpoint is the canonical source for the editable
+         * locale. Keep the session-backed translation provider in sync when
+         * the settings screen loads, otherwise the selector can show one
+         * language while the rest of the shell still renders another.
+         */
+        updateUser({
+          displayName: profileResult.resource.displayName,
+          locale: profileResult.resource.locale,
+        });
         setMemberships(membershipList);
         setLoadError(null);
       } catch (error) {
@@ -158,6 +168,24 @@ export function ProfileTab() {
             return;
           }
 
+          /*
+           * The original request may have committed before its response was
+           * lost, or another tab may already have applied the same locale.
+           * Treat that state as success instead of asking the user to reload
+           * for a change that is already persisted.
+           */
+          if (profileUpdateMatches(latest.resource, input)) {
+            applyProfile(latest.resource, latest.etag);
+            updateUser({
+              displayName: latest.resource.displayName,
+              locale: latest.resource.locale,
+            });
+            setSave({ kind: 'saved' });
+            notify.success(t('account.profile.saved'), { id: 'profile-saved' });
+
+            return;
+          }
+
           const result = await updateAccountProfile(input, latest.etag);
 
           applyProfile(result.resource, result.etag);
@@ -197,6 +225,10 @@ export function ProfileTab() {
       const result = await getAccountProfile();
 
       applyProfile(result.resource, result.etag);
+      updateUser({
+        displayName: result.resource.displayName,
+        locale: result.resource.locale,
+      });
       setSave({ kind: 'idle' });
     } catch {
       setSave({ kind: 'error', message: t('account.profile.reloadError') });
@@ -489,6 +521,18 @@ function hasConcurrentProfileConflict(
     const latestValue = latest[field] ?? null;
 
     return latestValue !== originalValue && latestValue !== desired;
+  });
+}
+
+function profileUpdateMatches(profile: AccountProfile, input: UpdateAccountInput): boolean {
+  return EDITABLE_PROFILE_FIELDS.every((field) => {
+    const desired = input[field];
+
+    if (desired === undefined) {
+      return true;
+    }
+
+    return (profile[field] ?? null) === desired;
   });
 }
 

@@ -58,7 +58,7 @@ describe('AppShell', () => {
       within(sidebar)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['My day', 'Prospects', 'Follow-ups', 'Actions', 'Messages']);
+    ).toEqual(['My day', 'Prospects', 'Actions', 'History', 'Messages']);
   });
 
   it('shows the unread message count on the sidebar', async () => {
@@ -89,7 +89,7 @@ describe('AppShell', () => {
     /* The sidebar is the most-read text in the product: an English menu above a
      * French page is the tell that i18n was bolted on. */
     expect(within(sidebar).getByRole('link', { name: 'Ma journée' })).toBeInTheDocument();
-    expect(within(sidebar).getByRole('link', { name: 'Relances' })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('link', { name: 'Actions' })).toBeInTheDocument();
     expect(within(sidebar).queryByRole('link', { name: 'Today' })).not.toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe('AppShell', () => {
 
     render(<AppShell>content</AppShell>);
 
-    for (const label of ['My day', 'Prospects', 'Follow-ups', 'Messages']) {
+    for (const label of ['My day', 'Prospects', 'Actions', 'Messages']) {
       expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
     }
   });

@@ -92,6 +92,13 @@ describe('Password recovery with a local mailbox', () => {
       seen: messageIds,
     });
     token = await readTokenFromMessage(messageId);
+    const deliveredMessage = (await (
+      await fetch(`${process.env.MAILPIT_URL}/api/v1/message/${messageId}`)
+    ).json()) as {
+      HTML?: string;
+    };
+    expect(deliveredMessage.HTML).toContain('Reset my password');
+    expect(deliveredMessage.HTML).toContain('role="presentation"');
     const rows = await db
       .select()
       .from(authPasswordResets)
@@ -111,7 +118,7 @@ describe('Password recovery with a local mailbox', () => {
     for (let i = 0; i < 2; i++)
       expect(
         (await request(`/auth/password-reset/${token}/status`, undefined, 'GET')).json(),
-      ).toEqual({ valid: true });
+      ).toMatchObject({ valid: true, expiresAt: expect.any(String) });
     expect(
       (
         await request(

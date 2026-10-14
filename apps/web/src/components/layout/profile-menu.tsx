@@ -202,7 +202,7 @@ export function ProfileMenu({
       >
         <span
           aria-hidden="true"
-          className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-white text-[13px] font-bold text-brand"
+          className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-brand-tint bg-brand-wash text-[13px] font-bold text-brand"
         >
           {getInitials(displayName, email)}
 

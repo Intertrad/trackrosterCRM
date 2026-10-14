@@ -109,6 +109,23 @@ jobs:
       - name: Verify migration integrity
         run: pnpm db:migrations:check
 
+      - name: Verify API route ledger
+        run: pnpm check:api-routes
+
+      - name: Verify API route dispositions and redacted matrix
+        run: |
+          pnpm check:api-route-dispositions
+          pnpm check:api-route-matrix
+
+      - name: Verify localization parity
+        run: pnpm check:localization
+
+      - name: Verify release evidence bundle
+        run: pnpm check:release-evidence
+
+      - name: Verify performance budgets
+        run: pnpm check:performance-budgets
+
       - name: Run database migrations
         run: pnpm --filter api db:migrate
 
@@ -126,6 +143,12 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Worker unit tests
+        run: pnpm --filter worker test
+
+      - name: Web unit tests
+        run: pnpm --filter web test
 
       - name: Database and Redis integration tests
         run: pnpm --filter api test:integration

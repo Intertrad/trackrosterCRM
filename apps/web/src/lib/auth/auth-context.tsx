@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { usePathname } from 'next/navigation';
 
 import { ApiError } from '@/lib/api/api-error';
 import type { SelfAccessContext, SelfAccessGrant } from '@/lib/api/auth-types';
@@ -45,6 +46,21 @@ const EMPTY_GRANTS: SelfAccessGrant[] = [];
 
 const WORKSPACE_STORAGE_PREFIX = 'trackroster.activeWorkspace';
 
+/**
+ * Public authentication screens do not need to restore an existing session.
+ * Avoiding that request keeps an unauthenticated login flow quiet while the
+ * explicit sign-in handler still calls refreshSession after authentication.
+ */
+function isPublicAuthRoute(pathname: string | null): boolean {
+  return (
+    pathname === '/login' ||
+    pathname === '/forgot-password' ||
+    pathname === '/invite' ||
+    pathname === '/reset-password' ||
+    pathname?.startsWith('/reset-password/') === true
+  );
+}
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -54,6 +70,7 @@ function getWorkspaceStorageKey(user: Pick<SelfAccessContext, 'userId' | 'tenant
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const pathname = usePathname();
   const [user, setUser] = useState<SelfAccessContext | null>(null);
 
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -63,6 +80,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [activeWorkspaceKey, setActiveWorkspaceKey] = useState<string | null>(null);
 
   const initialized = useRef(false);
+  const wasPublicAuthRoute = useRef<boolean | null>(null);
 
   const refreshSession = useCallback(async (): Promise<SelfAccessContext | null> => {
     setStatus('loading');
@@ -113,14 +131,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   useEffect(() => {
+    const publicAuthRoute = isPublicAuthRoute(pathname);
+    const enteredFromPublicAuthRoute = wasPublicAuthRoute.current === true;
+    wasPublicAuthRoute.current = publicAuthRoute;
+
+    if (publicAuthRoute) {
+      if (!user) {
+        setStatus((current) => (current === 'loading' ? 'unauthenticated' : current));
+      }
+
+      return;
+    }
+
+    /*
+     * Auth screens intentionally skip the initial session request. If the
+     * user later navigates to a protected route without signing in, restore
+     * the session at that point. A successful sign-in already restored it,
+     * so do not issue the same request a second time.
+     */
+    if (enteredFromPublicAuthRoute && user) {
+      return;
+    }
+
     if (initialized.current) {
       return;
     }
 
     initialized.current = true;
-
     void refreshSession();
-  }, [refreshSession]);
+  }, [pathname, refreshSession, user]);
 
   const grants = useMemo(() => user?.grants ?? EMPTY_GRANTS, [user]);
 

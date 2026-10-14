@@ -43,9 +43,15 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
   private settings() {
     const endpoint = this.config.get<string>('MAILPIT_URL');
     const brevoKey = this.config.get<string>('BREVO_API_KEY');
+    const brevoSender = this.config.get<string>('BREVO_SENDER_EMAIL');
     const key = this.config.get<string>('MFA_ENCRYPTION_KEY');
     const origin = this.config.get<string>('AUTH_PUBLIC_ORIGIN');
-    if ((!endpoint && !brevoKey) || !key || !/^[a-f0-9]{64}$/i.test(key) || !origin)
+    if (
+      (!endpoint && (!brevoKey || !brevoSender)) ||
+      !key ||
+      !/^[a-f0-9]{64}$/i.test(key) ||
+      !origin
+    )
       throw new ServiceUnavailableException('Account email is not configured');
     const url = endpoint ? new URL(endpoint) : undefined,
       publicUrl = new URL(origin);
@@ -73,6 +79,7 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
     return {
       endpoint: url?.origin,
       brevoKey,
+      brevoSender,
       key: Buffer.from(key, 'hex'),
       origin: canonicalProductionOrigin(publicUrl, production),
     };
@@ -151,7 +158,7 @@ export class AuthMailService implements OnModuleInit, OnModuleDestroy {
               ? { From: { Email: 'accounts@trackroster.test', Name: 'TrackRoster' } }
               : {
                   sender: {
-                    email: this.config.get('BREVO_SENDER_EMAIL') ?? 'accounts@trackroster.test',
+                    email: settings.brevoSender,
                     name: 'TrackRoster',
                   },
                 }),

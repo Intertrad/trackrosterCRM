@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
@@ -61,6 +62,8 @@ export class AddParticipantDto {
 
 export class SendMessageDto {
   @IsString() @MinLength(1) @MaxLength(MAX_MESSAGE_BODY) body!: string;
+  @IsOptional() @IsBoolean() isRequest?: boolean;
+  @IsOptional() @IsUUID() replyToRequestId?: string;
 }
 
 export class ToggleMessageReactionDto {
@@ -92,4 +95,8 @@ export class ConversationListDto {
   cursor?: string;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 50;
+}
+
+export class MarkConversationReadDto {
+  @IsOptional() @IsUUID() messageId?: string;
 }

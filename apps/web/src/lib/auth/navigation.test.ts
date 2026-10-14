@@ -53,8 +53,8 @@ describe('workspace navigation', () => {
     expect(labelKeys(getNavigationForWorkspace('prospector'))).toEqual([
       'nav.today',
       'nav.prospects',
-      'nav.followUps',
       'nav.actions',
+      'nav.history',
       'nav.messages',
     ]);
   });

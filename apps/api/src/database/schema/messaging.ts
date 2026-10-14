@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
+  uniqueIndex,
   check,
   foreignKey,
   index,
@@ -75,11 +77,27 @@ export const messages = pgTable(
     conversationId: uuid('conversation_id').notNull(),
     senderId: uuid('sender_id').notNull(),
     body: text('body').notNull(),
+    isRequest: boolean('is_request').default(false).notNull(),
+    replyToRequestId: uuid('reply_to_request_id'),
     status: messageStatusEnum('status').default('sent').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
   },
   (t) => [
+    unique('messages_tenant_conversation_id_unique').on(t.tenantId, t.conversationId, t.id),
+    foreignKey({
+      name: 'messages_reply_request_fk',
+      columns: [t.tenantId, t.conversationId, t.replyToRequestId],
+      foreignColumns: [t.tenantId, t.conversationId, t.id],
+    }),
+    uniqueIndex('messages_one_active_reply_idx')
+      .on(t.tenantId, t.replyToRequestId)
+      .where(sql`${t.replyToRequestId} IS NOT NULL AND ${t.status} <> 'deleted'`),
+    check('messages_request_reply_check', sql`NOT ${t.isRequest} OR ${t.replyToRequestId} IS NULL`),
+    check(
+      'messages_no_self_reply_check',
+      sql`${t.replyToRequestId} IS NULL OR ${t.replyToRequestId} <> ${t.id}`,
+    ),
     check('messages_body_check', sql`length(trim(${t.body})) > 0 AND length(${t.body}) <= 10000`),
     foreignKey({
       columns: [t.tenantId, t.senderId],

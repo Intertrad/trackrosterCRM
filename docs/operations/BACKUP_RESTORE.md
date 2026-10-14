@@ -56,6 +56,17 @@ role. A database restored without that role, or without the grants in
 `infrastructure/docker/postgres/init/01-runtime-role.sql`, will lock the application
 out of its own data even though the restore itself reports success.
 
+### Disposable rehearsal evidence (2026-10-13)
+
+The current `dev-v2` verification repeated the drill against the isolated backend-test
+PostgreSQL 16 container. `backup-postgres.mjs` created a 531,805-byte custom-format
+archive using `postgres:16/pg_dump`; `verify-postgres-backup.mjs` read 1,034 archive
+entries using `postgres:16/pg_restore`. The archive was restored into a fresh
+`trackroster_restore_drill` database with 97 public tables, then the temporary database
+and copied archive were removed. This confirms the repository tooling and a disposable
+restore path; it does not satisfy production retention, off-account encryption, or RPO/RTO
+approval.
+
 ## Scope
 
 The production backup strategy must cover:

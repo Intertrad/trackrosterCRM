@@ -206,6 +206,12 @@ export const establishments = pgTable(
     index('establishments_location_gist_idx')
       .using('gist', table.location)
       .where(sql`${table.location} IS NOT NULL`),
+    // Combine the tenant equality predicate with the viewport GiST lookup.
+    // This keeps large, tenant-scoped map preflight queries bounded without
+    // weakening RLS or the application-level access predicate.
+    index('establishments_tenant_location_gist_idx')
+      .using('gist', table.tenantId, table.location)
+      .where(sql`${table.location} IS NOT NULL`),
     index('establishments_location_geography_gist_idx')
       .using('gist', sql`(${table.location}::geography)`)
       .where(sql`${table.location} IS NOT NULL`),
