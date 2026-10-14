@@ -23,10 +23,10 @@ const message: Message = {
 
 describe('MessageAttachments', () => {
   it('does not present a plain text message as an attached file', () => {
-    render(<MessageAttachments message={message} mine onUpdated={vi.fn()} />);
+    render(<MessageAttachments message={message} mine />);
 
     expect(screen.queryByText('Attach file')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Add an attachment' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Add an attachment' })).toBeNull();
   });
 
   it('shows the attachment count only when attachments exist', () => {
@@ -44,7 +44,6 @@ describe('MessageAttachments', () => {
           ],
         }}
         mine
-        onUpdated={vi.fn()}
       />,
     );
 

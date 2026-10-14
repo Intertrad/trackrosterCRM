@@ -124,11 +124,15 @@ export function listMessages(
   });
 }
 
-export function sendMessage(conversationId: string, body: string): Promise<Message> {
+export function sendMessage(
+  conversationId: string,
+  body: string,
+  options: { isRequest?: boolean; replyToRequestId?: string } = {},
+): Promise<Message> {
   return browserJson<Message>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: 'POST',
     headers: writeHeaders(),
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, ...options }),
   });
 }
 
@@ -154,11 +158,11 @@ export function toggleMessageReaction(
   );
 }
 
-export function markConversationRead(conversationId: string): Promise<unknown> {
+export function markConversationRead(conversationId: string, messageId?: string): Promise<unknown> {
   return browserJson<unknown>(`/api/conversations/${encodeURIComponent(conversationId)}/read`, {
     method: 'POST',
     headers: writeHeaders(),
-    body: '{}',
+    body: JSON.stringify({ messageId }),
   });
 }
 

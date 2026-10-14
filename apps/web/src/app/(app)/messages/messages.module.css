@@ -1,0 +1,35 @@
+.layout {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+.details {
+  display: none;
+}
+.composerInput:focus-visible {
+  outline: none;
+}
+@media (min-width: 1024px) {
+  .filters {
+    grid-template-columns: repeat(4, auto);
+  }
+  .filters button {
+    white-space: nowrap;
+  }
+  .layout {
+    grid-template-columns: 360px minmax(0, 1fr);
+  }
+}
+@media (min-width: 1200px) {
+  .withDetails {
+    grid-template-columns: 360px minmax(0, 1fr) clamp(220px, 22vw, 294px);
+  }
+  .details {
+    display: block;
+  }
+}
+@media (max-width: 1023px) {
+  .layout {
+    display: flex;
+  }
+}
