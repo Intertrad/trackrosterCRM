@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { AuthMailService } from '../auth/auth-mail.service.js';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
@@ -239,6 +239,39 @@ export class ScriptService {
     };
   }
 
+  async previousPreview(
+    auth: AuthenticatedPrincipal,
+    id: string,
+    values: Record<string, string>,
+  ): Promise<{ subject: string; body: string; missingVariables: string[] } | null> {
+    if (!currentTenantExecutor()) {
+      return withTenantContext(this.db, auth.tenantId, () =>
+        this.previousPreview(auth, id, values),
+      );
+    }
+    const tx = currentTenantExecutor()!;
+    await this.get(auth, id, tx);
+    const [event] = await tx
+      .select({ metadata: auditEvents.metadata })
+      .from(auditEvents)
+      .where(
+        and(
+          eq(auditEvents.tenantId, auth.tenantId),
+          eq(auditEvents.resourceType, 'script_template'),
+          eq(auditEvents.resourceId, id),
+          eq(auditEvents.action, 'script_template.updated'),
+        ),
+      )
+      .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
+      .limit(1);
+    const previous = event?.metadata.before as Partial<ScriptInput> | undefined;
+    if (!previous || typeof previous.body !== 'string') return null;
+    return {
+      subject: render(previous.subject ?? null, values),
+      body: render(previous.body, values),
+      missingVariables: (previous.variables ?? []).filter((key) => !values[key]),
+    };
+  }
   async sendTest(
     auth: AuthenticatedPrincipal,
     id: string,

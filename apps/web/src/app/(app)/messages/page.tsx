@@ -109,6 +109,28 @@ export default function MessagesPage() {
   };
   const threadScroll = useRef<HTMLDivElement | null>(null);
   const composerInput = useRef<HTMLTextAreaElement | null>(null);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(
+    null,
+  );
+  const [mentionIndex, setMentionIndex] = useState(0);
+  useEffect(() => {
+    setMention(null);
+    setMentionIndex(0);
+  }, [activeId]);
+  function updateMention(value: string, caret: number) {
+    const match = value.slice(0, caret).match(/(?:^|\s)@([^\s@]*)$/);
+    const next = match
+      ? { start: caret - match[1]!.length - 1, end: caret, query: match[1]! }
+      : null;
+    if (
+      mention?.start !== next?.start ||
+      mention?.end !== next?.end ||
+      mention?.query !== next?.query
+    ) {
+      setMentionIndex(0);
+      setMention(next);
+    }
+  }
   const nearBottom = useRef(true);
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -361,6 +383,33 @@ export default function MessagesPage() {
     });
   }
 
+  const mentionOptions = mention
+    ? participants
+        .filter((participant) => participant.membershipId !== me)
+        .map((participant) => ({
+          id: participant.membershipId,
+          name: membershipName(
+            people.get(participant.membershipId) ?? {
+              displayName: participant.displayName ?? null,
+              email: participant.email ?? '',
+            },
+          ),
+        }))
+        .filter((person) =>
+          person.name.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase()),
+        )
+    : [];
+  function selectMention(person: { id: string; name: string }) {
+    if (!mention) return;
+    const inserted = `@${person.name} `;
+    setDraft(draft.slice(0, mention.start) + inserted + draft.slice(mention.end));
+    const caret = mention.start + inserted.length;
+    setMention(null);
+    requestAnimationFrame(() => {
+      composerInput.current?.focus();
+      composerInput.current?.setSelectionRange(caret, caret);
+    });
+  }
   const myParticipation = useMemo(
     () => participants.find((participant) => participant.membershipId === me),
     [me, participants],
@@ -523,12 +572,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-5 [&_button>span.hidden]:hidden',
-        active && styles.mobileConversation,
-      )}
-    >
+    <div className={cn('flex flex-col gap-5', active && styles.mobileConversation)}>
       <div
         className={cn('flex flex-wrap items-end justify-between gap-4', active && 'max-lg:hidden')}
       >
@@ -1258,7 +1302,7 @@ export default function MessagesPage() {
                   <label htmlFor={`${composerFileId}-message`} className="sr-only">
                     {t('messages.message')}
                   </label>
-                  <div className="rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
+                  <div className="relative rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
                     {replyTarget ? (
                       <div className="mb-2 rounded-lg border border-brand-tint bg-brand-wash px-3 py-2 text-[12px] text-ink">
                         <p className="text-ink-muted">
@@ -1291,12 +1335,90 @@ export default function MessagesPage() {
                         )}
                       </p>
                     ) : null}
+                    {mention ? (
+                      <div
+                        id={`${composerFileId}-mentions`}
+                        role="listbox"
+                        aria-label={text(
+                          'Conversation members',
+                          'Membres de la conversation',
+                          language,
+                        )}
+                        className="absolute bottom-full left-0 z-30 mb-2 max-h-48 w-64 max-w-full overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg"
+                      >
+                        {mentionOptions.length ? (
+                          mentionOptions.map((person, index) => (
+                            <button
+                              key={person.id}
+                              id={`${composerFileId}-mention-${index}`}
+                              type="button"
+                              role="option"
+                              aria-selected={index === mentionIndex}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => selectMention(person)}
+                              className={cn(
+                                'block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-wash',
+                                index === mentionIndex && 'bg-brand-wash text-brand',
+                              )}
+                            >
+                              {person.name}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-2 text-sm text-ink-muted">
+                            {text('No matching members', 'Aucun membre correspondant', language)}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                     <textarea
                       ref={composerInput}
                       id={`${composerFileId}-message`}
                       value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
+                      aria-autocomplete="list"
+                      aria-controls={mention ? `${composerFileId}-mentions` : undefined}
+                      aria-activedescendant={
+                        mention && mentionOptions.length
+                          ? `${composerFileId}-mention-${mentionIndex}`
+                          : undefined
+                      }
+                      onSelect={(event) =>
+                        updateMention(event.currentTarget.value, event.currentTarget.selectionStart)
+                      }
+                      onChange={(event) => {
+                        setDraft(event.target.value);
+                        updateMention(event.target.value, event.target.selectionStart);
+                      }}
                       onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing) return;
+                        if (mention) {
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            setMention(null);
+                            return;
+                          }
+                          if (
+                            (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+                            mentionOptions.length
+                          ) {
+                            event.preventDefault();
+                            setMentionIndex(
+                              (current) =>
+                                (current +
+                                  (event.key === 'ArrowDown' ? 1 : -1) +
+                                  mentionOptions.length) %
+                                mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            const person =
+                              mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)];
+                            if (person) selectMention(person);
+                            return;
+                          }
+                        }
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
                           event.currentTarget.form?.requestSubmit();
@@ -1844,7 +1966,7 @@ function ComposeDrawer({
 
   return (
     <Drawer open={open} title={t('messages.newConversation')} onClose={onClose}>
-      <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
+      <div className="flex flex-col gap-5">
         <SelectField
           label={t('messages.kind')}
           value={kind}

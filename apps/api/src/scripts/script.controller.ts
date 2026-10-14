@@ -93,6 +93,13 @@ export class ScriptController {
   ) {
     return this.scripts.preview(auth, id, input.values ?? {});
   }
+  @Post(':scriptId/previous-preview') @UseGuards(ClientAdminGuard) previousPreview(
+    @CurrentAuth() auth: AuthenticatedPrincipal,
+    @Param('scriptId', ParseUUIDPipe) id: string,
+    @Body() input: PreviewDto,
+  ) {
+    return this.scripts.previousPreview(auth, id, input.values ?? {});
+  }
   @Post(':scriptId/test') @UseGuards(ClientAdminGuard) @Idempotent('script.test') test(
     @CurrentAuth() auth: AuthenticatedPrincipal,
     @Param('scriptId', ParseUUIDPipe) id: string,
