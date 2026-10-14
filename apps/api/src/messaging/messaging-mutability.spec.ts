@@ -14,6 +14,7 @@ function fixture(returned: unknown[]) {
   return {
     service: new MessagingService({ update } as unknown as Database),
     where,
+    set,
   };
 }
 
@@ -31,5 +32,14 @@ describe('message mutability', () => {
     const { service } = fixture([]);
 
     await expect(service.remove(auth, 'message')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('stores a valid tombstone body when an unread message is deleted', async () => {
+    const { service, set } = fixture([{ id: 'message' }]);
+
+    await expect(service.remove(auth, 'message')).resolves.toBeUndefined();
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ body: '[deleted]', status: 'deleted' }),
+    );
   });
 });

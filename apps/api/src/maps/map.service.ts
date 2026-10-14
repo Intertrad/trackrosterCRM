@@ -137,7 +137,35 @@ export class MapService {
 
     // Match prospectReadScope authority using the already joined campaign/prospect.
     // Rejoining those tables inside the scope check can produce huge intermediate results.
-    return sql`eligible AS ${countOnly ? sql`` : sql`MATERIALIZED `}(
+    /*
+     * The bounded preflight runs before the full map aggregation.  Materialize
+     * the spatial establishment set first so PostgreSQL cannot repeatedly scan
+     * every establishment for each campaign membership when statistics are
+     * stale after a bulk import.
+     */
+    if (countOnly) {
+      return sql`scope_establishments AS MATERIALIZED (
+    SELECT e.id,e.tenant_id,e.name,e.location
+    FROM establishments e
+    WHERE e.tenant_id=${a.tenantId} AND e.status='active' AND e.location IS NOT NULL
+      AND ${spatial}
+  ), eligible AS (
+    SELECT cp.id AS campaign_prospect_id
+    FROM scope_establishments e JOIN campaign_prospects cp ON cp.tenant_id=e.tenant_id AND cp.establishment_id=e.id
+    JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id
+    WHERE cp.status='active' AND ${access}
+      ${q.campaignStatus ? sql`AND c.status=${q.campaignStatus}` : sql`AND c.status IN ('active','paused')`}
+      ${q.campaignId ? sql`AND cp.campaign_id=${q.campaignId}` : sql``}
+      ${q.organizationId ? sql`AND c.organization_id=${q.organizationId}` : sql``}
+      ${q.teamId ? sql`AND EXISTS(SELECT 1 FROM campaign_prospect_assignments ca WHERE ca.tenant_id=cp.tenant_id AND ca.campaign_prospect_id=cp.id AND ca.team_id=${q.teamId} AND ca.ended_at IS NULL)` : sql``}
+      ${q.lifecycleStage ? sql`AND cp.lifecycle_stage=${q.lifecycleStage}` : sql``}
+      ${q.search ? sql`AND e.name ILIKE ${'%' + q.search.replace(/[\\%_]/g, '\\$&') + '%'}` : sql``}
+      ${q.territoryId ? sql`AND EXISTS(SELECT 1 FROM territories WHERE territories.id=${q.territoryId} AND ${resourceScopePredicate(a, 'territory')} AND territories.status='active' AND ST_Covers(territories.boundary,e.location))` : sql``}
+    LIMIT ${MAX_MEMBERSHIPS + 1}
+  )`;
+    }
+
+    return sql`eligible AS MATERIALIZED (
     SELECT ${
       countOnly
         ? sql`cp.id AS campaign_prospect_id`
@@ -171,6 +199,13 @@ export class MapService {
       size = 360 / 2 ** q.zoom;
     const access = await this.mapAccess(a);
     /* Count the bounded authorized scope before the expensive cell grouping. */
+    /*
+     * RLS hides the tenant cardinality from PostgreSQL's planner.  With stale
+     * import statistics that can make it choose a nested loop over 20,000 rows
+     * and hit the request timeout before the guard runs.  This bounded preflight
+     * is safer with a hash/merge plan; the setting is transaction-local.
+     */
+    await this.db.execute(sql`select set_config('enable_nestloop','off',true)`);
     const membershipCount = await this.db.execute(
       sql`WITH ${this.eligible(a, q, this.spatial(bbox), access, { countOnly: true })}
         SELECT count(*)::int AS memberships FROM eligible`,

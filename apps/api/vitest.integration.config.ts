@@ -40,6 +40,9 @@ export default defineConfig({
     env: {
       AUTH_RATE_LIMIT_IP: '1000000',
       AUTH_RATE_LIMIT_ACCOUNT: '1000000',
+      // Integration fixtures insert reservation evidence directly. Keep the
+      // production reconciler from marking those fixtures lost mid-suite.
+      RESERVATION_RECONCILIATION: 'off',
 
       /*
        * Storing an OIDC client secret needs a 32-byte key, and without one the
