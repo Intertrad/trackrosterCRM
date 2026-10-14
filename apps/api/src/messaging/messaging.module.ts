@@ -696,7 +696,10 @@ export class MessagingService {
   async remove(a: Auth, id: string) {
     const [m] = await this.db
       .update(messages)
-      .set({ body: '', status: 'deleted', updatedAt: sql`clock_timestamp()` })
+      // Keep a valid body for the database check constraint. Deleted messages
+      // are rendered from their status and the body is never exposed by the
+      // read path, so this placeholder is only a storage tombstone.
+      .set({ body: '[deleted]', status: 'deleted', updatedAt: sql`clock_timestamp()` })
       .where(
         and(
           eq(messages.tenantId, a.tenantId),
