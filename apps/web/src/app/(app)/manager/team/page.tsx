@@ -5,6 +5,7 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Activity, Map as MapIcon, UserMinus, UserPlus, Users } from 'lucide-react';
 
+import { ActivityCharts } from '@/components/ui/activity-charts';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -338,31 +339,7 @@ export default function TeamPage() {
       </Card>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader title="Actions by channel" />
-          <p className="-mt-3 text-[12px] text-ink-muted">Team total · selected period</p>
-          {dashboard ? (
-            <ul className="mt-4 flex flex-col divide-y divide-line-soft">
-              {Object.entries(dashboard.activities.byType)
-                .sort(([, left], [, right]) => right - left)
-                .slice(0, 6)
-                .map(([channel, count]) => (
-                  <li
-                    key={channel}
-                    className="flex items-center justify-between py-2.5 text-[13px]"
-                  >
-                    <span className="capitalize text-ink">{channel.replace(/_/g, ' ')}</span>
-                    <span className="font-bold tabular-nums text-navy">{count}</span>
-                  </li>
-                ))}
-              {Object.keys(dashboard.activities.byType).length === 0 ? (
-                <li className="py-3 text-[13px] text-ink-muted">No channel activity returned.</li>
-              ) : null}
-            </ul>
-          ) : (
-            <div className="mt-4 h-24 animate-pulse rounded-lg bg-line-soft" aria-busy="true" />
-          )}
-        </Card>
+        <ActivityCharts period={period} mode="channels" />
 
         <Card>
           <CardHeader title="Coverage and follow-ups" />

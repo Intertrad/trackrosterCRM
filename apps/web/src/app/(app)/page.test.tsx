@@ -261,12 +261,24 @@ describe('TodayPage', () => {
     expect(link).toHaveAttribute('href', `/work-queue/${campaignId}/${campaignProspectId}`);
   });
 
+  it('opens matching priority details from a summary and removes the old search', async () => {
+    render(<TodayPage />);
+    await screen.findAllByText('Nancy central police station');
+    expect(screen.queryByPlaceholderText('Search my assigned prospects…')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View details: Overdue' }));
+    const dialog = screen.getByRole('dialog', { name: 'Overdue' });
+    expect(within(dialog).getByText('Nancy central police station')).toBeVisible();
+    expect(within(dialog).queryByText('Saint-Dié hospital')).not.toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('filters to overdue work without refetching', async () => {
     render(<TodayPage />);
 
     await screen.findAllByText('Nancy central police station');
 
-    fireEvent.click(screen.getByRole('button', { name: /Overdue/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Overdue \d+$/ }));
 
     expect(screen.getAllByText('Nancy central police station').length).toBeGreaterThan(0);
     /* The filter narrows Next actions only. The day's visits deliberately

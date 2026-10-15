@@ -27,7 +27,7 @@ function query(params: Record<string, unknown>): string {
 }
 
 export function listConversations(
-  options: { cursor?: string; limit?: number } = {},
+  options: { cursor?: string; limit?: number; search?: string } = {},
   signal?: AbortSignal,
 ): Promise<ConversationPage> {
   const search = query(options);
@@ -112,7 +112,7 @@ export function removeParticipant(conversationId: string, membershipId: string):
 
 export function listMessages(
   conversationId: string,
-  options: { cursor?: string; limit?: number } = {},
+  options: { cursor?: string; limit?: number; search?: string } = {},
   signal?: AbortSignal,
 ): Promise<MessagePage> {
   const search = query(options);

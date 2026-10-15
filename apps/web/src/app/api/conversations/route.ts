@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<Response> {
   try {
-    const search = forwardQuery(request, ['cursor', 'limit']);
+    const search = forwardQuery(request, ['cursor', 'limit', 'search']);
 
     const page = await authenticatedBackendJson<ConversationPage>(
       search ? `/conversations?${search}` : '/conversations',

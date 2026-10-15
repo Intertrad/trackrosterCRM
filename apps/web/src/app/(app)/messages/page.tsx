@@ -85,6 +85,7 @@ export default function MessagesPage() {
   const me = user?.userId ?? null;
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [searchSelection, setSearchSelection] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -93,6 +94,113 @@ export default function MessagesPage() {
   const [people, setPeople] = useState<Map<string, MessagingMember>>(new Map());
 
   const [search, setSearch] = useState('');
+  const [conversationMatches, setConversationMatches] = useState<Conversation[] | null>(null);
+  const [conversationSearchCursor, setConversationSearchCursor] = useState<string | null>(null);
+  const [conversationSearching, setConversationSearching] = useState(false);
+  const [conversationSearchError, setConversationSearchError] = useState(false);
+  useEffect(() => {
+    if (!search.trim()) {
+      setConversationMatches(null);
+      setConversationSearchCursor(null);
+      setConversationSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    setConversationSearching(true);
+    setConversationSearchError(false);
+    setConversationMatches([]);
+    setConversationSearchCursor(null);
+    const timer = setTimeout(() => {
+      listConversations({ search: search.trim(), limit: 100 }, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) {
+            setConversationMatches(page.items);
+            setConversationSearchCursor(page.nextCursor);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setConversationSearchError(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setConversationSearching(false);
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+  const [highlightedMessage, setHighlightedMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightedMessage) return;
+    const timer = setTimeout(() => setHighlightedMessage(null), 1500);
+    return () => clearTimeout(timer);
+  }, [highlightedMessage]);
+  const jumpController = useRef<AbortController | null>(null);
+  useEffect(() => {
+    jumpController.current?.abort();
+    setHighlightedMessage(null);
+    return () => jumpController.current?.abort();
+  }, [activeId]);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState('');
+  const [threadResults, setThreadResults] = useState<Message[]>([]);
+  const [threadSearchCursor, setThreadSearchCursor] = useState<string | null>(null);
+  const [threadSearching, setThreadSearching] = useState(false);
+  const [threadSearchError, setThreadSearchError] = useState(false);
+  const threadSearchBox = useRef<HTMLDivElement>(null);
+  const threadSearchInput = useRef<HTMLInputElement>(null);
+  const threadSearchToggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    setThreadSearchOpen(false);
+    setThreadSearch('');
+    setThreadResults([]);
+  }, [activeId]);
+  useEffect(() => {
+    if (!threadSearchOpen) return;
+    threadSearchInput.current?.focus();
+    function outside(event: PointerEvent) {
+      if (
+        !threadSearchBox.current?.contains(event.target as Node) &&
+        !threadSearchToggle.current?.contains(event.target as Node)
+      )
+        setThreadSearchOpen(false);
+    }
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [threadSearchOpen]);
+  useEffect(() => {
+    if (!activeId || !threadSearchOpen || !threadSearch.trim()) {
+      setThreadResults([]);
+      setThreadSearchCursor(null);
+      setThreadSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    setThreadSearching(true);
+    setThreadSearchError(false);
+    setThreadResults([]);
+    setThreadSearchCursor(null);
+    const timer = setTimeout(() => {
+      listMessages(activeId, { search: threadSearch.trim(), limit: 50 }, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) {
+            setThreadResults(page.items);
+            setThreadSearchCursor(page.nextCursor);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setThreadSearchError(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setThreadSearching(false);
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeId, threadSearch, threadSearchOpen]);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const conversationSearchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'waiting' | 'closed'>('all');
@@ -184,10 +292,6 @@ export default function MessagesPage() {
           const items = page.items;
           setConversations(items);
           setReadError(null);
-
-          setActiveId((current) =>
-            current && items.some((item) => item.id === current) ? current : null,
-          );
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
@@ -360,8 +464,11 @@ export default function MessagesPage() {
   }, [activeId, messages, loadConversations]);
 
   const active = useMemo(
-    () => conversations?.find((conversation) => conversation.id === activeId) ?? null,
-    [activeId, conversations],
+    () =>
+      conversations?.find((conversation) => conversation.id === activeId) ??
+      conversationMatches?.find((conversation) => conversation.id === activeId) ??
+      (searchSelection?.id === activeId ? searchSelection : null),
+    [activeId, conversations, conversationMatches, searchSelection],
   );
 
   const incomingRequests = (active?.pendingRequests ?? []).filter(
@@ -410,6 +517,54 @@ export default function MessagesPage() {
       composerInput.current?.setSelectionRange(caret, caret);
     });
   }
+  async function jumpToMessage(target: Message) {
+    if (!activeId) return;
+    jumpController.current?.abort();
+    const controller = new AbortController();
+    jumpController.current = controller;
+    try {
+      let accumulated = [...(messages ?? [])];
+      let cursor = olderCursor;
+      while (!accumulated.some((message) => message.id === target.id) && cursor) {
+        const page = await listMessages(activeId, { cursor, limit: 100 }, controller.signal);
+        if (controller.signal.aborted) return;
+        accumulated = [...page.items.reverse(), ...accumulated];
+        cursor = page.nextCursor;
+      }
+      if (controller.signal.aborted) return;
+      if (!accumulated.some((message) => message.id === target.id)) {
+        setActionError(
+          text(
+            'This message is no longer available. Refresh the conversation.',
+            'Ce message n’est plus disponible. Actualisez la conversation.',
+            language,
+          ),
+        );
+        return;
+      }
+      nearBottom.current = false;
+      olderLoaded.current = true;
+      setMessages([...new Map(accumulated.map((message) => [message.id, message])).values()]);
+      setOlderCursor(cursor);
+      setHighlightedMessage(target.id);
+      setThreadSearchOpen(false);
+      requestAnimationFrame(() => {
+        const element = document.getElementById(`conversation-message-${target.id}`);
+        element?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        element?.focus({ preventScroll: true });
+      });
+    } catch {
+      if (!controller.signal.aborted)
+        setActionError(
+          text(
+            'Unable to open this message. Please try again.',
+            'Impossible d’ouvrir ce message. Réessayez.',
+            language,
+          ),
+        );
+    }
+  }
+
   const myParticipation = useMemo(
     () => participants.find((participant) => participant.membershipId === me),
     [me, participants],
@@ -451,7 +606,7 @@ export default function MessagesPage() {
 
     const query = search.trim().toLowerCase();
 
-    const filtered = conversations.filter((conversation) => {
+    const filtered = (conversationMatches ?? conversations).filter((conversation) => {
       const sender = conversation.latestMessage?.sender;
       const haystack = [
         nameFor(conversation),
@@ -469,7 +624,7 @@ export default function MessagesPage() {
         (filter === 'unread' && unread) ||
         (filter === 'waiting' && waiting) ||
         (filter === 'closed' && conversation.status === 'archived');
-      return matchesFilter && haystack.includes(query);
+      return query ? conversationMatches !== null || haystack.includes(query) : matchesFilter;
     });
 
     return [...filtered].sort((left, right) => {
@@ -477,7 +632,18 @@ export default function MessagesPage() {
       const rightTime = Date.parse(right.latestMessage?.createdAt ?? right.updatedAt);
       return sortOrder === 'newest' ? rightTime - leftTime : leftTime - rightTime;
     });
-  }, [conversations, search, filter, t, me, sortOrder, participants, people, activeId]);
+  }, [
+    conversations,
+    conversationMatches,
+    search,
+    filter,
+    t,
+    me,
+    sortOrder,
+    participants,
+    people,
+    activeId,
+  ]);
 
   const filterCounts = useMemo(() => {
     const items = conversations ?? [];
@@ -629,8 +795,12 @@ export default function MessagesPage() {
                 <input
                   ref={conversationSearchInput}
                   aria-label={t('messages.search')}
+                  maxLength={200}
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setFilter('all');
+                    setSearch(event.target.value);
+                  }}
                   placeholder={text(
                     'Filter by subject, person or prospect',
                     'Filtrer par objet, personne ou prospect',
@@ -670,6 +840,47 @@ export default function MessagesPage() {
               </div>
             </div>
 
+            {search.trim() ? (
+              <div className="px-3 py-2 text-xs text-ink-muted" aria-live="polite">
+                {conversationSearching
+                  ? text(
+                      'Searching all conversations…',
+                      'Recherche dans toutes les conversations…',
+                      language,
+                    )
+                  : conversationSearchError
+                    ? text(
+                        'Unable to search conversations.',
+                        'Recherche des conversations impossible.',
+                        language,
+                      )
+                    : null}
+                {conversationSearchCursor && !conversationSearching ? (
+                  <button
+                    type="button"
+                    className="font-semibold text-brand"
+                    onClick={async () => {
+                      setConversationSearching(true);
+                      try {
+                        const page = await listConversations({
+                          search: search.trim(),
+                          cursor: conversationSearchCursor,
+                          limit: 100,
+                        });
+                        setConversationMatches((current) => [...(current ?? []), ...page.items]);
+                        setConversationSearchCursor(page.nextCursor);
+                      } catch {
+                        setConversationSearchError(true);
+                      } finally {
+                        setConversationSearching(false);
+                      }
+                    }}
+                  >
+                    {text('More conversations', 'Plus de conversations', language)}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="hidden items-center justify-between px-4 pt-3 pb-2 lg:flex">
               <p className="text-[11px] font-extrabold tracking-[0.08em] text-ink-muted">
                 {visible.length
@@ -737,6 +948,7 @@ export default function MessagesPage() {
                           disabled={loadingOlder}
                           onClick={() => {
                             nearBottom.current = true;
+                            setSearchSelection(conversation);
                             setActiveId(conversation.id);
                           }}
                           className={`relative flex w-full items-start gap-3 border-b border-line-soft px-3.5 py-3 text-left transition-colors hover:bg-canvas ${conversation.id === activeId ? 'bg-brand-wash' : ''}`}
@@ -875,7 +1087,10 @@ export default function MessagesPage() {
                       'Rechercher dans la conversation',
                       language,
                     )}
-                    onClick={() => conversationSearchInput.current?.focus()}
+                    ref={threadSearchToggle}
+                    aria-expanded={threadSearchOpen}
+                    aria-controls="thread-search"
+                    onClick={() => setThreadSearchOpen((open) => !open)}
                     className="hidden rounded-md p-2 text-ink-muted hover:bg-surface-muted hover:text-ink sm:block"
                   >
                     <Search aria-hidden="true" className="size-4" />
@@ -929,6 +1144,123 @@ export default function MessagesPage() {
                   </div>
                 </header>
 
+                {threadSearchOpen ? (
+                  <div
+                    ref={threadSearchBox}
+                    id="thread-search"
+                    className="shrink-0 border-b border-line bg-surface px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={threadSearchInput}
+                        aria-label={text(
+                          'Search this conversation',
+                          'Rechercher dans cette conversation',
+                          language,
+                        )}
+                        value={threadSearch}
+                        maxLength={200}
+                        onChange={(event) => setThreadSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setThreadSearchOpen(false);
+                            threadSearchToggle.current?.focus();
+                          }
+                        }}
+                        placeholder={text(
+                          'Search this conversation…',
+                          'Rechercher dans cette conversation…',
+                          language,
+                        )}
+                        className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
+                      />
+                      {threadSearch ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setThreadSearch('');
+                            threadSearchInput.current?.focus();
+                          }}
+                          className="rounded p-2 hover:bg-surface-muted"
+                          aria-label={text('Clear search', 'Effacer la recherche', language)}
+                        >
+                          <X className="size-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {threadSearch.trim() ? (
+                      <div
+                        className="mt-2 max-h-48 overflow-y-auto"
+                        aria-live="polite"
+                        aria-busy={threadSearching}
+                      >
+                        {threadSearching ? (
+                          <p className="text-sm text-ink-muted">
+                            {text('Searching…', 'Recherche…', language)}
+                          </p>
+                        ) : threadSearchError ? (
+                          <p className="text-sm text-danger">
+                            {text(
+                              'Unable to search. Please try again.',
+                              'Recherche impossible. Réessayez.',
+                              language,
+                            )}
+                          </p>
+                        ) : threadResults.length ? (
+                          <ul className="divide-y divide-line">
+                            {threadResults.map((message) => (
+                              <li key={message.id} className="text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => void jumpToMessage(message)}
+                                  className="w-full cursor-pointer rounded-lg px-2 py-2 text-left hover:bg-brand-wash focus-visible:outline-brand"
+                                >
+                                  <p className="text-xs text-ink-muted">
+                                    {message.sender ? membershipName(message.sender) : ''} ·{' '}
+                                    {new Date(message.createdAt).toLocaleString()}
+                                  </p>
+                                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-ink-muted">
+                            {text(
+                              'No matching messages.',
+                              'Aucun message correspondant.',
+                              language,
+                            )}
+                          </p>
+                        )}
+                        {threadSearchCursor && !threadSearching ? (
+                          <button
+                            type="button"
+                            className="py-2 text-sm font-semibold text-brand"
+                            onClick={async () => {
+                              setThreadSearching(true);
+                              try {
+                                const page = await listMessages(active.id, {
+                                  search: threadSearch.trim(),
+                                  cursor: threadSearchCursor,
+                                  limit: 50,
+                                });
+                                setThreadResults((current) => [...current, ...page.items]);
+                                setThreadSearchCursor(page.nextCursor);
+                              } catch {
+                                setThreadSearchError(true);
+                              } finally {
+                                setThreadSearching(false);
+                              }
+                            }}
+                          >
+                            {text('More results', 'Plus de résultats', language)}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {active.context ? (
                   <Link
                     href={`/search?q=${encodeURIComponent(active.context.establishment)}`}
@@ -973,6 +1305,7 @@ export default function MessagesPage() {
                               limit: 100,
                               cursor: olderCursor,
                             });
+                            nearBottom.current = false;
                             olderLoaded.current = true;
                             nearBottom.current = false;
                             setMessages((current) => {
@@ -1055,7 +1388,14 @@ export default function MessagesPage() {
                           return (
                             <li
                               key={message.id}
-                              className={mine ? 'flex justify-end' : 'flex justify-start'}
+                              id={`conversation-message-${message.id}`}
+                              tabIndex={-1}
+                              className={cn(
+                                mine ? 'flex justify-end' : 'flex justify-start',
+                                'rounded-xl transition-[background-color,box-shadow] duration-700 ease-out motion-reduce:transition-none',
+                                highlightedMessage === message.id &&
+                                  'bg-brand-wash ring-2 ring-brand/30',
+                              )}
                             >
                               <div
                                 className={`group flex max-w-[92%] items-end gap-2 sm:max-w-[92%] ${mine ? 'flex-row-reverse' : ''}`}

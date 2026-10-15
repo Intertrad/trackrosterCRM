@@ -1,4 +1,5 @@
 'use client';
+import type { ReactNode } from 'react';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -15,6 +16,12 @@ import {
 import { AdminGuard } from '@/components/admin/admin-guard';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import {
+  AdminIndicatorDetails,
+  UnownedIndicatorDetails,
+} from '@/components/admin/indicator-details';
+import { ActivityCharts } from '@/components/ui/activity-charts';
+import { MetricDetails } from '@/components/ui/metric-details';
 import { Card } from '@/components/ui/card';
 import { ApiError } from '@/lib/api/api-error';
 import { getAdminDashboard } from '@/lib/api/admin-client';
@@ -241,8 +248,8 @@ function Overview() {
           <p className="mt-1 text-[15px] text-ink-muted">
             {l('Workspace ·', 'Espace ·')} {format(metrics?.activeOrganizations)}{' '}
             {l('companies ·', 'entreprises ·')} {format(metrics?.totalEstablishments)}{' '}
-            {l('establishments ·', 'établissements ·')} {format(metrics?.activeMembers)}{' '}
-            {l('users', 'utilisateurs')}
+            {l('establishments ·', 'établissements ·')}{' '}
+            {format(metrics?.totalMembers ?? metrics?.activeMembers)} {l('users', 'utilisateurs')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -307,6 +314,17 @@ function Overview() {
 
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
+          href="/admin/prospects"
+          details={
+            <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+              {organizations.map((org) => (
+                <li key={org.id} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{org.name}</span>
+                  <strong>{format(org.establishments)}</strong>
+                </li>
+              ))}
+            </ul>
+          }
           value={format(metrics?.totalEstablishments)}
           animatedValue={metrics?.totalEstablishments}
           locale={locale}
@@ -317,6 +335,8 @@ function Overview() {
           )}
         />
         <MetricCard
+          href="/admin/prospects"
+          details={<UnownedIndicatorDetails />}
           value={format(metrics?.establishmentsWithoutOwner)}
           animatedValue={metrics?.establishmentsWithoutOwner}
           locale={locale}
@@ -325,8 +345,11 @@ function Overview() {
           danger
         />
         <MetricCard
-          value={format(metrics?.activeMembers)}
-          animatedValue={metrics?.activeMembers}
+          href="/admin/users"
+          details={<AdminIndicatorDetails kind="people" />}
+          hideValue
+          value={format(metrics?.totalMembers ?? metrics?.activeMembers)}
+          animatedValue={metrics?.totalMembers ?? metrics?.activeMembers}
           locale={locale}
           label={l('Users', 'Utilisateurs')}
           detail={l(
@@ -335,6 +358,7 @@ function Overview() {
           )}
         />
         <MetricCard
+          details={<AdminIndicatorDetails kind="duplicates" />}
           value={format(metrics?.pendingDuplicateReviews)}
           animatedValue={metrics?.pendingDuplicateReviews}
           locale={locale}
@@ -343,6 +367,12 @@ function Overview() {
           warning
         />
         <MetricCard
+          href="/admin/settings"
+          details={
+            <p className="text-sm">
+              {format(pairs)} {l('organization pairs in total', 'paires d’entreprises au total')}
+            </p>
+          }
           value={format(rulesSet)}
           animatedValue={rulesSet}
           locale={locale}
@@ -354,6 +384,8 @@ function Overview() {
           danger={pairs > rulesSet}
         />
       </div>
+
+      <ActivityCharts />
 
       <div className="grid gap-3.5 xl:grid-cols-[minmax(0,2fr)_minmax(290px,0.9fr)]">
         <Card padding="none" className="overflow-hidden">
@@ -474,6 +506,9 @@ function MetricCard({
   locale,
   label,
   detail,
+  hideValue,
+  details,
+  href,
   danger,
   warning,
 }: {
@@ -482,25 +517,37 @@ function MetricCard({
   locale?: string;
   label: string;
   detail: string;
+  hideValue?: boolean;
+  details?: ReactNode;
+  href?: string;
   danger?: boolean;
   warning?: boolean;
 }) {
   return (
-    <Card
-      className={`min-h-27 ${danger ? 'border-danger/30' : warning ? 'border-warning/40' : ''}`}
+    <MetricDetails
+      hideValue={hideValue}
+      label={label}
+      value={value}
+      description={detail}
+      details={details}
+      href={href}
     >
-      <p
-        className={`text-[30px] font-extrabold tracking-[-0.04em] ${danger ? 'text-danger' : warning ? 'text-warning' : 'text-navy'}`}
+      <Card
+        className={`min-h-27 ${danger ? 'border-danger/30' : warning ? 'border-warning/40' : ''}`}
       >
-        {typeof animatedValue === 'number' ? (
-          <AnimatedMetricValue value={animatedValue} locale={locale} />
-        ) : (
-          value
-        )}
-      </p>
-      <p className="mt-1 text-sm font-bold text-navy">{label}</p>
-      <p className="mt-1 text-xs text-ink-muted">{detail}</p>
-    </Card>
+        <p
+          className={`text-[30px] font-extrabold tracking-[-0.04em] ${danger ? 'text-danger' : warning ? 'text-warning' : 'text-navy'}`}
+        >
+          {typeof animatedValue === 'number' ? (
+            <AnimatedMetricValue value={animatedValue} locale={locale} />
+          ) : (
+            value
+          )}
+        </p>
+        <p className="mt-1 text-sm font-bold text-navy">{label}</p>
+        <p className="mt-1 text-xs text-ink-muted">{detail}</p>
+      </Card>
+    </MetricDetails>
   );
 }
 
@@ -560,8 +607,8 @@ function toneClass(tone: Tone) {
     case 'high':
       return 'bg-warning-bg text-warning';
     case 'medium':
-      return 'bg-brand-pale text-brand';
+      return 'bg-brand-tint text-brand';
     case 'low':
-      return 'bg-brand-pale text-brand';
+      return 'bg-brand-tint text-brand';
   }
 }
