@@ -25,8 +25,12 @@ import {
   type Campaign,
   type CampaignStatus,
 } from '@/lib/api/campaign-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 export default function CampaignsPage() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [status, setStatus] = useState<CampaignStatus | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -46,10 +50,10 @@ export default function CampaignsPage() {
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
             setCampaigns([]);
-            setError(describeCampaignError(caught));
+            setError(describeCampaignError(caught, language));
           }
         }),
-    [status],
+    [language, status],
   );
 
   useLiveRefresh(load);
@@ -88,12 +92,15 @@ export default function CampaignsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Campaigns"
-        subtitle="Scope, staff and run your prospecting campaigns"
+        title={l('Campaigns', 'Campagnes')}
+        subtitle={l(
+          'Scope, staff and run your prospecting campaigns',
+          'Cadrez, équipez et pilotez vos campagnes de prospection',
+        )}
         action={
           <Button onClick={() => setCreating(true)}>
             <Plus aria-hidden="true" className="mr-2 size-4" />
-            New campaign
+            {l('New campaign', 'Nouvelle campagne')}
           </Button>
         }
       />
@@ -107,45 +114,45 @@ export default function CampaignsPage() {
           icon={<Megaphone aria-hidden="true" className="size-5" />}
           tone="success"
           value={campaigns === null ? null : counts.active}
-          label="Active"
+          label={l('Active', 'Actives')}
         />
 
         <StatTile
           icon={<Megaphone aria-hidden="true" className="size-5" />}
           tone="brand"
           value={campaigns === null ? null : counts.draft}
-          label="Draft"
+          label={l('Draft', 'Brouillons')}
         />
 
         <StatTile
           icon={<Megaphone aria-hidden="true" className="size-5" />}
           tone={counts.paused > 0 ? 'warning' : 'neutral'}
           value={campaigns === null ? null : counts.paused}
-          label="Paused"
+          label={l('Paused', 'En pause')}
         />
 
         <StatTile
           icon={<Megaphone aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={campaigns === null ? null : counts.total}
-          label="Shown"
+          label={l('Shown', 'Affichées')}
         />
       </div>
 
       <Card>
         <CardHeader
-          title="All campaigns"
+          title={l('All campaigns', 'Toutes les campagnes')}
           action={
             <FilterSelect
-              label="Status"
+              label={l('Status', 'Statut')}
               value={status}
               options={[
-                { value: 'all', label: 'All' },
-                { value: 'draft', label: 'Draft' },
-                { value: 'active', label: 'Active' },
-                { value: 'paused', label: 'Paused' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'archived', label: 'Archived' },
+                { value: 'all', label: l('All', 'Toutes') },
+                { value: 'draft', label: l('Draft', 'Brouillon') },
+                { value: 'active', label: l('Active', 'Active') },
+                { value: 'paused', label: l('Paused', 'En pause') },
+                { value: 'completed', label: l('Completed', 'Terminée') },
+                { value: 'archived', label: l('Archived', 'Archivée') },
               ]}
               onChange={(value) => setStatus(value as CampaignStatus | 'all')}
             />
@@ -153,8 +160,8 @@ export default function CampaignsPage() {
         />
 
         <SearchInput
-          label="Search campaigns"
-          placeholder="Search by name…"
+          label={l('Search campaigns', 'Rechercher des campagnes')}
+          placeholder={l('Search by name…', 'Rechercher par nom…')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -168,8 +175,14 @@ export default function CampaignsPage() {
         ) : visible.length === 0 ? (
           <p className="py-12 text-center text-[15px] text-ink-muted">
             {campaigns.length === 0
-              ? 'No campaigns yet. Create one to start assigning prospects.'
-              : 'No campaigns match this search.'}
+              ? l(
+                  'No campaigns yet. Create one to start assigning prospects.',
+                  'Aucune campagne. Créez-en une pour commencer à attribuer des prospects.',
+                )
+              : l(
+                  'No campaigns match this search.',
+                  'Aucune campagne ne correspond à cette recherche.',
+                )}
           </p>
         ) : (
           <ul className="mt-5 flex flex-col divide-y divide-line-soft">
@@ -185,7 +198,7 @@ export default function CampaignsPage() {
                     </span>
 
                     <span className="block truncate text-[13px] text-ink-muted">
-                      {formatWindow(campaign.startsAt, campaign.endsAt)}
+                      {formatWindow(campaign.startsAt, campaign.endsAt, language)}
                     </span>
                   </span>
 
@@ -204,7 +217,7 @@ export default function CampaignsPage() {
         onClose={() => setCreating(false)}
         onCreated={(campaign) => {
           setCreating(false);
-          setNotice(`${campaign.name} created as a draft.`);
+          setNotice(`${campaign.name} ${l('created as a draft.', 'a été créée comme brouillon.')}`);
           void load();
         }}
       />
@@ -221,6 +234,8 @@ function CreateCampaignDrawer({
   onClose: () => void;
   onCreated: (campaign: Campaign) => void;
 }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [name, setName] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }> | null>(
@@ -263,16 +278,22 @@ function CreateCampaignDrawer({
   const dateInvalid = startsAt !== '' && endsAt !== '' && new Date(endsAt) < new Date(startsAt);
 
   return (
-    <Drawer open={open} title="New campaign" onClose={onClose}>
+    <Drawer open={open} title={l('New campaign', 'Nouvelle campagne')} onClose={onClose}>
       <div className="flex flex-col gap-5">
         {organizations !== null && organizations.length === 0 ? (
-          <Alert tone="warning" title="No organization is available.">
-            A campaign belongs to an organization. Ask an administrator to create one first.
+          <Alert
+            tone="warning"
+            title={l('No organization is available.', 'Aucune organisation disponible.')}
+          >
+            {l(
+              'A campaign belongs to an organization. Ask an administrator to create one first.',
+              'Une campagne appartient à une organisation. Demandez d’abord à un administrateur d’en créer une.',
+            )}
           </Alert>
         ) : null}
 
         <TextField
-          label="Name"
+          label={l('Name', 'Nom')}
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Q4 Outreach"
@@ -282,13 +303,13 @@ function CreateCampaignDrawer({
         />
 
         <SelectField
-          label="Organization"
+          label={l('Organization', 'Organisation')}
           value={organizationId}
           disabled={busy || !organizations?.length}
           onChange={(event) => setOrganizationId(event.target.value)}
           options={
             organizations === null
-              ? [{ value: '', label: 'Loading…' }]
+              ? [{ value: '', label: l('Loading…', 'Chargement…') }]
               : organizations.map((organization) => ({
                   value: organization.id,
                   label: organization.name,
@@ -297,17 +318,17 @@ function CreateCampaignDrawer({
         />
 
         <TextField
-          label="Description (optional)"
+          label={l('Description (optional)', 'Description (facultatif)')}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="What this campaign is for"
+          placeholder={l('What this campaign is for', 'Objet de cette campagne')}
           maxLength={10000}
           disabled={busy}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
-            label="Starts (optional)"
+            label={l('Starts (optional)', 'Début (facultatif)')}
             type="date"
             value={startsAt}
             onChange={(event) => setStartsAt(event.target.value)}
@@ -315,19 +336,29 @@ function CreateCampaignDrawer({
           />
 
           <TextField
-            label="Ends (optional)"
+            label={l('Ends (optional)', 'Fin (facultatif)')}
             type="date"
             value={endsAt}
             onChange={(event) => setEndsAt(event.target.value)}
-            error={dateInvalid ? 'End date is before the start date' : null}
+            error={
+              dateInvalid
+                ? l('End date is before the start date', 'La date de fin précède la date de début')
+                : null
+            }
             disabled={busy}
           />
         </div>
 
         {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <Alert tone="info" title="Campaigns start as a draft.">
-          Nothing is assigned until you activate it from the campaign page.
+        <Alert
+          tone="info"
+          title={l('Campaigns start as a draft.', 'Les campagnes commencent comme brouillon.')}
+        >
+          {l(
+            'Nothing is assigned until you activate it from the campaign page.',
+            'Aucun prospect n’est attribué avant l’activation depuis la page de campagne.',
+          )}
         </Alert>
 
         <Button
@@ -347,18 +378,19 @@ function CreateCampaignDrawer({
               ...(endsAt ? { endsAt: new Date(endsAt).toISOString() } : {}),
             })
               .then(onCreated)
-              .catch((caught: unknown) => setError(describeCampaignError(caught)))
+              .catch((caught: unknown) => setError(describeCampaignError(caught, language)))
               .finally(() => setBusy(false));
           }}
         >
-          Create campaign
+          {l('Create campaign', 'Créer la campagne')}
         </Button>
       </div>
     </Drawer>
   );
 }
 
-function formatWindow(startsAt: string | null, endsAt: string | null): string {
+function formatWindow(startsAt: string | null, endsAt: string | null, language: string): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   const format = (value: string | null) =>
     value
       ? new Date(value).toLocaleDateString(undefined, {
@@ -372,12 +404,12 @@ function formatWindow(startsAt: string | null, endsAt: string | null): string {
   const to = format(endsAt);
 
   if (!from && !to) {
-    return 'No dates set';
+    return l('No dates set', 'Aucune date définie');
   }
 
   if (from && to) {
     return `${from} – ${to}`;
   }
 
-  return from ? `From ${from}` : `Until ${to}`;
+  return from ? `${l('From', 'Du')} ${from}` : `${l('Until', 'Jusqu’au')} ${to}`;
 }

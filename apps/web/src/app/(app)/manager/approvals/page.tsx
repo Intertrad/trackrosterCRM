@@ -17,13 +17,8 @@ import { listOverrideRequests } from '@/lib/api/override-client';
 import type { OverrideRequestStatus, OverrideRequestSummary } from '@/lib/api/override-types';
 import { cn } from '@/lib/ui/cn';
 import { shortenId } from '@/lib/ui/person';
-
-const TABS: Array<{ id: OverrideRequestStatus; label: string }> = [
-  { id: 'pending', label: 'Pending' },
-  { id: 'approved', label: 'Approved' },
-  { id: 'rejected', label: 'Rejected' },
-  { id: 'cancelled', label: 'Cancelled' },
-];
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 const STATUS_TONE = {
   pending: 'warning',
@@ -33,6 +28,14 @@ const STATUS_TONE = {
 } as const;
 
 export default function ApprovalsQueuePage() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
+  const tabs: Array<{ id: OverrideRequestStatus; label: string }> = [
+    { id: 'pending', label: l('Pending', 'En attente') },
+    { id: 'approved', label: l('Approved', 'Approuvées') },
+    { id: 'rejected', label: l('Rejected', 'Rejetées') },
+    { id: 'cancelled', label: l('Cancelled', 'Annulées') },
+  ];
   const [status, setStatus] = useState<OverrideRequestStatus>('pending');
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<OverrideRequestSummary[] | null>(null);
@@ -56,12 +59,18 @@ export default function ApprovalsQueuePage() {
 
         setError(
           caught instanceof ApiError && caught.statusCode === 403
-            ? 'You do not have override authority for this scope.'
-            : 'We could not load override requests. Please try again.',
+            ? l(
+                'You do not have override authority for this scope.',
+                'Vous n’avez pas le droit de déroger sur ce périmètre.',
+              )
+            : l(
+                'We could not load override requests. Please try again.',
+                'Impossible de charger les demandes de dérogation. Réessayez.',
+              ),
         );
       }
     },
-    [status],
+    [language, status],
   );
 
   useLiveRefresh(load);
@@ -88,8 +97,11 @@ export default function ApprovalsQueuePage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Approvals"
-        subtitle="Review override requests before two teams cross paths"
+        title={l('Approvals', 'Validations')}
+        subtitle={l(
+          'Review override requests before two teams cross paths',
+          'Examinez les demandes de dérogation avant que deux équipes ne se croisent',
+        )}
       />
 
       {error ? (
@@ -103,15 +115,15 @@ export default function ApprovalsQueuePage() {
       ) : null}
 
       <SearchInput
-        label="Search requests"
-        placeholder="Search by reason..."
+        label={l('Search requests', 'Rechercher des demandes')}
+        placeholder={l('Search by reason...', 'Rechercher par motif…')}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         className="max-w-md"
       />
 
       <div className="flex flex-wrap gap-2">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -137,13 +149,27 @@ export default function ApprovalsQueuePage() {
             <ShieldAlert aria-hidden="true" className="mx-auto size-9 text-line" />
 
             <p className="mt-3 text-[17px] font-bold text-navy">
-              {search ? 'No requests match your search' : `No ${status} requests`}
+              {search
+                ? l(
+                    'No requests match your search',
+                    'Aucune demande ne correspond à votre recherche',
+                  )
+                : l(
+                    `No ${status} requests`,
+                    `Aucune demande ${tabs.find((tab) => tab.id === status)?.label.toLowerCase() ?? 'en cours'}`,
+                  )}
             </p>
 
             <p className="mt-1 text-[14px] text-ink-muted">
               {status === 'pending'
-                ? 'Requests appear here when a prospector contests a collision.'
-                : 'Decided requests are kept as audit evidence.'}
+                ? l(
+                    'Requests appear here when a prospector contests a collision.',
+                    'Les demandes apparaissent lorsqu’un prospecteur conteste un conflit.',
+                  )
+                : l(
+                    'Decided requests are kept as audit evidence.',
+                    'Les demandes traitées sont conservées comme preuve d’audit.',
+                  )}
             </p>
           </div>
         </Card>
@@ -169,7 +195,7 @@ export default function ApprovalsQueuePage() {
                     </span>
 
                     <span className="block truncate text-[13px] text-ink-muted">
-                      Requested by {shortenId(request.requestedBy)} ·{' '}
+                      {l('Requested by', 'Demandée par')} {shortenId(request.requestedBy)} ·{' '}
                       {formatDateTime(request.createdAt)}
                     </span>
                   </span>
@@ -192,9 +218,13 @@ export default function ApprovalsQueuePage() {
 }
 
 function QueueSkeleton() {
+  const { language } = useTranslation();
+
   return (
     <Card className="p-0 sm:p-0" aria-busy="true">
-      <span className="sr-only">Loading override requests…</span>
+      <span className="sr-only">
+        {text('Loading override requests…', 'Chargement des demandes de dérogation…', language)}
+      </span>
 
       <ul className="divide-y divide-line-soft">
         {[0, 1, 2].map((row) => (
