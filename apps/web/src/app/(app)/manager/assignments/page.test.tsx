@@ -245,7 +245,7 @@ describe('manager assignments', () => {
      * Anti-collision is the server's. The button is disabled because the server
      * said so, not because the page decided the prospect was taken.
      */
-    expect(screen.getByRole('button', { name: /Assign/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Assign \d+ prospect/ })).toBeDisabled();
     expect(applyAssignmentMock).not.toHaveBeenCalled();
   });
 
@@ -482,7 +482,9 @@ describe('admin dispatch with an explicit target team', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Preview 1 prospect/ }));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Assign/ })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /^Assign \d+ prospect/ })).toBeEnabled(),
+    );
 
     /* The preview is on screen and applicable. */
     expect(screen.getByText('Will be assigned')).toBeInTheDocument();
@@ -496,7 +498,7 @@ describe('admin dispatch with an explicit target team', () => {
      */
     await waitFor(() => expect(screen.queryByText('Will be assigned')).not.toBeInTheDocument());
 
-    expect(screen.getByRole('button', { name: /Assign/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Assign \d+ prospect/ })).toBeDisabled();
     expect(applyAssignmentMock).not.toHaveBeenCalled();
   });
 
