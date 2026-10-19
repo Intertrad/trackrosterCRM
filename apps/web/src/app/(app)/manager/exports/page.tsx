@@ -35,12 +35,16 @@ import {
   type ExportType,
 } from '@/lib/api/export-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 import { notify } from '@/lib/notifications/notify';
 
 /* Long enough not to hammer the API, short enough to feel live. */
 const POLL_MS = 4000;
 
 export default function ExportsPage() {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [jobs, setJobs] = useState<ExportJob[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,10 +62,10 @@ export default function ExportsPage() {
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
             setJobs([]);
-            setError(describeExportError(caught));
+            setError(describeExportError(caught, language));
           }
         }),
-    [],
+    [language],
   );
 
   useLiveRefresh(load);
@@ -103,7 +107,7 @@ export default function ExportsPage() {
        * away rather than rendered for the operator to click later. */
       window.location.assign(issued.url);
     } catch (caught) {
-      setError(describeExportError(caught));
+      setError(describeExportError(caught, language));
     } finally {
       setBusy(null);
     }
@@ -112,12 +116,15 @@ export default function ExportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Exports"
-        subtitle="Take a controlled copy of assignments, activity or follow-ups"
+        title={l('Exports', 'Exports')}
+        subtitle={l(
+          'Take a controlled copy of assignments, activity or follow-ups',
+          'Créez une copie contrôlée des attributions, activités ou relances',
+        )}
         action={
           <Button onClick={() => setCreating(true)}>
             <Plus aria-hidden="true" className="mr-2 size-4" />
-            New export
+            {l('New export', 'Nouvel export')}
           </Button>
         }
       />
@@ -126,11 +133,14 @@ export default function ExportsPage() {
 
       <Card>
         <CardHeader
-          title="Recent exports"
+          title={l('Recent exports', 'Exports récents')}
           action={
             running ? (
               <span aria-live="polite" className="text-[13px] text-ink-muted">
-                Refreshing while an export is running…
+                {l(
+                  'Refreshing while an export is running…',
+                  'Actualisation pendant la préparation d’un export…',
+                )}
               </span>
             ) : undefined
           }
@@ -146,15 +156,19 @@ export default function ExportsPage() {
           <div className="py-12 text-center">
             <FileDown aria-hidden="true" className="mx-auto size-8 text-line" />
 
-            <p className="mt-3 text-[16px] font-semibold text-navy">No exports yet</p>
+            <p className="mt-3 text-[16px] font-semibold text-navy">
+              {l('No exports yet', 'Aucun export pour le moment')}
+            </p>
 
             <p className="mx-auto mt-2 max-w-md text-[15px] text-ink-muted">
-              An export takes a snapshot of what you are authorised to see, and the file is released
-              only while that authority still holds.
+              {l(
+                'An export takes a snapshot of what you are authorised to see, and the file is released only while that authority still holds.',
+                'Un export capture ce que vous êtes autorisé à voir et le fichier n’est libéré que tant que cette autorisation reste valide.',
+              )}
             </p>
 
             <Button className="mt-5" onClick={() => setCreating(true)}>
-              Create an export
+              {l('Create an export', 'Créer un export')}
             </Button>
           </div>
         ) : (
@@ -168,8 +182,12 @@ export default function ExportsPage() {
 
                   <span className="block truncate text-[13px] text-ink-muted">
                     {formatTimestamp(job.createdAt)}
-                    {job.rowCount !== null ? ` · ${job.rowCount.toLocaleString()} rows` : ''}
-                    {job.expiresAt ? ` · available until ${formatDate(job.expiresAt)}` : ''}
+                    {job.rowCount !== null
+                      ? ` · ${job.rowCount.toLocaleString()} ${l('rows', 'lignes')}`
+                      : ''}
+                    {job.expiresAt
+                      ? ` · ${l('available until', 'disponible jusqu’au')} ${formatDate(job.expiresAt, language)}`
+                      : ''}
                   </span>
 
                   {job.status === 'failed' ? (
@@ -190,7 +208,7 @@ export default function ExportsPage() {
                     onClick={() => void download(job)}
                   >
                     <Download aria-hidden="true" className="mr-1.5 size-4" />
-                    Download
+                    {l('Download', 'Télécharger')}
                   </Button>
                 ) : null}
 
@@ -205,11 +223,11 @@ export default function ExportsPage() {
 
                       cancelExport(job.id)
                         .then(() => load())
-                        .catch((caught: unknown) => setError(describeExportError(caught)))
+                        .catch((caught: unknown) => setError(describeExportError(caught, language)))
                         .finally(() => setBusy(null));
                     }}
                   >
-                    Cancel
+                    {l('Cancel', 'Annuler')}
                   </Button>
                 ) : null}
               </li>
@@ -217,9 +235,18 @@ export default function ExportsPage() {
           </ul>
         )}
 
-        <Alert tone="info" className="mt-5" title="Authority is re-checked at download.">
-          The export records the access you had when you asked for it. If your access narrows before
-          you download, the file is withheld rather than released.
+        <Alert
+          tone="info"
+          className="mt-5"
+          title={l(
+            'Authority is re-checked at download.',
+            'L’autorisation est vérifiée au téléchargement.',
+          )}
+        >
+          {l(
+            'The export records the access you had when you asked for it. If your access narrows before you download, the file is withheld rather than released.',
+            'L’export enregistre vos accès au moment de la demande. S’ils sont réduits avant le téléchargement, le fichier reste bloqué.',
+          )}
         </Alert>
       </Card>
 
@@ -228,9 +255,15 @@ export default function ExportsPage() {
         onClose={() => setCreating(false)}
         onCreated={() => {
           setCreating(false);
-          notify.success('Export queued. It will appear below as it is produced.', {
-            id: 'export-queued',
-          });
+          notify.success(
+            l(
+              'Export queued. It will appear below as it is produced.',
+              'Export ajouté à la file. Il apparaîtra ci-dessous une fois produit.',
+            ),
+            {
+              id: 'export-queued',
+            },
+          );
           void load();
         }}
       />
@@ -248,6 +281,8 @@ function CreateExportDrawer({
   onCreated: () => void;
 }) {
   const { activeWorkspace } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
 
   const [type, setType] = useState<ExportType>('activities');
   const [format, setFormat] = useState<ExportFormat>('csv');
@@ -288,10 +323,10 @@ function CreateExportDrawer({
   }
 
   return (
-    <Drawer open={open} title="New export" onClose={onClose}>
+    <Drawer open={open} title={l('New export', 'Nouvel export')} onClose={onClose}>
       <div className="flex flex-col gap-5">
         <SelectField
-          label="What to export"
+          label={l('What to export', 'Éléments à exporter')}
           value={type}
           disabled={busy !== null}
           onChange={(event) => {
@@ -299,14 +334,14 @@ function CreateExportDrawer({
             setPreview(null);
           }}
           options={[
-            { value: 'activities', label: 'Activities' },
-            { value: 'assignments', label: 'Assignments' },
-            { value: 'follow_ups', label: 'Follow-ups' },
+            { value: 'activities', label: l('Activities', 'Activités') },
+            { value: 'assignments', label: l('Assignments', 'Attributions') },
+            { value: 'follow_ups', label: l('Follow-ups', 'Relances') },
           ]}
         />
 
         <SelectField
-          label="Format"
+          label={l('Format', 'Format')}
           value={format}
           disabled={busy !== null}
           onChange={(event) => setFormat(event.target.value as ExportFormat)}
@@ -318,7 +353,7 @@ function CreateExportDrawer({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
-            label="From (optional)"
+            label={l('From (optional)', 'Du (facultatif)')}
             type="date"
             value={from}
             onChange={(event) => {
@@ -329,14 +364,18 @@ function CreateExportDrawer({
           />
 
           <TextField
-            label="To (optional)"
+            label={l('To (optional)', 'Au (facultatif)')}
             type="date"
             value={to}
             onChange={(event) => {
               setTo(event.target.value);
               setPreview(null);
             }}
-            error={rangeInvalid ? 'End date is before the start date' : null}
+            error={
+              rangeInvalid
+                ? l('End date is before the start date', 'La date de fin précède la date de début')
+                : null
+            }
             disabled={busy !== null}
           />
         </div>
@@ -346,15 +385,18 @@ function CreateExportDrawer({
             tone={preview.rowCount === 0 ? 'warning' : 'info'}
             title={
               preview.rowCount === undefined
-                ? 'Preview ready.'
+                ? l('Preview ready.', 'Aperçu prêt.')
                 : preview.rowCount === 0
-                  ? 'Nothing matches this request.'
-                  : `${preview.rowCount.toLocaleString()} rows would be exported.`
+                  ? l('Nothing matches this request.', 'Aucun résultat pour cette demande.')
+                  : `${preview.rowCount.toLocaleString()} ${l('rows would be exported.', 'lignes seraient exportées.')}`
             }
           >
             {preview.columns?.length
               ? `Columns: ${preview.columns.slice(0, 8).join(', ')}${preview.columns.length > 8 ? '…' : ''}`
-              : 'Run the export to produce the file.'}
+              : l(
+                  'Run the export to produce the file.',
+                  'Lancez l’export pour produire le fichier.',
+                )}
           </Alert>
         ) : null}
 
@@ -371,11 +413,11 @@ function CreateExportDrawer({
 
               previewExport(buildRequest())
                 .then(setPreview)
-                .catch((caught: unknown) => setError(describeExportError(caught)))
+                .catch((caught: unknown) => setError(describeExportError(caught, language)))
                 .finally(() => setBusy(null));
             }}
           >
-            Preview
+            {l('Preview', 'Aperçu')}
           </Button>
 
           <Button
@@ -390,17 +432,19 @@ function CreateExportDrawer({
                   setIdempotencyKey(null);
                   onCreated();
                 })
-                .catch((caught: unknown) => setError(describeExportError(caught)))
+                .catch((caught: unknown) => setError(describeExportError(caught, language)))
                 .finally(() => setBusy(null));
             }}
           >
-            Queue export
+            {l('Queue export', 'Mettre en file')}
           </Button>
         </div>
 
         <p className="text-[13px] text-ink-muted">
-          Preview is a dry run and creates nothing. Both are limited to what your workspace
-          authorises.
+          {l(
+            'Preview is a dry run and creates nothing. Both are limited to what your workspace authorises.',
+            'L’aperçu est une simulation et ne crée rien. Les deux opérations sont limitées à ce que votre espace autorise.',
+          )}
         </p>
       </div>
     </Drawer>
@@ -427,34 +471,50 @@ function formatTimestamp(value: string): string {
       });
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, language = 'en'): string {
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
     ? '—'
-    : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    : date.toLocaleDateString(language === 'fr' ? 'fr-FR' : 'en-GB', {
+        day: 'numeric',
+        month: 'short',
+      });
 }
 
-function describeExportError(error: unknown): string {
+function describeExportError(error: unknown, language = 'en'): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   }
 
   if (error.statusCode === 403) {
-    return 'Your access does not cover this export. It was not released.';
+    return l(
+      'Your access does not cover this export. It was not released.',
+      'Votre accès ne couvre pas cet export. Il n’a pas été libéré.',
+    );
   }
 
   if (error.statusCode === 404 || error.statusCode === 410) {
-    return 'This export is no longer available. Exports are kept for a limited time.';
+    return l(
+      'This export is no longer available. Exports are kept for a limited time.',
+      'Cet export n’est plus disponible. Les exports sont conservés pendant une durée limitée.',
+    );
   }
 
   if (error.statusCode === 409) {
-    return 'This export changed while you were looking at it. Refresh and try again.';
+    return l(
+      'This export changed while you were looking at it. Refresh and try again.',
+      'Cet export a changé. Actualisez et réessayez.',
+    );
   }
 
   if (error.statusCode === 400) {
     return error.messages.join(' ');
   }
 
-  return 'We could not reach the export service. Please try again.';
+  return l(
+    'We could not reach the export service. Please try again.',
+    'Impossible de joindre le service d’export. Réessayez.',
+  );
 }
