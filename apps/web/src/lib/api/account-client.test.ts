@@ -54,6 +54,20 @@ describe('account client', () => {
     expect(headers['idempotency-key']).toBe('fixed-key');
   });
 
+  it('supports the explicit wildcard validator used for locale recovery', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({}));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('crypto', { randomUUID: () => 'fixed-key' });
+
+    await updateAccountProfile({ locale: 'en-GB' }, '*');
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+
+    expect(headers['if-match']).toBe('*');
+    expect(JSON.parse(init.body as string)).toEqual({ locale: 'en-GB' });
+  });
+
   it('omits If-Match when no validator was read, rather than sending an empty one', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({}));
     vi.stubGlobal('fetch', fetchMock);
