@@ -17,7 +17,6 @@ import { listScopedMemberships as listMemberships } from '@/lib/api/membership-c
 import { membershipName, type MembershipSummary } from '@/lib/api/membership-types';
 import { getReport } from '@/lib/api/report-client';
 import {
-  formatRate,
   stageLabel,
   type ActionsReport,
   type CollisionsReport,
@@ -32,12 +31,8 @@ import {
   type WorkloadReport,
 } from '@/lib/api/report-types';
 import { useAuth } from '@/lib/auth/auth-context';
-
-const RANGES = [
-  { value: '7', label: 'Last 7 days' },
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-];
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 interface Reports {
   funnel: ReportEnvelope<FunnelReport>;
@@ -54,7 +49,14 @@ interface Reports {
 
 export default function ReportsPage() {
   const { activeWorkspace } = useAuth();
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const teamId = activeWorkspace?.teamId ?? undefined;
+  const ranges = [
+    { value: '7', label: l('Last 7 days', '7 derniers jours') },
+    { value: '30', label: l('Last 30 days', '30 derniers jours') },
+    { value: '90', label: l('Last 90 days', '90 derniers jours') },
+  ];
 
   const [days, setDays] = useState('30');
   const [reports, setReports] = useState<Reports | null>(null);
@@ -118,11 +120,11 @@ export default function ReportsPage() {
         )
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
-            setError(describeReportError(caught));
+            setError(describeReportError(caught, language));
           }
         });
     },
-    [days, teamId],
+    [days, language, teamId],
   );
 
   useLiveRefresh(load);
@@ -148,9 +150,12 @@ export default function ReportsPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Reports" />
+        <PageHeader title={l('Reports', 'Rapports')} />
 
-        <Alert tone="danger" title="We could not load reports.">
+        <Alert
+          tone="danger"
+          title={l('We could not load reports.', 'Impossible de charger les rapports.')}
+        >
           {error}
         </Alert>
       </div>
@@ -180,33 +185,40 @@ export default function ReportsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Reports"
-        subtitle={`Generated ${new Date(reports.funnel.generatedAt).toLocaleString()}`}
-        action={<FilterSelect label="Period" value={days} options={RANGES} onChange={setDays} />}
+        title={l('Reports', 'Rapports')}
+        subtitle={`${l('Generated', 'Générés le')} ${new Date(reports.funnel.generatedAt).toLocaleString(locale)}`}
+        action={
+          <FilterSelect
+            label={l('Period', 'Période')}
+            value={days}
+            options={ranges}
+            onChange={setDays}
+          />
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           icon={<Target aria-hidden="true" className="size-5" />}
           tone="brand"
-          value={formatRate(conversions.contactRate)}
-          label="Contact rate"
-          delta={`${conversions.contacted} of ${conversions.total} prospects`}
+          value={rateText(conversions.contactRate, language)}
+          label={l('Contact rate', 'Taux de contact')}
+          delta={`${formatNumber(conversions.contacted, locale)} ${l('of', 'sur')} ${formatNumber(conversions.total, locale)} ${l('prospects', 'prospects')}`}
         />
 
         <StatTile
           icon={<TrendingUp aria-hidden="true" className="size-5" />}
           tone="success"
-          value={formatRate(conversions.conversionRate)}
-          label="Conversion rate"
-          delta={`${conversions.converted} converted`}
+          value={rateText(conversions.conversionRate, language)}
+          label={l('Conversion rate', 'Taux de conversion')}
+          delta={`${formatNumber(conversions.converted, locale)} ${l('converted', 'convertis')}`}
         />
 
         <StatTile
           icon={<Activity aria-hidden="true" className="size-5" />}
           tone="brand"
           value={actions.total}
-          label="Activities logged"
+          label={l('Activities logged', 'Actions enregistrées')}
         />
 
         <StatTile
@@ -214,19 +226,19 @@ export default function ReportsPage() {
           tone={
             coverage.coverageRate !== null && coverage.coverageRate < 50 ? 'warning' : 'neutral'
           }
-          value={formatRate(coverage.coverageRate)}
-          label="Portfolio coverage"
-          delta={`${coverage.untouched} never contacted`}
+          value={rateText(coverage.coverageRate, language)}
+          label={l('Portfolio coverage', 'Couverture du portefeuille')}
+          delta={`${formatNumber(coverage.untouched, locale)} ${l('never contacted', 'jamais contactés')}`}
         />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
         <Card>
-          <CardHeader title="Pipeline funnel" />
+          <CardHeader title={l('Pipeline funnel', 'Entonnoir du portefeuille')} />
 
           {funnel.total === 0 ? (
             <p className="py-10 text-center text-[15px] text-ink-muted">
-              No active prospects in scope.
+              {l('No active prospects in scope.', 'Aucun prospect actif dans le périmètre.')}
             </p>
           ) : (
             <ul className="flex flex-col gap-3.5">
@@ -234,7 +246,7 @@ export default function ReportsPage() {
                 <li key={stage.stage}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[14px] font-semibold text-navy">
-                      {stageLabel(stage.stage)}
+                      {stageText(stage.stage, language)}
                     </span>
 
                     <span className="text-[13px] tabular-nums text-ink-muted">
@@ -245,7 +257,7 @@ export default function ReportsPage() {
                   <div
                     className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-surface-muted"
                     role="img"
-                    aria-label={`${stageLabel(stage.stage)}: ${stage.total} prospects, ${stage.share}%`}
+                    aria-label={`${stageText(stage.stage, language)}: ${formatNumber(stage.total, locale)} ${l('prospects', 'prospects')}, ${stage.share}%`}
                   >
                     <div
                       className="h-full rounded-full bg-brand"
@@ -258,34 +270,39 @@ export default function ReportsPage() {
           )}
 
           <p className="mt-4 text-[13px] text-ink-muted">
-            {funnel.total} active prospects. Every stage is shown, including those nobody has
-            reached.
+            {formatNumber(funnel.total, locale)}{' '}
+            {l(
+              'active prospects. Every stage is shown, including those nobody has reached.',
+              'prospects actifs. Chaque étape est affichée, y compris celles qui n’ont encore été atteintes par personne.',
+            )}
           </p>
         </Card>
 
         <Card>
-          <CardHeader title="Follow-ups" />
+          <CardHeader title={l('Follow-ups', 'Relances')} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <StatTile
               icon={<Activity aria-hidden="true" className="size-5" />}
               tone={followUps.overdue > 0 ? 'danger' : 'success'}
               value={followUps.overdue}
-              label="Overdue"
+              label={l('Overdue', 'En retard')}
             />
 
             <StatTile
               icon={<Activity aria-hidden="true" className="size-5" />}
               tone="neutral"
-              value={formatRate(followUps.completionRate)}
-              label="Completion rate"
+              value={rateText(followUps.completionRate, language)}
+              label={l('Completion rate', 'Taux de réalisation')}
             />
           </div>
 
           <ul className="mt-4 flex flex-col divide-y divide-line-soft">
             {Object.entries(followUps.byStatus).map(([status, total]) => (
               <li key={status} className="flex items-center justify-between py-2">
-                <span className="text-[14px] capitalize text-ink">{status}</span>
+                <span className="text-[14px] capitalize text-ink">
+                  {statusText(status, language)}
+                </span>
 
                 <span className="text-[14px] font-semibold tabular-nums text-navy">{total}</span>
               </li>
@@ -298,11 +315,11 @@ export default function ReportsPage() {
         <ActivityCharts days={days} mode="channels" />
 
         <Card>
-          <CardHeader title="Workload" />
+          <CardHeader title={l('Workload', 'Charge de travail')} />
 
           {reports.workload.data.byProspector.length === 0 ? (
             <p className="py-8 text-center text-[15px] text-ink-muted">
-              No assignments held by an individual.
+              {l('No assignments held by an individual.', 'Aucune attribution individuelle.')}
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-line-soft">
@@ -315,7 +332,11 @@ export default function ReportsPage() {
                   </span>
 
                   <span className="flex items-center gap-2">
-                    {row.paused > 0 ? <Badge tone="warning">{row.paused} paused</Badge> : null}
+                    {row.paused > 0 ? (
+                      <Badge tone="warning">
+                        {row.paused} {l('paused', 'en pause')}
+                      </Badge>
+                    ) : null}
 
                     <span className="text-[14px] font-semibold tabular-nums text-navy">
                       {row.assigned}
@@ -328,29 +349,34 @@ export default function ReportsPage() {
 
           {reports.workload.data.teamOwned > 0 ? (
             <p className="mt-3 text-[13px] text-ink-muted">
-              {reports.workload.data.teamOwned} assignment
-              {reports.workload.data.teamOwned === 1 ? '' : 's'} owned by the team, nobody yet.
+              {formatNumber(reports.workload.data.teamOwned, locale)}{' '}
+              {l(
+                'assignment owned by the team, nobody yet.',
+                'attribution détenue par l’équipe, sans responsable individuel.',
+              )}
             </p>
           ) : null}
         </Card>
 
         <Card>
-          <CardHeader title="Data quality" />
+          <CardHeader title={l('Data quality', 'Qualité des données')} />
 
           <StatTile
             icon={<ShieldAlert aria-hidden="true" className="size-5" />}
             tone={
               quality.completeness !== null && quality.completeness < 80 ? 'warning' : 'success'
             }
-            value={formatRate(quality.completeness)}
-            label="Records complete"
-            delta={`of ${quality.total} in scope`}
+            value={rateText(quality.completeness, language)}
+            label={l('Records complete', 'Fiches complètes')}
+            delta={`${l('of', 'sur')} ${formatNumber(quality.total, locale)} ${l('in scope', 'dans le périmètre')}`}
           />
 
           <ul className="mt-4 flex flex-col divide-y divide-line-soft">
             {Object.entries(quality.missing).map(([field, total]) => (
               <li key={field} className="flex items-center justify-between py-2">
-                <span className="text-[14px] capitalize text-ink">Missing {field}</span>
+                <span className="text-[14px] capitalize text-ink">
+                  {l('Missing', 'Manquant')} {fieldText(field, language)}
+                </span>
 
                 <span className="text-[14px] font-semibold tabular-nums text-navy">{total}</span>
               </li>
@@ -361,11 +387,14 @@ export default function ReportsPage() {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
         <Card>
-          <CardHeader title="Territories" />
+          <CardHeader title={l('Territories', 'Territoires')} />
 
           {reports.territories.data.items.length === 0 ? (
             <p className="py-8 text-center text-[15px] text-ink-muted">
-              No active territories are assigned in scope.
+              {l(
+                'No active territories are assigned in scope.',
+                'Aucun territoire actif attribué dans le périmètre.',
+              )}
             </p>
           ) : (
             <ul className="flex flex-col divide-y divide-line-soft">
@@ -385,7 +414,8 @@ export default function ReportsPage() {
                   </span>
 
                   <span className="text-[13px] tabular-nums text-ink-muted">
-                    {territory.prospects} prospects · {territory.activities} activities
+                    {formatNumber(territory.prospects, locale)} {l('prospects', 'prospects')} ·{' '}
+                    {formatNumber(territory.activities, locale)} {l('activities', 'actions')}
                   </span>
                 </li>
               ))}
@@ -394,32 +424,39 @@ export default function ReportsPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Forecast" />
+          <CardHeader title={l('Forecast', 'Prévisions')} />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <StatTile
               icon={<Users aria-hidden="true" className="size-5" />}
               tone="brand"
               value={forecast.pipeline}
-              label="Prospects in pipeline"
+              label={l('Prospects in pipeline', 'Prospects dans le portefeuille')}
             />
 
             <StatTile
               icon={<TrendingUp aria-hidden="true" className="size-5" />}
               tone="neutral"
               value={forecast.weightedPipeline}
-              label="Weighted pipeline"
+              label={l('Weighted pipeline', 'Portefeuille pondéré')}
             />
           </div>
 
           <p className="mt-4 text-[14px] text-ink-muted">
-            {forecast.scheduledFollowUps} follow-up
-            {forecast.scheduledFollowUps === 1 ? '' : 's'} scheduled ahead.
+            {formatNumber(forecast.scheduledFollowUps, locale)}{' '}
+            {l('follow-ups scheduled ahead.', 'relances planifiées à venir.')}
           </p>
 
           {/* Say plainly what this number is, so nobody treats it as a
               prediction the system is not in a position to make. */}
-          <Alert tone="info" className="mt-4" title="This is a pipeline view, not a prediction.">
+          <Alert
+            tone="info"
+            className="mt-4"
+            title={l(
+              'This is a pipeline view, not a prediction.',
+              'Ceci est une vue du portefeuille, pas une prédiction.',
+            )}
+          >
             {forecast.basis}.
           </Alert>
         </Card>
@@ -427,12 +464,12 @@ export default function ReportsPage() {
 
       {reports.collisions.data.total > 0 ? (
         <Card>
-          <CardHeader title="Collisions in this period" />
+          <CardHeader title={l('Collisions in this period', 'Collisions sur cette période')} />
 
           <div className="flex flex-wrap gap-2">
             {Object.entries(reports.collisions.data.byDecision).map(([decision, total]) => (
               <Badge key={decision} tone={decision === 'block' ? 'danger' : 'warning'}>
-                {decision.replace(/_/g, ' ')}: {total}
+                {decisionText(decision, language)}: {formatNumber(total, locale)}
               </Badge>
             ))}
           </div>
@@ -442,18 +479,79 @@ export default function ReportsPage() {
   );
 }
 
-function describeReportError(error: unknown): string {
+function describeReportError(error: unknown, language: string): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   }
 
   if (error.statusCode === 403) {
-    return 'You do not hold reporting authority for this scope.';
+    return l(
+      'You do not hold reporting authority for this scope.',
+      'Vous n’avez pas les droits de reporting sur ce périmètre.',
+    );
   }
 
   if (error.statusCode === 400) {
     return error.messages.join(' ');
   }
 
-  return 'We could not reach reporting. Please try again.';
+  return l(
+    'We could not reach reporting. Please try again.',
+    'Impossible de joindre le reporting. Réessayez.',
+  );
+}
+
+function formatNumber(value: number, locale?: string): string {
+  return new Intl.NumberFormat(locale).format(value);
+}
+
+function rateText(value: number | null, language: string): string {
+  if (value === null) return language === 'fr' ? 'Non mesuré' : 'Not measured';
+  return `${value}%`;
+}
+
+function stageText(stage: string, language: string): string {
+  if (language !== 'fr') return stageLabel(stage as never);
+  return (
+    {
+      to_contact: 'À contacter',
+      contact_made: 'Contact établi',
+      in_progress: 'En cours',
+      follow_up: 'Relance',
+      qualified: 'Qualifié',
+      converted: 'Converti',
+    }[stage] ?? stage.replace(/_/g, ' ')
+  );
+}
+
+function statusText(status: string, language: string): string {
+  if (language !== 'fr') return status.replace(/_/g, ' ');
+  return (
+    {
+      pending: 'En attente',
+      scheduled: 'Planifiée',
+      completed: 'Terminée',
+      overdue: 'En retard',
+      cancelled: 'Annulée',
+    }[status] ?? status.replace(/_/g, ' ')
+  );
+}
+
+function fieldText(field: string, language: string): string {
+  if (language !== 'fr') return field;
+  return (
+    { phone: 'téléphone', coordinates: 'coordonnées', address: 'adresse', website: 'site web' }[
+      field
+    ] ?? field
+  );
+}
+
+function decisionText(decision: string, language: string): string {
+  if (language !== 'fr') return decision.replace(/_/g, ' ');
+  return (
+    { allow: 'autorisé', block: 'bloqué', warn: 'averti', require_override: 'dérogation requise' }[
+      decision
+    ] ?? decision.replace(/_/g, ' ')
+  );
 }
