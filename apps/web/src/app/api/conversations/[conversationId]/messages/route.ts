@@ -12,7 +12,7 @@ export async function GET(
   try {
     const { conversationId } = await context.params;
 
-    const search = forwardQuery(request, ['cursor', 'limit']);
+    const search = forwardQuery(request, ['cursor', 'limit', 'search']);
 
     const path = `/conversations/${encodeURIComponent(conversationId)}/messages`;
 

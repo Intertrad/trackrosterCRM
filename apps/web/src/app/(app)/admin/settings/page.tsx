@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { browserJson } from '@/lib/api/browser-json';
+import { ApiError } from '@/lib/api/api-error';
 import { browserResource } from '@/lib/api/browser-resource';
 import { CalendarClock, Info, LockKeyhole, Mail, MapPin, Phone, ShieldCheck } from 'lucide-react';
 import {
@@ -76,6 +77,47 @@ function SettingsHeader({ language, activeId }: { language: string; activeId: st
   );
 }
 
+function settingsError(error: unknown, language: string): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
+  if (error instanceof ApiError) {
+    if (error.statusCode === 0)
+      return l(
+        'Connection unavailable. Check your connection.',
+        'Connexion indisponible. Vérifiez votre connexion.',
+      );
+    if (error.statusCode === 401)
+      return l('Your session expired. Sign in again.', 'Votre session a expiré. Reconnectez-vous.');
+    if (error.statusCode === 403)
+      return l(
+        'You do not have permission to change these settings.',
+        'Vous n’avez pas les droits nécessaires pour modifier ces réglages.',
+      );
+    if ([409, 412, 428].includes(error.statusCode))
+      return l(
+        'Settings changed. Reload before saving again.',
+        'Les réglages ont changé. Rechargez-les avant de les enregistrer à nouveau.',
+      );
+    if (error.message.includes('Objective period'))
+      return l(
+        'The period must be positive and at most 366 days.',
+        'La date de fin doit suivre la date de début, sur une période de 366 jours maximum.',
+      );
+    if (error.message.includes('end in the future'))
+      return l('The end date must be in the future.', 'La date de fin doit être dans le futur.');
+    if (error.message.includes('scope') || error.message.includes('owner'))
+      return l(
+        'The organization or owner is unavailable.',
+        'L’entreprise ou le responsable de l’objectif n’est plus disponible.',
+      );
+    if (error.statusCode >= 500)
+      return l(
+        'Server error. Try again shortly.',
+        'Erreur du serveur. Réessayez dans quelques instants.',
+      );
+    return error.messages.join(' · ');
+  }
+  return l('Unexpected error. Try again.', 'Erreur inattendue. Réessayez.');
+}
 type Organization = { id: string; name: string; shortName?: string | null; color?: string | null };
 type ReservationRule = {
   id: string;
@@ -161,7 +203,11 @@ function ReservationSettings({ language }: { language: string }) {
     void load();
   }, []);
   const setCell = (a: string, b: string, value: number) =>
-    setMatrix((current) => ({ ...current, [`${a}:${b}`]: value }));
+    setMatrix((current) => ({
+      ...current,
+      [`${a}:${b}`]: value,
+      ...(mirrorDirections ? { [`${b}:${a}`]: value } : {}),
+    }));
   const setPolicy = (a: string, b: string, policy: CoordinationPolicy['policy']) => {
     setPolicyMatrix((current) => ({
       ...current,
@@ -170,13 +216,10 @@ function ReservationSettings({ language }: { language: string }) {
     }));
     if (policy === 'independent') {
       setCell(a, b, 0);
-      if (mirrorDirections) setCell(b, a, 0);
     } else if (policy === 'delayed') {
       setCell(a, b, Math.max(1, matrix[`${a}:${b}`] ?? 30));
-      if (mirrorDirections) setCell(b, a, Math.max(1, matrix[`${b}:${a}`] ?? 30));
     } else {
       setCell(a, b, 7);
-      if (mirrorDirections) setCell(b, a, 7);
     }
   };
   const applyPreset = (sameCompany: number, otherCompany: number) => {
@@ -453,7 +496,7 @@ function ReservationSettings({ language }: { language: string }) {
             <table className="min-w-[850px] border-separate border-spacing-1.5 text-center text-sm">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 min-w-44 bg-surface-muted p-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted">
+                  <th className="min-w-44 bg-surface-muted p-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted">
                     {l('Then may contact →', 'Puis peut contacter →')}
                   </th>
                   {organizations.map((org) => (
@@ -469,7 +512,7 @@ function ReservationSettings({ language }: { language: string }) {
               <tbody>
                 {organizations.map((row) => (
                   <tr key={row.id}>
-                    <th className="sticky left-0 z-[1] min-w-44 rounded-xl border border-line bg-surface px-3 py-3 text-left text-xs font-bold text-navy">
+                    <th className="min-w-44 rounded-xl border border-line bg-surface px-3 py-3 text-left text-xs font-bold text-navy">
                       <span
                         className="mr-2 inline-block size-2 rounded-full"
                         style={{ backgroundColor: row.color ?? '#155eef' }}
@@ -744,7 +787,7 @@ function ObjectivesSettings({ language }: { language: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const load = async () => {
     setLoading(true);
     try {
@@ -763,7 +806,7 @@ function ObjectivesSettings({ language }: { language: string }) {
         organizationId: current.organizationId || orgs.items?.[0]?.id || '',
       }));
       setError(false);
-      setSaveError(false);
+      setSaveError(null);
     } catch {
       setError(true);
     } finally {
@@ -774,9 +817,48 @@ function ObjectivesSettings({ language }: { language: string }) {
     void load();
   }, []);
   const create = async () => {
-    if (saving || !form.organizationId || !form.name.trim()) return;
+    if (saving) return;
+    const fail = (en: string, fr: string) => {
+      setSaveError(l(en, fr));
+      setError(true);
+      setSaved(false);
+    };
+    if (!form.organizationId) return fail('Choose an organization.', 'Choisissez une entreprise.');
+    if (!form.name.trim() || form.name.trim().length > 255)
+      return fail(
+        'Enter a name of 1 to 255 characters.',
+        'Saisissez un nom de 1 à 255 caractères.',
+      );
+    if (
+      !Number.isInteger(Number(form.target)) ||
+      Number(form.target) < 1 ||
+      Number(form.target) > 10000000
+    )
+      return fail(
+        'The target must be a whole number between 1 and 10,000,000.',
+        'La cible doit être un nombre entier entre 1 et 10 000 000.',
+      );
+    const start = new Date(`${form.startsAt}T00:00:00.000Z`);
+    const end = new Date(`${form.endsAt}T23:59:59.000Z`);
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()))
+      return fail(
+        'Enter valid start and end dates.',
+        'Renseignez des dates de début et de fin valides.',
+      );
+    if (end <= start)
+      return fail(
+        'The end date cannot precede the start date.',
+        'La date de fin ne peut pas précéder la date de début.',
+      );
+    if (end.getTime() - start.getTime() > 366 * 86400000)
+      return fail(
+        'The period cannot exceed 366 days.',
+        'La période ne peut pas dépasser 366 jours.',
+      );
+    if (end <= new Date())
+      return fail('The end date must be in the future.', 'La date de fin doit être dans le futur.');
     setSaving(true);
-    setSaveError(false);
+    setSaveError(null);
     try {
       await browserJson('/api/workspace/objectives', {
         method: 'POST',
@@ -793,8 +875,8 @@ function ObjectivesSettings({ language }: { language: string }) {
       setForm((current) => ({ ...current, name: '' }));
       setSaved(true);
       await load();
-    } catch {
-      setSaveError(true);
+    } catch (caught) {
+      setSaveError(settingsError(caught, language));
       setError(true);
     } finally {
       setSaving(false);
@@ -805,13 +887,12 @@ function ObjectivesSettings({ language }: { language: string }) {
       <SettingsHeader language={language} activeId="objectives" />
       {error && (
         <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
-          {saveError
-            ? l(
-                'Unable to save objective. Please try again.',
-                'Impossible d’enregistrer l’objectif. Réessayez.',
-              )
-            : l('Unable to load objectives.', 'Impossible de charger les objectifs.')}
-          <button className="underline" onClick={() => void load()}>
+          {saveError ??
+            l(
+              'Unable to load objectives. Check your connection.',
+              'Impossible de charger les objectifs. Vérifiez votre connexion.',
+            )}
+          <button className="underline" onClick={() => void (saveError ? create() : load())}>
             {l('Retry', 'Réessayer')}
           </button>
         </Alert>
@@ -928,10 +1009,7 @@ function ObjectivesSettings({ language }: { language: string }) {
                   'Les changements sont enregistrés dans l’espace.',
                 )}
           </span>
-          <Button
-            disabled={saving || loading || !form.organizationId || !form.name.trim()}
-            onClick={() => void create()}
-          >
+          <Button disabled={saving || loading} onClick={() => void create()}>
             {saving ? l('Saving…', 'Enregistrement…') : l('Add objective', 'Ajouter l’objectif')}
           </Button>
         </div>
@@ -997,7 +1075,7 @@ function WorkspaceSettings({ language }: { language: string }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
-  const [saveError, setSaveError] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const load = async () => {
     setLoading(true);
     try {
@@ -1012,7 +1090,7 @@ function WorkspaceSettings({ language }: { language: string }) {
       setSecurity(loadedSecurity);
       setInitialSecurity(loadedSecurity);
       setError(false);
-      setSaveError(false);
+      setSaveError(null);
     } catch {
       setError(true);
     } finally {
@@ -1025,30 +1103,30 @@ function WorkspaceSettings({ language }: { language: string }) {
   const save = async () => {
     if (!tenant || !security || saving) return;
     setSaving(true);
-    setSaveError(false);
+    setSaveError(null);
     try {
-      const writes: Promise<unknown>[] = [
-        browserJson('/api/workspace/tenant', {
-          method: 'PATCH',
-          headers: {
-            'content-type': 'application/json',
-            'idempotency-key': crypto.randomUUID(),
-            ...(tenant.etag ? { 'if-match': tenant.etag } : {}),
-          },
-          body: JSON.stringify({
-            name: tenant.name,
-            locale: tenant.locale,
-            timezone: tenant.timezone,
-          }),
+      const nextTenant = await browserResource<TenantSettings>('/api/workspace/tenant', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': crypto.randomUUID(),
+          ...(tenant.etag ? { 'if-match': tenant.etag } : {}),
+        },
+        body: JSON.stringify({
+          name: tenant.name.trim(),
+          locale: tenant.locale,
+          timezone: tenant.timezone,
         }),
-      ];
+      });
+      setTenant({ ...nextTenant.resource, etag: nextTenant.etag ?? undefined });
       const securityChanged =
         initialSecurity === null ||
         security.requireMfa !== initialSecurity.requireMfa ||
         security.sessionMaxHours !== initialSecurity.sessionMaxHours;
       if (securityChanged) {
-        writes.push(
-          browserJson('/api/workspace/settings/security', {
+        const nextSecurity = await browserResource<SecuritySettings>(
+          '/api/workspace/settings/security',
+          {
             method: 'PATCH',
             headers: {
               'content-type': 'application/json',
@@ -1059,10 +1137,12 @@ function WorkspaceSettings({ language }: { language: string }) {
               requireMfa: security.requireMfa,
               sessionMaxHours: security.sessionMaxHours,
             }),
-          }),
+          },
         );
+        const persisted = { ...nextSecurity.resource, etag: nextSecurity.etag ?? undefined };
+        setSecurity(persisted);
+        setInitialSecurity(persisted);
       }
-      await Promise.all(writes);
       /*
        * The workspace locale is also the interface-language choice shown in
        * this form. The shell reads the signed-in member locale, so keep the
@@ -1071,12 +1151,13 @@ function WorkspaceSettings({ language }: { language: string }) {
        * keeps it after a full reload.
        */
       const account = await getAccountProfile();
-      await updateAccountProfile({ locale: tenant.locale }, account.etag);
+      if (account.resource.locale !== tenant.locale)
+        await updateAccountProfile({ locale: tenant.locale }, account.etag);
       await refreshSession();
       setSaved(true);
       await load();
-    } catch {
-      setSaveError(true);
+    } catch (caught) {
+      setSaveError(settingsError(caught, language));
       setError(true);
     } finally {
       setSaving(false);
@@ -1087,14 +1168,11 @@ function WorkspaceSettings({ language }: { language: string }) {
       <SettingsHeader language={language} activeId="workspace-settings" />
       {error && (
         <Alert tone="danger" className="flex flex-wrap items-center justify-between gap-3">
-          {l(
-            saveError
-              ? 'Unable to save workspace settings. Please try again.'
-              : 'Unable to load workspace settings.',
-            saveError
-              ? 'Impossible d’enregistrer les réglages de l’espace. Réessayez.'
-              : 'Impossible de charger les réglages de l’espace.',
-          )}
+          {saveError ??
+            l(
+              'Unable to load workspace settings.',
+              'Impossible de charger les réglages de l’espace.',
+            )}
           <button className="underline" onClick={() => void load()}>
             {l('Retry', 'Réessayer')}
           </button>

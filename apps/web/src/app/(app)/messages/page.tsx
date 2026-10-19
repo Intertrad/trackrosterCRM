@@ -18,6 +18,7 @@ import {
   LockKeyhole,
   MessageCircle,
   MessagesSquare,
+  MoreHorizontal,
   Paperclip,
   Plus,
   Search,
@@ -32,6 +33,7 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Menu, MenuItem } from '@/components/ui/menu';
 import { Drawer } from '@/components/ui/drawer';
 import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
@@ -83,6 +85,7 @@ export default function MessagesPage() {
   const me = user?.userId ?? null;
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [searchSelection, setSearchSelection] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [olderCursor, setOlderCursor] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -91,6 +94,113 @@ export default function MessagesPage() {
   const [people, setPeople] = useState<Map<string, MessagingMember>>(new Map());
 
   const [search, setSearch] = useState('');
+  const [conversationMatches, setConversationMatches] = useState<Conversation[] | null>(null);
+  const [conversationSearchCursor, setConversationSearchCursor] = useState<string | null>(null);
+  const [conversationSearching, setConversationSearching] = useState(false);
+  const [conversationSearchError, setConversationSearchError] = useState(false);
+  useEffect(() => {
+    if (!search.trim()) {
+      setConversationMatches(null);
+      setConversationSearchCursor(null);
+      setConversationSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    setConversationSearching(true);
+    setConversationSearchError(false);
+    setConversationMatches([]);
+    setConversationSearchCursor(null);
+    const timer = setTimeout(() => {
+      listConversations({ search: search.trim(), limit: 100 }, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) {
+            setConversationMatches(page.items);
+            setConversationSearchCursor(page.nextCursor);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setConversationSearchError(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setConversationSearching(false);
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+  const [highlightedMessage, setHighlightedMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!highlightedMessage) return;
+    const timer = setTimeout(() => setHighlightedMessage(null), 1500);
+    return () => clearTimeout(timer);
+  }, [highlightedMessage]);
+  const jumpController = useRef<AbortController | null>(null);
+  useEffect(() => {
+    jumpController.current?.abort();
+    setHighlightedMessage(null);
+    return () => jumpController.current?.abort();
+  }, [activeId]);
+  const [threadSearchOpen, setThreadSearchOpen] = useState(false);
+  const [threadSearch, setThreadSearch] = useState('');
+  const [threadResults, setThreadResults] = useState<Message[]>([]);
+  const [threadSearchCursor, setThreadSearchCursor] = useState<string | null>(null);
+  const [threadSearching, setThreadSearching] = useState(false);
+  const [threadSearchError, setThreadSearchError] = useState(false);
+  const threadSearchBox = useRef<HTMLDivElement>(null);
+  const threadSearchInput = useRef<HTMLInputElement>(null);
+  const threadSearchToggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    setThreadSearchOpen(false);
+    setThreadSearch('');
+    setThreadResults([]);
+  }, [activeId]);
+  useEffect(() => {
+    if (!threadSearchOpen) return;
+    threadSearchInput.current?.focus();
+    function outside(event: PointerEvent) {
+      if (
+        !threadSearchBox.current?.contains(event.target as Node) &&
+        !threadSearchToggle.current?.contains(event.target as Node)
+      )
+        setThreadSearchOpen(false);
+    }
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [threadSearchOpen]);
+  useEffect(() => {
+    if (!activeId || !threadSearchOpen || !threadSearch.trim()) {
+      setThreadResults([]);
+      setThreadSearchCursor(null);
+      setThreadSearching(false);
+      return;
+    }
+    const controller = new AbortController();
+    setThreadSearching(true);
+    setThreadSearchError(false);
+    setThreadResults([]);
+    setThreadSearchCursor(null);
+    const timer = setTimeout(() => {
+      listMessages(activeId, { search: threadSearch.trim(), limit: 50 }, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) {
+            setThreadResults(page.items);
+            setThreadSearchCursor(page.nextCursor);
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setThreadSearchError(true);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setThreadSearching(false);
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [activeId, threadSearch, threadSearchOpen]);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const conversationSearchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread' | 'waiting' | 'closed'>('all');
@@ -107,6 +217,28 @@ export default function MessagesPage() {
   };
   const threadScroll = useRef<HTMLDivElement | null>(null);
   const composerInput = useRef<HTMLTextAreaElement | null>(null);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(
+    null,
+  );
+  const [mentionIndex, setMentionIndex] = useState(0);
+  useEffect(() => {
+    setMention(null);
+    setMentionIndex(0);
+  }, [activeId]);
+  function updateMention(value: string, caret: number) {
+    const match = value.slice(0, caret).match(/(?:^|\s)@([^\s@]*)$/);
+    const next = match
+      ? { start: caret - match[1]!.length - 1, end: caret, query: match[1]! }
+      : null;
+    if (
+      mention?.start !== next?.start ||
+      mention?.end !== next?.end ||
+      mention?.query !== next?.query
+    ) {
+      setMentionIndex(0);
+      setMention(next);
+    }
+  }
   const nearBottom = useRef(true);
   const [composing, setComposing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -120,6 +252,31 @@ export default function MessagesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const conversationLayout = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!activeId) return;
+    const layout = conversationLayout.current;
+    if (!layout) return;
+
+    function updateHeight() {
+      if (!layout || !window.matchMedia('(max-width: 1023px)').matches) return;
+      const navigation = document.querySelector('nav.fixed.bottom-0');
+      const bottom = navigation?.getBoundingClientRect().top ?? window.innerHeight;
+      const top = layout.getBoundingClientRect().top;
+      layout.style.setProperty('--conversation-height', `${Math.max(0, bottom - top)}px`);
+    }
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    const navigation = document.querySelector('nav.fixed.bottom-0');
+    if (navigation) observer.observe(navigation);
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [activeId, readError]);
 
   const listEnd = useRef<HTMLDivElement | null>(null);
   const readAcknowledged = useRef(new Map<string, string>());
@@ -135,10 +292,6 @@ export default function MessagesPage() {
           const items = page.items;
           setConversations(items);
           setReadError(null);
-
-          setActiveId((current) =>
-            current && items.some((item) => item.id === current) ? current : null,
-          );
         })
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
@@ -311,8 +464,11 @@ export default function MessagesPage() {
   }, [activeId, messages, loadConversations]);
 
   const active = useMemo(
-    () => conversations?.find((conversation) => conversation.id === activeId) ?? null,
-    [activeId, conversations],
+    () =>
+      conversations?.find((conversation) => conversation.id === activeId) ??
+      conversationMatches?.find((conversation) => conversation.id === activeId) ??
+      (searchSelection?.id === activeId ? searchSelection : null),
+    [activeId, conversations, conversationMatches, searchSelection],
   );
 
   const incomingRequests = (active?.pendingRequests ?? []).filter(
@@ -323,6 +479,91 @@ export default function MessagesPage() {
     incomingRequests[0];
   const actionMode = replyTarget?.id ?? 'request';
   const actionEnabled = !!activeId && sendModes[activeId] === actionMode;
+
+  function selectRequestToReply(requestId: string) {
+    if (!activeId || busy || pendingAttachmentMessageId) return;
+    setReplyChoices((current) => ({ ...current, [activeId]: requestId }));
+    setSendModes((current) => ({ ...current, [activeId]: requestId }));
+    requestAnimationFrame(() => {
+      composerInput.current?.scrollIntoView({ block: 'nearest' });
+      composerInput.current?.focus({ preventScroll: true });
+    });
+  }
+
+  const mentionOptions = mention
+    ? participants
+        .filter((participant) => participant.membershipId !== me)
+        .map((participant) => ({
+          id: participant.membershipId,
+          name: membershipName(
+            people.get(participant.membershipId) ?? {
+              displayName: participant.displayName ?? null,
+              email: participant.email ?? '',
+            },
+          ),
+        }))
+        .filter((person) =>
+          person.name.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase()),
+        )
+    : [];
+  function selectMention(person: { id: string; name: string }) {
+    if (!mention) return;
+    const inserted = `@${person.name} `;
+    setDraft(draft.slice(0, mention.start) + inserted + draft.slice(mention.end));
+    const caret = mention.start + inserted.length;
+    setMention(null);
+    requestAnimationFrame(() => {
+      composerInput.current?.focus();
+      composerInput.current?.setSelectionRange(caret, caret);
+    });
+  }
+  async function jumpToMessage(target: Message) {
+    if (!activeId) return;
+    jumpController.current?.abort();
+    const controller = new AbortController();
+    jumpController.current = controller;
+    try {
+      let accumulated = [...(messages ?? [])];
+      let cursor = olderCursor;
+      while (!accumulated.some((message) => message.id === target.id) && cursor) {
+        const page = await listMessages(activeId, { cursor, limit: 100 }, controller.signal);
+        if (controller.signal.aborted) return;
+        accumulated = [...page.items.reverse(), ...accumulated];
+        cursor = page.nextCursor;
+      }
+      if (controller.signal.aborted) return;
+      if (!accumulated.some((message) => message.id === target.id)) {
+        setActionError(
+          text(
+            'This message is no longer available. Refresh the conversation.',
+            'Ce message n’est plus disponible. Actualisez la conversation.',
+            language,
+          ),
+        );
+        return;
+      }
+      nearBottom.current = false;
+      olderLoaded.current = true;
+      setMessages([...new Map(accumulated.map((message) => [message.id, message])).values()]);
+      setOlderCursor(cursor);
+      setHighlightedMessage(target.id);
+      setThreadSearchOpen(false);
+      requestAnimationFrame(() => {
+        const element = document.getElementById(`conversation-message-${target.id}`);
+        element?.scrollIntoView({ block: 'center', behavior: 'instant' });
+        element?.focus({ preventScroll: true });
+      });
+    } catch {
+      if (!controller.signal.aborted)
+        setActionError(
+          text(
+            'Unable to open this message. Please try again.',
+            'Impossible d’ouvrir ce message. Réessayez.',
+            language,
+          ),
+        );
+    }
+  }
 
   const myParticipation = useMemo(
     () => participants.find((participant) => participant.membershipId === me),
@@ -365,7 +606,7 @@ export default function MessagesPage() {
 
     const query = search.trim().toLowerCase();
 
-    const filtered = conversations.filter((conversation) => {
+    const filtered = (conversationMatches ?? conversations).filter((conversation) => {
       const sender = conversation.latestMessage?.sender;
       const haystack = [
         nameFor(conversation),
@@ -383,7 +624,7 @@ export default function MessagesPage() {
         (filter === 'unread' && unread) ||
         (filter === 'waiting' && waiting) ||
         (filter === 'closed' && conversation.status === 'archived');
-      return matchesFilter && haystack.includes(query);
+      return query ? conversationMatches !== null || haystack.includes(query) : matchesFilter;
     });
 
     return [...filtered].sort((left, right) => {
@@ -391,7 +632,18 @@ export default function MessagesPage() {
       const rightTime = Date.parse(right.latestMessage?.createdAt ?? right.updatedAt);
       return sortOrder === 'newest' ? rightTime - leftTime : leftTime - rightTime;
     });
-  }, [conversations, search, filter, t, me, sortOrder, participants, people, activeId]);
+  }, [
+    conversations,
+    conversationMatches,
+    search,
+    filter,
+    t,
+    me,
+    sortOrder,
+    participants,
+    people,
+    activeId,
+  ]);
 
   const filterCounts = useMemo(() => {
     const items = conversations ?? [];
@@ -486,7 +738,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
+    <div className={cn('flex flex-col gap-5', active && styles.mobileConversation)}>
       <div
         className={cn('flex flex-wrap items-end justify-between gap-4', active && 'max-lg:hidden')}
       >
@@ -516,10 +768,11 @@ export default function MessagesPage() {
 
       {readError ? <Alert tone="danger">{readError}</Alert> : null}
 
-      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 min-[701px]:max-lg:-mx-5 max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
+      <section className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-raised max-lg:-mx-4 max-lg:w-[calc(100%+2rem)] min-[701px]:max-lg:-mx-5 min-[701px]:max-lg:w-[calc(100%+2.5rem)] max-lg:rounded-none max-lg:border-x-0 max-lg:shadow-none">
         <div
+          ref={conversationLayout}
           className={cn(
-            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[calc(100dvh-148px)]',
+            'h-[min(760px,calc(100dvh-180px))] min-h-0 max-lg:flex max-lg:h-[var(--conversation-height,calc(100dvh-148px))]',
             styles.layout,
             active && styles.withDetails,
           )}
@@ -542,8 +795,12 @@ export default function MessagesPage() {
                 <input
                   ref={conversationSearchInput}
                   aria-label={t('messages.search')}
+                  maxLength={200}
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setFilter('all');
+                    setSearch(event.target.value);
+                  }}
                   placeholder={text(
                     'Filter by subject, person or prospect',
                     'Filtrer par objet, personne ou prospect',
@@ -583,6 +840,47 @@ export default function MessagesPage() {
               </div>
             </div>
 
+            {search.trim() ? (
+              <div className="px-3 py-2 text-xs text-ink-muted" aria-live="polite">
+                {conversationSearching
+                  ? text(
+                      'Searching all conversations…',
+                      'Recherche dans toutes les conversations…',
+                      language,
+                    )
+                  : conversationSearchError
+                    ? text(
+                        'Unable to search conversations.',
+                        'Recherche des conversations impossible.',
+                        language,
+                      )
+                    : null}
+                {conversationSearchCursor && !conversationSearching ? (
+                  <button
+                    type="button"
+                    className="font-semibold text-brand"
+                    onClick={async () => {
+                      setConversationSearching(true);
+                      try {
+                        const page = await listConversations({
+                          search: search.trim(),
+                          cursor: conversationSearchCursor,
+                          limit: 100,
+                        });
+                        setConversationMatches((current) => [...(current ?? []), ...page.items]);
+                        setConversationSearchCursor(page.nextCursor);
+                      } catch {
+                        setConversationSearchError(true);
+                      } finally {
+                        setConversationSearching(false);
+                      }
+                    }}
+                  >
+                    {text('More conversations', 'Plus de conversations', language)}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="hidden items-center justify-between px-4 pt-3 pb-2 lg:flex">
               <p className="text-[11px] font-extrabold tracking-[0.08em] text-ink-muted">
                 {visible.length
@@ -650,6 +948,7 @@ export default function MessagesPage() {
                           disabled={loadingOlder}
                           onClick={() => {
                             nearBottom.current = true;
+                            setSearchSelection(conversation);
                             setActiveId(conversation.id);
                           }}
                           className={`relative flex w-full items-start gap-3 border-b border-line-soft px-3.5 py-3 text-left transition-colors hover:bg-canvas ${conversation.id === activeId ? 'bg-brand-wash' : ''}`}
@@ -788,7 +1087,10 @@ export default function MessagesPage() {
                       'Rechercher dans la conversation',
                       language,
                     )}
-                    onClick={() => conversationSearchInput.current?.focus()}
+                    ref={threadSearchToggle}
+                    aria-expanded={threadSearchOpen}
+                    aria-controls="thread-search"
+                    onClick={() => setThreadSearchOpen((open) => !open)}
                     className="hidden rounded-md p-2 text-ink-muted hover:bg-surface-muted hover:text-ink sm:block"
                   >
                     <Search aria-hidden="true" className="size-4" />
@@ -842,6 +1144,123 @@ export default function MessagesPage() {
                   </div>
                 </header>
 
+                {threadSearchOpen ? (
+                  <div
+                    ref={threadSearchBox}
+                    id="thread-search"
+                    className="shrink-0 border-b border-line bg-surface px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={threadSearchInput}
+                        aria-label={text(
+                          'Search this conversation',
+                          'Rechercher dans cette conversation',
+                          language,
+                        )}
+                        value={threadSearch}
+                        maxLength={200}
+                        onChange={(event) => setThreadSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setThreadSearchOpen(false);
+                            threadSearchToggle.current?.focus();
+                          }
+                        }}
+                        placeholder={text(
+                          'Search this conversation…',
+                          'Rechercher dans cette conversation…',
+                          language,
+                        )}
+                        className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
+                      />
+                      {threadSearch ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setThreadSearch('');
+                            threadSearchInput.current?.focus();
+                          }}
+                          className="rounded p-2 hover:bg-surface-muted"
+                          aria-label={text('Clear search', 'Effacer la recherche', language)}
+                        >
+                          <X className="size-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {threadSearch.trim() ? (
+                      <div
+                        className="mt-2 max-h-48 overflow-y-auto"
+                        aria-live="polite"
+                        aria-busy={threadSearching}
+                      >
+                        {threadSearching ? (
+                          <p className="text-sm text-ink-muted">
+                            {text('Searching…', 'Recherche…', language)}
+                          </p>
+                        ) : threadSearchError ? (
+                          <p className="text-sm text-danger">
+                            {text(
+                              'Unable to search. Please try again.',
+                              'Recherche impossible. Réessayez.',
+                              language,
+                            )}
+                          </p>
+                        ) : threadResults.length ? (
+                          <ul className="divide-y divide-line">
+                            {threadResults.map((message) => (
+                              <li key={message.id} className="text-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => void jumpToMessage(message)}
+                                  className="w-full cursor-pointer rounded-lg px-2 py-2 text-left hover:bg-brand-wash focus-visible:outline-brand"
+                                >
+                                  <p className="text-xs text-ink-muted">
+                                    {message.sender ? membershipName(message.sender) : ''} ·{' '}
+                                    {new Date(message.createdAt).toLocaleString()}
+                                  </p>
+                                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-ink-muted">
+                            {text(
+                              'No matching messages.',
+                              'Aucun message correspondant.',
+                              language,
+                            )}
+                          </p>
+                        )}
+                        {threadSearchCursor && !threadSearching ? (
+                          <button
+                            type="button"
+                            className="py-2 text-sm font-semibold text-brand"
+                            onClick={async () => {
+                              setThreadSearching(true);
+                              try {
+                                const page = await listMessages(active.id, {
+                                  search: threadSearch.trim(),
+                                  cursor: threadSearchCursor,
+                                  limit: 50,
+                                });
+                                setThreadResults((current) => [...current, ...page.items]);
+                                setThreadSearchCursor(page.nextCursor);
+                              } catch {
+                                setThreadSearchError(true);
+                              } finally {
+                                setThreadSearching(false);
+                              }
+                            }}
+                          >
+                            {text('More results', 'Plus de résultats', language)}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {active.context ? (
                   <Link
                     href={`/search?q=${encodeURIComponent(active.context.establishment)}`}
@@ -886,6 +1305,7 @@ export default function MessagesPage() {
                               limit: 100,
                               cursor: olderCursor,
                             });
+                            nearBottom.current = false;
                             olderLoaded.current = true;
                             nearBottom.current = false;
                             setMessages((current) => {
@@ -968,7 +1388,14 @@ export default function MessagesPage() {
                           return (
                             <li
                               key={message.id}
-                              className={mine ? 'flex justify-end' : 'flex justify-start'}
+                              id={`conversation-message-${message.id}`}
+                              tabIndex={-1}
+                              className={cn(
+                                mine ? 'flex justify-end' : 'flex justify-start',
+                                'rounded-xl transition-[background-color,box-shadow] duration-700 ease-out motion-reduce:transition-none',
+                                highlightedMessage === message.id &&
+                                  'bg-brand-wash ring-2 ring-brand/30',
+                              )}
                             >
                               <div
                                 className={`group flex max-w-[92%] items-end gap-2 sm:max-w-[92%] ${mine ? 'flex-row-reverse' : ''}`}
@@ -991,38 +1418,87 @@ export default function MessagesPage() {
                                     </p>
                                   ) : null}
                                   <div
-                                    className={cn(
-                                      'w-fit max-w-full break-words',
-                                      mine && 'ml-auto',
-                                      message.isRequest && message.status !== 'deleted'
-                                        ? `rounded-2xl border border-warning-border bg-warning-bg px-3.5 py-3 text-warning shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
-                                        : message.replyToRequestId && message.status !== 'deleted'
-                                          ? `rounded-2xl border border-brand-tint bg-brand-wash px-3.5 py-3 text-brand shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
-                                          : mine
-                                            ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
-                                            : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised',
-                                    )}
+                                    className={cn('flex items-start gap-1', mine && 'justify-end')}
                                   >
-                                    {message.status === 'deleted' ? (
-                                      <p className="text-[14px] italic opacity-70">
-                                        {text(
-                                          'This message was deleted',
-                                          'Ce message a été supprimé',
+                                    <div
+                                      className={cn(
+                                        'w-fit max-w-full break-words',
+                                        mine && 'ml-auto',
+                                        message.isRequest && message.status !== 'deleted'
+                                          ? `rounded-2xl border border-warning-border bg-warning-bg px-3.5 py-3 text-warning shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                          : message.replyToRequestId && message.status !== 'deleted'
+                                            ? `rounded-2xl border border-brand-tint bg-brand-wash px-3.5 py-3 text-brand shadow-raised ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`
+                                            : mine
+                                              ? 'rounded-2xl rounded-br-md bg-brand px-3.5 py-3 text-white shadow-raised'
+                                              : 'rounded-2xl rounded-bl-md border border-line bg-surface px-3.5 py-3 text-ink shadow-raised',
+                                      )}
+                                    >
+                                      {message.status === 'deleted' ? (
+                                        <p className="text-[14px] italic opacity-70">
+                                          {text(
+                                            'This message was deleted',
+                                            'Ce message a été supprimé',
+                                            language,
+                                          )}
+                                        </p>
+                                      ) : (
+                                        <p className="whitespace-pre-wrap text-[14px] leading-5">
+                                          {message.body}
+                                        </p>
+                                      )}
+                                      {message.status !== 'deleted' ? (
+                                        <MessageAttachments
+                                          message={message}
+                                          mine={
+                                            mine && !message.isRequest && !message.replyToRequestId
+                                          }
+                                        />
+                                      ) : null}
+                                    </div>
+                                    {!mine && message.isRequest && message.status !== 'deleted' ? (
+                                      <Menu
+                                        placement="request-actions"
+                                        trigger={
+                                          <MoreHorizontal aria-hidden="true" className="size-4" />
+                                        }
+                                        label={text(
+                                          'Message options',
+                                          'Options du message',
                                           language,
                                         )}
-                                      </p>
-                                    ) : (
-                                      <p className="whitespace-pre-wrap text-[14px] leading-5">
-                                        {message.body}
-                                      </p>
-                                    )}
-                                    {message.status !== 'deleted' ? (
-                                      <MessageAttachments
-                                        message={message}
-                                        mine={
-                                          mine && !message.isRequest && !message.replyToRequestId
-                                        }
-                                      />
+                                        className="shrink-0"
+                                      >
+                                        {(close) => (
+                                          <MenuItem
+                                            icon={<Reply aria-hidden="true" className="size-4" />}
+                                            disabled={
+                                              busy ||
+                                              !!pendingAttachmentMessageId ||
+                                              !active.pendingRequests?.some(
+                                                (request) => request.id === message.id,
+                                              )
+                                            }
+                                            onSelect={() => {
+                                              close();
+                                              selectRequestToReply(message.id);
+                                            }}
+                                          >
+                                            {active.pendingRequests?.some(
+                                              (request) => request.id === message.id,
+                                            )
+                                              ? text(
+                                                  'Reply to this request',
+                                                  'Répondre à cette demande',
+                                                  language,
+                                                )
+                                              : text(
+                                                  'Request already answered',
+                                                  'Demande déjà répondue',
+                                                  language,
+                                                )}
+                                          </MenuItem>
+                                        )}
+                                      </Menu>
                                     ) : null}
                                   </div>
                                   {message.reactions?.length ? (
@@ -1090,17 +1566,7 @@ export default function MessagesPage() {
                                         className="order-2 inline-flex items-center gap-1 rounded-full border border-brand-tint bg-brand-wash px-2 py-1 font-bold text-brand hover:bg-brand-tint"
                                         aria-pressed={sendModes[active.id] === message.id}
                                         disabled={busy || !!pendingAttachmentMessageId}
-                                        onClick={() => {
-                                          setReplyChoices((current) => ({
-                                            ...current,
-                                            [active.id]: message.id,
-                                          }));
-                                          setSendModes((current) => ({
-                                            ...current,
-                                            [active.id]: message.id,
-                                          }));
-                                          composerInput.current?.focus();
-                                        }}
+                                        onClick={() => selectRequestToReply(message.id)}
                                       >
                                         <Reply aria-hidden="true" className="size-3.5" />
                                         {text('Reply', 'Répondre', language)}
@@ -1145,7 +1611,7 @@ export default function MessagesPage() {
                   <div ref={listEnd} className="h-px" aria-hidden="true" />
                 </div>
 
-                <div className="bg-surface px-4 pt-2 text-center text-[11px] leading-4 text-ink-muted sm:px-6">
+                <div className="hidden bg-surface px-4 pt-2 text-center text-[11px] leading-4 text-ink-muted sm:px-6 lg:block">
                   <LockKeyhole aria-hidden="true" className="mr-1 inline size-3.5 align-[-2px]" />
                   {text(
                     'Messages and calls are secured with end-to-end encryption.',
@@ -1176,34 +1642,14 @@ export default function MessagesPage() {
                   <label htmlFor={`${composerFileId}-message`} className="sr-only">
                     {t('messages.message')}
                   </label>
-                  <div className="rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
+                  <div className="relative rounded-xl border border-line bg-surface px-3 py-2 shadow-sm focus-within:border-ink-muted">
                     {replyTarget ? (
                       <div className="mb-2 rounded-lg border border-brand-tint bg-brand-wash px-3 py-2 text-[12px] text-ink">
-                        {incomingRequests.length > 1 ? (
-                          <SelectField
-                            label={text(
-                              'Request to answer',
-                              'Demande à laquelle répondre',
-                              language,
-                            )}
-                            options={incomingRequests.map((request) => ({
-                              value: request.id,
-                              label: request.body.slice(0, 100),
-                            }))}
-                            value={replyTarget.id}
-                            onChange={(event) => {
-                              const id = event.target.value;
-                              setReplyChoices((current) => ({ ...current, [active.id]: id }));
-                              if (actionEnabled)
-                                setSendModes((current) => ({ ...current, [active.id]: id }));
-                            }}
-                          />
-                        ) : (
-                          <p className="truncate font-semibold">
-                            {text('Request:', 'Demande :', language)} {replyTarget.body}
-                          </p>
-                        )}
-                        <p className="mt-1 text-ink-muted">
+                        <p className="text-ink-muted">
+                          <span className="font-semibold text-ink">
+                            {text('Request to answer', 'Demande', language)}
+                          </span>
+                          <span className="font-semibold text-ink">{' · '}</span>
                           {actionEnabled
                             ? text(
                                 'Sending this reply will resolve this request.',
@@ -1216,6 +1662,9 @@ export default function MessagesPage() {
                                 language,
                               )}
                         </p>
+                        <p className="mt-1 truncate font-semibold" title={replyTarget.body}>
+                          {replyTarget.body}
+                        </p>
                       </div>
                     ) : actionEnabled ? (
                       <p className="mb-2 text-[12px] font-semibold text-brand">
@@ -1226,12 +1675,90 @@ export default function MessagesPage() {
                         )}
                       </p>
                     ) : null}
+                    {mention ? (
+                      <div
+                        id={`${composerFileId}-mentions`}
+                        role="listbox"
+                        aria-label={text(
+                          'Conversation members',
+                          'Membres de la conversation',
+                          language,
+                        )}
+                        className="absolute bottom-full left-0 z-30 mb-2 max-h-48 w-64 max-w-full overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg"
+                      >
+                        {mentionOptions.length ? (
+                          mentionOptions.map((person, index) => (
+                            <button
+                              key={person.id}
+                              id={`${composerFileId}-mention-${index}`}
+                              type="button"
+                              role="option"
+                              aria-selected={index === mentionIndex}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => selectMention(person)}
+                              className={cn(
+                                'block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-wash',
+                                index === mentionIndex && 'bg-brand-wash text-brand',
+                              )}
+                            >
+                              {person.name}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-2 text-sm text-ink-muted">
+                            {text('No matching members', 'Aucun membre correspondant', language)}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                     <textarea
                       ref={composerInput}
                       id={`${composerFileId}-message`}
                       value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
+                      aria-autocomplete="list"
+                      aria-controls={mention ? `${composerFileId}-mentions` : undefined}
+                      aria-activedescendant={
+                        mention && mentionOptions.length
+                          ? `${composerFileId}-mention-${mentionIndex}`
+                          : undefined
+                      }
+                      onSelect={(event) =>
+                        updateMention(event.currentTarget.value, event.currentTarget.selectionStart)
+                      }
+                      onChange={(event) => {
+                        setDraft(event.target.value);
+                        updateMention(event.target.value, event.target.selectionStart);
+                      }}
                       onKeyDown={(event) => {
+                        if (event.nativeEvent.isComposing) return;
+                        if (mention) {
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            setMention(null);
+                            return;
+                          }
+                          if (
+                            (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+                            mentionOptions.length
+                          ) {
+                            event.preventDefault();
+                            setMentionIndex(
+                              (current) =>
+                                (current +
+                                  (event.key === 'ArrowDown' ? 1 : -1) +
+                                  mentionOptions.length) %
+                                mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            const person =
+                              mentionOptions[Math.min(mentionIndex, mentionOptions.length - 1)];
+                            if (person) selectMention(person);
+                            return;
+                          }
+                        }
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
                           event.currentTarget.form?.requestSubmit();
@@ -1250,14 +1777,7 @@ export default function MessagesPage() {
                         'min-h-14 w-full resize-none border-0 bg-transparent px-0 py-1 text-[14px] text-ink outline-none placeholder:text-ink-muted disabled:cursor-not-allowed disabled:text-ink-muted',
                       )}
                     />
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-                      <span className="order-2 whitespace-nowrap text-[11px] text-ink-muted @max-[760px]:order-first @max-[760px]:w-full @max-[420px]:whitespace-normal">
-                        {text(
-                          'Enter to send · Shift + Enter for a new line',
-                          'Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne',
-                          language,
-                        )}
-                      </span>
+                    <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 @max-[560px]:grid-cols-[1fr_auto]">
                       <div className="flex items-center gap-1 text-ink-muted @max-[360px]:gap-0 @max-[360px]:[&>label]:w-7 @max-[360px]:[&_button]:w-7">
                         <input
                           id={composerFileId}
@@ -1341,7 +1861,24 @@ export default function MessagesPage() {
                           <FileText aria-hidden="true" className="size-[17px]" />
                         </button>
                       </div>
-                      <div className="order-3 ml-auto flex shrink-0 items-center gap-2 @max-[360px]:gap-1 @max-[360px]:[&>button]:px-1 @max-[360px]:[&>button]:text-[12px]">
+                      <div className="@container/composer-help min-w-0 text-center text-[11px] leading-4 text-ink-muted @max-[560px]:col-span-2 @max-[560px]:row-start-1 @max-[560px]:text-left">
+                        <p className="flex flex-col items-center justify-center @[290px]/composer-help:flex-row @[290px]/composer-help:gap-1 @max-[560px]:items-start @max-[560px]:justify-start">
+                          <span className="whitespace-nowrap">
+                            {text('Enter to send', 'Entrée : envoyer', language)}
+                          </span>
+                          <span aria-hidden="true" className="hidden @[290px]/composer-help:inline">
+                            ·
+                          </span>
+                          <span className="whitespace-nowrap">
+                            {text(
+                              'Shift + Enter for a new line',
+                              'Maj + Entrée : à la ligne',
+                              language,
+                            )}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="ml-auto flex shrink-0 items-center gap-2 @max-[360px]:gap-1 @max-[360px]:[&>button]:px-1 @max-[360px]:[&>button]:text-[12px]">
                         <Button
                           type="button"
                           size="md"
@@ -1357,7 +1894,9 @@ export default function MessagesPage() {
                           className={cn(
                             'gap-1 px-2',
                             actionEnabled &&
-                              'border-brand bg-brand-wash text-brand ring-2 ring-brand/20',
+                              (replyTarget
+                                ? '[&]:border-brand-tint [&]:bg-brand-wash [&]:text-brand ring-2 ring-brand/20 hover:[&]:border-brand-tint hover:[&]:bg-brand-wash'
+                                : '[&]:border-warning-border [&]:bg-warning-bg [&]:text-warning ring-2 ring-warning/20 hover:[&]:border-warning-border hover:[&]:bg-warning-bg'),
                           )}
                         >
                           {actionEnabled ? (
@@ -1767,7 +2306,7 @@ function ComposeDrawer({
 
   return (
     <Drawer open={open} title={t('messages.newConversation')} onClose={onClose}>
-      <div className="flex flex-col gap-5 [&_button>span.hidden]:hidden">
+      <div className="flex flex-col gap-5">
         <SelectField
           label={t('messages.kind')}
           value={kind}

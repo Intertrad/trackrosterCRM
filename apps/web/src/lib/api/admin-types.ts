@@ -9,6 +9,7 @@ export interface AdminDashboardMetrics {
   totalEstablishments: number;
   contactedEstablishments: number;
   activeMembers: number;
+  totalMembers?: number;
   sessionsLast30Days: number;
   activeOrganizations: number;
   activeTeams: number;

@@ -1,5 +1,7 @@
+'use client';
 import type { ReactNode } from 'react';
 
+import { MetricDetails } from './metric-details';
 import { cn } from '@/lib/ui/cn';
 
 type StatTone = 'brand' | 'success' | 'warning' | 'danger' | 'neutral';
@@ -23,6 +25,8 @@ export function StatTile({
   label,
   delta,
   className,
+  details,
+  href,
 }: {
   icon: ReactNode;
   tone?: StatTone;
@@ -30,9 +34,16 @@ export function StatTile({
   label: string;
   delta?: string;
   className?: string;
+  details?: ReactNode;
+  href?: string;
 }) {
   return (
-    <div
+    <MetricDetails
+      label={label}
+      value={value}
+      description={delta}
+      details={details}
+      href={href}
       className={cn(
         'flex items-center gap-4 rounded-2xl border border-line-soft bg-surface p-4',
         className,
@@ -56,6 +67,6 @@ export function StatTile({
           <span className="mt-1 block text-[13px] font-semibold text-success">{delta}</span>
         ) : null}
       </span>
-    </div>
+    </MetricDetails>
   );
 }

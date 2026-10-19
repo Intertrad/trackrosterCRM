@@ -25,6 +25,8 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CapacityBar } from '@/components/ui/capacity-bar';
+import { ActivityCharts } from '@/components/ui/activity-charts';
+import { MetricDetails } from '@/components/ui/metric-details';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { ApiError } from '@/lib/api/api-error';
@@ -158,15 +160,6 @@ export default function TeamOverviewPage() {
 
   const inactiveCount = roster.filter((row) => rosterStatus(row) === 'inactive').length;
 
-  const activitySeries = roster
-    .map((member) => ({ label: member.name, value: member.actionsThisPeriod }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 7);
-  const maxActivity = Math.max(...activitySeries.map((item) => item.value), 1);
-  const channelSeries = Object.entries(data?.activities.byType ?? {})
-    .map(([label, value]) => ({ label: label.replace(/_/g, ' '), value }))
-    .sort((a, b) => b.value - a.value);
-  const maxChannel = Math.max(...channelSeries.map((item) => item.value), 1);
   const onTrack = roster.length
     ? Math.round(
         (roster.filter((member) => rosterStatus(member) === 'on_track').length / roster.length) *
@@ -222,6 +215,17 @@ export default function TeamOverviewPage() {
           value={data ? totals.openAssignments : '—'}
           label={l('Active assignments', 'Attributions actives')}
           detail={l('Current team portfolio', 'Portefeuille actuel de l’équipe')}
+          details={
+            <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+              {roster.map((member) => (
+                <li key={member.id} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{member.name}</span>
+                  <strong>{member.activeProspects ?? '—'}</strong>
+                </li>
+              ))}
+            </ul>
+          }
+          href="/manager/assignments"
           tone="blue"
         />
         <DashboardMetric
@@ -233,6 +237,17 @@ export default function TeamOverviewPage() {
               ? `${totals.followUpsCompleted} ${l('completed in range', 'terminées sur la période')}`
               : l('Waiting for API', 'En attente de l’API')
           }
+          details={
+            <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+              {roster.map((member) => (
+                <li key={member.id} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{member.name}</span>
+                  <strong>{member.pendingFollowUps ?? '—'}</strong>
+                </li>
+              ))}
+            </ul>
+          }
+          href="/actions"
           tone="indigo"
         />
         <DashboardMetric
@@ -244,6 +259,17 @@ export default function TeamOverviewPage() {
               ? l('Needs attention', 'Nécessite votre attention')
               : l('Waiting for API', 'En attente de l’API')
           }
+          details={
+            <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+              {roster.map((member) => (
+                <li key={member.id} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{member.name}</span>
+                  <strong>{member.overdue ?? '—'}</strong>
+                </li>
+              ))}
+            </ul>
+          }
+          href="/actions"
           tone="red"
         />
         <DashboardMetric
@@ -251,6 +277,15 @@ export default function TeamOverviewPage() {
           value={data ? requests.length : '—'}
           label={l('Collisions / overrides', 'Conflits / dérogations')}
           detail={l('Pending manager decision', 'Décision du responsable en attente')}
+          details={
+            <p className="text-sm">
+              {l(
+                'Requests awaiting a manager decision.',
+                'Demandes en attente d’une décision du manager.',
+              )}
+            </p>
+          }
+          href="/manager/approvals"
           tone="amber"
         />
         <DashboardMetric
@@ -262,97 +297,22 @@ export default function TeamOverviewPage() {
               ? `${totals.activeProspectors} ${l('active prospectors', 'prospecteurs actifs')}`
               : l('Waiting for API', 'En attente de l’API')
           }
+          details={
+            <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+              {roster.map((member) => (
+                <li key={member.id} className="flex justify-between gap-3 py-2 text-sm">
+                  <span>{member.name}</span>
+                  <strong>{member.capacityPercent ?? '—'}%</strong>
+                </li>
+              ))}
+            </ul>
+          }
+          href="/manager/reports"
           tone="green"
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)] xl:items-start">
-        <Card padding="none" className="overflow-hidden">
-          <DashboardCardHeader
-            title={l('Activity over time', 'Activité dans le temps')}
-            subtitle={l(
-              'Actions logged · selected period',
-              'Actions enregistrées · période sélectionnée',
-            )}
-            value={
-              data
-                ? `${totals.activitiesInPeriod} ${l('actions', 'actions')}`
-                : l('Waiting for API', 'En attente de l’API')
-            }
-          />
-          <div className="flex min-h-[220px] items-end gap-4 px-6 pb-5 pt-8 sm:gap-7">
-            {activitySeries.length ? (
-              activitySeries.map((item, index) => (
-                <div key={item.label} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-                  <div className="flex h-36 w-full items-end justify-center">
-                    <div
-                      className={cn(
-                        'w-full max-w-10 rounded-t-md transition-[height]',
-                        index === 0 ? 'bg-brand' : 'bg-brand/60',
-                      )}
-                      style={{ height: `${Math.max(8, (item.value / maxActivity) * 100)}%` }}
-                      role="img"
-                      aria-label={`${item.label}: ${item.value} actions`}
-                    />
-                  </div>
-                  <span className="max-w-20 truncate text-center text-[11px] text-ink-muted">
-                    {item.label}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="w-full self-center text-center text-[13px] text-ink-muted">
-                {l(
-                  'Activity bars appear when the manager API returns team members.',
-                  'Les barres d’activité apparaîtront lorsque l’API du responsable renverra les membres de l’équipe.',
-                )}
-              </p>
-            )}
-          </div>
-        </Card>
-
-        <Card padding="none" className="overflow-hidden">
-          <DashboardCardHeader
-            title={l('Activity by channel', 'Activité par canal')}
-            subtitle={l('Selected period', 'Période sélectionnée')}
-          />
-          <div className="flex min-h-[220px] items-center gap-6 px-6 py-6">
-            <div
-              className="flex size-36 shrink-0 items-center justify-center rounded-full"
-              style={{ background: donutGradient(channelSeries) }}
-              role="img"
-              aria-label="Activity distribution by channel"
-            >
-              <div className="flex size-24 flex-col items-center justify-center rounded-full bg-surface text-center">
-                <span className="text-[22px] font-extrabold text-navy">
-                  {data ? totals.activitiesInPeriod : '—'}
-                </span>
-                <span className="text-[11px] text-ink-muted">{l('complete', 'total')}</span>
-              </div>
-            </div>
-            <ul className="min-w-0 flex-1 space-y-3">
-              {channelSeries.length ? (
-                channelSeries.slice(0, 5).map((item, index) => (
-                  <li key={item.label} className="flex items-center gap-2 text-[12px]">
-                    <span className={cn('size-2 rounded-full', channelTone(index))} />
-                    <span className="min-w-0 flex-1 truncate capitalize text-ink">
-                      {item.label}
-                    </span>
-                    <span className="font-bold tabular-nums text-navy">{item.value}</span>
-                  </li>
-                ))
-              ) : (
-                <li className="text-[13px] text-ink-muted">
-                  {l('No channel data returned.', 'Aucune donnée de canal reçue.')}
-                </li>
-              )}
-            </ul>
-          </div>
-          {channelSeries.length ? (
-            <div className="sr-only">Maximum channel count: {maxChannel}</div>
-          ) : null}
-        </Card>
-      </div>
+      <ActivityCharts period={period} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
@@ -559,12 +519,16 @@ function DashboardMetric({
   value,
   label,
   detail,
+  details,
+  href,
   tone,
 }: {
   icon: ReactNode;
   value: number | string;
   label: string;
   detail: string;
+  details?: ReactNode;
+  href?: string;
   tone: 'blue' | 'indigo' | 'red' | 'amber' | 'green';
 }) {
   const tones = {
@@ -576,20 +540,22 @@ function DashboardMetric({
   } as const;
 
   return (
-    <Card className="flex min-h-[112px] flex-col justify-between">
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-[12px] font-semibold text-ink-muted">{label}</span>
-        <span className={cn('flex size-8 items-center justify-center rounded-lg', tones[tone])}>
-          {icon}
-        </span>
-      </div>
-      <div>
-        <p className="text-[26px] font-extrabold leading-none tracking-[-0.03em] text-navy">
-          {value}
-        </p>
-        <p className="mt-2 truncate text-[11px] text-ink-muted">{detail}</p>
-      </div>
-    </Card>
+    <MetricDetails label={label} value={value} description={detail} details={details} href={href}>
+      <Card className="flex min-h-[112px] flex-col justify-between">
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-[12px] font-semibold text-ink-muted">{label}</span>
+          <span className={cn('flex size-8 items-center justify-center rounded-lg', tones[tone])}>
+            {icon}
+          </span>
+        </div>
+        <div>
+          <p className="text-[26px] font-extrabold leading-none tracking-[-0.03em] text-navy">
+            {value}
+          </p>
+          <p className="mt-2 truncate text-[11px] text-ink-muted">{detail}</p>
+        </div>
+      </Card>
+    </MetricDetails>
   );
 }
 
@@ -646,23 +612,6 @@ function RiskRow({
       <span>{children}</span>
     </div>
   );
-}
-
-function channelTone(index: number): string {
-  return ['bg-brand', 'bg-blue-400', 'bg-blue-200', 'bg-lime-400', 'bg-violet-400'][index % 5]!;
-}
-
-function donutGradient(series: Array<{ label: string; value: number }>): string {
-  const total = series.reduce((sum, item) => sum + item.value, 0);
-  if (!total) return '#e9eef8';
-  const colors = ['#1f5eff', '#6f9bf1', '#a9c3f5', '#9bd63f', '#8b5cf6'];
-  let cursor = 0;
-  const stops = series.slice(0, colors.length).map((item, index) => {
-    const start = cursor;
-    cursor += (item.value / total) * 360;
-    return `${colors[index]} ${start}deg ${cursor}deg`;
-  });
-  return `conic-gradient(${stops.join(', ')})`;
 }
 
 function describeLoadError(

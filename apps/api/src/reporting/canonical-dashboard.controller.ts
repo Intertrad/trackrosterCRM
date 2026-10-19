@@ -1,3 +1,4 @@
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ObjectiveModule } from '../objectives/objective.controller.js';
 import { ObjectiveService } from '../objectives/objective.service.js';
 import { RouteModule } from '../routes/route.controller.js';
@@ -26,6 +27,10 @@ import { ReportingModule } from './reporting.module.js';
 import { ProspectorTodayModule } from '../prospector-today/prospector-today.module.js';
 import { ProspectorTodayService } from '../prospector-today/prospector-today.service.js';
 import { ProspectorTodayQueryDto } from '../prospector-today/prospector-today-query.dto.js';
+export class IndicatorQueryDto {
+  @IsOptional() @IsString() @MaxLength(40) role?: string;
+  @IsOptional() @IsUUID() cursor?: string;
+}
 @Injectable()
 export class CanonicalDashboardService {
   constructor(
@@ -35,6 +40,92 @@ export class CanonicalDashboardService {
     private readonly routes: RouteService,
     private readonly objectives: ObjectiveService,
   ) {}
+  async activityDetails(a: AuthenticatedPrincipal, q: ManagerDashboardQueryDto) {
+    const base = await this.reports.getDashboard({
+      tenantId: a.tenantId,
+      userId: a.membershipId,
+      query: q,
+    });
+    const org = base.filters.organizationId ?? base.scope.organizationId;
+    const team = base.filters.teamId ?? base.scope.teamId;
+    const result = await this.db.execute(sql`
+      SELECT (coalesce(ac.completed_at, ac.cancelled_at, ac.due_at, ac.created_at) AT TIME ZONE 'Europe/Paris')::date::text AS date,
+        ac.type AS channel,
+        CASE WHEN ac.status='completed' THEN 'completed' WHEN ac.status='cancelled' THEN 'cancelled'
+          WHEN ac.due_at < ${base.generatedAt}::timestamptz THEN 'overdue' ELSE 'pending' END AS status,
+        ao.outcome_code AS outcome, count(*)::int AS count
+      FROM actions ac
+      JOIN campaign_prospect_assignments ca ON ca.tenant_id=ac.tenant_id AND ca.id=ac.assignment_id
+      LEFT JOIN action_outcomes ao ON ao.tenant_id=ac.tenant_id AND ao.action_id=ac.id
+      WHERE ac.tenant_id=${a.tenantId}
+        ${org ? sql`AND ca.organization_id=${org}` : sql``}
+        ${team ? sql`AND ca.team_id=${team}` : sql``}
+        ${base.filters.userId ? sql`AND ac.assignee_membership_id=${base.filters.userId}` : sql``}
+        ${base.filters.campaignId ? sql`AND ac.campaign_id=${base.filters.campaignId}` : sql``}
+        AND coalesce(ac.completed_at, ac.cancelled_at, ac.due_at, ac.created_at)>=${base.range.from}::timestamptz
+        AND coalesce(ac.completed_at, ac.cancelled_at, ac.due_at, ac.created_at)<${base.range.to}::timestamptz
+      GROUP BY 1,2,3,4 ORDER BY 1,2,3,4`);
+    return {
+      generatedAt: base.generatedAt,
+      range: base.range,
+      scope: base.scope,
+      timeZone: 'Europe/Paris',
+      basis:
+        'Completion date for completed actions, cancellation date for cancelled actions, otherwise due date or creation date. Overdue is measured at generatedAt.',
+      items: result.rows,
+    };
+  }
+  async peopleDetails(a: AuthenticatedPrincipal, q: IndicatorQueryDto) {
+    await this.role(a, []);
+    const people = sql`WITH people AS (
+      SELECT m.id, m.display_name AS "displayName", i.email, m.status,
+        EXISTS(SELECT 1 FROM membership_invitations inv WHERE inv.tenant_id=m.tenant_id AND inv.membership_id=m.id AND inv.consumed_at IS NULL AND inv.expires_at>now() AND m.status='invited') AS "pendingInvitation",
+        ARRAY(SELECT DISTINCT role FROM (
+          SELECT g.role::text AS role FROM user_access_grants g WHERE g.tenant_id=m.tenant_id AND g.user_id=m.id
+          UNION SELECT r.role::text FROM membership_resource_scopes r WHERE r.tenant_id=m.tenant_id AND r.user_id=m.id
+        ) roles) AS roles
+      FROM tenant_memberships m JOIN identities i ON i.id=m.identity_id WHERE m.tenant_id=${a.tenantId}
+    )`;
+    const totals = await this.db.execute(
+      sql`${people} SELECT count(*)::int AS total, count(*) FILTER(WHERE status='active')::int AS active, count(*) FILTER(WHERE "pendingInvitation")::int AS invitations FROM people`,
+    );
+    const roles = await this.db.execute(
+      sql`${people} SELECT role, count(*)::int AS count, count(*) FILTER(WHERE "pendingInvitation")::int AS invitations FROM people CROSS JOIN LATERAL unnest(CASE WHEN cardinality(roles)=0 THEN ARRAY['unassigned'] ELSE roles END) role GROUP BY role ORDER BY role`,
+    );
+    const rows = await this.db.execute(sql`${people} SELECT * FROM people WHERE true
+      ${q.role === 'unassigned' ? sql`AND cardinality(roles)=0` : q.role ? sql`AND ${q.role}=ANY(roles)` : sql``}
+      ${q.cursor ? sql`AND id>${q.cursor}::uuid` : sql``} ORDER BY id LIMIT 101`);
+    const items = rows.rows.slice(0, 100);
+    return {
+      ...totals.rows[0],
+      roles: roles.rows,
+      items,
+      nextCursor: rows.rows.length > 100 ? items.at(-1)?.id : null,
+    };
+  }
+  async duplicateDetails(a: AuthenticatedPrincipal, q: IndicatorQueryDto) {
+    await this.role(a, []);
+    const result = await this.db
+      .execute(sql`SELECT d.id, d.matching_keys AS "matchingKeys", d.created_at AS "createdAt",
+      l.id AS "leftId", l.name AS "leftName", r.id AS "rightId", r.name AS "rightName"
+      FROM prospect_duplicates d JOIN establishments l ON l.tenant_id=d.tenant_id AND l.id=d.left_prospect_id
+      JOIN establishments r ON r.tenant_id=d.tenant_id AND r.id=d.right_prospect_id
+      WHERE d.tenant_id=${a.tenantId} AND d.resolution='pending' ${q.cursor ? sql`AND d.id>${q.cursor}::uuid` : sql``}
+      ORDER BY d.id LIMIT 101`);
+    const items = result.rows.slice(0, 100);
+    return { items, nextCursor: result.rows.length > 100 ? items.at(-1)?.id : null };
+  }
+  async unownedDetails(a: AuthenticatedPrincipal, q: IndicatorQueryDto) {
+    await this.role(a, []);
+    const rows = await this.db.execute(sql`SELECT e.id, e.name, e.city FROM establishments e
+      WHERE e.tenant_id=${a.tenantId} AND e.status='active' ${q.cursor ? sql`AND e.id>${q.cursor}::uuid` : sql``}
+      AND NOT EXISTS (SELECT 1 FROM campaign_prospects cp
+        JOIN campaigns c ON c.tenant_id=cp.tenant_id AND c.id=cp.campaign_id AND c.status='active'
+        JOIN campaign_prospect_assignments ca ON ca.tenant_id=cp.tenant_id AND ca.campaign_prospect_id=cp.id AND ca.ended_at IS NULL
+        WHERE cp.tenant_id=e.tenant_id AND cp.establishment_id=e.id AND cp.status='active') ORDER BY e.id LIMIT 101`);
+    const items = rows.rows.slice(0, 100);
+    return { items, nextCursor: rows.rows.length > 100 ? items.at(-1)?.id : null };
+  }
   async todayView(a: AuthenticatedPrincipal, q: ProspectorTodayQueryDto) {
     const result = await this.today.getToday({
       tenantId: a.tenantId,
@@ -118,6 +209,7 @@ export class CanonicalDashboardService {
    (SELECT count(*)::int FROM establishments WHERE tenant_id=${a.tenantId} AND status='active') AS "totalEstablishments",
    (SELECT count(DISTINCT establishment_id)::int FROM prospect_activities WHERE tenant_id=${a.tenantId}) AS "contactedEstablishments",
    (SELECT count(*)::int FROM tenant_memberships WHERE tenant_id=${a.tenantId} AND status='active') AS "activeMembers",
+   (SELECT count(*)::int FROM tenant_memberships WHERE tenant_id=${a.tenantId}) AS "totalMembers",
    (SELECT count(*)::int FROM auth_sessions WHERE tenant_id=${a.tenantId} AND created_at>=now()-interval '30 days') AS "sessionsLast30Days",
    (SELECT count(*)::int FROM organizations WHERE tenant_id=${a.tenantId} AND status='active') AS "activeOrganizations",
    (SELECT count(*)::int FROM teams WHERE tenant_id=${a.tenantId} AND status='active') AS "activeTeams",
@@ -202,6 +294,30 @@ export class CanonicalDashboardService {
 @UseGuards(AuthGuard)
 export class CanonicalDashboardController {
   constructor(private readonly service: CanonicalDashboardService) {}
+  @Get('activity') activity(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: ManagerDashboardQueryDto,
+  ) {
+    return this.service.activityDetails(a, q);
+  }
+  @Get('admin/people') people(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: IndicatorQueryDto,
+  ) {
+    return this.service.peopleDetails(a, q);
+  }
+  @Get('admin/duplicates') duplicates(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: IndicatorQueryDto,
+  ) {
+    return this.service.duplicateDetails(a, q);
+  }
+  @Get('admin/unowned') unowned(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Query() q: IndicatorQueryDto,
+  ) {
+    return this.service.unownedDetails(a, q);
+  }
   @Get('today') today(
     @CurrentAuth() a: AuthenticatedPrincipal,
     @Query() q: ProspectorTodayQueryDto,

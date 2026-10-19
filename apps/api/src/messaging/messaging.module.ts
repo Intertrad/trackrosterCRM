@@ -38,7 +38,8 @@ import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { Idempotent } from '../idempotency/idempotent.decorator.js';
 import {
   AddParticipantDto,
-  ConversationListDto,
+  ConversationSearchDto,
+  MessageListDto,
   CreateConversationDto,
   MuteConversationDto,
   MarkConversationReadDto,
@@ -178,7 +179,7 @@ export class MessagingService {
      * request; 400 sends well-behaved clients into a pointless retry loop. */
     if (!m) throw new ForbiddenException('Conversation membership required');
   }
-  async list(a: Auth, q: ConversationListDto) {
+  async list(a: Auth, q: ConversationSearchDto) {
     const after = decodeCursor(q.cursor);
     const limit = page(q.limit);
     const rows = await this.db
@@ -188,6 +189,13 @@ export class MessagingService {
         and(
           eq(conversations.tenantId, a.tenantId),
           sql`EXISTS (SELECT 1 FROM conversation_participants p WHERE p.tenant_id=${a.tenantId} AND p.conversation_id=conversations.id AND p.membership_id=${a.membershipId})`,
+          q.search?.trim()
+            ? sql`(
+            position(lower(${q.search.trim()}) in lower(coalesce(${conversations.title}, ''))) > 0
+            OR EXISTS (SELECT 1 FROM messages sm WHERE sm.tenant_id=${a.tenantId} AND sm.conversation_id=conversations.id AND sm.status <> 'deleted' AND position(lower(${q.search.trim()}) in lower(sm.body)) > 0)
+            OR EXISTS (SELECT 1 FROM conversation_participants sp JOIN tenant_memberships tm ON tm.tenant_id=sp.tenant_id AND tm.id=sp.membership_id JOIN identities si ON si.id=tm.identity_id WHERE sp.tenant_id=${a.tenantId} AND sp.conversation_id=conversations.id AND position(lower(${q.search.trim()}) in lower(coalesce(tm.display_name, '') || ' ' || si.email)) > 0)
+          )`
+            : undefined,
           after
             ? sql`(${conversations.updatedAt}, ${conversations.id}) < (${after.timestamp}, ${after.id})`
             : undefined,
@@ -472,7 +480,7 @@ export class MessagingService {
         ),
       );
   }
-  async listMessages(a: Auth, id: string, q: ConversationListDto) {
+  async listMessages(a: Auth, id: string, q: MessageListDto) {
     await this.member(a, id);
     const after = decodeCursor(q.cursor);
     const limit = page(q.limit);
@@ -483,6 +491,12 @@ export class MessagingService {
         and(
           eq(messages.tenantId, a.tenantId),
           eq(messages.conversationId, id),
+          q.search?.trim()
+            ? and(
+                sql`position(lower(${q.search.trim()}) in lower(${messages.body})) > 0`,
+                sql`${messages.status} <> 'deleted'`,
+              )
+            : undefined,
           after
             ? sql`(${messages.createdAt}, ${messages.id}) < (${after.timestamp}, ${after.id})`
             : undefined,
@@ -770,7 +784,7 @@ export class ConversationController {
   @Get('unread-count') unreadCount(@CurrentAuth() a: Auth) {
     return this.s.unreadCount(a);
   }
-  @Get() list(@CurrentAuth() a: Auth, @Query() q: ConversationListDto) {
+  @Get() list(@CurrentAuth() a: Auth, @Query() q: ConversationSearchDto) {
     return this.s.list(a, q);
   }
   @Post() @Idempotent('conversation.create') create(
@@ -812,7 +826,7 @@ export class ConversationController {
   @Get(':id/messages') messages(
     @CurrentAuth() a: Auth,
     @Param('id', ParseUUIDPipe) id: string,
-    @Query() q: ConversationListDto,
+    @Query() q: MessageListDto,
   ) {
     return this.s.listMessages(a, id, q);
   }

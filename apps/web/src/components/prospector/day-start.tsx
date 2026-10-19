@@ -8,10 +8,10 @@ import {
   Filter,
   ListChecks,
   RefreshCw,
-  Search,
   Users,
 } from 'lucide-react';
 
+import { MetricDetails } from '@/components/ui/metric-details';
 import { Button } from '@/components/ui/button';
 import { LinkButton } from '@/components/ui/link-button';
 import { useTranslation } from '@/lib/i18n/i18n-context';
@@ -24,8 +24,6 @@ type FilterId = 'all' | 'overdue' | 'due_today';
 export function DayStart({
   today,
   displayName,
-  search,
-  onSearchChange,
   filter,
   counts,
   onFilterChange,
@@ -34,8 +32,6 @@ export function DayStart({
 }: {
   today: ProspectorTodayResponse;
   displayName?: string | null;
-  search: string;
-  onSearchChange: (value: string) => void;
   filter: FilterId;
   counts: { all: number; overdue: number; due_today: number };
   onFilterChange: (value: FilterId) => void;
@@ -49,35 +45,53 @@ export function DayStart({
   const planned = Math.max(toDo + followUps + meetings, actionsLeft, today.priorities.length);
   const nextFollowUp = today.priorities.find((priority) => priority.category === 'follow_up');
   const meeting = today.priorities.find((priority) => priority.category === 'meeting');
-  const dateLabel = new Date(`${today.day.date}T12:00:00`).toLocaleDateString(locale, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  const dateLabel = new Date(`${today.day.date}T12:00:00`).toLocaleDateString(
+    locale ?? (language === 'fr' ? 'fr-FR' : 'en-GB'),
+    {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    },
+  );
+  const priorityDetails = (category: string) => {
+    const rows = today.priorities.filter((item) =>
+      category === 'overdue' ? item.isOverdue : item.category === category,
+    );
+    return (
+      <div className="space-y-2">
+        <p className="text-xs text-ink-muted">
+          {dateLabel} · {today.day.timeZone}
+        </p>
+        {rows.length ? (
+          <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+            {rows.map((item) => (
+              <li key={item.id} className="py-2 text-sm">
+                <p className="font-semibold">{item.establishment.name}</p>
+                <p className="text-ink-muted">
+                  {item.establishment.city} · {formatTime(item.dueAt, today.day.timeZone)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-ink-muted">
+            {l(
+              'No related priorities in the current list.',
+              'Aucune priorité correspondante dans la liste actuelle.',
+            )}
+          </p>
+        )}
+      </div>
+    );
+  };
   const firstName = (displayName ?? '').trim().split(/\s+/)[0] || l('there', 'à vous');
 
   return (
     <section aria-label={l('Plan your day', 'Organiser ma journée')} className="space-y-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="relative max-w-[360px]">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted"
-            />
-            <label htmlFor="today-search" className="sr-only">
-              {l('Search my assigned prospects', 'Rechercher mes établissements attribués')}
-            </label>
-            <input
-              id="today-search"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={l('Search my assigned prospects…', 'Rechercher mes établissements…')}
-              className="h-10 w-full rounded-[9px] border border-line bg-surface pl-10 pr-3.5 text-[13px] text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
-            />
-          </div>
-          <div className="mt-5">
+          <div>
             <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-navy sm:text-[30px]">
               {getGreeting(l)}, {firstName}
             </h1>
@@ -90,9 +104,6 @@ export function DayStart({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="hidden items-center gap-2 rounded-full border border-brand-tint bg-brand-wash px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-brand sm:inline-flex">
-            Prospector
-          </span>
           <div className="relative">
             <Button
               variant="secondary"
@@ -172,16 +183,18 @@ export function DayStart({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
+          details={priorityDetails('todo')}
           tone="brand"
           icon={<ListChecks aria-hidden="true" className="size-4" />}
           value={toDo}
           label={l('To do today', 'À faire aujourd’hui')}
           detail={l(
-            `${toDo} calls · ${meetings} visits · ${followUps} emails`,
-            `${toDo} appels · ${meetings} visites · ${followUps} e-mails`,
+            `${toDo} tasks · ${meetings} meetings · ${followUps} follow-ups`,
+            `${toDo} tâches · ${meetings} rendez-vous · ${followUps} relances`,
           )}
         />
         <SummaryCard
+          details={priorityDetails('follow_up')}
           tone="neutral"
           icon={<CalendarDays aria-hidden="true" className="size-4" />}
           value={followUps}
@@ -193,6 +206,7 @@ export function DayStart({
           }
         />
         <SummaryCard
+          details={priorityDetails('meeting')}
           tone="success"
           icon={<Users aria-hidden="true" className="size-4" />}
           value={meetings}
@@ -204,16 +218,14 @@ export function DayStart({
           }
         />
         <SummaryCard
+          details={priorityDetails('overdue')}
           tone="danger"
           icon={<AlertTriangle aria-hidden="true" className="size-4" />}
           value={overdue}
           label={l('Overdue', 'En retard')}
           detail={
             overdue
-              ? l(
-                  `Oldest: ${overdue} day${overdue === 1 ? '' : 's'}`,
-                  `Plus ancienne : ${overdue} jour${overdue === 1 ? '' : 's'}`,
-                )
+              ? l(`${overdue} overdue priorities`, `${overdue} priorités en retard`)
               : l('All caught up', 'Tout est à jour')
           }
         />
@@ -322,12 +334,14 @@ function SummaryCard({
   value,
   label,
   detail,
+  details,
 }: {
   tone: 'brand' | 'neutral' | 'success' | 'danger';
   icon: ReactNode;
   value: number;
   label: string;
   detail: string;
+  details: ReactNode;
 }) {
   const iconTone = {
     brand: 'bg-brand-tint text-brand',
@@ -337,7 +351,14 @@ function SummaryCard({
   }[tone];
 
   return (
-    <div className="min-h-[96px] rounded-xl border border-line-soft bg-surface p-3.5 shadow-[0_3px_12px_rgba(5,18,74,0.05)]">
+    <MetricDetails
+      label={label}
+      value={value}
+      description={detail}
+      details={details}
+      href="/actions"
+      className="min-h-[96px] rounded-xl border border-line-soft bg-surface p-3.5 shadow-[0_3px_12px_rgba(5,18,74,0.05)]"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-ink-muted">{label}</p>
@@ -354,7 +375,7 @@ function SummaryCard({
       >
         {detail}
       </p>
-    </div>
+    </MetricDetails>
   );
 }
 

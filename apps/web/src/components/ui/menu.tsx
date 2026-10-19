@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { createPortal } from 'react-dom';
 
 import { cn } from '@/lib/ui/cn';
 
@@ -18,6 +19,7 @@ export function Menu({
   label,
   children,
   align = 'end',
+  placement = 'below',
   className,
 }: {
   /** Rendered inside the trigger button. */
@@ -30,9 +32,41 @@ export function Menu({
   children: ReactNode | ((close: () => void) => ReactNode);
 
   align?: 'start' | 'end';
+  placement?: 'below' | 'request-actions';
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || placement !== 'request-actions') return;
+
+    function updatePosition() {
+      const trigger = triggerRef.current?.getBoundingClientRect();
+      const menu = menuRef.current?.getBoundingClientRect();
+      if (!trigger || !menu) return;
+      const gap = 4;
+      const padding = 8;
+      const fitsBelow = trigger.top + menu.height <= window.innerHeight - padding;
+      setPosition({
+        left: Math.max(
+          padding,
+          Math.min(trigger.right + gap, window.innerWidth - menu.width - padding),
+        ),
+        top: Math.max(padding, fitsBelow ? trigger.top : trigger.bottom - menu.height),
+      });
+    }
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, placement]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -43,7 +77,10 @@ export function Menu({
     }
 
     function onPointerDown(event: MouseEvent): void {
-      if (!containerRef.current?.contains(event.target as Node)) {
+      if (
+        !containerRef.current?.contains(event.target as Node) &&
+        !menuRef.current?.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -68,6 +105,24 @@ export function Menu({
 
   const close = () => setOpen(false);
 
+  const popup = (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label={label}
+      style={placement === 'request-actions' ? position : undefined}
+      className={cn(
+        'z-20 w-52 max-w-[calc(100vw-16px)] overflow-hidden rounded-xl',
+        'border border-line-soft bg-surface shadow-lg',
+        placement === 'request-actions'
+          ? 'fixed'
+          : cn('absolute mt-1', align === 'end' ? 'right-0' : 'left-0'),
+      )}
+    >
+      {typeof children === 'function' ? children(close) : children}
+    </div>
+  );
+
   return (
     <div ref={containerRef} className={cn('relative', className)}>
       <button
@@ -85,19 +140,7 @@ export function Menu({
         {trigger}
       </button>
 
-      {open ? (
-        <div
-          role="menu"
-          aria-label={label}
-          className={cn(
-            'absolute z-20 mt-1 w-52 overflow-hidden rounded-xl',
-            'border border-line-soft bg-surface shadow-lg',
-            align === 'end' ? 'right-0' : 'left-0',
-          )}
-        >
-          {typeof children === 'function' ? children(close) : children}
-        </div>
-      ) : null}
+      {open ? (placement === 'request-actions' ? createPortal(popup, document.body) : popup) : null}
     </div>
   );
 }
