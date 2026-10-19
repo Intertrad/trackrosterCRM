@@ -160,6 +160,27 @@ export function ProfileTab() {
          * preserves optimistic concurrency while making a language-only change
          * reliable after a production session refresh. */
         try {
+          /*
+           * Locale is a per-user presentation preference. If a proxy or an
+           * older production API rewrites the validator between GET and PATCH,
+           * retrying this one-field preference with the wildcard validator is
+           * safe: it cannot overwrite profile identity or contact data. Other
+           * profile edits continue through the normal conflict path below.
+           */
+          if (isLocaleOnlyUpdate(input)) {
+            const result = await updateAccountProfile(input, '*');
+
+            applyProfile(result.resource, result.etag);
+            updateUser({
+              displayName: result.resource.displayName,
+              locale: result.resource.locale,
+            });
+            setSave({ kind: 'saved' });
+            notify.success(t('account.profile.saved'), { id: 'profile-saved' });
+
+            return;
+          }
+
           const latest = await getAccountProfile();
 
           if (hasConcurrentProfileConflict(profile, latest.resource, input)) {
@@ -534,6 +555,10 @@ function profileUpdateMatches(profile: AccountProfile, input: UpdateAccountInput
 
     return (profile[field] ?? null) === desired;
   });
+}
+
+function isLocaleOnlyUpdate(input: UpdateAccountInput): input is { locale: string } {
+  return typeof input.locale === 'string' && Object.keys(input).every((key) => key === 'locale');
 }
 
 interface ProfileFormValues {

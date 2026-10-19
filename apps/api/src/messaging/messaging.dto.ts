@@ -100,3 +100,11 @@ export class ConversationListDto {
 export class MarkConversationReadDto {
   @IsOptional() @IsUUID() messageId?: string;
 }
+
+export class MessageListDto extends ConversationListDto {
+  @IsOptional() @IsString() @MaxLength(200) search?: string;
+}
+
+export class ConversationSearchDto extends ConversationListDto {
+  @IsOptional() @IsString() @MaxLength(200) search?: string;
+}

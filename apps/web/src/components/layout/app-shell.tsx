@@ -208,7 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           collapsed ? 'w-[76px]' : 'w-[220px]',
         )}
       >
-        <div className={cn('px-[14px] pt-6 pb-7 text-center', collapsed && 'px-0 text-center')}>
+        <div className={cn('px-[14px] pt-6 pb-4 text-center', collapsed && 'px-0 text-center')}>
           {collapsed ? (
             <BrandMark className="mx-auto" />
           ) : (
@@ -216,12 +216,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        {!collapsed ? (
-          <WorkspaceScopeCard activeWorkspace={activeWorkspace} isProspector={isProspector} />
-        ) : null}
-
         <nav
           aria-label={t('nav.workspace')}
+          style={{ marginTop: '7vh' }}
           className={cn(
             'reference-sidebar-nav flex min-h-0 flex-1 flex-col overflow-y-auto px-[14px] py-1',
             isProspector && 'pt-2',
@@ -312,30 +309,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         moreOpen={moreOpen}
         onToggleMore={() => setMoreOpen((open) => !open)}
       />
-    </div>
-  );
-}
-
-function WorkspaceScopeCard({
-  activeWorkspace,
-  isProspector,
-}: {
-  activeWorkspace: { organizationId: string | null; teamId: string | null } | null;
-  isProspector: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <div className="px-3 pb-4">
-      <div className="rounded-xl border border-white/12 bg-white/6 px-3 py-3">
-        <p className="truncate text-[12px] font-bold text-white">
-          {t(isProspector ? 'nav.assignedWorkspace' : 'nav.currentWorkspace')}
-        </p>
-        <p className="mt-0.5 truncate text-[11px] text-ink-onDark-soft">
-          {t(activeWorkspace?.organizationId ? 'nav.organizationScope' : 'nav.workspaceScope')}
-          {activeWorkspace?.teamId ? ` · ${t('nav.teamScope')}` : ''}
-        </p>
-      </div>
     </div>
   );
 }

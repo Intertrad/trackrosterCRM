@@ -13,6 +13,8 @@ describe('Button', () => {
     const { rerender } = render(<Button>Save</Button>);
     const button = screen.getByRole('button', { name: 'Save' });
     const iconSlot = button.firstElementChild;
+    expect(iconSlot).toHaveClass('hidden');
+    expect(iconSlot).not.toHaveClass('inline-flex');
 
     rerender(<Button loading>Save</Button>);
 

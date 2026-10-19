@@ -64,8 +64,8 @@ export function Button({
       <span
         aria-hidden="true"
         className={cn(
-          'inline-flex size-[18px] shrink-0 items-center justify-center',
-          !loading && !leadingIcon && 'hidden',
+          'size-[18px] shrink-0 items-center justify-center',
+          loading || leadingIcon ? 'inline-flex' : 'hidden',
         )}
       >
         {loading ? <Loader2 className="size-[18px] animate-spin" /> : leadingIcon}

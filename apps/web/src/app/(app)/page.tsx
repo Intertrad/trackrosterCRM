@@ -72,7 +72,6 @@ export default function TodayPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterId>('all');
-  const [search, setSearch] = useState('');
 
   /*
    * Collisions are read once for the whole day rather than per prospect: a
@@ -202,7 +201,6 @@ export default function TodayPage() {
       return [];
     }
 
-    const normalizedSearch = search.trim().toLocaleLowerCase();
     const filtered = today.priorities.filter((priority) => {
       const state = states.get(priority.id);
       const matchesFilter =
@@ -211,17 +209,12 @@ export default function TodayPage() {
           : filter === 'overdue'
             ? state === 'overdue'
             : countsAsDueToday(state ?? 'upcoming');
-      const matchesSearch =
-        !normalizedSearch ||
-        `${priority.establishment.name} ${priority.establishment.city ?? ''}`
-          .toLocaleLowerCase()
-          .includes(normalizedSearch);
-      return matchesFilter && matchesSearch;
+      return matchesFilter;
     });
     return filter === 'due_today'
       ? [...filtered].sort((left, right) => priorityScore(right) - priorityScore(left))
       : filtered;
-  }, [filter, search, states, today]);
+  }, [filter, states, today]);
 
   if (!isProspector) {
     return <WorkspaceOverview />;
@@ -281,8 +274,6 @@ export default function TodayPage() {
       <DayStart
         today={today}
         displayName={user?.displayName}
-        search={search}
-        onSearchChange={setSearch}
         filter={filter}
         counts={counts}
         onFilterChange={setFilter}

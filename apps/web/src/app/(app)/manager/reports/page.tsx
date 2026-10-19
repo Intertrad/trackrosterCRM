@@ -5,6 +5,7 @@ import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 import { useCallback, useEffect, useState } from 'react';
 import { Activity, Map as MapIcon, ShieldAlert, Target, TrendingUp, Users } from 'lucide-react';
 
+import { ActivityCharts } from '@/components/ui/activity-charts';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -294,25 +295,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3 xl:items-start">
-        <Card>
-          <CardHeader title="Activity by channel" />
-
-          {Object.keys(actions.byType).length === 0 ? (
-            <p className="py-8 text-center text-[15px] text-ink-muted">
-              Nothing logged in this period.
-            </p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line-soft">
-              {Object.entries(actions.byType).map(([type, total]) => (
-                <li key={type} className="flex items-center justify-between py-2.5">
-                  <span className="text-[14px] capitalize text-ink">{type}</span>
-
-                  <span className="text-[14px] font-semibold tabular-nums text-navy">{total}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+        <ActivityCharts days={days} mode="channels" />
 
         <Card>
           <CardHeader title="Workload" />

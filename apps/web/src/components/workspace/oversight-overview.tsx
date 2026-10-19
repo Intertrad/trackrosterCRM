@@ -10,6 +10,7 @@ import { readOperation, rowsOf, isRecord } from '@/lib/workspace/client';
 import { text } from '@/lib/workspace/copy';
 import type { DataRecord } from '@/lib/workspace/types';
 import { PageHeader } from '@/components/ui/page-header';
+import { MetricDetails } from '@/components/ui/metric-details';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -208,10 +209,25 @@ export function OversightOverview({ kind }: { kind: 'observer' | 'platform' }) {
                   ],
                 ]
             ).map(([label, value]) => (
-              <Card key={String(label)}>
-                <p className="text-xs font-bold text-ink-muted">{label}</p>
-                <p className="mt-3 text-[28px] font-extrabold text-navy">{value}</p>
-              </Card>
+              <MetricDetails
+                key={String(label)}
+                label={String(label)}
+                value={String(value)}
+                description={title}
+                details={
+                  <p className="text-sm text-ink-muted">
+                    {l(
+                      'Figures within your authorized scope. Use the records below for details.',
+                      'Chiffres de votre périmètre autorisé. Consultez les événements ci-dessous pour le détail.',
+                    )}
+                  </p>
+                }
+              >
+                <Card>
+                  <p className="text-xs font-bold text-ink-muted">{label}</p>
+                  <p className="mt-3 text-[28px] font-extrabold text-navy">{value}</p>
+                </Card>
+              </MetricDetails>
             ))}
           </div>
         )

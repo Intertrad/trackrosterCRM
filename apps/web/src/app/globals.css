@@ -424,3 +424,47 @@ html[data-reduced-motion='true'] *::after {
     font-size: 28px;
   }
 }
+
+/* Keep selection controls square in every workspace, including table cells. */
+input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex-shrink: 0;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  accent-color: var(--color-brand);
+}
+
+input[type='checkbox'] {
+  appearance: none;
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 16px 16px;
+  cursor: pointer;
+}
+input[type='checkbox']:checked {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 8.5l3.2 3.2L13 5'/%3E%3C/svg%3E");
+}
+input[type='checkbox']:indeterminate {
+  border-color: var(--color-brand);
+  background-color: var(--color-brand);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' stroke='white' stroke-width='2.5'%3E%3Cpath d='M3 8h10'/%3E%3C/svg%3E");
+}
+input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+@media (forced-colors: active) {
+  input[type='checkbox'] {
+    appearance: auto;
+  }
+}

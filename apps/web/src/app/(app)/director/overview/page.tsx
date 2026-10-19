@@ -2,10 +2,11 @@
 
 import { useLiveRefresh } from '@/lib/live/use-live-refresh';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Activity, Building2, Download, Target, TrendingUp, UserRound } from 'lucide-react';
 
+import { ActivityCharts } from '@/components/ui/activity-charts';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,14 +74,6 @@ export default function DirectorOverviewPage() {
     return () => controller.abort();
   }, [load]);
 
-  const channels = useMemo(
-    () =>
-      Object.entries(data?.actions.data.byType ?? {})
-        .map(([label, value]) => ({ label: channelLabel(label, language), value }))
-        .sort((left, right) => right.value - left.value),
-    [data, language],
-  );
-  const maxChannel = Math.max(...channels.map((channel) => channel.value), 1);
   const risks = data?.dashboard.objectiveRisks?.items ?? [];
   const periods = [
     { value: '30', label: l('Last 30 days', '30 derniers jours') },
@@ -131,6 +124,28 @@ export default function DirectorOverviewPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatTile
+          href="/director/reports"
+          details={
+            <div className="space-y-2 text-sm">
+              <p>
+                {l('Reporting period', 'Période du rapport')} : {days} {l('days', 'jours')}
+              </p>
+              {data ? (
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt>{l('Establishments', 'Établissements')}</dt>
+                  <dd>{data.coverage.data.establishments}</dd>
+                  <dt>{l('Prospects contacted', 'Prospects contactés')}</dt>
+                  <dd>{data.coverage.data.touched}</dd>
+                  <dt>{l('Not contacted', 'Non contactés')}</dt>
+                  <dd>{data.coverage.data.untouched}</dd>
+                  <dt>{l('Qualified', 'Qualifiés')}</dt>
+                  <dd>{data.conversions.data.qualified}</dd>
+                  <dt>{l('Converted', 'Convertis')}</dt>
+                  <dd>{data.conversions.data.converted}</dd>
+                </dl>
+              ) : null}
+            </div>
+          }
           icon={<Building2 aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={data?.coverage.data.establishments ?? null}
@@ -138,6 +153,28 @@ export default function DirectorOverviewPage() {
           delta={l('Scoped reporting base', 'Base de reporting du périmètre')}
         />
         <StatTile
+          href="/director/reports"
+          details={
+            <div className="space-y-2 text-sm">
+              <p>
+                {l('Reporting period', 'Période du rapport')} : {days} {l('days', 'jours')}
+              </p>
+              {data ? (
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt>{l('Establishments', 'Établissements')}</dt>
+                  <dd>{data.coverage.data.establishments}</dd>
+                  <dt>{l('Prospects contacted', 'Prospects contactés')}</dt>
+                  <dd>{data.coverage.data.touched}</dd>
+                  <dt>{l('Not contacted', 'Non contactés')}</dt>
+                  <dd>{data.coverage.data.untouched}</dd>
+                  <dt>{l('Qualified', 'Qualifiés')}</dt>
+                  <dd>{data.conversions.data.qualified}</dd>
+                  <dt>{l('Converted', 'Convertis')}</dt>
+                  <dd>{data.conversions.data.converted}</dd>
+                </dl>
+              ) : null}
+            </div>
+          }
           icon={<UserRound aria-hidden="true" className="size-5" />}
           tone="brand"
           value={data?.dashboard.activities.activeProspectors ?? null}
@@ -145,6 +182,28 @@ export default function DirectorOverviewPage() {
           delta={l('Users with activity in range', 'Utilisateurs actifs sur la période')}
         />
         <StatTile
+          href="/director/reports"
+          details={
+            <div className="space-y-2 text-sm">
+              <p>
+                {l('Reporting period', 'Période du rapport')} : {days} {l('days', 'jours')}
+              </p>
+              {data ? (
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt>{l('Establishments', 'Établissements')}</dt>
+                  <dd>{data.coverage.data.establishments}</dd>
+                  <dt>{l('Prospects contacted', 'Prospects contactés')}</dt>
+                  <dd>{data.coverage.data.touched}</dd>
+                  <dt>{l('Not contacted', 'Non contactés')}</dt>
+                  <dd>{data.coverage.data.untouched}</dd>
+                  <dt>{l('Qualified', 'Qualifiés')}</dt>
+                  <dd>{data.conversions.data.qualified}</dd>
+                  <dt>{l('Converted', 'Convertis')}</dt>
+                  <dd>{data.conversions.data.converted}</dd>
+                </dl>
+              ) : null}
+            </div>
+          }
           icon={<Target aria-hidden="true" className="size-5" />}
           tone="brand"
           value={data?.coverage.data.prospects ?? null}
@@ -156,6 +215,28 @@ export default function DirectorOverviewPage() {
           }
         />
         <StatTile
+          href="/director/reports"
+          details={
+            <div className="space-y-2 text-sm">
+              <p>
+                {l('Reporting period', 'Période du rapport')} : {days} {l('days', 'jours')}
+              </p>
+              {data ? (
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt>{l('Establishments', 'Établissements')}</dt>
+                  <dd>{data.coverage.data.establishments}</dd>
+                  <dt>{l('Prospects contacted', 'Prospects contactés')}</dt>
+                  <dd>{data.coverage.data.touched}</dd>
+                  <dt>{l('Not contacted', 'Non contactés')}</dt>
+                  <dd>{data.coverage.data.untouched}</dd>
+                  <dt>{l('Qualified', 'Qualifiés')}</dt>
+                  <dd>{data.conversions.data.qualified}</dd>
+                  <dt>{l('Converted', 'Convertis')}</dt>
+                  <dd>{data.conversions.data.converted}</dd>
+                </dl>
+              ) : null}
+            </div>
+          }
           icon={<Activity aria-hidden="true" className="size-5" />}
           tone="success"
           value={data?.conversions.data.contacted ?? null}
@@ -167,6 +248,28 @@ export default function DirectorOverviewPage() {
           }
         />
         <StatTile
+          href="/director/reports"
+          details={
+            <div className="space-y-2 text-sm">
+              <p>
+                {l('Reporting period', 'Période du rapport')} : {days} {l('days', 'jours')}
+              </p>
+              {data ? (
+                <dl className="grid grid-cols-2 gap-2">
+                  <dt>{l('Establishments', 'Établissements')}</dt>
+                  <dd>{data.coverage.data.establishments}</dd>
+                  <dt>{l('Prospects contacted', 'Prospects contactés')}</dt>
+                  <dd>{data.coverage.data.touched}</dd>
+                  <dt>{l('Not contacted', 'Non contactés')}</dt>
+                  <dd>{data.coverage.data.untouched}</dd>
+                  <dt>{l('Qualified', 'Qualifiés')}</dt>
+                  <dd>{data.conversions.data.qualified}</dd>
+                  <dt>{l('Converted', 'Convertis')}</dt>
+                  <dd>{data.conversions.data.converted}</dd>
+                </dl>
+              ) : null}
+            </div>
+          }
           icon={<TrendingUp aria-hidden="true" className="size-5" />}
           tone="success"
           value={data?.conversions.data.qualified ?? null}
@@ -175,84 +278,7 @@ export default function DirectorOverviewPage() {
         />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,1fr)] xl:items-start">
-        <Card padding="none" className="overflow-hidden">
-          <DashboardCardHeader
-            title={l('Activity trend', 'Tendance de l’activité')}
-            subtitle={l(
-              'Actions by channel · selected period',
-              'Actions par canal · période sélectionnée',
-            )}
-          />
-          <div className="flex min-h-[236px] items-end gap-4 px-6 pb-6 pt-7 sm:gap-7">
-            {channels.length ? (
-              channels.slice(0, 8).map((channel, index) => (
-                <div
-                  key={channel.label}
-                  className="flex min-w-0 flex-1 flex-col items-center gap-2"
-                >
-                  <div className="flex h-40 w-full items-end justify-center">
-                    <div
-                      className={
-                        index === 0
-                          ? 'w-full max-w-10 rounded-t-md bg-brand'
-                          : 'w-full max-w-10 rounded-t-md bg-brand/60'
-                      }
-                      style={{ height: `${Math.max(8, (channel.value / maxChannel) * 100)}%` }}
-                      role="img"
-                      aria-label={`${channel.label}: ${channel.value} actions`}
-                    />
-                  </div>
-                  <span className="max-w-20 truncate text-center text-[11px] capitalize text-ink-muted">
-                    {channel.label}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="w-full self-center text-center text-[13px] text-ink-muted">
-                {l(
-                  'No actions were returned for this period.',
-                  'Aucune action n’a été renvoyée pour cette période.',
-                )}
-              </p>
-            )}
-          </div>
-          <p className="border-t border-line-soft px-6 py-3 text-[12px] text-ink-muted">
-            {l(
-              'The reporting API currently returns period totals by channel. A month-by-month series is not exposed yet.',
-              'L’API de reporting renvoie actuellement les totaux par canal. La série mensuelle n’est pas encore disponible.',
-            )}
-          </p>
-        </Card>
-
-        <Card padding="none" className="overflow-hidden">
-          <CardHeader title={l('Results by channel', 'Résultats par canal')} />
-          <div className="space-y-4 px-5 pb-5">
-            {channels.length ? (
-              channels.slice(0, 6).map((channel) => (
-                <div key={channel.label}>
-                  <div className="flex items-center justify-between gap-3 text-[13px]">
-                    <span className="capitalize text-ink">{channel.label}</span>
-                    <span className="font-semibold tabular-nums text-ink-muted">
-                      {channel.value}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-muted">
-                    <div
-                      className="h-full rounded-full bg-brand"
-                      style={{ width: `${(channel.value / maxChannel) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="py-8 text-center text-[14px] text-ink-muted">
-                {l('No channel results in scope.', 'Aucun résultat de canal dans ce périmètre.')}
-              </p>
-            )}
-          </div>
-        </Card>
-      </div>
+      <ActivityCharts days={days} />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:items-start">
         <Card padding="none" className="overflow-hidden">
@@ -342,17 +368,4 @@ function describeError(error: unknown, language: string): string {
     'We could not reach the reporting service. Please try again.',
     'Impossible de joindre le service de reporting. Réessayez.',
   );
-}
-
-function channelLabel(value: string, language: string): string {
-  const labels: Record<string, [string, string]> = {
-    call: ['call', 'appel'],
-    email: ['email', 'e-mail'],
-    e_mail: ['email', 'e-mail'],
-    message: ['message', 'message'],
-    visit: ['visit', 'visite'],
-    letter: ['letter', 'courrier'],
-  };
-  const [en, fr] = labels[value] ?? [value.replace(/_/g, ' '), value.replace(/_/g, ' ')];
-  return text(en, fr, language);
 }

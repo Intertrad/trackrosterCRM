@@ -93,7 +93,7 @@ describe('AppShell', () => {
     expect(within(sidebar).queryByRole('link', { name: 'Today' })).not.toBeInTheDocument();
   });
 
-  it('translates the complete shell when the account language changes', () => {
+  it('keeps the shell translated when the account language changes', () => {
     authenticated();
 
     const { rerender } = render(
@@ -105,7 +105,7 @@ describe('AppShell', () => {
     expect(
       screen.queryByPlaceholderText('Rechercher mes prospects attribués…'),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Espace attribué')).toBeInTheDocument();
+    expect(screen.queryByText('Espace attribué')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Menu du compte' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
 
@@ -116,7 +116,7 @@ describe('AppShell', () => {
     );
 
     expect(screen.queryByPlaceholderText('Search my assigned prospects…')).not.toBeInTheDocument();
-    expect(screen.getByText('Assigned workspace')).toBeInTheDocument();
+    expect(screen.queryByText('Assigned workspace')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Account menu' })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: 'Notifications' })).toHaveLength(2);
   });

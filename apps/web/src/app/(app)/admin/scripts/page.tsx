@@ -90,24 +90,25 @@ export default function ScriptsPage() {
     setBusy(true);
     setError(null);
     try {
-      await browserResource<Script>(selected ? `/api/scripts/${selected.id}` : '/api/scripts', {
-        method: selected ? 'PATCH' : 'POST',
-        headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
-        body: JSON.stringify({
-          name: draft.name,
-          channel: draft.channel,
-          sector: draft.sector,
-          subject: draft.subject,
-          body: draft.body,
-          variables: draft.variables,
-          enabled: draft.enabled,
-        }),
-      });
-      setNotice(isFrench ? 'Modèle enregistré.' : 'Template saved.');
+      const saved = await browserResource<Script>(
+        selected ? `/api/scripts/${selected.id}` : '/api/scripts',
+        {
+          method: selected ? 'PATCH' : 'POST',
+          headers: { 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+          body: JSON.stringify({
+            name: draft.name,
+            channel: draft.channel,
+            sector: draft.sector,
+            subject: draft.subject,
+            body: draft.body,
+            variables: draft.variables,
+            enabled: draft.enabled,
+          }),
+        },
+      );
       await load();
-      setSelected(null);
-      setDraft({ ...blank });
-      setPreview(null);
+      edit(saved.resource);
+      setNotice(isFrench ? 'Modèle enregistré.' : 'Template saved.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to save script');
     } finally {
@@ -137,45 +138,49 @@ export default function ScriptsPage() {
       string,
       string
     >;
-
-    /* Preview the current draft, including unsaved edits. The old flow sent
-     * only the persisted template id, so the button was absent for new
-     * templates and stale while editing an existing one. */
-    const render = (value: string | null | undefined) =>
-      (value ?? '').replace(
-        /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi,
-        (_, key: string) => values[key] ?? '',
-      );
-    if (!selected) {
-      const missingVariables = [
-        ...new Set(
-          [...draft.body.matchAll(/\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi)].map((match) => match[1]!),
-        ),
-      ].filter((key) => !values[key]);
-      setPreview({
-        subject: render(draft.subject),
-        body: render(draft.body),
-        missingVariables,
-      });
+    if (selected) {
+      setError(null);
+      setPreview(null);
+      try {
+        const result = await browserResource<{
+          subject: string;
+          body: string;
+          missingVariables: string[];
+        } | null>(`/api/scripts/${selected.id}/previous-preview`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ values }),
+        });
+        setPreview(result.resource);
+        setNotice(
+          result.resource
+            ? isFrench
+              ? 'Aperçu de la version précédente enregistrée.'
+              : 'Preview of the previous saved version.'
+            : isFrench
+              ? 'Aucune version précédente pour ce modèle.'
+              : 'No previous version for this template.',
+        );
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : 'Unable to render preview');
+      }
       return;
     }
+    const pattern = /\{\{\s*([a-z][a-z0-9_]*)\s*\}\}/gi;
+    const render = (value: string | null | undefined) =>
+      (value ?? '').replace(pattern, (_, key: string) => values[key] ?? '');
+    const missingVariables = [
+      ...new Set(
+        [...`${draft.subject ?? ''}\n${draft.body}`.matchAll(pattern)].map((match) => match[1]!),
+      ),
+    ].filter((key) => !values[key]);
 
-    try {
-      const result = await browserResource<{
-        subject: string;
-        body: string;
-        missingVariables: string[];
-      }>(`/api/scripts/${selected.id}/preview`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          values,
-        }),
-      });
-      setPreview(result.resource);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to render preview');
-    }
+    // Always render the editor, including unsaved changes to an existing template.
+    setPreview({
+      subject: render(draft.subject),
+      body: render(draft.body),
+      missingVariables,
+    });
   }
   async function sendTest() {
     if (!selected || !testTo) return;

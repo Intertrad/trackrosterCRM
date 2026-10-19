@@ -327,6 +327,7 @@ function UsersAndRoles() {
                     {visible.map((member) => (
                       <tr
                         key={member.id}
+                        onClick={() => setSelected(member)}
                         className="cursor-pointer border-b border-line-soft hover:bg-surface-muted"
                       >
                         <td className="px-3 py-3">

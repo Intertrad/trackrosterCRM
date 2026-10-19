@@ -33,3 +33,14 @@
     display: flex;
   }
 }
+
+@media (max-width: 1023px) {
+  :global(.reference-main):has(.mobileConversation) {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .mobileConversation {
+    gap: 0;
+  }
+}
