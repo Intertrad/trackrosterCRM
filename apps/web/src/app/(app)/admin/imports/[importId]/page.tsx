@@ -46,6 +46,40 @@ type RowFilter = 'all' | 'ready' | 'warnings' | 'errors' | 'duplicates';
 /* The rows endpoint is keyset by row number, so paging is exact here. */
 const ROW_PAGE_SIZE = 25;
 
+const COLUMN_ALIASES: Partial<Record<ImportHeader, string[]>> = {
+  name: [
+    'full name',
+    'establishment name',
+    'company name',
+    'organisation name',
+    'organization name',
+    'nom complet',
+    'nom de l établissement',
+    "nom de l'établissement",
+    'raison sociale',
+  ],
+  country_code: ['country', 'country code', 'countrycode', 'pays', 'code pays'],
+  address_line1: ['address', 'street', 'street address', 'address line 1', 'adresse', 'rue'],
+  postal_code: ['zip', 'zip code', 'postcode', 'postal code', 'code postal'],
+  city: ['town', 'municipality', 'ville', 'commune'],
+  contact_name: ['full contact name', 'contact full name'],
+  contact_job_title: ['job title', 'contact title', 'role'],
+  contact_email: ['email', 'contact email', 'e-mail', 'courriel'],
+  contact_phone: ['mobile', 'phone number', 'contact phone', 'téléphone', 'telephone'],
+};
+
+function normalizeColumnLabel(value: string): string {
+  return value.toLowerCase().trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+}
+
+function formatImportValue(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  return typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
+}
+
 export default function ImportWizardPage({ params }: { params: Promise<{ importId: string }> }) {
   const { importId } = use(params);
 
@@ -338,7 +372,10 @@ function ImportWizard({ importId }: { importId: string }) {
           </Alert>
         </Card>
       ) : job.status === 'committed' ? (
-        <CommittedSummary job={job} />
+        <>
+          <CommittedSummary job={job} />
+          <CommittedRowPreview importId={job.id} job={job} />
+        </>
       ) : !job.fileHash ? (
         <UploadStep
           busy={busy === 'upload'}
@@ -739,8 +776,12 @@ function MappingStep({
   onConfirm: (mapping: Record<string, string>) => Promise<void>;
 }) {
   const [mapping, setMapping] = useState<Record<string, string>>(job.mapping);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
-  useEffect(() => setMapping(job.mapping), [job.mapping]);
+  useEffect(() => {
+    setMapping(job.mapping);
+    setDismissedSuggestions(new Set());
+  }, [job.headers, job.mapping]);
 
   const missingRequired = REQUIRED_IMPORT_HEADERS.filter((header) => !mapping[header]);
 
@@ -757,14 +798,80 @@ function MappingStep({
     return [...used.entries()].filter(([, count]) => count > 1).map(([column]) => column);
   }, [mapping]);
 
+  const suggestions = useMemo(() => {
+    const sourceToDestination = new Map(
+      Object.entries(mapping).map(([destination, source]) => [source, destination]),
+    );
+
+    return job.headers.flatMap((source) => {
+      if (sourceToDestination.has(source)) {
+        return [];
+      }
+
+      const normalized = normalizeColumnLabel(source);
+      const destination = IMPORT_HEADERS.find(
+        (header) =>
+          !mapping[header] &&
+          COLUMN_ALIASES[header]?.some((alias) => normalizeColumnLabel(alias) === normalized),
+      );
+
+      return destination ? [{ source, destination }] : [];
+    });
+  }, [job.headers, mapping]);
+
+  const pendingSuggestions = suggestions.filter(({ source }) => !dismissedSuggestions.has(source));
+
   return (
     <Card>
       <CardHeader title="Confirm columns" />
 
       <p className="-mt-3 mb-4 text-[15px] text-ink-muted">
         {job.filename} · {job.rowCount.toLocaleString()} rows. Columns whose name already matches a
-        TrackRoster field were mapped for you. Confirm each destination before continuing.
+        TrackRoster field were mapped for you. Review the sample values, then confirm each
+        destination before continuing.
       </p>
+
+      <Alert tone="info" className="mb-4" title="Check your columns before importing.">
+        We read the first three rows so you can verify each match. Nothing is imported until you
+        confirm the mapping and commit the file.
+      </Alert>
+
+      {pendingSuggestions.length > 0 ? (
+        <div className="mb-5 flex flex-col gap-2 rounded-xl border border-brand-pale bg-brand-tint/40 p-4">
+          <p className="text-[14px] font-semibold text-navy">Confirm suggested matches</p>
+          {pendingSuggestions.map(({ source, destination }) => (
+            <div
+              key={source}
+              className="flex flex-col gap-2 rounded-lg border border-line bg-surface px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p className="text-[14px] text-ink">
+                Does Excel column <span className="font-semibold">“{source}”</span> mean{' '}
+                <span className="font-semibold">“{labelForHeader(destination)}”</span>?
+              </p>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  size="md"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    setMapping((current) => ({ ...current, [destination]: source }));
+                    setDismissedSuggestions((current) => new Set(current).add(source));
+                  }}
+                >
+                  Confirm mapping
+                </Button>
+                <Button
+                  size="md"
+                  variant="secondary"
+                  disabled={busy !== null}
+                  onClick={() => setDismissedSuggestions((current) => new Set(current).add(source))}
+                >
+                  Ignore
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {missingRequired.length > 0 ? (
         <Alert tone="warning" className="mb-4" title="Two fields are required.">
@@ -779,42 +886,94 @@ function MappingStep({
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {IMPORT_HEADERS.map((header) => (
-          <SelectField
-            key={header}
-            label={`${labelForHeader(header)}${
-              REQUIRED_IMPORT_HEADERS.includes(header) ? ' *' : ''
-            }`}
-            value={mapping[header] ?? ''}
-            disabled={busy !== null}
-            onChange={(event) => {
-              const value = event.target.value;
+      <div className="overflow-x-auto rounded-xl border border-line">
+        <table className="w-full min-w-[720px] border-collapse text-left">
+          <caption className="sr-only">Excel columns and their TrackRoster mappings</caption>
+          <thead className="bg-surface-muted text-[12px] font-bold uppercase tracking-wide text-ink-muted">
+            <tr>
+              <th scope="col" className="px-4 py-3">
+                Excel column
+              </th>
+              <th scope="col" className="px-4 py-3">
+                Sample values
+              </th>
+              <th scope="col" className="w-[310px] px-4 py-3">
+                TrackRoster field
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line-soft">
+            {job.headers.map((source) => {
+              const sourceIndex = job.headers.indexOf(source);
+              const samples = (job.sampleRows ?? [])
+                .map((row) => row[sourceIndex] ?? '')
+                .filter((value) => value.trim() !== '');
 
-              setMapping((current) => {
-                const next = { ...current };
+              return (
+                <tr key={source} className="align-top">
+                  <th scope="row" className="px-4 py-3 text-[14px] font-semibold text-navy">
+                    {source}
+                  </th>
+                  <td className="max-w-[330px] px-4 py-3 text-[13px] text-ink-muted">
+                    <div className="flex flex-col gap-1">
+                      {(samples.length > 0 ? samples : ['—']).slice(0, 3).map((value, index) => (
+                        <span key={`${source}-${index}`} className="truncate" title={value}>
+                          {value}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <SelectField
+                      label={`Destination for ${source}`}
+                      value={
+                        Object.entries(mapping).find(([, value]) => value === source)?.[0] ?? ''
+                      }
+                      disabled={busy !== null}
+                      onChange={(event) => {
+                        const value = event.target.value as ImportHeader | '';
 
-                if (value === '') {
-                  delete next[header];
-                } else {
-                  next[header] = value;
-                }
+                        setMapping((current) => {
+                          const next = Object.fromEntries(
+                            Object.entries(current).filter(
+                              ([, mappedSource]) => mappedSource !== source,
+                            ),
+                          );
 
-                return next;
-              });
-            }}
-            options={[
-              { value: '', label: 'Not imported' },
-              ...job.headers.map((column) => ({ value: column, label: column })),
-            ]}
-          />
-        ))}
+                          if (value !== '') {
+                            next[value] = source;
+                          }
+
+                          return next;
+                        });
+                      }}
+                      options={[
+                        { value: '', label: 'Not imported' },
+                        ...IMPORT_HEADERS.map((header) => ({
+                          value: header,
+                          label: `${labelForHeader(header)}${
+                            REQUIRED_IMPORT_HEADERS.includes(header) ? ' *' : ''
+                          }`,
+                        })),
+                      ]}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Button
           loading={busy === 'confirm'}
-          disabled={busy !== null || missingRequired.length > 0 || duplicated.length > 0}
+          disabled={
+            busy !== null ||
+            missingRequired.length > 0 ||
+            duplicated.length > 0 ||
+            pendingSuggestions.length > 0
+          }
           title={duplicated.length > 0 ? 'A source column can only be used once' : undefined}
           onClick={() => void onConfirm(mapping)}
         >
@@ -838,6 +997,7 @@ function RowCard({
   job: ImportJob;
   onResolve: (issueId: string, resolution: 'skip' | 'reuse', action: string) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const unresolved = issues.filter((issue) => issue.resolvedAt === null);
 
   /* Reuse is only accepted for a valid row that matches an existing record and
@@ -880,6 +1040,68 @@ function RowCard({
 
         <RowStatusBadge row={row} />
       </div>
+
+      <div className="mt-3 pl-16">
+        <Button
+          variant="ghost"
+          size="md"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          className="px-0"
+        >
+          {expanded ? 'Hide prospect data' : 'View prospect data'}
+        </Button>
+      </div>
+
+      {expanded ? (
+        <div className="mt-3 grid gap-4 rounded-lg border border-line-soft bg-surface-muted/45 p-4 pl-16 md:grid-cols-2">
+          <div>
+            <h3 className="text-[13px] font-bold uppercase tracking-wide text-ink-muted">
+              Establishment
+            </h3>
+            <dl className="mt-2 grid gap-1.5 text-[13px]">
+              {[
+                ['External reference', row.data.establishment?.externalReference],
+                ['Name', row.data.establishment?.name],
+                ['Address', row.data.establishment?.addressLine1],
+                ['Postal code', row.data.establishment?.postalCode],
+                ['City', row.data.establishment?.city],
+                ['Country', row.data.establishment?.countryCode],
+                ['Phone', row.data.establishment?.phone],
+                ['Website', row.data.establishment?.website],
+                ['Latitude', row.data.establishment?.latitude],
+                ['Longitude', row.data.establishment?.longitude],
+                ['Category', row.data.establishment?.category],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="grid grid-cols-[minmax(0,8rem)_1fr] gap-2">
+                  <dt className="text-ink-muted">{String(label)}</dt>
+                  <dd className="break-words font-medium text-ink">{formatImportValue(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+
+          <div>
+            <h3 className="text-[13px] font-bold uppercase tracking-wide text-ink-muted">
+              Contact
+            </h3>
+            <dl className="mt-2 grid gap-1.5 text-[13px]">
+              {[
+                ['Name', row.data.contact?.name],
+                ['Job title', row.data.contact?.jobTitle],
+                ['Email', row.data.contact?.email],
+                ['Phone', row.data.contact?.phone],
+                ['Primary contact', row.data.contact?.isPrimary],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="grid grid-cols-[minmax(0,8rem)_1fr] gap-2">
+                  <dt className="text-ink-muted">{String(label)}</dt>
+                  <dd className="break-words font-medium text-ink">{formatImportValue(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+      ) : null}
 
       {row.data.issues.length > 0 ? (
         <ul className="mt-2.5 flex flex-wrap gap-1.5 pl-16">
@@ -1024,6 +1246,95 @@ function CommittedSummary({ job }: { job: ImportJob }) {
         </div>
       </Card>
     </div>
+  );
+}
+
+function CommittedRowPreview({ importId, job }: { importId: string; job: ImportJob }) {
+  const [rows, setRows] = useState<ImportRow[] | null>(null);
+  const [afterRow, setAfterRow] = useState(0);
+  const [nextAfterRow, setNextAfterRow] = useState<number | null>(null);
+
+  const loadRows = useCallback(
+    async (start: number): Promise<void> => {
+      try {
+        const page = await listImportRows(importId, { afterRow: start, limit: ROW_PAGE_SIZE });
+        setRows(page.items);
+        setNextAfterRow(page.nextAfterRow);
+      } catch {
+        setRows([]);
+        setNextAfterRow(null);
+      }
+    },
+    [importId],
+  );
+
+  useEffect(() => {
+    void loadRows(0);
+  }, [loadRows]);
+
+  return (
+    <Card>
+      <CardHeader title="Imported prospects" />
+
+      <p className="-mt-3 text-[15px] text-ink-muted">
+        Select a row to inspect every establishment and contact field that was imported.
+      </p>
+
+      {rows === null ? (
+        <div className="mt-5 flex flex-col gap-2" aria-busy="true">
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="h-14 animate-pulse rounded-lg bg-line-soft" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="py-8 text-center text-[15px] text-ink-muted">No imported rows to show.</p>
+      ) : (
+        <ul className="mt-5 flex flex-col gap-2.5">
+          {rows.map((row) => (
+            <RowCard
+              key={row.id}
+              row={row}
+              issues={[]}
+              busy={null}
+              job={job}
+              onResolve={async () => undefined}
+            />
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[13px] text-ink-muted">
+          Rows {afterRow + 1}–{afterRow + (rows?.length ?? 0)} of{' '}
+          {(job.summary.totalRows ?? job.rowCount).toLocaleString()}
+        </p>
+
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            disabled={afterRow === 0 || rows === null}
+            onClick={() => {
+              const previous = Math.max(0, afterRow - ROW_PAGE_SIZE);
+              setAfterRow(previous);
+              void loadRows(previous);
+            }}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={nextAfterRow === null || rows === null}
+            onClick={() => {
+              if (nextAfterRow === null) return;
+              setAfterRow(nextAfterRow);
+              void loadRows(nextAfterRow);
+            }}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 

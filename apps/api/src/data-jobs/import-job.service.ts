@@ -55,7 +55,14 @@ export class ImportJobService {
   }
   private public(j: typeof importJobs.$inferSelect) {
     const { records, ...rest } = j;
-    return { ...rest, rowCount: records.length, etag: resourceETag(j) };
+    return {
+      ...rest,
+      rowCount: records.length,
+      // The wizard needs a small, safe preview for column mapping. Keep the
+      // full file server-side so a detail response can never expose all rows.
+      sampleRows: records.slice(0, 3),
+      etag: resourceETag(j),
+    };
   }
   async row(a: AuthenticatedPrincipal, id: string, tx: DatabaseExecutor = this.db) {
     await this.authorize(a, tx);

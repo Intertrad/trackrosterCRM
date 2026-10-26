@@ -63,6 +63,8 @@ export interface ImportJob {
   filename: string | null;
   fileHash: string | null;
   headers: string[];
+  /** First few raw rows, used only to verify mapping before import. */
+  sampleRows?: string[][];
   mapping: Record<string, string>;
   summary: ImportSummary;
   rowCount: number;
