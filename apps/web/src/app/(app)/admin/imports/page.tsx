@@ -84,10 +84,10 @@ function Imports() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title={l('Imports', 'Import de données')}
+        title={l('Imports', 'Imports')}
         subtitle={l(
-          'Upload, validate and commit prospect records',
-          'Ajoutez des établissements, vérifiez les données puis confirmez l’import.',
+          'Upload a CSV or Excel file, confirm its columns, then import prospect records',
+          'Ajoutez un fichier CSV ou Excel, confirmez ses colonnes puis importez les établissements.',
         )}
       />
       <Card>
@@ -104,18 +104,19 @@ function Imports() {
           <span className="text-base font-bold">
             {creating
               ? l('Preparing…', 'Préparation…')
-              : l('Import a CSV file', 'Importer un fichier CSV')}
+              : l('Import a CSV or Excel file', 'Importer un fichier CSV ou Excel')}
           </span>
           <span className="text-sm text-ink-muted">
             {l(
-              'Choose your file, map columns, then review before importing.',
-              'Choisissez votre fichier, associez les colonnes puis vérifiez avant d’importer.',
+              'Choose a .csv or .xlsx file, confirm the column mapping, then review before importing.',
+              'Choisissez un fichier .csv ou .xlsx, confirmez les colonnes puis vérifiez avant d’importer.',
             )}
           </span>
         </button>
         <p className="mt-3 rounded-[9px] bg-brand-tint px-3 py-2.5 text-sm text-brand">
-          {l('CSV files up to', 'Fichiers CSV jusqu’à')} {MAX_IMPORT_ROWS.toLocaleString()}{' '}
-          {l('rows and', 'lignes et')} {Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))} Mo.{' '}
+          {l('CSV or Excel files up to', 'Fichiers CSV ou Excel jusqu’à')}{' '}
+          {MAX_IMPORT_ROWS.toLocaleString()} {l('rows and', 'lignes et')}{' '}
+          {Math.round(MAX_IMPORT_FILE_BYTES / (1024 * 1024))} Mo.{' '}
           {l(
             'Nothing is added to the base before your confirmation.',
             'Aucune donnée n’est ajoutée à la base avant votre confirmation.',
@@ -143,8 +144,8 @@ function Imports() {
 
             <p className="mx-auto mt-2 max-w-md text-[15px] text-ink-muted">
               {l(
-                'CSV rows are mapped, validated and checked for duplicates before confirmation.',
-                'Les lignes du CSV sont associées, validées et contrôlées pour détecter les doublons avant confirmation.',
+                'Rows are mapped, checked and reviewed for duplicates before confirmation.',
+                'Les lignes sont associées, contrôlées et vérifiées pour détecter les doublons avant confirmation.',
               )}
             </p>
 

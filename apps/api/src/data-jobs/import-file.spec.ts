@@ -1,7 +1,21 @@
 import { deflateRawSync } from 'node:zlib';
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { parseImportFile } from './import-file.js';
 describe('Import upload boundaries', () => {
+  it('parses a single-sheet XLSX workbook into import rows', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Prospects');
+    sheet.addRow(['name', 'country_code', 'city']);
+    sheet.addRow(['Paris Police Station', 'FR', 'Paris']);
+
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+    const parsed = await parseImportFile('prospects.xlsx', buffer);
+
+    expect(parsed.headers).toEqual(['name', 'country_code', 'city']);
+    expect(parsed.records).toEqual([['Paris Police Station', 'FR', 'Paris']]);
+  });
+
   it('bounds actual ZIP inflation even when central-directory sizes lie', async () => {
     const compressed = deflateRawSync(Buffer.alloc(21 * 1024 * 1024, 65));
     const local = Buffer.alloc(30);

@@ -50,7 +50,7 @@ export default function ImportWizardPage({ params }: { params: Promise<{ importI
   const { importId } = use(params);
 
   return (
-    <AdminGuard title="Import" subtitle="Validate records before they enter the portfolio">
+    <AdminGuard title="Import" subtitle="Confirm columns before records enter the portfolio">
       <ImportWizard importId={importId} />
     </AdminGuard>
   );
@@ -358,28 +358,36 @@ function ImportWizard({ importId }: { importId: string }) {
         <MappingStep
           job={job}
           busy={busy}
-          onSave={(mapping) =>
-            run(
-              'mapping',
-              () =>
-                saveImportMapping(job.id, mapping, {
+          onConfirm={async (mapping) => {
+            setBusy('confirm');
+            setActionError(null);
+            setNotice(null);
+
+            try {
+              let current = job;
+              const mappingChanged = JSON.stringify(mapping) !== JSON.stringify(job.mapping);
+
+              if (mappingChanged) {
+                current = await saveImportMapping(job.id, mapping, {
                   etag: job.etag,
                   idempotencyKey: keyFor('mapping'),
-                }),
-              'Mapping saved.',
-            )
-          }
-          onValidate={() =>
-            run(
-              'validate',
-              () =>
-                validateImport(job.id, {
-                  etag: job.etag,
-                  idempotencyKey: keyFor('validate'),
-                }),
-              'File validated. Review the anomalies below.',
-            )
-          }
+                });
+                keys.delete('mapping');
+              }
+
+              const validated = await validateImport(job.id, {
+                etag: current.etag,
+                idempotencyKey: keyFor('validate'),
+              });
+              keys.delete('validate');
+              await refresh(validated);
+              setNotice('Columns confirmed. Review the import checks below before committing.');
+            } catch (caught) {
+              setActionError(describeImportError(caught));
+            } finally {
+              setBusy(null);
+            }
+          }}
         />
       ) : (
         <>
@@ -671,15 +679,16 @@ function UploadStep({
 
   return (
     <Card>
-      <CardHeader title="Upload a CSV" />
+      <CardHeader title="Upload a CSV or Excel file" />
 
       <p className="-mt-3 mb-4 text-[15px] text-ink-muted">
-        Up to 10,000 rows and 5 MB. Each row needs at least a name and a country code.
+        CSV and .xlsx files up to 10,000 rows and 5 MB. Each row needs at least a name and a country
+        code.
       </p>
 
       <input
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         disabled={busy}
         onChange={(event) => {
           const chosen = event.target.files?.[0] ?? null;
@@ -723,13 +732,11 @@ function UploadStep({
 function MappingStep({
   job,
   busy,
-  onSave,
-  onValidate,
+  onConfirm,
 }: {
   job: ImportJob;
   busy: string | null;
-  onSave: (mapping: Record<string, string>) => Promise<void>;
-  onValidate: () => Promise<void>;
+  onConfirm: (mapping: Record<string, string>) => Promise<void>;
 }) {
   const [mapping, setMapping] = useState<Record<string, string>>(job.mapping);
 
@@ -750,24 +757,19 @@ function MappingStep({
     return [...used.entries()].filter(([, count]) => count > 1).map(([column]) => column);
   }, [mapping]);
 
-  const mappingChanged = useMemo(
-    () => JSON.stringify(mapping) !== JSON.stringify(job.mapping),
-    [job.mapping, mapping],
-  );
-
   return (
     <Card>
-      <CardHeader title="Map columns" />
+      <CardHeader title="Confirm columns" />
 
       <p className="-mt-3 mb-4 text-[15px] text-ink-muted">
         {job.filename} · {job.rowCount.toLocaleString()} rows. Columns whose name already matches a
-        TrackRoster field were mapped for you.
+        TrackRoster field were mapped for you. Confirm each destination before continuing.
       </p>
 
       {missingRequired.length > 0 ? (
         <Alert tone="warning" className="mb-4" title="Two fields are required.">
           Map a source column to {missingRequired.map(labelForHeader).join(' and ')} before
-          validating.
+          confirming.
         </Alert>
       ) : null}
 
@@ -811,23 +813,12 @@ function MappingStep({
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Button
-          variant="secondary"
-          loading={busy === 'mapping'}
-          disabled={
-            busy !== null || !mappingChanged || missingRequired.length > 0 || duplicated.length > 0
-          }
-          onClick={() => void onSave(mapping)}
+          loading={busy === 'confirm'}
+          disabled={busy !== null || missingRequired.length > 0 || duplicated.length > 0}
+          title={duplicated.length > 0 ? 'A source column can only be used once' : undefined}
+          onClick={() => void onConfirm(mapping)}
         >
-          Save mapping
-        </Button>
-
-        <Button
-          loading={busy === 'validate'}
-          disabled={busy !== null || mappingChanged || missingRequired.length > 0}
-          title={mappingChanged ? 'Save the mapping first' : undefined}
-          onClick={() => void onValidate()}
-        >
-          Validate file
+          Confirm columns & continue
         </Button>
       </div>
     </Card>
