@@ -11,7 +11,7 @@
  *    row, so the file must be re-validated before it can be committed;
  *  - commit is all-or-nothing. It refuses while any row is invalid, is a
  *    duplicate of another row in the same file, or matches an existing
- *    establishment without an explicit "reuse" decision.
+ *    establishment without an explicit reuse or merge decision.
  */
 export type ImportStatus = 'draft' | 'uploaded' | 'validated' | 'committed' | 'cancelled';
 
@@ -36,7 +36,7 @@ export const IMPORT_HEADERS = [
 
 export type ImportHeader = (typeof IMPORT_HEADERS)[number];
 
-export const REQUIRED_IMPORT_HEADERS: readonly ImportHeader[] = ['name', 'country_code'];
+export const REQUIRED_IMPORT_HEADERS: readonly ImportHeader[] = ['name'];
 
 export const MAX_IMPORT_ROWS = 10_000;
 
@@ -49,10 +49,12 @@ export interface ImportSummary {
   invalidRows?: number;
   issueCount?: number;
   existingDuplicates?: number;
+  safeMatches?: number;
   createdEstablishments?: number;
   reusedEstablishments?: number;
   createdContacts?: number;
   skippedRows?: number;
+  missingFields?: Record<string, number>;
 }
 
 export interface ImportJob {
@@ -140,10 +142,12 @@ export interface ImportRowData {
   status: ImportRowStatus;
   establishment: ImportRowEstablishment | null;
   contact: ImportRowContact | null;
+  /** True when an existing match has optional data this upload can safely fill. */
+  mergeAvailable?: boolean;
   issues: ImportIssue[];
 }
 
-export type ImportResolution = 'skip' | 'reuse' | 'correct';
+export type ImportResolution = 'skip' | 'reuse' | 'create' | 'merge' | 'correct';
 
 export interface ImportRow {
   id: string;
@@ -151,16 +155,19 @@ export interface ImportRow {
   importId: string;
   rowNumber: number;
   data: ImportRowData;
-  resolution: 'skip' | 'reuse' | null;
+  resolution: 'skip' | 'reuse' | 'create' | 'merge' | null;
   existingId: string | null;
   establishmentId: string | null;
   contactId: string | null;
   result: 'created' | 'reused' | 'skipped' | null;
+  /** First unresolved issue, included with paged rows so action-only views remain actionable. */
+  pendingIssueId?: string | null;
 }
 
 export interface ImportRowPage {
   items: ImportRow[];
   nextAfterRow: number | null;
+  totalCount?: number;
 }
 
 export interface ImportIssueRecord {
@@ -179,7 +186,7 @@ export interface ImportIssuePage {
   nextCursor: string | null;
 }
 
-export type ImportStepId = 'upload' | 'map' | 'normalize' | 'deduplicate' | 'validate';
+export type ImportStepId = 'upload' | 'map' | 'review' | 'import';
 
 export interface ImportStep {
   id: ImportStepId;
@@ -187,12 +194,8 @@ export interface ImportStep {
   state: 'complete' | 'active' | 'pending';
 }
 
-/*
- * The design shows five steps. The API exposes three transitions, because it
- * normalizes and de-duplicates inside validate rather than as separate calls.
- * Steps 3 and 4 therefore track validate rather than pretending to be
- * independently actionable.
- */
+/* Keep the user-facing progress focused on decisions. Normalization,
+ * duplicate detection, and validation run together behind the Review step. */
 export function importSteps(job: ImportJob | null): ImportStep[] {
   const status = job?.status ?? 'draft';
 
@@ -204,11 +207,10 @@ export function importSteps(job: ImportJob | null): ImportStep[] {
   const validated = status === 'validated' || status === 'committed';
 
   const order: Array<{ id: ImportStepId; label: string; done: boolean }> = [
-    { id: 'upload', label: 'Upload', done: uploaded },
-    { id: 'map', label: 'Map', done: mapped },
-    { id: 'normalize', label: 'Normalize', done: validated },
-    { id: 'deduplicate', label: 'Deduplicate', done: validated },
-    { id: 'validate', label: 'Validate', done: status === 'committed' },
+    { id: 'upload', label: 'Upload file', done: uploaded },
+    { id: 'map', label: 'Confirm columns', done: mapped },
+    { id: 'review', label: 'Review data', done: validated },
+    { id: 'import', label: 'Import', done: status === 'committed' },
   ];
 
   const activeIndex = order.findIndex((step) => !step.done);
@@ -235,7 +237,7 @@ export function commitBlockers(rows: ImportRow[]): string[] {
   ).length;
 
   const undecidedMatches = rows.filter(
-    (row) => row.resolution !== 'skip' && row.existingId !== null && row.resolution !== 'reuse',
+    (row) => row.resolution === null && row.existingId !== null,
   ).length;
 
   if (invalid > 0) {
@@ -252,7 +254,7 @@ export function commitBlockers(rows: ImportRow[]): string[] {
 
   if (undecidedMatches > 0) {
     blockers.push(
-      `${undecidedMatches} row${undecidedMatches === 1 ? '' : 's'} match an existing establishment. Choose reuse or skip for each.`,
+      `${undecidedMatches} row${undecidedMatches === 1 ? '' : 's'} match an existing establishment. Choose reuse, merge, or skip for each.`,
     );
   }
 

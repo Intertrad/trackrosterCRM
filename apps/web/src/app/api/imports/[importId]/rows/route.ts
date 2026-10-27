@@ -12,7 +12,7 @@ export async function GET(
   try {
     const { importId } = await context.params;
 
-    const search = forwardQuery(request, ['afterRow', 'limit']);
+    const search = forwardQuery(request, ['afterRow', 'limit', 'view']);
 
     const path = `/imports/${encodeURIComponent(importId)}/rows`;
 

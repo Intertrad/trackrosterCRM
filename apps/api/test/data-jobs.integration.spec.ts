@@ -305,6 +305,9 @@ describe('Durable import and asynchronous export jobs', () => {
       createdEstablishments: 1,
       createdContacts: 1,
     });
+    const newestHistory = await call('GET', '/imports?limit=1');
+    expect(newestHistory.statusCode, newestHistory.body).toBe(200);
+    expect(newestHistory.json().items[0].id).toBe(id);
     expect(
       await db.select().from(establishments).where(eq(establishments.tenantId, tenantId)),
     ).toHaveLength(1);
@@ -357,6 +360,80 @@ describe('Durable import and asynchronous export jobs', () => {
     expect(
       await db.select().from(establishments).where(eq(establishments.tenantId, tenantId)),
     ).toHaveLength(1);
+  });
+  it('offers merge only when an existing establishment is missing uploaded data', async () => {
+    const existingId = randomUUID();
+    await db.insert(establishments).values({
+      id: existingId,
+      tenantId,
+      name: 'Merge candidate',
+      normalizedName: 'merge candidate',
+      postalCode: '75001',
+      city: 'Paris',
+      countryCode: 'FR',
+      phone: null,
+    });
+    const id = await newImport(
+      'name,postal_code,city,country_code,phone\nMerge candidate,75001,Paris,FR,0102030405',
+    );
+    await call('PUT', `/imports/${id}/mapping`, {
+      mapping: {
+        name: 'name',
+        postal_code: 'postal_code',
+        city: 'city',
+        country_code: 'country_code',
+        phone: 'phone',
+      },
+    });
+    await call('POST', `/imports/${id}/validate`, {});
+    const row = (await call('GET', `/imports/${id}/rows`)).json().items[0];
+    expect(row.data.mergeAvailable).toBe(true);
+    const issue = (await call('GET', `/imports/${id}/issues`))
+      .json()
+      .items.find((i: { code: string }) => i.code === 'existing_duplicate');
+    expect(
+      (await call('PATCH', `/import-issues/${issue.id}`, { resolution: 'merge' })).statusCode,
+    ).toBe(200);
+    expect((await call('POST', `/imports/${id}/commit`, {})).statusCode).toBe(200);
+    expect(
+      (await db.select().from(establishments).where(eq(establishments.id, existingId)))[0]?.phone,
+    ).toBe('0102030405');
+  });
+  it('applies safe exact-match reuse and merge decisions in one step', async () => {
+    const existingId = randomUUID();
+    await db.insert(establishments).values({
+      id: existingId,
+      tenantId,
+      name: 'Safe merge candidate',
+      normalizedName: 'safe merge candidate',
+      postalCode: '75002',
+      city: 'Paris',
+      countryCode: 'FR',
+      phone: null,
+    });
+    const id = await newImport(
+      'name,postal_code,city,country_code,phone\nSafe merge candidate,75002,Paris,FR,0102030406',
+    );
+    await call('PUT', `/imports/${id}/mapping`, {
+      mapping: {
+        name: 'name',
+        postal_code: 'postal_code',
+        city: 'city',
+        country_code: 'country_code',
+        phone: 'phone',
+      },
+    });
+    const validated = await call('POST', `/imports/${id}/validate`, {});
+    expect(validated.json().summary.safeMatches).toBe(1);
+    const resolved = await call('POST', `/imports/${id}/resolve-safe`, {});
+    expect(resolved.statusCode, resolved.body).toBe(200);
+    expect(resolved.json().summary.safeMatches).toBe(0);
+    const committed = await call('POST', `/imports/${id}/commit`, {});
+    expect(committed.statusCode, committed.body).toBe(200);
+    expect(committed.json().summary.reusedEstablishments).toBe(1);
+    expect(
+      (await db.select().from(establishments).where(eq(establishments.id, existingId)))[0]?.phone,
+    ).toBe('0102030406');
   });
   it('preserves distinct source IDs within a file and across later imports', async () => {
     const id = await newImport('name,country_code,external_reference\nSame,FR,one\nSame,FR,two');

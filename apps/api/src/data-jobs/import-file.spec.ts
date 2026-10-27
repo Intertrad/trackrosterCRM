@@ -1,7 +1,7 @@
 import { deflateRawSync } from 'node:zlib';
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { parseImportFile } from './import-file.js';
+import { listImportSheets, parseImportFile } from './import-file.js';
 describe('Import upload boundaries', () => {
   it('parses a single-sheet XLSX workbook into import rows', async () => {
     const workbook = new ExcelJS.Workbook();
@@ -14,6 +14,31 @@ describe('Import upload boundaries', () => {
 
     expect(parsed.headers).toEqual(['name', 'country_code', 'city']);
     expect(parsed.records).toEqual([['Paris Police Station', 'FR', 'Paris']]);
+  });
+
+  it('lists workbook sheets and parses only the selected worksheet', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const data = workbook.addWorksheet('Liste consolidée');
+    data.addRow(['Établissement', 'Tel']);
+    data.addRow(['Commissariat de test', '01 02 03 04 05']);
+    workbook.addWorksheet('Récapitulatif').addRow(['Région', 'Total']);
+
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+    await expect(listImportSheets('multi-sheet.xlsx', buffer)).resolves.toEqual([
+      'Liste consolidée',
+      'Récapitulatif',
+    ]);
+    await expect(parseImportFile('multi-sheet.xlsx', buffer)).rejects.toThrow(
+      'Choose which worksheet to import',
+    );
+
+    await expect(
+      parseImportFile('multi-sheet.xlsx', buffer, 'Liste consolidée'),
+    ).resolves.toMatchObject({
+      headers: ['Établissement', 'Tel'],
+      records: [['Commissariat de test', '01 02 03 04 05']],
+    });
   });
 
   it('bounds actual ZIP inflation even when central-directory sizes lie', async () => {

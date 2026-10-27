@@ -9,7 +9,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { AuthenticatedPrincipal } from '../auth/auth.types.js';
 import { DATABASE } from '../database/database.constants.js';
 import type { Database, DatabaseExecutor } from '../database/database.types.js';
@@ -24,18 +24,57 @@ import { ImportPreviewService } from '../imports/import-preview.service.js';
 import { ImportDeduplicationService } from '../imports/import-deduplication.service.js';
 import { IMPORT_HEADERS, REQUIRED_IMPORT_HEADERS } from '../imports/import-preview.constants.js';
 import { EstablishmentService } from '../establishments/establishment.service.js';
+import { EstablishmentRepository } from '../establishments/establishment.repository.js';
 import { EstablishmentContactService } from '../establishment-contacts/establishment-contact.service.js';
 import { EstablishmentContactRepository } from '../establishment-contacts/establishment-contact.repository.js';
 import { assertResourceMatches, resourceETag } from '../http/resource-etag.js';
 import { sanitizeSpreadsheetValue } from '../exports/spreadsheet-value.utils.js';
 import { NotificationEventService } from '../notifications/notification-event.service.js';
+import type { Establishment } from '../database/schema/establishments.js';
+import type { ImportPreviewEstablishment } from '../imports/import-preview.types.js';
 import type {
   ImportIssueResolutionDto,
   ImportMappingDto,
   ImportRowsDto,
   JobListDto,
 } from './data-jobs.dto.js';
-import { csvCell, parseImportFile } from './import-file.js';
+import { csvCell, listImportSheets, parseImportFile } from './import-file.js';
+
+const MERGEABLE_ESTABLISHMENT_FIELDS = [
+  'addressLine1',
+  'postalCode',
+  'city',
+  'phone',
+  'website',
+  'category',
+] as const;
+
+type MergeableEstablishmentField = (typeof MERGEABLE_ESTABLISHMENT_FIELDS)[number];
+
+function isMissingMergeValue(value: unknown): boolean {
+  return (
+    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+  );
+}
+
+function mergePatch(
+  existing: Establishment,
+  incoming: ImportPreviewEstablishment,
+): Partial<Pick<Establishment, MergeableEstablishmentField>> {
+  const patch: Partial<Pick<Establishment, MergeableEstablishmentField>> = {};
+
+  for (const field of MERGEABLE_ESTABLISHMENT_FIELDS) {
+    const current = existing[field];
+    const next = incoming[field];
+
+    if (isMissingMergeValue(current) && !isMissingMergeValue(next)) {
+      patch[field] = next as never;
+    }
+  }
+
+  return patch;
+}
+
 @Injectable()
 export class ImportJobService {
   constructor(
@@ -43,6 +82,7 @@ export class ImportJobService {
     private readonly preview: ImportPreviewService,
     private readonly dedup: ImportDeduplicationService,
     private readonly establishments: EstablishmentService,
+    private readonly establishmentRepository: EstablishmentRepository,
     private readonly contacts: EstablishmentContactService,
     private readonly contactRepository: EstablishmentContactRepository,
     @Optional() private readonly notificationEvents?: NotificationEventService,
@@ -78,16 +118,31 @@ export class ImportJobService {
   }
   async list(a: AuthenticatedPrincipal, q: JobListDto) {
     await this.authorize(a);
+
+    /*
+     * Import history is a user-facing activity feed. UUID ordering made a
+     * freshly committed import appear somewhere in the middle of the list (or
+     * outside the first page), which looked like the import had disappeared.
+     * Keep the existing UUID cursor contract, but resolve it to the timestamp
+     * tuple used by the stable newest-first ordering.
+     */
+    let cursorCondition;
+    if (q.cursor) {
+      const [cursor] = await this.db
+        .select({ id: importJobs.id, updatedAt: importJobs.updatedAt })
+        .from(importJobs)
+        .where(and(eq(importJobs.tenantId, a.tenantId), eq(importJobs.id, q.cursor)));
+
+      if (!cursor) throw new BadRequestException('Cursor is outside this result');
+
+      cursorCondition = sql`(${importJobs.updatedAt}, ${importJobs.id}) < (${cursor.updatedAt}, ${cursor.id})`;
+    }
+
     const rows = await this.db
       .select()
       .from(importJobs)
-      .where(
-        and(
-          eq(importJobs.tenantId, a.tenantId),
-          q.cursor ? gt(importJobs.id, q.cursor) : undefined,
-        ),
-      )
-      .orderBy(importJobs.id)
+      .where(and(eq(importJobs.tenantId, a.tenantId), cursorCondition))
+      .orderBy(desc(importJobs.updatedAt), desc(importJobs.id))
       .limit(q.limit + 1);
     return {
       items: rows.slice(0, q.limit).map((j) => this.public(j)),
@@ -140,11 +195,12 @@ export class ImportJobService {
     id: string,
     filename: string,
     buffer: Buffer,
+    sheetName?: string,
     version?: string,
   ) {
     await this.row(a, id);
     if (filename.length > 255) throw new BadRequestException('Filename too long');
-    const parsed = await parseImportFile(filename, buffer),
+    const parsed = await parseImportFile(filename, buffer, sheetName),
       hash = createHash('sha256').update(buffer).digest('hex');
     return this.db.transaction(async (tx) => {
       await this.lock(a, tx);
@@ -180,6 +236,11 @@ export class ImportJobService {
       return this.public(next!);
     });
   }
+  async inspectFile(a: AuthenticatedPrincipal, id: string, filename: string, buffer: Buffer) {
+    await this.row(a, id);
+    if (filename.length > 255) throw new BadRequestException('Filename too long');
+    return { sheets: await listImportSheets(filename, buffer) };
+  }
   async mapping(a: AuthenticatedPrincipal, id: string, b: ImportMappingDto, version?: string) {
     return this.db.transaction(async (tx) => {
       await this.lock(a, tx);
@@ -196,9 +257,7 @@ export class ImportJobService {
         ) ||
         REQUIRED_IMPORT_HEADERS.some((h) => !b.mapping[h])
       )
-        throw new BadRequestException(
-          'Map supported fields to existing headers, including name and country_code',
-        );
+        throw new BadRequestException('Map supported fields to existing headers, including name');
       if (new Set(Object.values(b.mapping)).size !== Object.values(b.mapping).length)
         throw new BadRequestException('A source column can only map to one field');
       await tx
@@ -237,7 +296,8 @@ export class ImportJobService {
         .delete(importRows)
         .where(and(eq(importRows.tenantId, a.tenantId), eq(importRows.importId, id)));
       let issueCount = 0,
-        duplicates = 0;
+        duplicates = 0,
+        safeMatches = 0;
       const seenKeys = new Set<string>();
       for (const data of preview.rows) {
         const limits: Record<string, number> = {
@@ -289,16 +349,33 @@ export class ImportJobService {
             });
           keys.forEach((k) => seenKeys.add(k));
         }
-        const existing = data.establishment
+        const exactExisting = data.establishment
           ? await this.dedup.findExisting(a.tenantId, data.establishment, tx)
           : null;
+        const potentialExisting =
+          !exactExisting && data.establishment
+            ? await this.dedup.findPotentialMatch(a.tenantId, data.establishment, tx)
+            : null;
+        const existing = exactExisting ?? potentialExisting;
         if (existing) {
+          if (data.establishment) {
+            data.mergeAvailable = Object.keys(mergePatch(existing, data.establishment)).length > 0;
+          }
           data.issues.push({
-            code: 'existing_duplicate',
+            code: exactExisting ? 'existing_duplicate' : 'possible_duplicate',
             severity: 'warning',
-            message: 'An existing establishment matches; choose reuse or skip',
+            message: exactExisting
+              ? 'An existing establishment matches exactly; choose reuse or skip'
+              : 'Possible duplicate: same name and matching address or phone; choose reuse, keep separate, or skip',
           });
           duplicates++;
+          if (
+            exactExisting &&
+            data.status !== 'invalid' &&
+            !data.issues.some((issue) => issue.code === 'duplicate_in_file')
+          ) {
+            safeMatches++;
+          }
         }
         if (data.status !== 'invalid' && data.issues.length) data.status = 'warning';
         const [row] = await tx
@@ -324,13 +401,18 @@ export class ImportJobService {
           );
         issueCount += data.issues.length;
       }
+      const { missingFields = {}, ...previewSummary } = preview.summary;
       const summary = {
-        ...preview.summary,
+        ...previewSummary,
+        ...Object.fromEntries(
+          Object.entries(missingFields).map(([field, count]) => [`missing_${field}`, count]),
+        ),
         validRows: preview.rows.filter((r) => r.status === 'valid').length,
         warningRows: preview.rows.filter((r) => r.status === 'warning').length,
         invalidRows: preview.rows.filter((r) => r.status === 'invalid').length,
         issueCount,
         existingDuplicates: duplicates,
+        safeMatches,
       };
       const [next] = await tx
         .update(importJobs)
@@ -341,23 +423,128 @@ export class ImportJobService {
       return this.public(next!);
     });
   }
+  async resolveSafe(a: AuthenticatedPrincipal, id: string, version?: string) {
+    return this.db.transaction(async (tx) => {
+      await this.lock(a, tx);
+      const j = await this.row(a, id, tx);
+      this.mutable(j, version);
+      if (j.status !== 'validated') throw new ConflictException('Validate the import first');
+
+      const rows = await tx
+        .select()
+        .from(importRows)
+        .where(and(eq(importRows.tenantId, a.tenantId), eq(importRows.importId, id)));
+      const safeRows = rows.filter(
+        (row) =>
+          row.resolution === null &&
+          row.existingId !== null &&
+          row.data.status !== 'invalid' &&
+          row.data.issues.some((issue) => issue.code === 'existing_duplicate') &&
+          !row.data.issues.some((issue) => issue.code === 'duplicate_in_file'),
+      );
+
+      for (const row of safeRows) {
+        await tx
+          .update(importRows)
+          .set({ resolution: row.data.mergeAvailable ? 'merge' : 'reuse' })
+          .where(eq(importRows.id, row.id));
+      }
+
+      if (safeRows.length) {
+        await tx
+          .update(importIssues)
+          .set({ resolvedAt: sql`clock_timestamp()` })
+          .where(
+            inArray(
+              importIssues.rowId,
+              safeRows.map((row) => row.id),
+            ),
+          );
+      }
+
+      const summary = {
+        ...(j.summary ?? {}),
+        safeMatches: Math.max(0, Number(j.summary?.safeMatches ?? 0) - safeRows.length),
+      };
+      const [next] = await tx
+        .update(importJobs)
+        .set({ summary, updatedAt: sql`clock_timestamp()` })
+        .where(eq(importJobs.id, id))
+        .returning();
+      await this.audit(
+        a,
+        id,
+        'safe_matches_resolved',
+        {
+          count: safeRows.length,
+          merged: safeRows.filter((row) => row.data.mergeAvailable).length,
+          reused: safeRows.filter((row) => !row.data.mergeAvailable).length,
+        },
+        tx,
+      );
+      return this.public(next!);
+    });
+  }
   async rows(a: AuthenticatedPrincipal, id: string, q: ImportRowsDto) {
     await this.row(a, id);
+    const actionFilter =
+      q.view === 'action'
+        ? sql`(${importRows.resolution} IS NULL AND (${importRows.existingId} IS NOT NULL OR (${importRows.data} ->> 'status') = 'invalid' OR EXISTS (SELECT 1 FROM import_issues ii WHERE ii.tenant_id = ${a.tenantId} AND ii.import_id = ${id} AND ii.row_id = ${importRows.id} AND ii.resolved_at IS NULL AND (ii.severity = 'error' OR ii.code IN ('duplicate_in_file', 'existing_duplicate', 'possible_duplicate')))))`
+        : undefined;
+    const where = and(
+      eq(importRows.tenantId, a.tenantId),
+      eq(importRows.importId, id),
+      gt(importRows.rowNumber, q.afterRow),
+      actionFilter,
+    );
     const rows = await this.db
       .select()
       .from(importRows)
-      .where(
-        and(
-          eq(importRows.tenantId, a.tenantId),
-          eq(importRows.importId, id),
-          gt(importRows.rowNumber, q.afterRow),
-        ),
-      )
+      .where(where)
       .orderBy(importRows.rowNumber)
       .limit(q.limit + 1);
+    const countRows =
+      q.view === 'action'
+        ? await this.db
+            .select({ count: sql<number>`count(*)` })
+            .from(importRows)
+            .where(
+              and(eq(importRows.tenantId, a.tenantId), eq(importRows.importId, id), actionFilter),
+            )
+        : [];
+    const items = rows.slice(0, q.limit);
+    const pendingIssues = items.length
+      ? await this.db
+          .select({ rowId: importIssues.rowId, issueId: importIssues.id })
+          .from(importIssues)
+          .where(
+            and(
+              eq(importIssues.tenantId, a.tenantId),
+              eq(importIssues.importId, id),
+              inArray(
+                importIssues.rowId,
+                items.map((row) => row.id),
+              ),
+              isNull(importIssues.resolvedAt),
+            ),
+          )
+          .orderBy(importIssues.id)
+      : [];
+    const pendingIssueByRow = new Map<string, string>();
+
+    for (const issue of pendingIssues) {
+      if (!pendingIssueByRow.has(issue.rowId)) {
+        pendingIssueByRow.set(issue.rowId, issue.issueId);
+      }
+    }
+
     return {
-      items: rows.slice(0, q.limit),
+      items: items.map((row) => ({
+        ...row,
+        pendingIssueId: pendingIssueByRow.get(row.id) ?? null,
+      })),
       nextAfterRow: rows.length > q.limit ? rows[q.limit - 1]!.rowNumber : null,
+      totalCount: countRows.length > 0 ? Number(countRows[0]!.count) : undefined,
     };
   }
   async issues(a: AuthenticatedPrincipal, id: string, q: JobListDto) {
@@ -429,6 +616,23 @@ export class ImportJobService {
           throw new BadRequestException(
             'Only valid existing matches can be reused; skip or correct this row',
           );
+        if (
+          b.resolution === 'create' &&
+          (!row!.existingId ||
+            row!.data.status === 'invalid' ||
+            row!.data.issues.some((i) => i.code === 'duplicate_in_file') ||
+            !row!.data.issues.some((i) => i.code === 'possible_duplicate'))
+        )
+          throw new BadRequestException(
+            'Only possible duplicate matches can be kept as a separate record',
+          );
+        if (
+          b.resolution === 'merge' &&
+          (!row!.existingId || row!.data.status === 'invalid' || !row!.data.mergeAvailable)
+        )
+          throw new BadRequestException(
+            'Merge is only available when the uploaded row adds missing data to an existing match',
+          );
         await tx
           .update(importRows)
           .set({ resolution: b.resolution })
@@ -471,7 +675,14 @@ export class ImportJobService {
             r.resolution !== 'skip' &&
             (r.data.status === 'invalid' ||
               r.data.issues.some((i) => i.code === 'duplicate_in_file') ||
-              (r.existingId && r.resolution !== 'reuse')),
+              (r.existingId &&
+                r.resolution !== 'reuse' &&
+                r.resolution !== 'merge' &&
+                !(
+                  r.resolution === 'create' &&
+                  r.data.issues.some((i) => i.code === 'possible_duplicate')
+                )) ||
+              (r.resolution === 'merge' && !r.data.mergeAvailable)),
         )
       )
         throw new ConflictException('Resolve invalid and duplicate rows before committing');
@@ -491,7 +702,22 @@ export class ImportJobService {
         const e = row.data.establishment!;
         await this.dedup.acquireExecutionLock(a.tenantId, e, tx);
         let establishment = await this.dedup.findExisting(a.tenantId, e, tx);
-        if (establishment?.id !== (row.existingId ?? undefined))
+        if (row.resolution === 'reuse' && !establishment)
+          establishment = await this.dedup.findPotentialMatch(a.tenantId, e, tx);
+        if (row.resolution === 'merge' && !establishment)
+          establishment = await this.dedup.findPotentialMatch(a.tenantId, e, tx);
+        if (row.resolution === 'create' && establishment)
+          throw new ConflictException(
+            'A matching establishment appeared while importing; revalidate and review before committing',
+          );
+        if (!['reuse', 'merge'].includes(row.resolution ?? '') && establishment)
+          throw new ConflictException(
+            'Duplicate matches changed; revalidate and review before committing',
+          );
+        if (
+          ['reuse', 'merge'].includes(row.resolution ?? '') &&
+          establishment?.id !== (row.existingId ?? undefined)
+        )
           throw new ConflictException(
             'Duplicate matches changed; revalidate and review before committing',
           );
@@ -501,6 +727,25 @@ export class ImportJobService {
             { tenantId: a.tenantId, ...e, source: 'import' },
             tx,
           );
+        if (row.resolution === 'merge') {
+          const patch = mergePatch(establishment, e);
+
+          if (Object.keys(patch).length === 0) {
+            throw new ConflictException(
+              'The existing establishment no longer has missing fields; revalidate and review before committing',
+            );
+          }
+
+          const merged = await this.establishmentRepository.update(
+            a.tenantId,
+            establishment.id,
+            patch,
+            tx,
+          );
+
+          if (!merged) throw new NotFoundException('Establishment not found');
+          establishment = merged;
+        }
         if (reused) summary.reusedEstablishments++;
         else summary.createdEstablishments++;
         let contactId: string | null = null;

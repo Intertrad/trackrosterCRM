@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { CircleAlert, CircleCheck, Copy, FileText, TriangleAlert, Users } from 'lucide-react';
 
 import { AdminGuard } from '@/components/admin/admin-guard';
+import { ApiError } from '@/lib/api/api-error';
 import { ImportStatusBadge, describeImportError } from '@/lib/api/import-ui';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -21,9 +22,11 @@ import {
   cancelImport,
   commitImport,
   getImport,
+  inspectImportFile,
   importReportUrl,
   listImportRows,
   resolveImportIssue,
+  resolveSafeImportMatches,
   saveImportMapping,
   uploadImportFile,
   validateImport,
@@ -37,11 +40,12 @@ import {
   type ImportHeader,
   type ImportIssueRecord,
   type ImportJob,
+  type ImportSummary,
   type ImportRow,
 } from '@/lib/api/import-types';
 import { listImportIssues } from '@/lib/api/import-client';
 
-type RowFilter = 'all' | 'ready' | 'warnings' | 'errors' | 'duplicates';
+type RowFilter = 'needs_action' | 'all' | 'ready' | 'warnings' | 'errors' | 'duplicates';
 
 /* The rows endpoint is keyset by row number, so paging is exact here. */
 const ROW_PAGE_SIZE = 25;
@@ -50,10 +54,13 @@ const COLUMN_ALIASES: Partial<Record<ImportHeader, string[]>> = {
   name: [
     'full name',
     'establishment name',
+    'establishment',
     'company name',
     'organisation name',
     'organization name',
     'nom complet',
+    'établissement',
+    'etablissement',
     'nom de l établissement',
     "nom de l'établissement",
     'raison sociale',
@@ -62,9 +69,10 @@ const COLUMN_ALIASES: Partial<Record<ImportHeader, string[]>> = {
   address_line1: ['address', 'street', 'street address', 'address line 1', 'adresse', 'rue'],
   postal_code: ['zip', 'zip code', 'postcode', 'postal code', 'code postal'],
   city: ['town', 'municipality', 'ville', 'commune'],
+  phone: ['phone', 'telephone', 'téléphone', 'tel', 'tél', 'mobile'],
   contact_name: ['full contact name', 'contact full name'],
   contact_job_title: ['job title', 'contact title', 'role'],
-  contact_email: ['email', 'contact email', 'e-mail', 'courriel'],
+  contact_email: ['email', 'mail', 'contact email', 'e-mail', 'courriel'],
   contact_phone: ['mobile', 'phone number', 'contact phone', 'téléphone', 'telephone'],
 };
 
@@ -96,6 +104,7 @@ function ImportWizard({ importId }: { importId: string }) {
   const [job, setJob] = useState<ImportJob | null>(null);
   const [rows, setRows] = useState<ImportRow[] | null>(null);
   const [issues, setIssues] = useState<ImportIssueRecord[]>([]);
+  const [actionCount, setActionCount] = useState<number | null>(null);
   const [afterRow, setAfterRow] = useState(0);
   const [nextAfterRow, setNextAfterRow] = useState<number | null>(null);
 
@@ -103,8 +112,9 @@ function ImportWizard({ importId }: { importId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  const [filter, setFilter] = useState<RowFilter>('all');
+  const [filter, setFilter] = useState<RowFilter>('needs_action');
   const [search, setSearch] = useState('');
 
   /* One key per logical write, retired only once the API confirms success. */
@@ -149,11 +159,11 @@ function ImportWizard({ importId }: { importId: string }) {
   );
 
   const loadRows = useCallback(
-    async (start: number, signal?: AbortSignal): Promise<void> => {
+    async (start: number, signal?: AbortSignal, view: 'all' | 'action' = 'all'): Promise<void> => {
       try {
         const page = await listImportRows(
           importId,
-          { afterRow: start, limit: ROW_PAGE_SIZE },
+          { afterRow: start, limit: ROW_PAGE_SIZE, view },
           signal,
         );
 
@@ -163,6 +173,7 @@ function ImportWizard({ importId }: { importId: string }) {
 
         setRows(page.items);
         setNextAfterRow(page.nextAfterRow);
+        setActionCount(view === 'action' ? (page.totalCount ?? 0) : null);
       } catch {
         if (!signal?.aborted) {
           setRows([]);
@@ -198,38 +209,68 @@ function ImportWizard({ importId }: { importId: string }) {
       }
 
       if (loaded.status === 'validated' || loaded.status === 'committed') {
-        void loadRows(0, controller.signal);
         void loadIssues(controller.signal);
       } else {
         setRows([]);
+        setActionCount(null);
       }
     });
 
     return () => controller.abort();
-  }, [loadIssues, loadJob, loadRows]);
+  }, [loadIssues, loadJob]);
+
+  useEffect(() => {
+    if (!job || !['validated', 'committed'].includes(job.status)) {
+      return;
+    }
+
+    setAfterRow(0);
+    void loadRows(0, undefined, filter === 'needs_action' ? 'action' : 'all');
+  }, [filter, job?.id, job?.status, loadRows]);
 
   /* After any transition the parsed rows may have been discarded upstream, so
    * the job and its rows are always re-read together. */
   const refresh = useCallback(
-    async (updated: ImportJob): Promise<void> => {
+    async (updated: ImportJob, startRow = 0): Promise<void> => {
       setJob(updated);
-      setAfterRow(0);
+      setAfterRow(startRow);
 
       if (updated.status === 'validated' || updated.status === 'committed') {
-        await Promise.all([loadRows(0), loadIssues()]);
+        await Promise.all([
+          loadRows(startRow, undefined, filter === 'needs_action' ? 'action' : 'all'),
+          loadIssues(),
+        ]);
       } else {
         setRows([]);
+        setActionCount(null);
         setIssues([]);
       }
     },
-    [loadIssues, loadRows],
+    [filter, loadIssues, loadRows],
+  );
+
+  const reloadLatest = useCallback(
+    async (startRow = 0): Promise<boolean> => {
+      const latest = await loadJob();
+
+      if (!latest) {
+        return false;
+      }
+
+      await refresh(latest, startRow);
+      return true;
+    },
+    [loadJob, refresh],
   );
 
   useLiveRefresh(
     async (signal) => {
       const { resource: updated } = await getImport(importId, signal);
-      // Preserve the editable column mapping and its original ETag during background reads.
-      if (!signal.aborted && updated.status !== job?.status) await refresh(updated);
+      /* Keep the write validator current even when another session changes the
+       * mapping, rows, or decisions without changing the workflow status. */
+      if (!signal.aborted && (updated.etag !== job?.etag || updated.status !== job?.status)) {
+        await refresh(updated);
+      }
     },
     {
       enabled: !!job && !busy && !['committed', 'cancelled'].includes(job.status),
@@ -248,14 +289,48 @@ function ImportWizard({ importId }: { importId: string }) {
 
     try {
       const updated = await operation();
+      const preservePage = /^(reuse|create|merge|skip|safe-resolve)-/.test(action);
 
       keys.delete(action);
-      await refresh(updated);
+      await refresh(updated, preservePage ? afterRow : 0);
       setNotice(success);
     } catch (caught) {
-      setActionError(describeImportError(caught));
+      if (caught instanceof ApiError && [409, 412].includes(caught.statusCode)) {
+        const recovered = await reloadLatest(
+          /^(reuse|create|merge|skip|safe-resolve)-/.test(action) ? afterRow : 0,
+        );
+
+        setActionError(
+          recovered
+            ? 'This import was updated elsewhere. The latest version is loaded; review it and try again.'
+            : describeImportError(caught),
+        );
+      } else {
+        setActionError(describeImportError(caught));
+      }
     } finally {
       setBusy(null);
+      if (action === 'upload') {
+        setUploadProgress(null);
+      }
+    }
+  }
+
+  async function inspectWorkbook(file: File): Promise<string[]> {
+    setBusy('inspect');
+    setActionError(null);
+    setNotice(null);
+    setUploadProgress(null);
+
+    try {
+      const result = await inspectImportFile(job!.id, file, setUploadProgress);
+      return result.sheets;
+    } catch (caught) {
+      setActionError(describeImportError(caught));
+      return [];
+    } finally {
+      setBusy(null);
+      setUploadProgress(null);
     }
   }
 
@@ -312,7 +387,27 @@ function ImportWizard({ importId }: { importId: string }) {
     });
   }, [filter, rows, search]);
 
+  const summary = job?.summary ?? {};
   const blockers = useMemo(() => (rows ? commitBlockers(rows) : []), [rows]);
+  /* The validation summary is a historical snapshot: it counts every match
+   * found during validation, even after the operator has chosen reuse, keep
+   * separate, or skip.  Gate the import on the live unresolved issue records
+   * instead so resolving the last row actually enables the action. */
+  const unresolvedBlockingIssues = useMemo(
+    () =>
+      issues.filter(
+        (issue) =>
+          issue.resolvedAt === null &&
+          (issue.severity === 'error' ||
+            issue.code === 'duplicate_in_file' ||
+            issue.code === 'existing_duplicate' ||
+            issue.code === 'possible_duplicate'),
+      ),
+    [issues],
+  );
+  const importBlocked = blockers.length > 0 || unresolvedBlockingIssues.length > 0;
+  const readyRows = (summary.validRows ?? 0) + (summary.warningRows ?? 0);
+  const safeMatches = summary.safeMatches ?? 0;
 
   if (readError && !job) {
     return (
@@ -332,8 +427,6 @@ function ImportWizard({ importId }: { importId: string }) {
     );
   }
 
-  const summary = job?.summary ?? {};
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -345,8 +438,8 @@ function ImportWizard({ importId }: { importId: string }) {
         </nav>
 
         <PageHeader
-          title="Validate & import"
-          subtitle="Review anomalies before prospects enter the active portfolio"
+          title="Review & import"
+          subtitle="Check your columns and resolve exceptions before prospects enter the portfolio"
           action={job ? <ImportStatusBadge status={job.status} /> : undefined}
         />
       </div>
@@ -378,14 +471,19 @@ function ImportWizard({ importId }: { importId: string }) {
         </>
       ) : !job.fileHash ? (
         <UploadStep
-          busy={busy === 'upload'}
-          onUpload={(file) =>
+          busy={busy !== null}
+          activity={busy === 'inspect' ? 'inspect' : busy === 'upload' ? 'upload' : null}
+          progress={busy === 'inspect' || busy === 'upload' ? uploadProgress : null}
+          onInspect={inspectWorkbook}
+          onUpload={(file, sheetName) =>
             run(
               'upload',
               () =>
                 uploadImportFile(job.id, file, {
                   etag: job.etag,
                   idempotencyKey: keyFor('upload'),
+                  sheetName,
+                  onProgress: setUploadProgress,
                 }),
               'File uploaded. Confirm the column mapping next.',
             )
@@ -420,7 +518,17 @@ function ImportWizard({ importId }: { importId: string }) {
               await refresh(validated);
               setNotice('Columns confirmed. Review the import checks below before committing.');
             } catch (caught) {
-              setActionError(describeImportError(caught));
+              if (caught instanceof ApiError && [409, 412].includes(caught.statusCode)) {
+                const recovered = await reloadLatest();
+
+                setActionError(
+                  recovered
+                    ? 'This import was updated elsewhere. The latest version is loaded; review it and try again.'
+                    : describeImportError(caught),
+                );
+              } else {
+                setActionError(describeImportError(caught));
+              }
             } finally {
               setBusy(null);
             }
@@ -428,6 +536,8 @@ function ImportWizard({ importId }: { importId: string }) {
         />
       ) : (
         <>
+          <MissingFieldsAlert issues={issues} counts={missingFieldCounts(summary)} />
+
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <StatTile
               icon={<FileText aria-hidden="true" className="size-5" />}
@@ -461,13 +571,22 @@ function ImportWizard({ importId }: { importId: string }) {
               icon={<Copy aria-hidden="true" className="size-5" />}
               tone="neutral"
               value={summary.existingDuplicates ?? 0}
-              label="Existing matches"
+              label="Possible matches"
             />
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-start">
             <Card>
-              <CardHeader title="Validation preview" />
+              <CardHeader title="Review rows" />
+
+              <ReviewFocusSummary
+                attentionRows={
+                  actionCount ?? new Set(unresolvedBlockingIssues.map((issue) => issue.rowId)).size
+                }
+                safeMatches={safeMatches}
+                totalRows={summary.totalRows ?? job.rowCount}
+                onShowAttention={() => setFilter('needs_action')}
+              />
 
               <div className="flex flex-col gap-4">
                 <SearchInput
@@ -481,11 +600,12 @@ function ImportWizard({ importId }: { importId: string }) {
                   label="Show"
                   value={filter}
                   options={[
+                    { value: 'needs_action', label: 'Needs action' },
                     { value: 'all', label: 'All rows' },
                     { value: 'ready', label: 'Ready' },
                     { value: 'warnings', label: 'Warnings' },
                     { value: 'errors', label: 'Errors' },
-                    { value: 'duplicates', label: 'Existing matches' },
+                    { value: 'duplicates', label: 'Possible matches' },
                   ]}
                   onChange={(value) => setFilter(value as RowFilter)}
                 />
@@ -499,7 +619,9 @@ function ImportWizard({ importId }: { importId: string }) {
                 </div>
               ) : visibleRows.length === 0 ? (
                 <p className="py-10 text-center text-[15px] text-ink-muted">
-                  No rows match this filter on the current page.
+                  {filter === 'needs_action'
+                    ? 'No unresolved rows need action. You can continue with the import.'
+                    : 'No rows match this filter on the current page.'}
                 </p>
               ) : (
                 <ul className="mt-5 flex flex-col gap-2.5">
@@ -520,7 +642,11 @@ function ImportWizard({ importId }: { importId: string }) {
                             }),
                           resolution === 'skip'
                             ? 'Row skipped.'
-                            : 'Existing establishment will be reused.',
+                            : resolution === 'create'
+                              ? 'A separate establishment will be created.'
+                              : resolution === 'merge'
+                                ? 'Missing fields will be added to the existing establishment.'
+                                : 'Existing establishment will be reused.',
                         )
                       }
                     />
@@ -567,32 +693,66 @@ function ImportWizard({ importId }: { importId: string }) {
             </Card>
 
             <Card>
-              <CardHeader title="Import readiness" />
+              <CardHeader title="Ready to import" />
 
-              {blockers.length === 0 ? (
-                <Alert tone="success" title="Every row on this page is ready.">
-                  Commit applies the whole file in one transaction.
+              {!importBlocked ? (
+                <Alert tone="success" title="Your file is ready.">
+                  {readyRows.toLocaleString()} rows will be imported. The final check covers the
+                  whole file before anything is saved.
                 </Alert>
               ) : (
-                <Alert tone="danger" title="Resolve these before importing.">
-                  <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5">
-                    {blockers.map((blocker) => (
-                      <li key={blocker}>{blocker}</li>
-                    ))}
-                  </ul>
+                <Alert tone="warning" title="A few rows need your decision.">
+                  {blockers.length > 0 ? (
+                    <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5">
+                      {blockers.map((blocker) => (
+                        <li key={blocker}>{blocker}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    'Use the filters and page controls to find the rows that still need review.'
+                  )}
                 </Alert>
               )}
 
               <p className="mt-4 text-[13px] text-ink-muted">
-                Blockers are counted from the {rows?.length ?? 0} rows loaded on this page. The API
-                re-checks the whole file when you commit.
+                Review possible matches and errors before importing. You can open any row to check
+                its full prospect data.
               </p>
+
+              {safeMatches > 0 ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    className="mt-5"
+                    loading={busy === 'safe-resolve'}
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void run(
+                        'safe-resolve',
+                        () =>
+                          resolveSafeImportMatches(job.id, {
+                            etag: job.etag,
+                            idempotencyKey: keyFor('safe-resolve'),
+                          }),
+                        'Safe matches applied. Review only the remaining ambiguous rows.',
+                      )
+                    }
+                  >
+                    Apply {safeMatches.toLocaleString()} safe matches
+                  </Button>
+                  <p className="mt-2 text-[13px] text-ink-muted">
+                    Exact matches will be reused, and missing values will be merged without
+                    replacing existing data.
+                  </p>
+                </>
+              ) : null}
 
               <Button
                 fullWidth
-                className="mt-5"
+                className={safeMatches > 0 ? 'mt-3' : 'mt-5'}
                 loading={busy === 'commit'}
-                disabled={busy !== null}
+                disabled={busy !== null || importBlocked}
                 onClick={() =>
                   void run(
                     'commit',
@@ -605,7 +765,7 @@ function ImportWizard({ importId }: { importId: string }) {
                   )
                 }
               >
-                Import valid rows
+                Import {readyRows.toLocaleString()} rows
               </Button>
 
               <Button
@@ -706,21 +866,32 @@ function Stepper({ steps }: { steps: ReturnType<typeof importSteps> }) {
 
 function UploadStep({
   busy,
+  activity,
+  progress,
+  onInspect,
   onUpload,
 }: {
   busy: boolean;
-  onUpload: (file: File) => Promise<void>;
+  activity: 'inspect' | 'upload' | null;
+  progress: number | null;
+  onInspect: (file: File) => Promise<string[]>;
+  onUpload: (file: File, sheetName?: string) => Promise<void>;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [sheets, setSheets] = useState<string[] | null>(null);
+  const [selectedSheet, setSelectedSheet] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const isExcel = file?.name.toLowerCase().endsWith('.xlsx') ?? false;
+  const needsSheetChoice = isExcel && sheets === null;
 
   return (
     <Card>
       <CardHeader title="Upload a CSV or Excel file" />
 
       <p className="-mt-3 mb-4 text-[15px] text-ink-muted">
-        CSV and .xlsx files up to 10,000 rows and 5 MB. Each row needs at least a name and a country
-        code.
+        CSV and .xlsx files up to 10,000 rows and 5 MB. Each row needs at least a name. Address,
+        phone, country, and contact fields are optional. Excel workbooks can contain multiple tabs;
+        you will choose the data worksheet before importing.
       </p>
 
       <input
@@ -731,6 +902,8 @@ function UploadStep({
           const chosen = event.target.files?.[0] ?? null;
 
           setError(null);
+          setSheets(null);
+          setSelectedSheet('');
 
           if (chosen && chosen.size > MAX_IMPORT_FILE_BYTES) {
             setError('That file is larger than the 5 MB limit.');
@@ -750,19 +923,162 @@ function UploadStep({
         </Alert>
       ) : null}
 
+      {sheets ? (
+        <div className="mt-4 rounded-xl border border-brand-pale bg-brand-tint/40 p-4">
+          <label htmlFor="import-sheet" className="mb-2 block text-[14px] font-semibold text-navy">
+            Which worksheet should we import?
+          </label>
+          <select
+            id="import-sheet"
+            value={selectedSheet}
+            onChange={(event) => setSelectedSheet(event.target.value)}
+            disabled={busy}
+            className="w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-[15px] text-ink"
+          >
+            {sheets.map((sheet) => (
+              <option key={sheet} value={sheet}>
+                {sheet}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-[13px] text-ink-muted">
+            Only this worksheet will be mapped and imported. Other tabs remain untouched.
+          </p>
+        </div>
+      ) : null}
+
       <Button
         className="mt-5"
         loading={busy}
-        disabled={!file}
+        disabled={!file || (isExcel && sheets !== null && !selectedSheet)}
         onClick={() => {
-          if (file) {
-            void onUpload(file);
+          if (!file) {
+            return;
           }
+
+          if (needsSheetChoice) {
+            void onInspect(file).then((nextSheets) => {
+              if (nextSheets.length > 0) {
+                setSheets(nextSheets);
+                setSelectedSheet(nextSheets[0]!);
+              }
+            });
+            return;
+          }
+
+          void onUpload(file, isExcel ? selectedSheet : undefined);
         }}
       >
-        Upload file
+        {needsSheetChoice ? 'Choose worksheet' : 'Upload file'}
       </Button>
+
+      {busy ? (
+        <div className="mt-4" aria-live="polite">
+          <div className="mb-2 flex items-center justify-between text-[13px] font-semibold text-ink-muted">
+            <span>
+              {activity === 'inspect'
+                ? progress === null
+                  ? 'Reading workbook…'
+                  : `Reading workbook… ${progress}%`
+                : progress === null
+                  ? 'Uploading file…'
+                  : `Uploading file… ${progress}%`}
+            </span>
+            <span>{progress === null ? 'Processing' : `${progress}%`}</span>
+          </div>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-line-soft"
+            role="progressbar"
+            aria-label="File upload progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress ?? 0}
+          >
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-200"
+              style={{ width: `${progress ?? 8}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[13px] text-ink-muted">
+            Keep this page open while we inspect the workbook and prepare its columns.
+          </p>
+        </div>
+      ) : null}
     </Card>
+  );
+}
+
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  address_line1: 'Address',
+  category: 'Category',
+  city: 'City',
+  contact_email: 'Contact email',
+  contact_name: 'Contact name',
+  contact_phone: 'Contact phone',
+  country_code: 'Country code',
+  name: 'Name',
+  phone: 'Phone',
+  postal_code: 'Postal code',
+  website: 'Website',
+};
+
+const MISSING_ISSUE_FIELDS: Record<string, string> = {
+  country_code_missing: 'country_code',
+  required: 'name',
+};
+
+function missingFieldCounts(summary: ImportSummary): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(summary)
+      .filter(
+        ([key, value]) => key.startsWith('missing_') && typeof value === 'number' && value > 0,
+      )
+      .map(([key, value]) => [key.slice('missing_'.length), value as number]),
+  );
+}
+
+function MissingFieldsAlert({
+  issues,
+  counts,
+}: {
+  issues: ImportIssueRecord[];
+  counts?: Record<string, number>;
+}) {
+  const missing = new Map<string, number>();
+
+  for (const [field, count] of Object.entries(counts ?? {})) {
+    if (count > 0) {
+      missing.set(field, count);
+    }
+  }
+
+  if (missing.size === 0) {
+    for (const issue of issues) {
+      const field = MISSING_ISSUE_FIELDS[issue.code];
+
+      if (!field) {
+        continue;
+      }
+
+      missing.set(field, (missing.get(field) ?? 0) + 1);
+    }
+  }
+
+  if (missing.size === 0) {
+    return null;
+  }
+
+  return (
+    <Alert tone="warning" title="Some fields are missing from the uploaded file.">
+      <ul className="mt-2 flex list-disc flex-col gap-1 pl-5">
+        {[...missing.entries()].map(([field, count]) => (
+          <li key={field}>
+            {MISSING_FIELD_LABELS[field] ?? field} ({count.toLocaleString()} rows)
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2">These fields will stay blank or use the default shown in each row.</p>
+    </Alert>
   );
 }
 
@@ -874,7 +1190,7 @@ function MappingStep({
       ) : null}
 
       {missingRequired.length > 0 ? (
-        <Alert tone="warning" className="mb-4" title="Two fields are required.">
+        <Alert tone="warning" className="mb-4" title="A required field is missing.">
           Map a source column to {missingRequired.map(labelForHeader).join(' and ')} before
           confirming.
         </Alert>
@@ -885,6 +1201,12 @@ function MappingStep({
           {duplicated.join(', ')} {duplicated.length === 1 ? 'is' : 'are'} mapped more than once.
         </Alert>
       ) : null}
+
+      <ImportDataPreview
+        headers={job.headers}
+        mapping={mapping}
+        sampleRows={job.sampleRows ?? []}
+      />
 
       <div className="overflow-x-auto rounded-xl border border-line">
         <table className="w-full min-w-[720px] border-collapse text-left">
@@ -984,6 +1306,130 @@ function MappingStep({
   );
 }
 
+function ImportDataPreview({
+  headers,
+  mapping,
+  sampleRows,
+}: {
+  headers: string[];
+  mapping: Record<string, string>;
+  sampleRows: string[][];
+}) {
+  const columns = headers
+    .map((source, index) => ({
+      source,
+      index,
+      destination: Object.entries(mapping).find(([, value]) => value === source)?.[0] ?? null,
+    }))
+    .filter(({ destination }) => destination !== null);
+
+  if (columns.length === 0 || sampleRows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mb-5 rounded-xl border border-line-soft bg-surface-muted/35 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h3 className="text-[14px] font-extrabold text-navy">Preview the imported data</h3>
+          <p className="mt-1 text-[13px] text-ink-muted">
+            These first rows show how your spreadsheet will look in TrackRoster. Blank optional
+            fields are allowed.
+          </p>
+        </div>
+        <span className="text-[12px] font-semibold text-ink-muted">
+          First {Math.min(sampleRows.length, 5)} rows
+        </span>
+      </div>
+
+      <div className="mt-3 overflow-x-auto rounded-lg border border-line bg-surface">
+        <table className="w-full min-w-[640px] border-collapse text-left text-[13px]">
+          <caption className="sr-only">Preview of mapped import data</caption>
+          <thead className="bg-canvas text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+            <tr>
+              {columns.slice(0, 6).map(({ source, destination }) => (
+                <th key={source} scope="col" className="px-3 py-2.5">
+                  <span className="block text-navy">
+                    {labelForHeader(destination as ImportHeader)}
+                  </span>
+                  <span className="mt-0.5 block font-normal normal-case tracking-normal">
+                    from {source}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line-soft">
+            {sampleRows.slice(0, 5).map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {columns.slice(0, 6).map(({ source, index }) => {
+                  const value = row[index]?.trim() ?? '';
+
+                  return (
+                    <td
+                      key={source}
+                      className={
+                        value
+                          ? 'max-w-[220px] truncate px-3 py-2.5 text-ink'
+                          : 'px-3 py-2.5 text-ink-muted'
+                      }
+                      title={value}
+                    >
+                      {value || 'Blank'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ReviewFocusSummary({
+  attentionRows,
+  safeMatches,
+  totalRows,
+  onShowAttention,
+}: {
+  attentionRows: number;
+  safeMatches: number;
+  totalRows: number;
+  onShowAttention: () => void;
+}) {
+  if (attentionRows === 0 && safeMatches === 0) {
+    return (
+      <Alert tone="success" className="mb-4" title="No decisions are needed.">
+        All {totalRows.toLocaleString()} rows can continue. Optional missing fields will remain
+        blank and can be completed later.
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 rounded-xl border border-brand-pale bg-brand-tint/35 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[14px] font-extrabold text-navy">
+          {attentionRows.toLocaleString()} {attentionRows === 1 ? 'row needs' : 'rows need'} your
+          attention
+        </p>
+        <p className="mt-1 text-[13px] text-ink-muted">
+          {safeMatches > 0
+            ? `${safeMatches.toLocaleString()} exact ${safeMatches === 1 ? 'match is' : 'matches are'} safe to resolve automatically.`
+            : 'Warnings do not block the import.'}
+        </p>
+      </div>
+      {attentionRows > 0 ? (
+        <Button variant="secondary" size="md" onClick={onShowAttention}>
+          Show rows to review
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function RowCard({
   row,
   issues,
@@ -995,7 +1441,11 @@ function RowCard({
   issues: ImportIssueRecord[];
   busy: string | null;
   job: ImportJob;
-  onResolve: (issueId: string, resolution: 'skip' | 'reuse', action: string) => Promise<void>;
+  onResolve: (
+    issueId: string,
+    resolution: 'skip' | 'reuse' | 'create' | 'merge',
+    action: string,
+  ) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const unresolved = issues.filter((issue) => issue.resolvedAt === null);
@@ -1007,9 +1457,32 @@ function RowCard({
     row.data.status !== 'invalid' &&
     !row.data.issues.some((issue) => issue.code === 'duplicate_in_file');
 
-  const target = unresolved[0];
+  const hasDuplicateInFile = row.data.issues.some((issue) => issue.code === 'duplicate_in_file');
+  const canKeepSeparate =
+    row.resolution === null &&
+    !hasDuplicateInFile &&
+    row.data.issues.some((issue) => issue.code === 'possible_duplicate');
+  const canMerge =
+    row.resolution === null &&
+    row.existingId !== null &&
+    row.data.status !== 'invalid' &&
+    row.data.mergeAvailable === true &&
+    !hasDuplicateInFile;
 
-  const editable = job.status === 'validated' && row.resolution === null && target !== undefined;
+  const target = unresolved[0];
+  const recoveryTarget =
+    row.resolution === 'create' && hasDuplicateInFile
+      ? issues.find((issue) => issue.code === 'duplicate_in_file')
+      : undefined;
+  const resolutionTarget =
+    target ?? recoveryTarget ?? (row.pendingIssueId ? { id: row.pendingIssueId } : undefined);
+
+  const editable =
+    job.status === 'validated' &&
+    resolutionTarget !== undefined &&
+    ((row.resolution === null &&
+      (row.data.status === 'invalid' || row.existingId !== null || hasDuplicateInFile)) ||
+      (row.resolution === 'create' && hasDuplicateInFile));
 
   return (
     <li
@@ -1120,19 +1593,49 @@ function RowCard({
           {canReuse ? (
             <Button
               variant="secondary"
-              loading={busy === `reuse-${target.id}`}
+              loading={busy === `reuse-${resolutionTarget!.id}`}
               disabled={busy !== null}
-              onClick={() => void onResolve(target.id, 'reuse', `reuse-${target.id}`)}
+              onClick={() =>
+                void onResolve(resolutionTarget!.id, 'reuse', `reuse-${resolutionTarget!.id}`)
+              }
             >
               Reuse existing
             </Button>
           ) : null}
 
+          {canKeepSeparate ? (
+            <Button
+              variant="secondary"
+              loading={busy === `create-${resolutionTarget!.id}`}
+              disabled={busy !== null}
+              onClick={() =>
+                void onResolve(resolutionTarget!.id, 'create', `create-${resolutionTarget!.id}`)
+              }
+            >
+              Keep separate
+            </Button>
+          ) : null}
+
+          {canMerge ? (
+            <Button
+              variant="secondary"
+              loading={busy === `merge-${resolutionTarget!.id}`}
+              disabled={busy !== null}
+              onClick={() =>
+                void onResolve(resolutionTarget!.id, 'merge', `merge-${resolutionTarget!.id}`)
+              }
+            >
+              Merge missing data
+            </Button>
+          ) : null}
+
           <Button
             variant="secondary"
-            loading={busy === `skip-${target.id}`}
+            loading={busy === `skip-${resolutionTarget!.id}`}
             disabled={busy !== null}
-            onClick={() => void onResolve(target.id, 'skip', `skip-${target.id}`)}
+            onClick={() =>
+              void onResolve(resolutionTarget!.id, 'skip', `skip-${resolutionTarget!.id}`)
+            }
           >
             Skip row
           </Button>
@@ -1155,6 +1658,10 @@ function RowStatusBadge({ row }: { row: ImportRow }) {
     return <Badge tone="brand">Will reuse</Badge>;
   }
 
+  if (row.resolution === 'merge') {
+    return <Badge tone="success">Will merge</Badge>;
+  }
+
   if (row.data.status === 'invalid') {
     return (
       <Badge tone="danger" dot>
@@ -1164,9 +1671,11 @@ function RowStatusBadge({ row }: { row: ImportRow }) {
   }
 
   if (row.existingId !== null) {
+    const possible = row.data.issues.some((issue) => issue.code === 'possible_duplicate');
+
     return (
       <Badge tone="warning" dot>
-        Existing match
+        {possible ? 'Possible match' : 'Existing match'}
       </Badge>
     );
   }

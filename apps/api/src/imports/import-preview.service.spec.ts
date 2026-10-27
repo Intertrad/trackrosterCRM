@@ -24,6 +24,7 @@ describe('ImportPreviewService', () => {
       validRows: 1,
       warningRows: 0,
       invalidRows: 0,
+      missingFields: {},
     });
 
     expect(result.rows[0]).toMatchObject({
@@ -113,10 +114,22 @@ describe('ImportPreviewService', () => {
     );
   });
 
-  it('rejects a missing required CSV header', () => {
+  it('accepts a name-only CSV and marks its country as unknown', () => {
     const csv = ['name,city', 'Restaurant Paris,Paris'].join('\n');
 
-    expect(() => service.previewCsv(csv)).toThrow(BadRequestException);
+    const result = service.previewCsv(csv);
+
+    expect(result.rows[0]?.establishment?.countryCode).toBe('ZZ');
+    expect(result.rows[0]?.status).toBe('warning');
+    expect(result.summary.missingFields).toEqual({ country_code: 1 });
+    expect(result.rows[0]?.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'country_code_missing',
+          severity: 'warning',
+        }),
+      ]),
+    );
   });
 
   it('rejects unsupported columns', () => {

@@ -59,6 +59,25 @@ export class ImportJobController {
   ) {
     return this.service.detail(a, id);
   }
+  @Post(':importId/file/sheets')
+  @HttpCode(200)
+  async sheets(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Param('importId', new ParseUUIDPipe()) id: string,
+    @Req()
+    r: {
+      isMultipart(): boolean;
+      file(): Promise<
+        { filename: string; fieldname: string; toBuffer(): Promise<Buffer> } | undefined
+      >;
+    },
+  ) {
+    if (!r.isMultipart()) throw new BadRequestException('Multipart file required');
+    const file = await r.file();
+    if (!file || file.fieldname !== 'file')
+      throw new BadRequestException('Use multipart field file');
+    return this.service.inspectFile(a, id, file.filename, await file.toBuffer());
+  }
   @Post(':importId/file')
   @HttpCode(200)
   async file(
@@ -72,13 +91,14 @@ export class ImportJobController {
       >;
     },
     @Headers('if-match') v?: string,
+    @Query('sheet') sheetName?: string,
   ) {
     if (!r.isMultipart()) throw new BadRequestException('Multipart file required');
     await this.service.row(a, id);
     const file = await r.file();
     if (!file || file.fieldname !== 'file')
       throw new BadRequestException('Use multipart field file');
-    return this.service.upload(a, id, file.filename, await file.toBuffer(), v);
+    return this.service.upload(a, id, file.filename, await file.toBuffer(), sheetName, v);
   }
   @Put(':importId/mapping') @Idempotent('import_job.mapping') mapping(
     @CurrentAuth() a: AuthenticatedPrincipal,
@@ -94,6 +114,13 @@ export class ImportJobController {
     @Headers('if-match') v?: string,
   ) {
     return this.service.validate(a, id, v);
+  }
+  @Post(':importId/resolve-safe') @HttpCode(200) @Idempotent('import_job.resolve_safe') resolveSafe(
+    @CurrentAuth() a: AuthenticatedPrincipal,
+    @Param('importId', new ParseUUIDPipe()) id: string,
+    @Headers('if-match') v?: string,
+  ) {
+    return this.service.resolveSafe(a, id, v);
   }
   @Get(':importId/rows') rows(
     @CurrentAuth() a: AuthenticatedPrincipal,

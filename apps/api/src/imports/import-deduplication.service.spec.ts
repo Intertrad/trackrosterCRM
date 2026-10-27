@@ -9,6 +9,8 @@ describe('ImportDeduplicationService', () => {
     findByExternalReference: ReturnType<typeof vi.fn>;
 
     findByIdentity: ReturnType<typeof vi.fn>;
+
+    findPotentialMatch: ReturnType<typeof vi.fn>;
   };
 
   let service: ImportDeduplicationService;
@@ -49,6 +51,8 @@ describe('ImportDeduplicationService', () => {
       findByExternalReference: vi.fn(),
 
       findByIdentity: vi.fn(),
+
+      findPotentialMatch: vi.fn(),
     };
 
     service = new ImportDeduplicationService(repository as unknown as EstablishmentRepository);
@@ -145,5 +149,36 @@ describe('ImportDeduplicationService', () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it('finds a reviewable same-name match when address or phone overlaps', async () => {
+    repository.findPotentialMatch.mockResolvedValue(establishment);
+
+    const result = await service.findPotentialMatch(establishment.tenantId, {
+      externalReference: null,
+      name: 'Restaurant Paris',
+      addressLine1: '12 Rue Example',
+      postalCode: null,
+      city: null,
+      countryCode: 'ZZ',
+      phone: null,
+      website: null,
+      latitude: null,
+      longitude: null,
+      category: null,
+    });
+
+    expect(repository.findPotentialMatch).toHaveBeenCalledWith(
+      establishment.tenantId,
+      'restaurant paris',
+      {
+        addressLine1: '12 Rue Example',
+        postalCode: null,
+        city: null,
+        phone: null,
+      },
+      undefined,
+    );
+    expect(result).toBe(establishment);
   });
 });

@@ -11,6 +11,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { importId } = await context.params;
+    const sheetName = new URL(request.url).searchParams.get('sheet');
 
     const contentType = request.headers.get('content-type');
 
@@ -60,10 +61,15 @@ export async function POST(
       headers['if-match'] = ifMatch;
     }
 
-    const job = await authenticatedBackendJson<ImportJob>(
-      `/imports/${encodeURIComponent(importId)}/file`,
-      { method: 'POST', headers, body },
-    );
+    const backendPath = `/imports/${encodeURIComponent(importId)}/file${
+      sheetName ? `?sheet=${encodeURIComponent(sheetName)}` : ''
+    }`;
+
+    const job = await authenticatedBackendJson<ImportJob>(backendPath, {
+      method: 'POST',
+      headers,
+      body,
+    });
 
     if (!job) {
       return unauthenticatedResponse();

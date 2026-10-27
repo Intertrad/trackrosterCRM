@@ -58,7 +58,9 @@ export const importRows = pgTable(
     importId: uuid('import_id').notNull(),
     rowNumber: integer('row_number').notNull(),
     data: jsonb('data').$type<ImportPreviewRow>().notNull(),
-    resolution: varchar('resolution', { length: 24 }).$type<'skip' | 'reuse' | null>(),
+    resolution: varchar('resolution', { length: 24 }).$type<
+      'skip' | 'reuse' | 'create' | 'merge' | null
+    >(),
     existingId: uuid('existing_id'),
     establishmentId: uuid('establishment_id'),
     contactId: uuid('contact_id'),

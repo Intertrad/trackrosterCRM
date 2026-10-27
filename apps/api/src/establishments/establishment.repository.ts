@@ -1,4 +1,4 @@
-import { and, asc, eq, getTableColumns, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DATABASE } from '../database/database.constants.js';
@@ -97,8 +97,9 @@ export class EstablishmentRepository {
     tenantId: string,
     establishmentId: string,
     input: UpdateEstablishment,
+    executor: DatabaseExecutor = this.database,
   ): Promise<Establishment | null> {
-    const [establishment] = await this.database
+    const [establishment] = await executor
       .update(establishments)
       .set({
         ...input,
@@ -256,6 +257,55 @@ export class EstablishmentRepository {
             =
             ${normalizedCity}
           `,
+        ),
+      )
+      .limit(1);
+
+    return establishment ?? null;
+  }
+
+  /**
+   * Find a reviewable duplicate candidate without treating a shared name as
+   * proof. A same-name record must also share an address component or phone.
+   */
+  async findPotentialMatch(
+    tenantId: string,
+    normalizedName: string,
+    input: {
+      addressLine1: string | null;
+      postalCode: string | null;
+      city: string | null;
+      phone: string | null;
+    },
+    executor: DatabaseExecutor = this.database,
+  ): Promise<Establishment | null> {
+    const discriminators = [
+      input.addressLine1
+        ? sql`lower(btrim(coalesce(${establishments.addressLine1}, ''))) = ${this.normalizeLookupText(input.addressLine1)}`
+        : undefined,
+      input.postalCode
+        ? sql`lower(btrim(coalesce(${establishments.postalCode}, ''))) = ${this.normalizeLookupText(input.postalCode)}`
+        : undefined,
+      input.city
+        ? sql`lower(btrim(coalesce(${establishments.city}, ''))) = ${this.normalizeLookupText(input.city)}`
+        : undefined,
+      input.phone
+        ? sql`lower(btrim(coalesce(${establishments.phone}, ''))) = ${this.normalizeLookupText(input.phone)}`
+        : undefined,
+    ].filter((condition): condition is SQL => condition !== undefined);
+
+    if (discriminators.length === 0) {
+      return null;
+    }
+
+    const [establishment] = await executor
+      .select(establishmentColumns)
+      .from(establishments)
+      .where(
+        and(
+          eq(establishments.tenantId, tenantId),
+          eq(establishments.normalizedName, normalizedName),
+          or(...discriminators),
         ),
       )
       .limit(1);
