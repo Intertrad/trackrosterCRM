@@ -85,4 +85,28 @@ export class ImportDeduplicationService {
     `,
     );
   }
+
+  async findPotentialMatch(
+    tenantId: string,
+    input: ImportPreviewEstablishment,
+    executor?: DatabaseExecutor,
+  ): Promise<Establishment | null> {
+    if (input.externalReference) {
+      return null;
+    }
+
+    const normalizedName = normalizeEstablishmentName(input.name);
+
+    return this.establishmentRepository.findPotentialMatch(
+      tenantId,
+      normalizedName,
+      {
+        addressLine1: input.addressLine1,
+        postalCode: input.postalCode,
+        city: input.city,
+        phone: input.phone,
+      },
+      executor,
+    );
+  }
 }

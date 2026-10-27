@@ -20,12 +20,14 @@ export class JobListDto {
 export class ImportRowsDto {
   @Type(() => Number) @IsInt() @Min(0) @Max(10001) afterRow = 0;
   @Type(() => Number) @IsInt() @Min(1) @Max(100) limit = 25;
+  @IsOptional() @IsIn(['all', 'action']) view: 'all' | 'action' = 'all';
 }
 export class ImportMappingDto {
   @IsObject() mapping!: Record<string, string>;
 }
 export class ImportIssueResolutionDto {
-  @IsIn(['skip', 'reuse', 'correct']) resolution!: 'skip' | 'reuse' | 'correct';
+  @IsIn(['skip', 'reuse', 'create', 'merge', 'correct'])
+  resolution!: 'skip' | 'reuse' | 'create' | 'merge' | 'correct';
   @IsOptional() @IsObject() values?: Record<string, string>;
 }
 export class ExportRequestDto extends ControlledExportQueryDto {

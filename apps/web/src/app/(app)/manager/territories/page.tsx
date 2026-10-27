@@ -28,11 +28,15 @@ import type {
   TerritoryFeatureCollection,
 } from '@/lib/api/territory-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 type TerritoryReport = ReportEnvelope<TerritoriesReport>;
 
 export default function ManagerTerritoriesPage() {
   const { activeWorkspace } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const teamId = activeWorkspace?.teamId ?? undefined;
   const [territories, setTerritories] = useState<Territory[] | null>(null);
   const [boundaries, setBoundaries] = useState<TerritoryFeatureCollection | null>(null);
@@ -76,12 +80,18 @@ export default function ManagerTerritoriesPage() {
         if (signal?.aborted) return;
         setError(
           caught instanceof ApiError && caught.statusCode === 403
-            ? 'You do not have territory reporting access for this scope.'
-            : 'We could not load territories. Please try again.',
+            ? l(
+                'You do not have territory reporting access for this scope.',
+                'Vous n’avez pas accès aux rapports territoriaux de ce périmètre.',
+              )
+            : l(
+                'We could not load territories. Please try again.',
+                'Impossible de charger les territoires. Réessayez.',
+              ),
         );
       }
     },
-    [teamId],
+    [language, teamId],
   );
 
   useLiveRefresh(load);
@@ -124,21 +134,26 @@ export default function ManagerTerritoriesPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Territories"
-        subtitle="Coverage, ownership and gaps across your authorised scope"
+        title={l('Territories', 'Territoires')}
+        subtitle={l(
+          'Coverage, ownership and gaps across your authorised scope',
+          'Couverture, responsables et écarts sur votre périmètre autorisé',
+        )}
         action={
           <div className="flex flex-wrap gap-2">
             <Link
               href="/workspace/territories"
               className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-bold text-ink hover:border-brand hover:text-brand"
             >
-              <Pencil aria-hidden="true" className="size-4" /> Edit boundaries
+              <Pencil aria-hidden="true" className="size-4" />{' '}
+              {l('Edit boundaries', 'Modifier les limites')}
             </Link>
             <Link
               href="/workspace/territories"
               className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand px-3.5 text-[13px] font-bold text-white hover:bg-brand-hover"
             >
-              <Plus aria-hidden="true" className="size-4" /> New territory
+              <Plus aria-hidden="true" className="size-4" />{' '}
+              {l('New territory', 'Nouveau territoire')}
             </Link>
           </div>
         }
@@ -148,7 +163,7 @@ export default function ManagerTerritoriesPage() {
         <Alert tone="danger">
           {error}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
-            Try again
+            {l('Try again', 'Réessayer')}
           </Button>
         </Alert>
       ) : null}
@@ -158,9 +173,14 @@ export default function ManagerTerritoriesPage() {
           <Card padding="none" className="overflow-hidden">
             <div className="flex items-center justify-between border-b border-line-soft px-5 py-3">
               <div>
-                <h2 className="text-[15px] font-bold text-navy">Territory map</h2>
+                <h2 className="text-[15px] font-bold text-navy">
+                  {l('Territory map', 'Carte des territoires')}
+                </h2>
                 <p className="text-[12px] text-ink-muted">
-                  Boundaries and territory centres from the API
+                  {l(
+                    'Boundaries and territory centres from the API',
+                    'Limites et centres des territoires issus de l’API',
+                  )}
                 </p>
               </div>
               <MapIcon aria-hidden="true" className="size-5 text-brand" />
@@ -168,15 +188,21 @@ export default function ManagerTerritoriesPage() {
             <ProspectMap points={points} territories={boundaries} />
           </Card>
           {totals.unassigned.length ? (
-            <Alert tone="danger" title={`${totals.unassigned.length} territories need an owner`}>
+            <Alert
+              tone="danger"
+              title={`${totals.unassigned.length} ${l('territories need an owner', 'territoires ont besoin d’un responsable')}`}
+            >
               {totals.unassigned
                 .slice(0, 3)
                 .map((territory) => territory.name)
                 .join(', ')}
-              {totals.unassigned.length > 3 ? ' and more' : ''}. Assign an owner from the territory
-              tools.
+              {totals.unassigned.length > 3 ? ` ${l('and more', 'et plus')}` : ''}.{' '}
+              {l(
+                'Assign an owner from the territory tools.',
+                'Attribuez un responsable depuis les outils territoriaux.',
+              )}
               <Link href="/workspace/territories" className="ml-1 font-bold underline">
-                Assign now →
+                {l('Assign now →', 'Attribuer maintenant →')}
               </Link>
             </Alert>
           ) : null}
@@ -184,22 +210,22 @@ export default function ManagerTerritoriesPage() {
 
         <div className="flex flex-col gap-5">
           <Card padding="none" className="overflow-hidden">
-            <CardHeader title="Territory summary" />
+            <CardHeader title={l('Territory summary', 'Résumé territorial')} />
             {territories === null ? (
               <RowsSkeleton />
             ) : territories.length === 0 ? (
               <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
-                No territories in scope.
+                {l('No territories in scope.', 'Aucun territoire dans ce périmètre.')}
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[560px] border-collapse">
                   <thead>
                     <tr className="border-b border-line-soft text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
-                      <th className="px-5 py-3">Territory</th>
-                      <th className="px-3 py-3">Owner</th>
-                      <th className="px-3 py-3 text-right">Prospects</th>
-                      <th className="px-5 py-3 text-right">Activity</th>
+                      <th className="px-5 py-3">{l('Territory', 'Territoire')}</th>
+                      <th className="px-3 py-3">{l('Owner', 'Responsable')}</th>
+                      <th className="px-3 py-3 text-right">{l('Prospects', 'Prospects')}</th>
+                      <th className="px-5 py-3 text-right">{l('Activity', 'Activité')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line-soft">
@@ -221,15 +247,17 @@ export default function ManagerTerritoriesPage() {
                             {owner
                               ? membershipName(owner)
                               : assignment?.teamId
-                                ? 'Team owner'
-                                : 'Unassigned'}
+                                ? l('Team owner', 'Responsable d’équipe')
+                                : l('Unassigned', 'Non attribué')}
                           </td>
                           <td className="px-3 py-3 text-right text-[13px] tabular-nums text-navy">
                             {row?.prospects ?? '—'}
                           </td>
                           <td className="px-5 py-3 text-right">
                             <Badge tone={assignment ? 'success' : 'danger'} dot>
-                              {assignment ? `${row?.activities ?? 0} actions` : 'Gap'}
+                              {assignment
+                                ? `${row?.activities ?? 0} ${l('actions', 'actions')}`
+                                : l('Gap', 'Écart')}
                             </Badge>
                           </td>
                         </tr>
@@ -243,24 +271,24 @@ export default function ManagerTerritoriesPage() {
 
           <Card>
             <CardHeader
-              title="Capacity"
+              title={l('Capacity', 'Capacité')}
               action={<Download aria-hidden="true" className="size-4 text-ink-muted" />}
             />
             <dl className="divide-y divide-line-soft text-[13px]">
               <SummaryRow
-                label="Prospects in territories"
+                label={l('Prospects in territories', 'Prospects dans les territoires')}
                 value={report ? String(totals.prospects) : '—'}
               />
               <SummaryRow
-                label="Territories with an owner"
+                label={l('Territories with an owner', 'Territoires avec responsable')}
                 value={territories ? `${totals.assigned} / ${territories.length}` : '—'}
               />
               <SummaryRow
-                label="Activity rate (last 30 days)"
+                label={l('Activity rate (last 30 days)', 'Taux d’activité (30 derniers jours)')}
                 value={totals.activityRate === null ? '—' : `${totals.activityRate}%`}
               />
               <SummaryRow
-                label="Unassigned territories"
+                label={l('Unassigned territories', 'Territoires non attribués')}
                 value={territories ? String(totals.unassigned.length) : '—'}
                 danger={totals.unassigned.length > 0}
               />

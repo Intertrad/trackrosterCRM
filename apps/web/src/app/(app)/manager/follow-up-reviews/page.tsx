@@ -17,28 +17,35 @@ import type {
   FollowUpReviewDecision,
   FollowUpReviewSummary,
 } from '@/lib/api/follow-up-review-types';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 export default function FollowUpReviewsPage() {
+  const { language, locale } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [items, setItems] = useState<FollowUpReviewSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(async (signal?: AbortSignal): Promise<void> => {
-    try {
-      const next = await listFollowUpReviews(signal);
+  const load = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
+      try {
+        const next = await listFollowUpReviews(signal);
 
-      if (signal?.aborted) return;
+        if (signal?.aborted) return;
 
-      setItems(next);
-      setError(null);
-    } catch (caught) {
-      if (signal?.aborted) return;
+        setItems(next);
+        setError(null);
+      } catch (caught) {
+        if (signal?.aborted) return;
 
-      setError(describeLoadError(caught));
-    }
-  }, []);
+        setError(describeLoadError(caught, language));
+      }
+    },
+    [language],
+  );
 
   useLiveRefresh(load);
 
@@ -53,7 +60,12 @@ export default function FollowUpReviewsPage() {
     const reason = reasons[item.id]?.trim() ?? '';
 
     if (reason.length < 3) {
-      setError('Add a decision reason before approving, completing, or rejecting a request.');
+      setError(
+        l(
+          'Add a decision reason before approving, completing, or rejecting a request.',
+          'Ajoutez un motif avant d’approuver, de terminer ou de refuser une demande.',
+        ),
+      );
       return;
     }
 
@@ -65,14 +77,21 @@ export default function FollowUpReviewsPage() {
       await decideFollowUpReview({ reviewId: item.id, decision, reason });
       setNotice(
         decision === 'approved'
-          ? 'Follow-up rescheduled.'
+          ? l('Follow-up rescheduled.', 'Relance reprogrammée.')
           : decision === 'completed'
-            ? 'Follow-up marked late completed and added to performance.'
-            : 'Reschedule request rejected.',
+            ? l(
+                'Follow-up marked late completed and added to performance.',
+                'Relance marquée comme terminée en retard et ajoutée aux performances.',
+              )
+            : l('Reschedule request rejected.', 'Demande de reprogrammation refusée.'),
       );
       await load();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The decision could not be saved.');
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : l('The decision could not be saved.', 'Impossible d’enregistrer la décision.'),
+      );
     } finally {
       setBusy(null);
     }
@@ -81,15 +100,18 @@ export default function FollowUpReviewsPage() {
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Follow-up reviews"
-        subtitle="Review overdue follow-ups before rescheduling or recording a late completion"
+        title={l('Follow-up reviews', 'Validation des relances')}
+        subtitle={l(
+          'Review overdue follow-ups before rescheduling or recording a late completion',
+          'Examinez les relances en retard avant de les reprogrammer ou d’enregistrer un retard',
+        )}
       />
 
       {error ? (
         <Alert tone="danger">
           {error}
           <Button variant="secondary" size="md" className="mt-3" onClick={() => void load()}>
-            Try again
+            {l('Try again', 'Réessayer')}
           </Button>
         </Alert>
       ) : null}
@@ -107,9 +129,14 @@ export default function FollowUpReviewsPage() {
         <Card>
           <div className="py-12 text-center">
             <Clock3 aria-hidden="true" className="mx-auto size-9 text-warning" />
-            <p className="mt-3 text-[17px] font-bold text-navy">Review queue unavailable</p>
+            <p className="mt-3 text-[17px] font-bold text-navy">
+              {l('Review queue unavailable', 'File de validation indisponible')}
+            </p>
             <p className="mt-1 text-[14px] text-ink-muted">
-              The review list could not be loaded. Retry after the backend service is available.
+              {l(
+                'The review list could not be loaded. Retry after the backend service is available.',
+                'La liste des validations n’a pas pu être chargée. Réessayez lorsque le service est disponible.',
+              )}
             </p>
           </div>
         </Card>
@@ -117,9 +144,14 @@ export default function FollowUpReviewsPage() {
         <Card>
           <div className="py-12 text-center">
             <CheckCircle2 aria-hidden="true" className="mx-auto size-9 text-success" />
-            <p className="mt-3 text-[17px] font-bold text-navy">No follow-up reviews pending</p>
+            <p className="mt-3 text-[17px] font-bold text-navy">
+              {l('No follow-up reviews pending', 'Aucune validation de relance en attente')}
+            </p>
             <p className="mt-1 text-[14px] text-ink-muted">
-              Overdue follow-ups will appear here when a prospector requests a new date.
+              {l(
+                'Overdue follow-ups will appear here when a prospector requests a new date.',
+                'Les relances en retard apparaîtront ici lorsqu’un prospecteur demandera une nouvelle date.',
+              )}
             </p>
           </div>
         </Card>
@@ -132,40 +164,41 @@ export default function FollowUpReviewsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[17px] font-bold text-navy">{item.establishmentName}</h2>
                     <Badge tone="warning" dot>
-                      Overdue
+                      {l('Overdue', 'En retard')}
                     </Badge>
                   </div>
                   <p className="mt-1 text-[13px] text-ink-muted">
-                    {item.campaignName} · requested {formatDate(item.createdAt)}
+                    {item.campaignName} · {l('requested', 'demandée le')}{' '}
+                    {formatDate(item.createdAt, locale)}
                   </p>
                 </div>
                 <Link
                   href={`/work-queue/${item.campaignId}/${item.prospectId}`}
                   className="text-[13px] font-semibold text-brand hover:underline"
                 >
-                  Open prospect
+                  {l('Open prospect', 'Ouvrir le prospect')}
                 </Link>
               </div>
 
               <div className="grid gap-3 rounded-lg border border-line-soft bg-surface-muted p-3 text-[14px] sm:grid-cols-2">
                 <div>
                   <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-                    Missed reason
+                    {l('Missed reason', 'Motif du retard')}
                   </p>
                   <p className="mt-1 text-ink">{item.reason}</p>
                 </div>
                 <div className="flex items-start gap-2 text-ink-soft">
                   <Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
                   <p>
-                    Was due {formatDate(item.previousDueAt)}
+                    {l('Was due', 'Échéance')} {formatDate(item.previousDueAt, locale)}
                     <br />
-                    Requested for {formatDate(item.requestedDueAt)}
+                    {l('Requested for', 'Demandée pour')} {formatDate(item.requestedDueAt, locale)}
                   </p>
                 </div>
               </div>
 
               <label className="flex flex-col gap-1.5 text-[13px] font-bold text-ink">
-                Decision reason
+                {l('Decision reason', 'Motif de la décision')}
                 <textarea
                   value={reasons[item.id] ?? ''}
                   onChange={(event) =>
@@ -173,7 +206,10 @@ export default function FollowUpReviewsPage() {
                   }
                   rows={2}
                   maxLength={1000}
-                  placeholder="Explain the approval or rejection for the performance record."
+                  placeholder={l(
+                    'Explain the approval or rejection for the performance record.',
+                    'Expliquez l’approbation ou le refus pour l’historique des performances.',
+                  )}
                   className="w-full resize-none rounded-[9px] border border-line bg-surface px-3.5 py-3 text-[14px] font-normal text-ink placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-brand/30"
                 />
               </label>
@@ -186,7 +222,7 @@ export default function FollowUpReviewsPage() {
                   leadingIcon={<XCircle aria-hidden="true" className="size-4" />}
                   onClick={() => void decide(item, 'rejected')}
                 >
-                  Reject
+                  {l('Reject', 'Refuser')}
                 </Button>
                 <Button
                   disabled={busy !== null}
@@ -194,7 +230,7 @@ export default function FollowUpReviewsPage() {
                   leadingIcon={<CheckCircle2 aria-hidden="true" className="size-4" />}
                   onClick={() => void decide(item, 'approved')}
                 >
-                  Approve and reschedule
+                  {l('Approve and reschedule', 'Approuver et reprogrammer')}
                 </Button>
                 <Button
                   disabled={busy !== null}
@@ -202,7 +238,7 @@ export default function FollowUpReviewsPage() {
                   leadingIcon={<Clock3 aria-hidden="true" className="size-4" />}
                   onClick={() => void decide(item, 'completed')}
                 >
-                  Complete as late
+                  {l('Complete as late', 'Terminer en retard')}
                 </Button>
               </div>
             </Card>
@@ -213,27 +249,40 @@ export default function FollowUpReviewsPage() {
   );
 }
 
-function describeLoadError(error: unknown): string {
+function describeLoadError(error: unknown, language: string): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (error instanceof ApiError) {
     if (error.statusCode === 403) {
-      return 'You do not have manager approval authority for these follow-ups.';
+      return l(
+        'You do not have manager approval authority for these follow-ups.',
+        'Vous n’avez pas l’autorité de validation des managers pour ces relances.',
+      );
     }
     if (error.statusCode === 0) {
-      return 'TrackRoster could not reach the API. Confirm the backend is running and try again.';
+      return l(
+        'TrackRoster could not reach the API. Confirm the backend is running and try again.',
+        'TrackRoster ne peut pas joindre l’API. Vérifiez que le backend fonctionne puis réessayez.',
+      );
     }
     if (error.statusCode === 502 || error.statusCode === 503) {
-      return 'The backend service is unavailable. Start the API service and try again.';
+      return l(
+        'The backend service is unavailable. Start the API service and try again.',
+        'Le service backend est indisponible. Démarrez l’API puis réessayez.',
+      );
     }
 
     return error.requestId ? `${error.message} (request ${error.requestId})` : error.message;
   }
 
-  return 'We could not load follow-up reviews. Please try again.';
+  return l(
+    'We could not load follow-up reviews. Please try again.',
+    'Impossible de charger les validations de relance. Réessayez.',
+  );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale?: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+    : new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }

@@ -7,13 +7,13 @@ export function ImportStatusBadge({ status }: { status: ImportStatus }) {
     case 'committed':
       return <Badge tone="success">Committed</Badge>;
     case 'validated':
-      return <Badge tone="warning">Awaiting commit</Badge>;
+      return <Badge tone="warning">Ready to import</Badge>;
     case 'uploaded':
-      return <Badge tone="brand">Needs validation</Badge>;
+      return <Badge tone="brand">Review columns</Badge>;
     case 'cancelled':
       return <Badge tone="neutral">Cancelled</Badge>;
     default:
-      return <Badge tone="neutral">Draft</Badge>;
+      return <Badge tone="neutral">Upload file</Badge>;
   }
 }
 

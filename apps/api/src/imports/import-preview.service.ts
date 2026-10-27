@@ -7,6 +7,7 @@ import {
   MAX_IMPORT_FILE_BYTES,
   MAX_IMPORT_ROWS,
   REQUIRED_IMPORT_HEADERS,
+  UNKNOWN_IMPORT_COUNTRY_CODE,
 } from './import-preview.constants.js';
 import {
   ESTABLISHMENT_CATEGORIES,
@@ -59,6 +60,16 @@ export class ImportPreviewService {
 
     this.markDuplicateRows(rows);
 
+    const missingFields: Record<string, number> = {};
+
+    for (const row of rows) {
+      for (const issue of row.issues) {
+        if (issue.field && (issue.code === 'required' || issue.code.endsWith('_missing'))) {
+          missingFields[issue.field] = (missingFields[issue.field] ?? 0) + 1;
+        }
+      }
+    }
+
     return {
       summary: {
         totalRows: rows.length,
@@ -68,6 +79,8 @@ export class ImportPreviewService {
         warningRows: rows.filter((row) => row.status === 'warning').length,
 
         invalidRows: rows.filter((row) => row.status === 'invalid').length,
+
+        missingFields,
       },
 
       rows,
@@ -79,7 +92,8 @@ export class ImportPreviewService {
 
     const name = this.optionalText(record.name);
 
-    const countryCode = this.optionalText(record.country_code)?.toUpperCase() ?? null;
+    const rawCountryCode = this.optionalText(record.country_code);
+    const countryCode = rawCountryCode?.toUpperCase() ?? UNKNOWN_IMPORT_COUNTRY_CODE;
 
     if (!name) {
       issues.push({
@@ -90,12 +104,12 @@ export class ImportPreviewService {
       });
     }
 
-    if (!countryCode) {
+    if (!rawCountryCode) {
       issues.push({
         field: 'country_code',
-        code: 'required',
-        message: 'Country code is required',
-        severity: 'error',
+        code: 'country_code_missing',
+        message: 'Country code was not provided; this record will use Unknown (ZZ)',
+        severity: 'warning',
       });
     } else if (!/^[A-Z]{2}$/.test(countryCode)) {
       issues.push({
@@ -150,7 +164,7 @@ export class ImportPreviewService {
 
     const hasError = issues.some((issue) => issue.severity === 'error');
 
-    if (hasError || !name || !countryCode) {
+    if (hasError || !name) {
       return {
         rowNumber,
         status: 'invalid',

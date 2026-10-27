@@ -1,4 +1,4 @@
-import { browserJson } from './browser-json';
+import { browserJson, browserUpload } from './browser-json';
 import { browserResource, type BrowserResource } from './browser-resource';
 import type {
   ImportIssuePage,
@@ -11,6 +11,15 @@ import type {
 interface WriteOptions {
   etag: string | null;
   idempotencyKey: string;
+}
+
+interface UploadOptions extends WriteOptions {
+  onProgress?: (percent: number) => void;
+  sheetName?: string;
+}
+
+export interface ImportSheetList {
+  sheets: string[];
 }
 
 function writeHeaders(options: WriteOptions, contentType = 'application/json') {
@@ -72,7 +81,7 @@ export function getImport(
 export function uploadImportFile(
   importId: string,
   file: File,
-  options: WriteOptions,
+  options: UploadOptions,
 ): Promise<ImportJob> {
   const body = new FormData();
 
@@ -84,11 +93,32 @@ export function uploadImportFile(
     headers['if-match'] = options.etag;
   }
 
-  return browserJson<ImportJob>(`/api/imports/${encodeURIComponent(importId)}/file`, {
+  const query = options.sheetName ? `?sheet=${encodeURIComponent(options.sheetName)}` : '';
+
+  return browserUpload<ImportJob>(`/api/imports/${encodeURIComponent(importId)}/file${query}`, {
     method: 'POST',
     headers,
     body,
+    onUploadProgress: options.onProgress,
   });
+}
+
+export function inspectImportFile(
+  importId: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<ImportSheetList> {
+  const body = new FormData();
+  body.append('file', file, file.name);
+
+  return browserUpload<ImportSheetList>(
+    `/api/imports/${encodeURIComponent(importId)}/file/sheets`,
+    {
+      method: 'POST',
+      body,
+      onUploadProgress: onProgress,
+    },
+  );
 }
 
 export function saveImportMapping(
@@ -111,9 +141,20 @@ export function validateImport(importId: string, options: WriteOptions): Promise
   });
 }
 
+export function resolveSafeImportMatches(
+  importId: string,
+  options: WriteOptions,
+): Promise<ImportJob> {
+  return browserJson<ImportJob>(`/api/imports/${encodeURIComponent(importId)}/resolve-safe`, {
+    method: 'POST',
+    headers: writeHeaders(options),
+    body: '{}',
+  });
+}
+
 export function listImportRows(
   importId: string,
-  query: { afterRow?: number; limit?: number } = {},
+  query: { afterRow?: number; limit?: number; view?: 'all' | 'action' } = {},
   signal?: AbortSignal,
 ): Promise<ImportRowPage> {
   const params = new URLSearchParams();

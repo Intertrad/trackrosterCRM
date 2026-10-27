@@ -20,7 +20,12 @@ export const IMPORT_HEADERS = [
   'category',
 ] as const;
 
-export const REQUIRED_IMPORT_HEADERS = ['name', 'country_code'] as const;
+/* A name is enough to stage an import. Country is optional because many
+ * spreadsheets are sourced from a single local list and do not carry it. The
+ * preview marks missing country data as a warning and stores it as ZZ (unknown)
+ * so the existing non-null database column remains safe. */
+export const REQUIRED_IMPORT_HEADERS = ['name'] as const;
+export const UNKNOWN_IMPORT_COUNTRY_CODE = 'ZZ' as const;
 
 export type ImportHeader = (typeof IMPORT_HEADERS)[number];
 export const MAX_IMPORT_ROWS = 10_000;

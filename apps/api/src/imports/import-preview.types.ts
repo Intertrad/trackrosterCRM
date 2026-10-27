@@ -19,6 +19,7 @@ export interface ImportPreviewEstablishment {
   addressLine1: string | null;
   postalCode: string | null;
   city: string | null;
+  /** ISO-3166 code, or ZZ when the source did not provide one. */
   countryCode: string;
 
   phone: string | null;
@@ -48,6 +49,9 @@ export interface ImportPreviewRow {
 
   establishment: ImportPreviewEstablishment | null;
 
+  /** True when an existing match has optional data this upload can safely fill. */
+  mergeAvailable?: boolean;
+
   contact: ImportPreviewContact | null;
 
   issues: ImportIssue[];
@@ -58,6 +62,8 @@ export interface ImportPreviewSummary {
   validRows: number;
   warningRows: number;
   invalidRows: number;
+  /** Number of rows missing each mapped field, for an accurate final warning. */
+  missingFields?: Record<string, number>;
 }
 
 export interface ImportPreviewResult {

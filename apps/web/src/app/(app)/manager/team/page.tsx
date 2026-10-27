@@ -50,9 +50,13 @@ import {
   type TeamRole,
 } from '@/lib/api/team-types';
 import { useAuth } from '@/lib/auth/auth-context';
+import { useTranslation } from '@/lib/i18n/i18n-context';
+import { text } from '@/lib/workspace/copy';
 
 export default function TeamPage() {
   const { activeWorkspace } = useAuth();
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const teamId = activeWorkspace?.teamId ?? null;
 
   const [capacity, setCapacity] = useState<TeamCapacity | null>(null);
@@ -96,11 +100,11 @@ export default function TeamPage() {
         .catch((caught: unknown) => {
           if (!signal?.aborted) {
             setRoster([]);
-            setReadError(describeTeamError(caught));
+            setReadError(describeTeamError(caught, language));
           }
         });
     },
-    [period, state, teamId],
+    [language, period, state, teamId],
   );
 
   useLiveRefresh(load);
@@ -183,7 +187,7 @@ export default function TeamPage() {
       await load();
       setNotice(success);
     } catch (caught) {
-      setActionError(describeTeamError(caught));
+      setActionError(describeTeamError(caught, language));
     } finally {
       setBusy(null);
     }
@@ -192,10 +196,16 @@ export default function TeamPage() {
   if (!teamId) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title="Team" />
+        <PageHeader title={l('Team', 'Équipe')} />
 
-        <Alert tone="info" title="This view is scoped to a team.">
-          Switch to a team workspace to manage its roster and workload.
+        <Alert
+          tone="info"
+          title={l('This view is scoped to a team.', 'Cette vue est rattachée à une équipe.')}
+        >
+          {l(
+            'Switch to a team workspace to manage its roster and workload.',
+            'Passez à un espace d’équipe pour gérer son effectif et sa charge.',
+          )}
         </Alert>
       </div>
     );
@@ -204,14 +214,14 @@ export default function TeamPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Team Activity"
-        subtitle="Workload and execution per prospector"
+        title={l('Team Activity', 'Activité de l’équipe')}
+        subtitle={l('Workload and execution per prospector', 'Charge et exécution par prospecteur')}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <PeriodFilter value={period} onChange={setPeriod} />
             <Button onClick={() => setAdding(true)}>
               <UserPlus aria-hidden="true" className="mr-2 size-4" />
-              Add member
+              {l('Add member', 'Ajouter un membre')}
             </Button>
           </div>
         }
@@ -228,7 +238,7 @@ export default function TeamPage() {
               onClick={() => void load()}
               disabled={busy === 'reload'}
             >
-              Try again
+              {l('Try again', 'Réessayer')}
             </Button>
           </span>
         </Alert>
@@ -240,12 +250,15 @@ export default function TeamPage() {
 
       <Card padding="none" className="overflow-hidden">
         <CardHeader
-          title="Team activity"
+          title={l('Team activity', 'Activité de l’équipe')}
           className="px-5 pt-5"
           action={<Activity aria-hidden="true" className="size-5 text-brand" />}
         />
         <p className="-mt-3 px-5 pb-4 text-[12px] text-ink-muted">
-          Live actions, assignments and follow-ups from the manager dashboard
+          {l(
+            'Live actions, assignments and follow-ups from the manager dashboard',
+            'Actions, attributions et relances en direct depuis le tableau de bord manager',
+          )}
         </p>
         {dashboard === null ? (
           <div className="space-y-2 p-5" aria-busy="true">
@@ -255,19 +268,30 @@ export default function TeamPage() {
           </div>
         ) : activityRoster.length === 0 ? (
           <p className="px-5 py-10 text-center text-[14px] text-ink-muted">
-            No team activity returned for this period.
+            {l(
+              'No team activity returned for this period.',
+              'Aucune activité d’équipe pour cette période.',
+            )}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] border-collapse">
               <thead>
                 <tr className="border-b border-line-soft text-left text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
-                  <th className="px-5 py-3">Prospector</th>
-                  <th className="px-3 py-3 text-right">Assigned prospects</th>
-                  <th className="px-3 py-3 text-right">Actions ({period.replace('_', ' ')})</th>
-                  <th className="px-3 py-3 text-right">Open follow-ups</th>
-                  <th className="px-3 py-3 text-right">On track</th>
-                  <th className="px-5 py-3 text-right">Activity trend</th>
+                  <th className="px-5 py-3">{l('Prospector', 'Prospecteur')}</th>
+                  <th className="px-3 py-3 text-right">
+                    {l('Assigned prospects', 'Prospects attribués')}
+                  </th>
+                  <th className="px-3 py-3 text-right">
+                    {l('Actions', 'Actions')} ({period.replace('_', ' ')})
+                  </th>
+                  <th className="px-3 py-3 text-right">
+                    {l('Open follow-ups', 'Relances ouvertes')}
+                  </th>
+                  <th className="px-3 py-3 text-right">{l('On track', 'Dans les temps')}</th>
+                  <th className="px-5 py-3 text-right">
+                    {l('Activity trend', 'Tendance d’activité')}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-soft">
@@ -307,10 +331,10 @@ export default function TeamPage() {
                           dot
                         >
                           {status === 'at_risk'
-                            ? 'At risk'
+                            ? l('At risk', 'À risque')
                             : status === 'inactive'
-                              ? 'No activity'
-                              : 'On track'}
+                              ? l('No activity', 'Aucune activité')
+                              : l('On track', 'Dans les temps')}
                         </Badge>
                       </td>
                       <td className="px-5 py-3 text-right">
@@ -342,23 +366,25 @@ export default function TeamPage() {
         <ActivityCharts period={period} mode="channels" />
 
         <Card>
-          <CardHeader title="Coverage and follow-ups" />
-          <p className="-mt-3 text-[12px] text-ink-muted">Current server aggregates</p>
+          <CardHeader title={l('Coverage and follow-ups', 'Couverture et relances')} />
+          <p className="-mt-3 text-[12px] text-ink-muted">
+            {l('Current server aggregates', 'Agrégats actuels du serveur')}
+          </p>
           <dl className="mt-4 divide-y divide-line-soft text-[13px]">
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-ink-muted">Active prospectors</dt>
+              <dt className="text-ink-muted">{l('Active prospectors', 'Prospecteurs actifs')}</dt>
               <dd className="font-bold tabular-nums text-navy">
                 {dashboard?.activities.activeProspectors ?? '—'}
               </dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-ink-muted">Pending follow-ups</dt>
+              <dt className="text-ink-muted">{l('Pending follow-ups', 'Relances en attente')}</dt>
               <dd className="font-bold tabular-nums text-navy">
                 {dashboard?.followUps.pending ?? '—'}
               </dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
-              <dt className="text-ink-muted">Overdue</dt>
+              <dt className="text-ink-muted">{l('Overdue', 'En retard')}</dt>
               <dd
                 className={
                   (dashboard?.followUps.overdue ?? 0) > 0
@@ -378,46 +404,54 @@ export default function TeamPage() {
           icon={<Users aria-hidden="true" className="size-5" />}
           tone="brand"
           value={roster === null ? null : totals.size}
-          label="Rostered"
-          delta={state === 'all' ? 'All periods' : `${state} periods`}
+          label={l('Rostered', 'Dans l’effectif')}
+          delta={
+            state === 'all'
+              ? l('All periods', 'Toutes les périodes')
+              : `${state} ${l('periods', 'périodes')}`
+          }
         />
 
         <StatTile
           icon={<Users aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={capacity === null ? null : totals.workload}
-          label="Assigned prospects"
+          label={l('Assigned prospects', 'Prospects attribués')}
         />
 
         <StatTile
           icon={<Users aria-hidden="true" className="size-5" />}
           tone="neutral"
           value={capacity === null ? null : totals.target || '—'}
-          label="Combined target"
-          delta={totals.untargeted > 0 ? `${totals.untargeted} without a target` : undefined}
+          label={l('Combined target', 'Objectif cumulé')}
+          delta={
+            totals.untargeted > 0
+              ? `${totals.untargeted} ${l('without a target', 'sans objectif')}`
+              : undefined
+          }
         />
 
         <StatTile
           icon={<Users aria-hidden="true" className="size-5" />}
           tone={(capacity?.paused ?? 0) > 0 ? 'warning' : 'neutral'}
           value={capacity?.paused ?? null}
-          label="Paused assignments"
+          label={l('Paused assignments', 'Attributions suspendues')}
         />
       </div>
 
       <Card>
         <CardHeader
-          title="Roster"
+          title={l('Roster', 'Effectif')}
           action={
             <FilterSelect
-              label="Period"
+              label={l('Period', 'Période')}
               value={state}
               options={[
-                { value: 'active', label: 'Active' },
-                { value: 'scheduled', label: 'Scheduled' },
-                { value: 'ended', label: 'Ended' },
-                { value: 'revoked', label: 'Revoked' },
-                { value: 'all', label: 'All' },
+                { value: 'active', label: l('Active', 'Active') },
+                { value: 'scheduled', label: l('Scheduled', 'Planifiée') },
+                { value: 'ended', label: l('Ended', 'Terminée') },
+                { value: 'revoked', label: l('Revoked', 'Révoquée') },
+                { value: 'all', label: l('All', 'Toutes') },
               ]}
               onChange={(value) => setState(value as RosterState | 'all')}
             />
@@ -433,8 +467,11 @@ export default function TeamPage() {
         ) : roster.length === 0 ? (
           <p className="py-10 text-center text-[15px] text-ink-muted">
             {state === 'active'
-              ? 'Nobody is rostered to this team right now.'
-              : `No ${state} rostering periods.`}
+              ? l(
+                  'Nobody is rostered to this team right now.',
+                  'Personne n’est actuellement dans l’effectif de cette équipe.',
+                )
+              : `${l('No', 'Aucune')} ${state} ${l('rostering periods.', 'période d’effectif.')}`}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-line-soft">
@@ -468,7 +505,8 @@ export default function TeamPage() {
                     {workload ? (
                       percent === null ? (
                         <span className="text-[13px] text-ink-muted">
-                          {workload.globalWorkload} assigned · no target
+                          {workload.globalWorkload}{' '}
+                          {l('assigned · no target', 'attribués · sans objectif')}
                         </span>
                       ) : (
                         <span className="flex flex-col gap-1">
@@ -485,7 +523,9 @@ export default function TeamPage() {
                   </span>
 
                   <Badge tone={entry.teamRole === 'manager' ? 'brand' : 'neutral'}>
-                    {entry.teamRole === 'manager' ? 'Team manager' : 'Member'}
+                    {entry.teamRole === 'manager'
+                      ? l('Team manager', 'Responsable d’équipe')
+                      : l('Member', 'Membre')}
                   </Badge>
 
                   <Badge tone={rosterStateTone(entry.state)}>{entry.state}</Badge>
@@ -508,11 +548,13 @@ export default function TeamPage() {
                                 },
                                 entry.etag,
                               ),
-                            'Team role updated.',
+                            l('Team role updated.', 'Rôle d’équipe mis à jour.'),
                           )
                         }
                       >
-                        {entry.teamRole === 'manager' ? 'Make member' : 'Make manager'}
+                        {entry.teamRole === 'manager'
+                          ? l('Make member', 'Rendre membre')
+                          : l('Make manager', 'Rendre responsable')}
                       </Button>
 
                       <Button
@@ -523,12 +565,12 @@ export default function TeamPage() {
                           void run(
                             `end-${entry.id}`,
                             () => endRosterMember(teamId, entry.membershipId, entry.etag),
-                            'Rostering ended.',
+                            l('Rostering ended.', 'Période d’effectif terminée.'),
                           )
                         }
                       >
                         <UserMinus aria-hidden="true" className="mr-1.5 size-4" />
-                        End
+                        {l('End', 'Terminer')}
                       </Button>
                     </span>
                   ) : null}
@@ -538,14 +580,23 @@ export default function TeamPage() {
           </ul>
         )}
 
-        <Alert tone="info" className="mt-5" title="Ending a rostering is not a removal.">
-          It closes this person’s period on this team. Their workspace membership, and any other
-          team they are rostered to, are unaffected.
+        <Alert
+          tone="info"
+          className="mt-5"
+          title={l(
+            'Ending a rostering is not a removal.',
+            'Terminer une période ne supprime pas la personne.',
+          )}
+        >
+          {l(
+            'It closes this person’s period on this team. Their workspace membership, and any other team they are rostered to, are unaffected.',
+            'La période de cette personne dans l’équipe est clôturée. Son appartenance à l’espace et ses autres équipes restent inchangées.',
+          )}
         </Alert>
       </Card>
 
       <Card>
-        <CardHeader title="Territory coverage" />
+        <CardHeader title={l('Territory coverage', 'Couverture territoriale')} />
 
         {territories === null ? (
           <div className="flex flex-col gap-2" aria-busy="true">
@@ -555,7 +606,10 @@ export default function TeamPage() {
           </div>
         ) : territories.length === 0 ? (
           <p className="py-8 text-center text-[15px] text-ink-muted">
-            No territory is assigned to this team.
+            {l(
+              'No territory is assigned to this team.',
+              'Aucun territoire n’est attribué à cette équipe.',
+            )}
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-line-soft">
@@ -571,7 +625,9 @@ export default function TeamPage() {
                 </span>
 
                 {assignment.priority !== null ? (
-                  <Badge tone="neutral">Priority {assignment.priority}</Badge>
+                  <Badge tone="neutral">
+                    {l('Priority', 'Priorité')} {assignment.priority}
+                  </Badge>
                 ) : null}
 
                 <Badge tone={assignment.state === 'active' ? 'success' : 'neutral'}>
@@ -585,7 +641,10 @@ export default function TeamPage() {
         {/* Territory names live behind GET /territories/:id, one call per
             row. The id is shown rather than firing a request per territory. */}
         <p className="mt-4 text-[13px] text-ink-muted">
-          Territories are shown by identifier; open the map for their boundaries.
+          {l(
+            'Territories are shown by identifier; open the map for their boundaries.',
+            'Les territoires sont affichés par identifiant ; ouvrez la carte pour voir leurs limites.',
+          )}
         </p>
       </Card>
 
@@ -598,7 +657,7 @@ export default function TeamPage() {
           run(
             'add',
             () => addRosterMember(teamId, { membershipId, teamRole }),
-            'Member added to the team.',
+            l('Member added to the team.', 'Membre ajouté à l’équipe.'),
           ).then(() => setAdding(false))
         }
       />
@@ -619,6 +678,8 @@ function AddMemberDrawer({
   onClose: () => void;
   onAdd: (membershipId: string, teamRole: TeamRole) => void;
 }) {
+  const { language } = useTranslation();
+  const l = (en: string, fr: string) => text(en, fr, language);
   const [membershipId, setMembershipId] = useState('');
   const [teamRole, setTeamRole] = useState<TeamRole>('member');
 
@@ -630,21 +691,31 @@ function AddMemberDrawer({
   }, [open]);
 
   return (
-    <Drawer open={open} title="Add a team member" onClose={onClose}>
+    <Drawer
+      open={open}
+      title={l('Add a team member', 'Ajouter un membre à l’équipe')}
+      onClose={onClose}
+    >
       <div className="flex flex-col gap-5">
         {candidates.length === 0 ? (
-          <Alert tone="info" title="Everyone is already rostered.">
-            Invite someone to the workspace first, from Users &amp; roles.
+          <Alert
+            tone="info"
+            title={l('Everyone is already rostered.', 'Tout le monde est déjà dans l’effectif.')}
+          >
+            {l(
+              'Invite someone to the workspace first, from Users & roles.',
+              'Invitez d’abord une personne dans l’espace depuis Utilisateurs et rôles.',
+            )}
           </Alert>
         ) : (
           <>
             <SelectField
-              label="Person"
+              label={l('Person', 'Personne')}
               value={membershipId}
               disabled={busy}
               onChange={(event) => setMembershipId(event.target.value)}
               options={[
-                { value: '', label: 'Choose a person…' },
+                { value: '', label: l('Choose a person…', 'Choisir une personne…') },
                 ...candidates.map((person) => ({
                   value: person.id,
                   label: `${membershipName(person)} · ${person.email}`,
@@ -653,19 +724,21 @@ function AddMemberDrawer({
             />
 
             <SelectField
-              label="Team role"
+              label={l('Team role', 'Rôle dans l’équipe')}
               value={teamRole}
               disabled={busy}
               onChange={(event) => setTeamRole(event.target.value as TeamRole)}
               options={[
-                { value: 'member', label: 'Member' },
-                { value: 'manager', label: 'Team manager' },
+                { value: 'member', label: l('Member', 'Membre') },
+                { value: 'manager', label: l('Team manager', 'Responsable d’équipe') },
               ]}
             />
 
             <p className="-mt-2 text-[13px] text-ink-muted">
-              The rostering starts now. A team role is separate from the workspace role that governs
-              their permissions.
+              {l(
+                'The rostering starts now. A team role is separate from the workspace role that governs their permissions.',
+                'La période commence maintenant. Le rôle d’équipe est distinct du rôle d’espace qui régit ses autorisations.',
+              )}
             </p>
 
             <Button
@@ -674,7 +747,7 @@ function AddMemberDrawer({
               disabled={membershipId === ''}
               onClick={() => onAdd(membershipId, teamRole)}
             >
-              Add to team
+              {l('Add to team', 'Ajouter à l’équipe')}
             </Button>
           </>
         )}
@@ -683,22 +756,32 @@ function AddMemberDrawer({
   );
 }
 
-function describeTeamError(error: unknown): string {
+function describeTeamError(error: unknown, language: string = 'en'): string {
+  const l = (en: string, fr: string) => text(en, fr, language);
   if (!(error instanceof ApiError)) {
-    return 'Something went wrong. Please try again.';
+    return l('Something went wrong. Please try again.', 'Une erreur est survenue. Réessayez.');
   }
 
   if (error.statusCode === 403) {
-    return 'You are not authorized to manage this team.';
+    return l(
+      'You are not authorized to manage this team.',
+      'Vous n’êtes pas autorisé à gérer cette équipe.',
+    );
   }
 
   if (error.statusCode === 409 || error.statusCode === 412) {
-    return 'This roster changed elsewhere. Reload before trying again.';
+    return l(
+      'This roster changed elsewhere. Reload before trying again.',
+      'Cet effectif a changé ailleurs. Rechargez avant de réessayer.',
+    );
   }
 
   if (error.statusCode === 400) {
     return error.messages.join(' ');
   }
 
-  return 'We could not load this team. Please try again.';
+  return l(
+    'We could not load this team. Please try again.',
+    'Impossible de charger cette équipe. Réessayez.',
+  );
 }

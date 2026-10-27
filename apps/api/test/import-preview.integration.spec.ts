@@ -280,6 +280,7 @@ describe('Import preview HTTP integration', () => {
       validRows: 1,
       warningRows: 0,
       invalidRows: 0,
+      missingFields: {},
     });
 
     expect(result.rows[0]).toMatchObject({
@@ -335,6 +336,9 @@ describe('Import preview HTTP integration', () => {
       validRows: 1,
       warningRows: 0,
       invalidRows: 2,
+      missingFields: {
+        name: 1,
+      },
     });
 
     expect(result.rows[1]?.status).toBe('invalid');
@@ -375,6 +379,7 @@ describe('Import preview HTTP integration', () => {
       validRows: 1,
       warningRows: 1,
       invalidRows: 0,
+      missingFields: {},
     });
 
     expect(result.rows[1]?.issues).toEqual(

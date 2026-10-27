@@ -50,26 +50,35 @@ function row(overrides: Partial<ImportRow> = {}): ImportRow {
 }
 
 describe('importSteps', () => {
+  it('uses decision-focused labels for the operator', () => {
+    expect(importSteps(null).map((step) => step.label)).toEqual([
+      'Upload file',
+      'Confirm columns',
+      'Review data',
+      'Import',
+    ]);
+  });
+
   it('marks nothing complete before a file is uploaded', () => {
     expect(importSteps(null).map((step) => step.state)).toEqual([
       'active',
       'pending',
       'pending',
       'pending',
-      'pending',
     ]);
   });
 
-  it('treats a file without required mappings as still on the map step', () => {
+  it('treats a file with only a name mapping as ready to validate', () => {
     const steps = importSteps(
       job({ status: 'uploaded', fileHash: 'abc', mapping: { name: 'Name' } }),
     );
 
     expect(steps[0]?.state).toBe('complete');
-    expect(steps[1]?.state).toBe('active');
+    expect(steps[1]?.state).toBe('complete');
+    expect(steps[2]?.state).toBe('active');
   });
 
-  it('completes mapping only once name and country_code are both mapped', () => {
+  it('keeps optional country mapping when it is present', () => {
     const steps = importSteps(
       job({
         status: 'uploaded',
@@ -82,7 +91,7 @@ describe('importSteps', () => {
     expect(steps[2]?.state).toBe('active');
   });
 
-  it('marks normalize and deduplicate complete once the file is validated', () => {
+  it('marks review complete once the file is validated', () => {
     const steps = importSteps(
       job({
         status: 'validated',
@@ -91,13 +100,7 @@ describe('importSteps', () => {
       }),
     );
 
-    expect(steps.map((step) => step.state)).toEqual([
-      'complete',
-      'complete',
-      'complete',
-      'complete',
-      'active',
-    ]);
+    expect(steps.map((step) => step.state)).toEqual(['complete', 'complete', 'complete', 'active']);
   });
 
   it('completes every step once committed', () => {
@@ -115,9 +118,9 @@ describe('importSteps', () => {
   /*
    * Correcting a row rewinds the job to `uploaded` and discards the parsed
    * rows. The stepper has to walk backwards with it, otherwise the operator is
-   * told validation is done when the API has thrown it away.
+   * told review is done when the API has thrown it away.
    */
-  it('walks back to normalize when a correction rewinds the job', () => {
+  it('walks back to review when a correction rewinds the job', () => {
     const rewound: ImportStatus = 'uploaded';
 
     const steps = importSteps(
@@ -166,6 +169,25 @@ describe('commitBlockers', () => {
   it('clears an existing match once reuse is chosen', () => {
     expect(
       commitBlockers([row({ rowNumber: 3, existingId: 'establishment-1', resolution: 'reuse' })]),
+    ).toEqual([]);
+  });
+
+  it('clears a possible match once keep separate is chosen', () => {
+    expect(
+      commitBlockers([
+        row({
+          rowNumber: 3,
+          existingId: 'establishment-1',
+          resolution: 'create',
+          data: {
+            rowNumber: 3,
+            status: 'warning',
+            establishment: null,
+            contact: null,
+            issues: [{ code: 'possible_duplicate', severity: 'warning', message: 'possible' }],
+          },
+        }),
+      ]),
     ).toEqual([]);
   });
 

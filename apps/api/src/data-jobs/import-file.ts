@@ -55,7 +55,32 @@ function checkZip(buffer: Buffer) {
       buffer.readUInt16LE(cursor + 32);
   }
 }
-export async function parseImportFile(filename: string, buffer: Buffer) {
+export async function listImportSheets(filename: string, buffer: Buffer): Promise<string[]> {
+  if (!filename.toLowerCase().endsWith('.xlsx')) {
+    return [];
+  }
+
+  if (buffer.length > MAX_IMPORT_FILE_BYTES) {
+    throw new PayloadTooLargeException('Import exceeds 5 MiB');
+  }
+
+  checkZip(buffer);
+  const workbook = new ExcelJS.Workbook();
+
+  try {
+    await workbook.xlsx.load(buffer as never);
+  } catch {
+    throw new BadRequestException('Invalid XLSX workbook');
+  }
+
+  if (workbook.worksheets.length === 0) {
+    throw new BadRequestException('The workbook does not contain a data worksheet.');
+  }
+
+  return workbook.worksheets.map((sheet) => sheet.name);
+}
+
+export async function parseImportFile(filename: string, buffer: Buffer, sheetName?: string) {
   if (buffer.length > MAX_IMPORT_FILE_BYTES)
     throw new PayloadTooLargeException('Import exceeds 5 MiB');
   let cells: string[][];
@@ -78,9 +103,19 @@ export async function parseImportFile(filename: string, buffer: Buffer) {
     } catch {
       throw new BadRequestException('Invalid XLSX workbook');
     }
-    if (workbook.worksheets.length !== 1)
-      throw new BadRequestException('Use a workbook with exactly one worksheet');
-    const sheet = workbook.worksheets[0]!;
+    const sheet = sheetName
+      ? workbook.getWorksheet(sheetName)
+      : workbook.worksheets.length === 1
+        ? workbook.worksheets[0]
+        : undefined;
+
+    if (!sheet) {
+      throw new BadRequestException(
+        workbook.worksheets.length > 1
+          ? 'Choose which worksheet to import before continuing.'
+          : 'The workbook does not contain a data worksheet.',
+      );
+    }
     if (sheet.rowCount > MAX_IMPORT_ROWS + 1 || sheet.columnCount > 100)
       throw new PayloadTooLargeException('Workbook exceeds row/column limits');
     cells = [];
